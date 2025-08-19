@@ -1,0 +1,37 @@
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "traxx-e1232",
+          "appId": "1:781524162883:android:f723fa69ae867dffa377f6",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "traxx-e1232",
+          "configurations": {
+            "android": "1:781524162883:android:f723fa69ae867dffa377f6",
+            "ios": "1:781524162883:ios:4894131d18b11b82a377f6",
+            "web": "1:781524162883:web:df76957347e90194a377f6"
+          }
+        }
+      }
+    }
+  }
+}
