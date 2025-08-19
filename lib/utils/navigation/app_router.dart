@@ -6,7 +6,7 @@ import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/view/host/create_event/create_event_view.dart';
-import 'package:traxx_wepapp/view/host/host_screen.dart';
+import 'package:traxx_wepapp/view/host/host_event_list_screen.dart';
 import 'package:traxx_wepapp/view/host/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/info/about_view.dart';
 import 'package:traxx_wepapp/view/info/contact_view.dart';
@@ -69,7 +69,8 @@ GoRouter buildRouter() {
         routes: [
           GoRoute(
             path: AppRoute.hostEvents.path,
-            builder: (context, state) => HostScreen(), //Not created yet
+            builder: (context, state) =>
+                HostEventListScreen(), //Not created yet
           ),
           GoRoute(
             path: AppRoute.hostCreateEvent.path,

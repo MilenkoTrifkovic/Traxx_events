@@ -11,7 +11,7 @@ import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 class CreateEventController {
   final EventFormState formState = Get.find<EventFormState>();
   final FirestoreServices firestoreServices = Get.find<FirestoreServices>();
-  final StorageServices storageServices = StorageServices();
+  final StorageServices storageServices = Get.find<StorageServices>();
 
   final ImageServices _imageServices = ImageServices();
 

@@ -14,10 +14,12 @@ class Event {
   final String eventType;
   final String timezone;
   final LatLng location;
-  final XFile? coverImage;
-  String? coverImageUrl;
+  final String status = 'Status';
 
   // Optional fields
+  final XFile? coverImage;
+  String? coverImageUrl;
+  String? coverImageDownloadUrl;
   final String? description;
   final String? dressCode;
   final String? plannerEmail;
@@ -36,12 +38,54 @@ class Event {
     required this.location,
     this.coverImage,
     this.coverImageUrl,
+    this.coverImageDownloadUrl,
     this.description,
     this.dressCode,
     this.plannerEmail,
     this.specialNotes,
     this.hideHostInfo = false,
   });
+
+  /// Creates an Event instance from a Firestore document
+  ///
+  /// Parameters:
+  ///   doc: DocumentSnapshot containing event data from Firestore
+  ///
+  /// Returns:
+  ///   A new Event instance populated with Firestore data
+  factory Event.fromFirestore(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+
+    // Extract location data
+    final locMap = data['location'] as Map<String, dynamic>;
+    final location = LatLng(
+      locMap['latitude'] as double,
+      locMap['longitude'] as double,
+    );
+
+    // Convert Firestore timestamps to DateTime
+    final startDateTime = (data['startDateTime'] as Timestamp).toDate();
+    final endDateTime = (data['endDateTime'] as Timestamp).toDate();
+    final rsvpDeadline = (data['rsvpDeadline'] as Timestamp).toDate();
+
+    return Event(
+      name: data['name'] as String,
+      address: data['address'] as String,
+      capacity: data['capacity'] as int,
+      startDateTime: startDateTime,
+      endDateTime: endDateTime,
+      rsvpDeadline: rsvpDeadline,
+      eventType: data['eventType'] as String,
+      timezone: data['timezone'] as String,
+      location: location,
+      coverImageUrl: data['coverImageUrl'] as String?,
+      description: data['description'] as String?,
+      dressCode: data['dressCode'] as String?,
+      plannerEmail: data['plannerEmail'] as String?,
+      specialNotes: data['specialNotes'] as String?,
+      hideHostInfo: data['hideHostInfo'] as bool? ?? false,
+    );
+  }
 
   /// Creates an Event instance from the form state
   ///
@@ -53,6 +97,7 @@ class Event {
   ///
   /// Throws:
   ///   ValidationError if required fields are missing or invalid
+
   factory Event.fromFormState(EventFormState state) {
     // Validate all required fields
     EventValidator.validateRequiredFields(
@@ -145,6 +190,7 @@ Event {
   plannerEmail: $plannerEmail
   specialNotes: $specialNotes
   hideHostInfo: $hideHostInfo
+  downloadURL: $coverImageDownloadUrl
 }''';
   }
 }

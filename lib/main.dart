@@ -5,6 +5,7 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
@@ -21,9 +22,10 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
-  Get.lazyPut<HostController>(() => HostController(), fenix: true);
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
+  Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
+  Get.lazyPut<StorageServices>(() => StorageServices(), fenix: true);
+  Get.lazyPut<HostController>(() => HostController(), fenix: true);
 
   runApp(MyApp());
 }

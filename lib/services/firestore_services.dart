@@ -37,4 +37,24 @@ class FirestoreServices {
       rethrow;
     }
   }
+
+  Future<List<Event>> getAllEvents() async {
+    // TODO after login implementation:
+// - Check if the user is logged in
+// - Retrieve all events assigned to the user
+// - Fetch only the assigned events (Firestore rules will also apply)
+
+    try {
+      List<Event> events = [];
+      final snapshot = await eventsRef.get();
+      events = snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
+      return events;
+    } on FirebaseException catch (e) {
+      print('Firestore error: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error fetching events: $e');
+      rethrow;
+    }
+  }
 }

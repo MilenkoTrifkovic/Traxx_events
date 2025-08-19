@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:traxx_wepapp/models/event.dart';
 
 class StorageServices {
   /// Uploads an image file to Firebase Storage
@@ -30,5 +31,21 @@ class StorageServices {
       print('Upload failed: $e');
       throw Exception('Image upload failed: $e');
     }
+  }
+
+  /// Loads and sets the download URL for an event's cover image.
+  ///
+  /// Takes an [Event] object and updates its coverImageDownloadUrl
+  /// by fetching the URL from Firebase Storage using the stored path.
+  /// Returns the updated Event object or the same object if loading fails.
+  Future<Event> loadImage(Event event) async {
+    try {
+      String path = event.coverImageUrl ?? '';
+      final ref = FirebaseStorage.instance.ref().child(path);
+      event.coverImageDownloadUrl = await ref.getDownloadURL();
+    } catch (e) {
+      print('Image loading failed: $e');
+    }
+    return event;
   }
 }
