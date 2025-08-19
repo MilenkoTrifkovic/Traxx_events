@@ -1,6 +1,7 @@
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
@@ -12,6 +13,7 @@ class CreateEventController {
   final EventFormState formState = Get.find<EventFormState>();
   final FirestoreServices firestoreServices = Get.find<FirestoreServices>();
   final StorageServices storageServices = Get.find<StorageServices>();
+  final HostController hostController = Get.find<HostController>();
 
   final ImageServices _imageServices = ImageServices();
 
@@ -26,6 +28,7 @@ class CreateEventController {
         event.coverImageUrl = imagePath;
       }
       await firestoreServices.saveEvent(event);
+      hostController.addCreatedEvent(event); //add event to list
       //Planner Invite
       print('Event saved successfully');
     } catch (e) {

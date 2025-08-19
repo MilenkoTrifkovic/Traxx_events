@@ -27,6 +27,12 @@ class HostController extends GetxController {
     // filteredEvents.assignAll(events);
   }
 
+  void addCreatedEvent(Event event) {
+    events.add(event);
+    filteredEvents.add(event);
+    sortEvents(SortType.dateNewest);
+  }
+
   /// Filters events based on search text, matching event names
   /// Case-insensitive search that updates filteredEvents in real-time
   void filterEvents(String value) {
