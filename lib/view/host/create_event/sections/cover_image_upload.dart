@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:traxx_wepapp/controller/host_controllers/create_event_controller.dart';
-import 'package:traxx_wepapp/utils/styled_buttons/styled_buttons.dart';
+import 'package:traxx_wepapp/controller/host_controllers/create_edit_event_controller.dart';
+import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 
 /// Widget for handling event cover image upload.
@@ -17,8 +18,9 @@ class CoverImageUpload extends StatefulWidget {
 
 class _CoverImageUploadState extends State<CoverImageUpload> {
   /// Controller for handling image upload logic
-  final CreateEventController _createEventController =
-      Get.find<CreateEventController>();
+  final CreateEditEventController _createEventController =
+      Get.find<CreateEditEventController>();
+  final HostController _hostController = Get.find<HostController>();
 
   /// Form state for storing the uploaded image
   final EventFormState formState = Get.find<EventFormState>();
@@ -28,6 +30,37 @@ class _CoverImageUploadState extends State<CoverImageUpload> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hostController.isEditingEvent.value &&
+        _hostController.selectedEvent.value!.coverImageUrl != null &&
+        coverImage == null) {
+      return Column(
+        children: [
+          GestureDetector(
+            onTap: () async {
+              coverImage = await _createEventController.loadCoverImage();
+              setState(() {});
+            },
+            child: Container(
+              width: 400,
+              height: 225,
+              color: Colors.grey[200],
+              child: FittedBox(
+                fit: BoxFit.contain,
+                // fit: BoxFit.fill,
+                child: Image(
+                  image: Image.network(
+                    _hostController
+                            .selectedEvent.value?.coverImageDownloadUrl ??
+                        '',
+                  ).image,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
     return Column(
       children: [
         coverImage == null

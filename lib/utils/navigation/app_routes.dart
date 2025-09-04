@@ -8,6 +8,11 @@ enum AppRoute {
   hostEvents('/host-events'),
   hostCreateEvent('/host-create-event'),
 
+  eventDetails('/event-details'),
+  eventQuestions('/event-questions'),
+  eventMenus('/event-menus'),
+  eventGuests('/event-guests'),
+
   // Guest routes
 
   // Planner routes

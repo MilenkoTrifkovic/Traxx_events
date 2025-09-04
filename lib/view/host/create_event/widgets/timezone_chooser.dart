@@ -91,6 +91,7 @@ class TimezoneChooser extends StatelessWidget {
                 ),
               ),
               fit: FlexFit.loose),
+          selectedItem: formState.selectedTimezone,
 
           /// Updates the event form state with the newly selected timezone
           /// This change is immediately reflected in the form state

@@ -2,7 +2,7 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/widgets/date_time_picker.dart';
 import 'package:traxx_wepapp/view/host/create_event/widgets/timezone_chooser.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
@@ -25,6 +25,7 @@ class RequiredFields extends StatelessWidget {
   Widget build(BuildContext context) {
     /// Get access to the shared event form state
     final EventFormState formState = Get.find<EventFormState>();
+    print('EventForm state: ${formState.toString()}');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,6 +139,7 @@ class RequiredFields extends StatelessWidget {
         /// Allows user to pick when the event begins
         /// Updates the form state with the selected start datetime
         DateTimePicker(
+            initialDateTime: formState.startDateTime,
             label: 'Select Start Event Date & Time',
             onDateTimeChanged: (dateTime) {
               formState.startDateTime = dateTime;
@@ -148,6 +150,7 @@ class RequiredFields extends StatelessWidget {
         /// Allows user to pick when the event ends
         /// Updates the form state with the selected end datetime
         DateTimePicker(
+            initialDateTime: formState.endDateTime,
             label: 'Select End Event Date & Time',
             onDateTimeChanged: (dateTime) {
               formState.endDateTime = dateTime;
@@ -155,6 +158,7 @@ class RequiredFields extends StatelessWidget {
         AppSpacing.verticalXs(context),
         DateTimePicker(
             //Enable dates between start and end date
+            initialDateTime: formState.rsvpDeadline,
             label: 'Select RSVP Deadline',
             onDateTimeChanged: (dateTime) {
               formState.rsvpDeadline = dateTime;

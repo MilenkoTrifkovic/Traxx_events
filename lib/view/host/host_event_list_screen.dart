@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/view/common_widgets/list_of_events.dart';
 import 'package:traxx_wepapp/view/common_widgets/search_field.dart';
 import 'package:traxx_wepapp/view/common_widgets/sort_events.dart';
@@ -21,7 +22,7 @@ class HostEventListScreen extends StatelessWidget {
     // Build the main layout with scrolling and padding
     return SingleChildScrollView(
       child: Padding(
-        padding: AppPadding.all(context, paddingType: PaddingType.sm),
+        padding: AppPadding.all(context, paddingType: Sizes.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

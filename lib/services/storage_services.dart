@@ -39,6 +39,7 @@ class StorageServices {
   /// by fetching the URL from Firebase Storage using the stored path.
   /// Returns the updated Event object or the same object if loading fails.
   Future<Event> loadImage(Event event) async {
+    //should use loadImageURL instead...
     try {
       String path = event.coverImageUrl ?? '';
       final ref = FirebaseStorage.instance.ref().child(path);
@@ -47,5 +48,17 @@ class StorageServices {
       print('Image loading failed: $e');
     }
     return event;
+  }
+
+  Future<String?> loadImageURL(String? path) async {
+    if (path == null || path.isEmpty) return null;
+
+    try {
+      final ref = FirebaseStorage.instance.ref().child(path);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Image loading failed: $e');
+      return null; // or throw
+    }
   }
 }

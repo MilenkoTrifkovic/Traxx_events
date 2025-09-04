@@ -25,4 +25,6 @@ class Constants {
   /// Line height multipliers
   static const double bodyLineHeight = 1.5;
   static const double labelLineHeight = 1.2;
+
+  static const double guestListContainerHeight = 40.0;
 }

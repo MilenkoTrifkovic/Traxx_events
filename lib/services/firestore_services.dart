@@ -1,12 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:traxx_wepapp/helper/firestore_helper.dart';
+import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_profile_field_config.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/models/menu.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
+import 'package:traxx_wepapp/utils/enums/input_type.dart';
 
 class FirestoreServices {
   final _db = FirebaseFirestore.instance;
 
   /// Reference to users collection in Firestore
-  late final CollectionReference<Map<String, dynamic>> userRef;
+  late final CollectionReference<Map<String, dynamic>> usersRef;
 
   /// Reference to events collection in Firestore
   late final CollectionReference<Map<String, dynamic>> eventsRef;
@@ -15,7 +20,7 @@ class FirestoreServices {
   late final CollectionReference<Map<String, dynamic>> locationsRef;
 
   FirestoreServices() {
-    userRef = _db.collection(usersCol);
+    usersRef = _db.collection(usersCol);
     eventsRef = _db.collection(eventsCol);
     locationsRef = _db.collection(locationsCol);
   }
@@ -38,6 +43,21 @@ class FirestoreServices {
     }
   }
 
+  Future<void> updateEvent(Event event) async {
+    try {
+      //Check if user logged in
+      final eventDocRef = eventsRef.doc(event.id);
+      await eventDocRef.update(event.toJson());
+      //Add event id to user document
+    } on FirebaseException catch (e) {
+      print('Firestore error: ${e.message}');
+      rethrow; // still rethrow but now logged
+    } catch (e) {
+      print('Unknown error saving event: $e');
+      rethrow;
+    }
+  }
+
   Future<List<Event>> getAllEvents() async {
     // TODO after login implementation:
 // - Check if the user is logged in
@@ -47,6 +67,7 @@ class FirestoreServices {
     try {
       List<Event> events = [];
       final snapshot = await eventsRef.get();
+      print('Fetched ${snapshot.docs} events');
       events = snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
       return events;
     } on FirebaseException catch (e) {
@@ -54,6 +75,225 @@ class FirestoreServices {
       rethrow;
     } catch (e) {
       print('Unknown error fetching events: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteEvent(String eventId) async {
+    try {
+      await eventsRef.doc(eventId).delete();
+    } on FirebaseException catch (e) {
+      print('Firestore error: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error deleting event: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> saveSetQuestions(
+      List<GuestProfileFieldConfig> list, String eventId) async {
+    final data = list.map((e) => e.toJson()).toList();
+
+    try {
+      await eventsRef
+          .doc(eventId)
+          .collection('guestQuestions')
+          .doc('config')
+          .set({
+        "guestQuestions": data,
+      });
+      print('Guest questions saved successfully.');
+    } catch (error) {
+      print('Failed to save guest questions: $error');
+      rethrow; // Re-throw if you want the error to propagate
+    }
+  }
+
+  Future<List<GuestProfileFieldConfig>> fetchAllSetQuestions(
+    String eventId,
+  ) async {
+    print('Fetching guest questions from: $eventId');
+    try {
+      final snapshot = await eventsRef
+          .doc(eventId)
+          .collection('guestQuestions')
+          .doc('config')
+          .get();
+      final data = snapshot.data();
+      print(data);
+      if (data != null && data.containsKey('guestQuestions')) {
+        final List<dynamic> fieldsData = data['guestQuestions'];
+        return fieldsData.map((field) {
+          return GuestProfileFieldConfig(
+              fieldName: field['fieldName'],
+              groupId: field['groupId'],
+              inputType: InputType.values.firstWhere(
+                (e) => e.toString() == 'InputType.${field['inputType']}',
+              ));
+        }).toList();
+      } else {
+        throw Exception("No fields found");
+      }
+    } catch (e) {
+      print('Fetch Started ${e.toString()}');
+      throw Exception("Failed to fetch guest fields: $e");
+    }
+  }
+
+  Future<void> saveMenus(List<MenuItem> menus, String eventId) async {
+    try {
+      final menuData = menus.map((menu) => menu.toFirestore()).toList();
+      await eventsRef.doc(eventId).collection('menus').doc('config').set({
+        'menus': menuData,
+      });
+      print('Menus saved successfully.');
+    } catch (error) {
+      print('Failed to save menus: $error');
+      rethrow;
+    }
+  }
+
+  /// Fetches all menu items for a specific event.
+  /// Returns an empty list if no menus are found.
+  /// Returns a List of MenuItem objects if menus are found.
+  /// If an error occurs, it throws an exception.
+  Future<List<MenuItem>> getMenus(String eventId) async {
+    try {
+      final snapshot =
+          await eventsRef.doc(eventId).collection('menus').doc('config').get();
+      if (!snapshot.exists) {
+        return [];
+      }
+      final data = snapshot.data();
+      if (data != null && data.containsKey('menus')) {
+        final List<dynamic> menusData = data['menus'];
+        return menusData.map((menu) => MenuItem.fromFirestore(menu)).toList();
+      } else {
+        throw Exception("No menus found");
+      }
+    } catch (e) {
+      print('Fetch Started ${e.toString()}');
+      throw Exception("Failed to fetch menus: $e");
+    }
+  }
+
+  ///Fetches all guests for a specific event.
+  Future<List<Guest>> fetchGuests(String eventId) async {
+    final colRef = eventsRef.doc(eventId).collection('guests');
+    final snapshot = await retryFirestore(() => colRef.get());
+    final guests =
+        snapshot.docs.map((e) => Guest.fromFirestore(e.data(), e.id)).toList();
+    return guests;
+  }
+
+  // Future<void> saveGuests(String eventId, List<Guest> guests) async {
+  //   final batch = _db.batch();
+  //   try {
+  //     for (Guest element in guests) {
+  //       final docRef = eventsRef.doc(eventId).collection('guests').doc();
+  //       batch.set(docRef, element.toFirestore());
+  //     }
+  //     await batch.commit();
+  //     print('Guests Saved Successfully');
+  //   } catch (e) {
+  //     print('Failed to save guests: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  /// Saves a single guest to a specific event's guest collection in Firestore.
+  ///
+  /// Parameters:
+  /// - [eventId]: The ID of the event to which the guest will be added
+  /// - [guest]: The [Guest] object containing the guest's information
+  ///
+  /// Returns a [Future<String>] containing the newly created guest document ID.
+  ///
+  /// The method creates a new document in the guests subcollection with a
+  /// auto-generated ID. Uses [SetOptions(merge: true)] to safely update existing
+  /// guests without overwriting unspecified fields.
+  ///
+  /// Throws an exception if the save operation fails.
+  Future<String> saveGuest(String eventId, Guest guest) async {
+    try {
+      final docRef = eventsRef.doc(eventId).collection('guests').doc();
+      await docRef.set(guest.toFirestore(), SetOptions(merge: true));
+      print('Guest Saved Successfully');
+      return docRef.id;
+    } catch (e) {
+      print('Failed to save guest: $e');
+      rethrow;
+    }
+  }
+
+  /// Updates an existing guest in an event's guest collection in Firestore.
+  ///
+  /// Parameters:
+  /// - [eventId]: The ID of the event containing the guest
+  /// - [guest]: The [Guest] object with updated information. Must contain valid [id] field
+  ///
+  /// Returns a [Future<void>] that completes when the update is successful.
+  ///
+  /// The method updates the guest document in the guests subcollection using the guest's ID.
+  /// Uses [SetOptions(merge: true)] to safely update only the specified fields.
+  ///
+  /// Throws an exception if the update operation fails.
+  Future<void> updateGuest(String eventId, Guest guest) async {
+    if (guest.id.isEmpty) {
+      throw Exception('Guest ID cannot be empty for update operation');
+    }
+
+    try {
+      final docRef = eventsRef.doc(eventId).collection('guests').doc(guest.id);
+      await docRef.set(guest.toFirestore(), SetOptions(merge: true));
+      print('Guest Updated Successfully');
+    } catch (e) {
+      print('Failed to update guest: $e');
+      rethrow;
+    }
+  }
+
+  /// Deletes a specific guest from an event's guest collection in Firestore.
+  ///
+  /// Parameters:
+  /// - [eventId]: The ID of the event from which the guest will be removed
+  /// - [guest]: The [Guest] object to be deleted. Must contain valid [id] field
+  ///
+  /// Returns a [Future<void>] that completes when the deletion is successful.
+  ///
+  /// The method removes the guest document from the guests subcollection
+  /// using the guest's ID. If the guest doesn't exist, Firestore will still
+  /// consider the operation successful.
+  ///
+  /// Throws an exception if the delete operation fails for other reasons.
+  Future<void> deleteGuest(String eventId, Guest guest) async {
+    try {
+      final docRef = eventsRef.doc(eventId).collection('guests').doc(guest.id);
+      await docRef.delete();
+      print('Guest Deleted Successfully');
+    } catch (e) {
+      print('Failed to delete guest: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> inviteGuest(String eventId, Guest guest) async {
+    try {
+      final querySnapshot =
+          await usersRef.where('email', isEqualTo: guest.email).limit(1).get();
+      final docRef = querySnapshot.docs.isNotEmpty
+          ? querySnapshot.docs.first.reference
+          : usersRef.doc();
+
+      await docRef.set({
+        'email': guest.email,
+        'guest': FieldValue.arrayUnion([eventId])
+      }, SetOptions(merge: true));
+
+      print('Guest Invited Successfully');
+    } catch (e) {
+      print('Failed to invite guest: $e');
       rethrow;
     }
   }

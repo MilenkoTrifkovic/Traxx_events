@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/host_controllers/create_event_controller.dart';
+import 'package:traxx_wepapp/controller/host_controllers/create_edit_event_controller.dart';
+import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
+import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/view/host/create_event/sections/cover_image_upload.dart';
@@ -24,25 +28,29 @@ import 'sections/required_fields.dart';
 /// - Save and cancel actions
 ///
 /// The view handles form validation, data persistence, and user navigation.
-class CreateEventView extends StatefulWidget {
-  const CreateEventView({super.key});
-
+class CreateEditEventView extends StatefulWidget {
+  const CreateEditEventView({super.key});
   @override
-  State<CreateEventView> createState() => _CreateEventViewState();
+  State<CreateEditEventView> createState() => _CreateEditEventViewState();
 }
 
 /// State management class for the CreateEventView.
 /// Handles form state, validation, and event creation logic.
-class _CreateEventViewState extends State<CreateEventView> {
+class _CreateEditEventViewState extends State<CreateEditEventView> {
   /// Global key for the form widget to handle validation
   final _formKey = GlobalKey<FormState>();
 
+  late final bool isEdit;
+  late final Event? event;
+
   /// State management for the event form using GetX
-  final EventFormState _formState = Get.put(EventFormState());
+
+  // EventFormState _formState = Get.put(EventFormState());
+  late EventFormState _formState;
+  late HostController hostController;
 
   /// Controller for handling event creation and persistence
-  final CreateEventController createEventController =
-      Get.put(CreateEventController());
+  late final CreateEditEventController createEventController;
 
   /// Keys for accessing and validating individual form fields
   /// Used for field-specific validation and auto-scrolling to invalid fields
@@ -66,7 +74,32 @@ class _CreateEventViewState extends State<CreateEventView> {
   void dispose() {
     _formState.dispose();
     Get.delete<EventFormState>();
+    Get.delete<CreateEditEventController>();
+    hostController.toggleEditingEvent(false);
+    print('EventFormState deleted');
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    hostController = Get.put(HostController());
+    isEdit = hostController.isEditingEvent.value;
+    if (isEdit) {
+      event = hostController.selectedEvent.value;
+      print('initState event: ${event.toString()}');
+      _formState = Get.put(EventFormState.fromEvent(event!));
+      print('initState formState: ${_formState.toString()}');
+    } else {
+      _formState = Get.put(
+        EventFormState(),
+      );
+    }
+    createEventController = Get.put(CreateEditEventController());
+    // _formState = Get.put(EventFormState());
+    // if (widget.isEdit) {
+    //   _formState = EventFormState.fromEvent(widget.event!);
+    // }
+    super.initState();
   }
 
   /// Builds the event creation form interface
@@ -81,13 +114,13 @@ class _CreateEventViewState extends State<CreateEventView> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: AppPadding.all(context, paddingType: PaddingType.md),
+      padding: AppPadding.all(context, paddingType: Sizes.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppText.styledHeadingMedium(
             context,
-            'Create Event',
+            isEdit ? 'Edit Event' : 'Create Event',
           ),
           Form(
             key: _formKey,
@@ -100,6 +133,7 @@ class _CreateEventViewState extends State<CreateEventView> {
                 CoverImageUpload(),
                 ActionButtons(
                   onSave: _handleSave,
+                  onUpdate: _handleUpdate,
                   onCancel: _handleCancel,
                 ),
               ],
@@ -151,6 +185,39 @@ class _CreateEventViewState extends State<CreateEventView> {
     }
   }
 
+  Future<void> _handleUpdate() async {
+    if (!_formKey.currentState!.validate()) {
+      // Finds first invalid field and scrolls to it
+      for (var field in _fieldKeys.keys) {
+        if (_fieldKeys[field]?.currentState?.validate() == false) {
+          Scrollable.ensureVisible(
+            duration: const Duration(milliseconds: 300),
+            _fieldKeys[field]!.currentContext!,
+            curve: Curves.easeOut,
+          );
+          break;
+        }
+      }
+      return;
+    }
+
+    try {
+      showLoadingIndicator();
+      await createEventController.updateEvent();
+      if (!mounted) return;
+      // await popRoute(context);
+      hostController.toggleEditingEvent(false);
+      if (!mounted) return;
+      SnackBarUtils.showSuccess(context, 'Event is updated successfully!');
+    } catch (e) {
+      if (!mounted) return;
+      final message = e.toString().replaceFirst('Exception: ', '');
+      SnackBarUtils.showError(context, message);
+    } finally {
+      hideLoadingIndicator();
+    }
+  }
+
   /// Handles the cancellation of event creation
   ///
   /// Shows a confirmation dialog before discarding changes.
@@ -160,7 +227,11 @@ class _CreateEventViewState extends State<CreateEventView> {
       context,
       'Are you sure you want to discard all changes?',
       () {
-        popRoute(context);
+        if (hostController.isEditingEvent.value) {
+          hostController.toggleEditingEvent(false);
+        } else {
+          replaceRoute(AppRoute.hostEvents, context);
+        }
       },
     );
   }

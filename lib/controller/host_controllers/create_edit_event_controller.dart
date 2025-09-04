@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 
 /// Controller for managing event creation operations
-class CreateEventController {
+class CreateEditEventController {
   final EventFormState formState = Get.find<EventFormState>();
   final FirestoreServices firestoreServices = Get.find<FirestoreServices>();
   final StorageServices storageServices = Get.find<StorageServices>();
@@ -21,18 +21,52 @@ class CreateEventController {
   /// Throws Exception if save operation fails.
   Future<void> saveEvent() async {
     try {
+      print('Saving event...form State: ${formState.toString()}');
       final Event event = Event.fromFormState(formState);
+      print('Saving event...event State: ${event.toString()}');
+
       if (formState.coverImage != null) {
         String imagePath =
             await storageServices.uploadImage(formState.coverImage!);
         event.coverImageUrl = imagePath;
+        await storageServices.loadImage(
+            event); //gets download URL so event can be added to list without needing to refetch
       }
       await firestoreServices.saveEvent(event);
-      hostController.addCreatedEvent(event); //add event to list
+      hostController.addCreatedEvenToList(event); //add event to list
       //Planner Invite
       print('Event saved successfully');
     } catch (e) {
       print('Error saving event: $e');
+      throw Exception('$e');
+    }
+  }
+
+  /// Updates an existing event in Firestore with optional cover image upload.
+  /// Throws Exception if update operation fails.
+  Future<void> updateEvent() async {
+    try {
+      final Event event = Event.fromFormState(formState);
+      event.id = hostController.selectedEvent.value!.id;
+
+      //if user selected new image it will overwrite the old one
+      if (formState.coverImage != null) {
+        String imagePath =
+            await storageServices.uploadImage(formState.coverImage!);
+        event.coverImageUrl = imagePath;
+        await storageServices.loadImage(event);
+      } else {
+        event.coverImageUrl = hostController.selectedEvent.value?.coverImageUrl;
+        event.coverImageDownloadUrl =
+            hostController.selectedEvent.value?.coverImageDownloadUrl;
+      }
+      await firestoreServices.updateEvent(event);
+      // hostController.addCreatedEvent(event); //add event to list
+      hostController.updateEventInEventList(event); //Update event in list
+      //Planner Invite
+      print('Event updated successfully');
+    } catch (e) {
+      print('Error updating event: $e');
       throw Exception('$e');
     }
   }

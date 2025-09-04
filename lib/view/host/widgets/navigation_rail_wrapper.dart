@@ -71,7 +71,10 @@ class NavigationRailWrapper extends StatelessWidget {
             if (index == 0) {
               pushAndRemoveAllRoute(AppRoute.hostEvents, context);
             } else if (index == 1) {
-              pushRoute(AppRoute.hostCreateEvent, context);
+              popRoute(context);
+              Future.delayed(Duration(milliseconds: 900), () {
+                pushAndRemoveAllRoute(AppRoute.hostCreateEvent, context); //
+              });
             }
           },
 

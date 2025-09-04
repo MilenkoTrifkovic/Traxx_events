@@ -2,7 +2,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
-import 'package:traxx_wepapp/utils/enums/SortType.dart';
+import 'package:traxx_wepapp/utils/enums/sortType.dart';
 
 class HostController extends GetxController {
   FirestoreServices firestoreServices = Get.find<FirestoreServices>();
@@ -10,6 +10,18 @@ class HostController extends GetxController {
   var isLoading = true.obs;
   RxList<Event> events = <Event>[].obs;
   RxList<Event> filteredEvents = <Event>[].obs;
+  RxBool isEditingEvent = false.obs;
+  Rxn<Event> selectedEvent = Rxn<Event>();
+
+  String? get eventId {
+    final event = selectedEvent.value;
+    return event?.id;
+  }
+
+  int? get eventCapacity {
+    final event = selectedEvent.value;
+    return event?.capacity;
+  }
 
   /// Fetches events from Firestore and loads their images from Storage
   Future<void> fetchEvents() async {
@@ -27,10 +39,39 @@ class HostController extends GetxController {
     // filteredEvents.assignAll(events);
   }
 
-  void addCreatedEvent(Event event) {
+  /// Deletes an event from Firestore and removes it from local lists
+  /// Throws Exception if delete operation fails
+  Future<void> deleteEvent() async {
+    try {
+      String eventId = selectedEvent.value!.id!;
+
+      await firestoreServices.deleteEvent(eventId);
+      events.removeWhere((event) => event.id == eventId);
+      filteredEvents.assignAll(events);
+      print('Event deleted successfully');
+    } catch (e) {
+      print('Error deleting event: $e');
+      throw Exception('$e');
+    }
+  }
+
+  void addCreatedEvenToList(Event event) {
     events.add(event);
     filteredEvents.add(event);
     sortEvents(SortType.dateNewest);
+  }
+
+  void updateEventInEventList(Event event) {
+    int index = events.indexWhere((e) => e.id == event.id);
+    if (index != -1) {
+      events[index] = event;
+    }
+    filteredEvents.assignAll(events);
+
+    sortEvents(SortType.dateNewest);
+    if (selectedEvent.value?.id == event.id) {
+      selectedEvent.value = event;
+    }
   }
 
   /// Filters events based on search text, matching event names
@@ -63,6 +104,10 @@ class HostController extends GetxController {
         filteredEvents.sort((a, b) => b.name.compareTo(a.name));
         break;
     }
+  }
+
+  void toggleEditingEvent(bool state) {
+    isEditingEvent.value = state;
   }
 
   /// Initializes the controller by fetching events and setting up initial sort

@@ -3,8 +3,9 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
-import 'package:traxx_wepapp/utils/enums/SortType.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
+import 'package:traxx_wepapp/utils/enums/sortType.dart';
 
 /// A dropdown widget for sorting events with multiple options.
 ///
@@ -22,7 +23,7 @@ class SortEvents extends StatelessWidget {
 
     return PopupMenuButton<SortType>(
       child: Container(
-        padding: AppPadding.all(context, paddingType: PaddingType.md),
+        padding: AppPadding.all(context, paddingType: Sizes.md),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

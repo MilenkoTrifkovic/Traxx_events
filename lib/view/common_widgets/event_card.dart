@@ -4,7 +4,8 @@ import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 /// A card widget that displays event information in a consistent format.
 ///
@@ -32,7 +33,7 @@ class EventCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: AppPadding.all(context, paddingType: PaddingType.sm),
+          padding: AppPadding.all(context, paddingType: Sizes.sm),
           child: Row(
             children: [
               Container(
@@ -48,8 +49,7 @@ class EventCard extends StatelessWidget {
                     : _buildPlaceholder(context),
               ),
               Padding(
-                padding:
-                    AppPadding.horizontal(context, paddingType: PaddingType.sm),
+                padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

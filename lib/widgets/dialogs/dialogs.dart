@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/constants.dart';
 
 class Dialogs {
   static void showConfirmationDialog(
-      BuildContext context, String message, VoidCallback onConfirm) {
+      BuildContext context, String message, VoidCallback onConfirm,
+      {String additionalExplanation = '', String title = 'Confirm'}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Confirm'),
-          content: Text(message),
+          title: AppText.styledHeadingSmall(
+            context,
+            title,
+            weight: FontWeight.bold,
+            family: Constants.font2,
+          ),
+          content: AppText.styledBodyMedium(context, message),
           actions: <Widget>[
             TextButton(
               onPressed: () {

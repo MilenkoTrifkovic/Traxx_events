@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:map_location_picker/map_location_picker.dart';
+import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/utils/static_data.dart';
 
 class EventFormState {
+  /// Creates a new empty EventFormState instance
+  EventFormState();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -20,6 +24,45 @@ class EventFormState {
   LatLng? selectedLocation;
   XFile? coverImage;
   List<XFile> additionalImages = [];
+
+  /// Creates an EventFormState instance from an existing Event
+  ///
+  /// This factory constructor initializes all form controllers and fields
+  /// with values from an existing Event object.
+  ///
+  /// Parameters:
+  ///   event: The Event object to initialize the form state from
+  factory EventFormState.fromEvent(Event event) {
+    final state = EventFormState();
+
+    // Initialize text controllers
+    state.nameController.text = event.name;
+    state.addressController.text = event.address;
+    state.capacityController.text = event.capacity.toString();
+    state.descriptionController.text = event.description ?? '';
+    state.dressCodeController.text = event.dressCode ?? '';
+    state.plannerEmailController.text = event.plannerEmail ?? '';
+    state.specialNotesController.text = event.specialNotes ?? '';
+
+    // Initialize date/time fields
+    state.startDateTime = event.startDateTime;
+    state.endDateTime = event.endDateTime;
+    state.rsvpDeadline = event.rsvpDeadline;
+
+    // Initialize selection fields
+    state.selectedEventType = StaticData.eventTypes.firstWhere(
+      (type) => type == event.eventType,
+    );
+    state.selectedTimezone = event.timezone;
+    state.selectedLocation = event.location;
+
+    // Initialize other fields
+    state.hideHostInfo = event.hideHostInfo;
+    state.coverImage = event.coverImage;
+
+    print('Factory EventFormState created from Event: ${event.toString()}');
+    return state;
+  }
 
   void dispose() {
     nameController.dispose();

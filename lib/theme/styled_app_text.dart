@@ -111,21 +111,31 @@ class AppText {
       FontStyle? style,
       int? maxLines,
       TextAlign? textAlign,
+      bool isSelectable = false,
       FontWeight weight = FontWeight.w400}) {
-    return Text(
-      text,
-      overflow: overflow,
-      maxLines: maxLines,
-      textAlign: textAlign,
-      style: TextStyle(
-          fontFamily: family,
-          fontSize: Constants.bodyMediumFontSize,
-          decoration: decoration,
-          fontWeight: weight,
-          fontStyle: style,
-          height: Constants.bodyLineHeight,
-          color: color ?? Theme.of(context).colorScheme.onSurface),
-    );
+    final TextStyle textStyle = TextStyle(
+        fontFamily: family,
+        fontSize: Constants.bodyMediumFontSize,
+        decoration: decoration,
+        fontWeight: weight,
+        fontStyle: style,
+        height: Constants.bodyLineHeight,
+        color: color ?? Theme.of(context).colorScheme.onSurface);
+
+    return isSelectable
+        ? SelectableText(
+            text,
+            maxLines: maxLines,
+            textAlign: textAlign,
+            style: textStyle,
+          )
+        : Text(
+            text,
+            overflow: overflow,
+            maxLines: maxLines,
+            textAlign: textAlign,
+            style: textStyle,
+          );
   }
 
   static Widget styledBodySmall(BuildContext context, String text,

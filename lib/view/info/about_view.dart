@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/widgets/welcome_app_bar.dart';
 
 class AboutView extends StatelessWidget {

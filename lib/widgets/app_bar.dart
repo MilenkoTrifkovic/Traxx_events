@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/constants.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 

@@ -1,4 +1,24 @@
+import 'package:traxx_wepapp/utils/enums/input_type.dart';
+
 class StaticData {
+  static const Map<String, Map<String, InputType>> guestProfileFields = {
+    'Personal Info': {
+      'First Name': InputType.text,
+      'Last Name': InputType.text,
+      'Date of Birth': InputType.date,
+      'Phone Number': InputType.number,
+      'Address': InputType.text,
+      'City': InputType.text,
+      'State': InputType.text,
+      'Country': InputType.text,
+      'Zip Code': InputType.text,
+    },
+    'Diet Info': {
+      'Vegan': InputType.yesno,
+      'Vegetarian': InputType.yesno,
+    }
+  };
+
   static const List<String> eventTypes = [
     'Wedding Reception',
     'Birthday Party',

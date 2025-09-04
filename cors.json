@@ -1,0 +1,13 @@
+[ 
+    {
+     "origin": [
+      "http://localhost",
+      "http://localhost:*",
+      "http://127.0.0.1",
+      "http://127.0.0.1:*",
+      "https://traxx-e1232.web.app"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE"],
+    "maxAgeSeconds": 3600
+    }
+]

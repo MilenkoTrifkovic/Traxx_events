@@ -3,8 +3,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/app_spacing.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 
@@ -71,7 +72,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             Expanded(
               flex: 1,
               child: Padding(
-                padding: AppPadding.all(context, paddingType: PaddingType.md),
+                padding: AppPadding.all(context, paddingType: Sizes.md),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Column(

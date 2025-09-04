@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/forms/create_event/event_validator.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 
 class Event {
+  String? id;
   final String name;
   final String address;
   final int capacity;
@@ -26,7 +27,10 @@ class Event {
   final String? specialNotes;
   final bool hideHostInfo;
 
+  
+
   Event({
+    this.id,
     required this.name,
     required this.address,
     required this.capacity,
@@ -69,6 +73,7 @@ class Event {
     final rsvpDeadline = (data['rsvpDeadline'] as Timestamp).toDate();
 
     return Event(
+      id: doc.id,
       name: data['name'] as String,
       address: data['address'] as String,
       capacity: data['capacity'] as int,
@@ -110,7 +115,6 @@ class Event {
       eventType: state.selectedEventType,
       timezone: state.selectedTimezone,
       location: state.selectedLocation,
-      coverImage: state.coverImage,
     );
     final capacity = int.parse(state.capacityController.text);
 
@@ -124,7 +128,7 @@ class Event {
       eventType: state.selectedEventType!,
       timezone: state.selectedTimezone!,
       location: state.selectedLocation!,
-      coverImage: state.coverImage!,
+      coverImage: state.coverImage,
       description: state.descriptionController.text.isNotEmpty
           ? state.descriptionController.text
           : null,

@@ -23,6 +23,8 @@ class AppColors {
       Theme.of(context).colorScheme.surface;
   static Color onSurface(BuildContext context) =>
       Theme.of(context).colorScheme.onSurface;
+  static Color outline(BuildContext context) =>
+      Theme.of(context).colorScheme.outline;
 
   static Color error(BuildContext context) =>
       Theme.of(context).colorScheme.error;

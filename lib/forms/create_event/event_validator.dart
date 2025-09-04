@@ -17,7 +17,6 @@ class EventValidator {
     required String? eventType,
     required String? timezone,
     required dynamic location,
-    required dynamic coverImage,
   }) {
     if (name.isEmpty) {
       throw EventValidationException('Event name is required');
