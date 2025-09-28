@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
@@ -10,7 +11,8 @@ import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
 class EventSetupSection extends StatelessWidget {
-  const EventSetupSection({super.key});
+  final Event event;
+  const EventSetupSection({super.key, required this.event});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +30,8 @@ class EventSetupSection extends StatelessWidget {
             'Menus',
             '',
             () {
-              pushRoute(AppRoute.eventMenus, context);
+              pushRoute(AppRoute.eventMenus, context,
+                  extra: event, urlParam: event.id);
             },
           ),
           _buildWidgetItem(

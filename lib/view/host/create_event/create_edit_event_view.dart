@@ -171,9 +171,12 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
 
     try {
       showLoadingIndicator();
-      await createEventController.saveEvent();
+      final Event savedEvent = await createEventController.saveEvent();
       if (!mounted) return;
-      await popRoute(context);
+      // await popRoute(context);
+      pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+      // pushAndRemoveAllRoute(AppRoute.eventDetails, context,
+      //     extra: savedEvent, urlParam: savedEvent.id);
       if (!mounted) return;
       SnackBarUtils.showSuccess(context, 'Event is created successfully!');
     } catch (e) {
@@ -203,9 +206,8 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
 
     try {
       showLoadingIndicator();
-      await createEventController.updateEvent();
+      await createEventController.updateEvent(event!);
       if (!mounted) return;
-      // await popRoute(context);
       hostController.toggleEditingEvent(false);
       if (!mounted) return;
       SnackBarUtils.showSuccess(context, 'Event is updated successfully!');

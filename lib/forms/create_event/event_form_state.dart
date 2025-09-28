@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:map_location_picker/map_location_picker.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
 
 class EventFormState {
@@ -15,6 +16,7 @@ class EventFormState {
   final TextEditingController specialNotesController = TextEditingController();
   final TextEditingController capacityController = TextEditingController();
 
+  ServiceType? serviceType;
   DateTime? startDateTime;
   DateTime? endDateTime;
   DateTime? rsvpDeadline;
@@ -57,6 +59,7 @@ class EventFormState {
     state.selectedLocation = event.location;
 
     // Initialize other fields
+    state.serviceType = event.serviceType;
     state.hideHostInfo = event.hideHostInfo;
     state.coverImage = event.coverImage;
 
@@ -74,28 +77,29 @@ class EventFormState {
     capacityController.dispose();
   }
 
-  Map<String, dynamic> getFormData() {
-    return {
-      'name': nameController.text,
-      'address': addressController.text,
-      'description': descriptionController.text,
-      'dressCode': dressCodeController.text,
-      'plannerEmail': plannerEmailController.text,
-      'specialNotes': specialNotesController.text,
-      'capacity': int.tryParse(capacityController.text),
-      'startDateTime': startDateTime,
-      'endDateTime': endDateTime,
-      'rsvpDeadline': rsvpDeadline,
-      'selectedEventType': selectedEventType,
-      'selectedTimezone': selectedTimezone,
-      'hideHostInfo': hideHostInfo,
-    };
-  }
+  // Map<String, dynamic> getFormData() {
+  //   return {
+  //     'name': nameController.text,
+  //     'address': addressController.text,
+  //     'description': descriptionController.text,
+  //     'dressCode': dressCodeController.text,
+  //     'plannerEmail': plannerEmailController.text,
+  //     'specialNotes': specialNotesController.text,
+  //     'capacity': int.tryParse(capacityController.text),
+  //     'startDateTime': startDateTime,
+  //     'endDateTime': endDateTime,
+  //     'rsvpDeadline': rsvpDeadline,
+  //     'selectedEventType': selectedEventType,
+  //     'selectedTimezone': selectedTimezone,
+  //     'hideHostInfo': hideHostInfo,
+  //   };
+  // }
 
   @override
   String toString() {
     return '''
 EventFormState {
+  serviceType: $serviceType
   name: ${nameController.text}
   address: ${addressController.text}
   description: ${descriptionController.text}

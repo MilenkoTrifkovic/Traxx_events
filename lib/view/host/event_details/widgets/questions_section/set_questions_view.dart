@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/models/guest_profile_field_config.dart';
+import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/controller/host_controllers/set_questions_controller.dart';
 import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
@@ -33,7 +33,7 @@ class _SetQuestionsViewState extends State<SetQuestionsView> {
   }
 
   Widget _buildItem(
-    GuestProfileFieldConfig item,
+    EventQuestions item,
     Animation<double> animation,
   ) {
     return SlideTransition(

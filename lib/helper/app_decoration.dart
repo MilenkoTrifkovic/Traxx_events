@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
@@ -11,6 +12,13 @@ class AppDecorations {
     );
   }
 
+  static BoxDecoration bottomModal(BuildContext context) {
+    return BoxDecoration(
+      color: AppColors.primaryContainer(context).withAlpha(200),
+      borderRadius: AppBorderRadius.radius(context, size: Sizes.sm),
+    );
+  }
+
   static BoxDecoration listDecoration(BuildContext context, {Color? color}) {
     return BoxDecoration(
       color: color ?? AppColors.primaryContainer(context).withAlpha(64),
@@ -18,6 +26,19 @@ class AppDecorations {
       border: Border(
         top: BorderSide(color: AppColors.onPrimaryContainer(context)),
       ),
+    );
+  }
+
+  static BoxDecoration bottomStickyButtonDecoration(BuildContext context) {
+    return BoxDecoration(
+      color: AppColors.background(context),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.onBackground(context).withAlpha(25),
+          blurRadius: 4,
+          offset: const Offset(0, -4),
+        ),
+      ],
     );
   }
 }

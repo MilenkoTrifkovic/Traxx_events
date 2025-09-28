@@ -26,7 +26,10 @@ class MenuItem {
     return {
       'id': id,
       'dishName': dishName,
-      'category': category.toString().split('.').last, // Store enum as string
+      'category': category
+          .toString()
+          .split('.')
+          .last, // Store enum as string =>.name is better option
       'description': description,
       'ingredientsAllergens': ingredientsAllergens,
       'imageUrl': imagePath,

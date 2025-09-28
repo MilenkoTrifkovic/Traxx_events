@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/models/guest_profile_field_config.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
@@ -12,32 +13,29 @@ class SetQuestionsController {
   RxBool isLoading = true.obs;
 
   /// Reference to the HostController (used to get current event details).
-  final HostController hostController = Get.find<HostController>();
+  // final EventListController eventController = Get.find<EventListController>();
+  final HostController hostController =
+      Get.find<HostController>(); //new approach
   // final AuthController authController = Get.find<AuthController>();
 
   /// Service that handles communication with the Firestore backend.
   late final FirestoreServices firestoreServices;
 
-  /// Unique event code used as a document ID in Firestore.
-  late final String docName;
-
   /// Keeps track of the next available ID for new guest fields.
   int _nextId = 0;
 
   /// Default fields, added in constructor, shown if no fields exist in Firestore.
-  final Map<int, GuestProfileFieldConfig> initialFields = {};
+  final Map<int, EventQuestions> initialFields = {};
 
   /// Fields that saving in Firestore.
-  final Map<int, GuestProfileFieldConfig> customFields = {};
+  final Map<int, EventQuestions> customFields = {};
 
   //List for UI
-  List<GuestProfileFieldConfig> customFieldsList =
+  List<EventQuestions> customFieldsList =
       []; //Crate one variable for UI and firestore
 
   /// Constructor: initializes the document name and default fields.
   SetQuestionsController() {
-    docName = 'Hardcoded number';
-    print(docName);
     firestoreServices = Get.find<FirestoreServices>();
 
     // Add fields from StaticData
@@ -103,7 +101,7 @@ class SetQuestionsController {
   }
 
   /// Removes a field from the customFieldsList and returns it.
-  GuestProfileFieldConfig removeFieldFromList(int index) {
+  EventQuestions removeFieldFromList(int index) {
     final removedField = customFieldsList.removeAt(index);
     return removedField;
   }
@@ -142,13 +140,13 @@ class SetQuestionsController {
 
   /// Creates a new field config (optionally with predefined values).
   /// Returns a MapEntry that can be added to a field map.
-  MapEntry<int, GuestProfileFieldConfig> createGuestFieldConfig({
+  MapEntry<int, EventQuestions> createGuestFieldConfig({
     String? fieldName,
     String? groupId,
     InputType? inputType,
   }) {
     final id = _nextId;
-    final newField = GuestProfileFieldConfig(
+    final newField = EventQuestions(
       fieldName: fieldName,
       groupId: groupId,
       inputType: inputType,

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 class AppColors {
   static Color seedColor = Color(0xFF003A70);
 
+  static Color success = Color(0xFF4CAF50); // Yes Color
+
   static Color primary(BuildContext context) =>
       Theme.of(context).colorScheme.primary;
   static Color onPrimary(BuildContext context) =>
@@ -25,6 +27,8 @@ class AppColors {
       Theme.of(context).colorScheme.onSurface;
   static Color outline(BuildContext context) =>
       Theme.of(context).colorScheme.outline;
+  static Color shadow(BuildContext context) =>
+      Theme.of(context).colorScheme.shadow;
 
   static Color error(BuildContext context) =>
       Theme.of(context).colorScheme.error;

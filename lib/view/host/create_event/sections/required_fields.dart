@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/view/host/create_event/sections/widgets/event_service_radio_buttons.dart';
 import 'package:traxx_wepapp/widgets/date_time_picker.dart';
 import 'package:traxx_wepapp/view/host/create_event/widgets/timezone_chooser.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
+import 'package:traxx_wepapp/widgets/section_devider.dart';
 
 /// A widget that displays the required fields for event creation.
 /// This includes essential information such as event name, address,
@@ -29,6 +31,10 @@ class RequiredFields extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        ///Event service type radio buttons
+        EventServiceRadioButtons(formState: formState),
+        AppSpacing.verticalXs(context),
+
         /// Event name input field
         /// Required field that must not be empty
         TextFormField(

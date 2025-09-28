@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/enums/sortType.dart';
+import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 
 /// A dropdown widget for sorting events with multiple options.
 ///
@@ -19,7 +19,7 @@ class SortEvents extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final HostController controller = Get.find<HostController>();
+    final EventListController controller = Get.find<EventListController>();
 
     return PopupMenuButton<SortType>(
       child: Container(

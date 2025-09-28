@@ -1,7 +1,7 @@
 // Enum for menu item categories
 enum MenuCategory {
   appetizer,
-  mainCourse,
+  entree,
   dessert,
   drink,
   other,

@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
 import 'package:traxx_wepapp/models/guest.dart';
-import 'package:traxx_wepapp/models/guest_profile_field_config.dart';
+import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
@@ -58,6 +59,16 @@ class FirestoreServices {
     }
   }
 
+  // Future<void> updateEventFields(String eventId, Map<String, dynamic> fields) {
+  //   return eventsRef.doc(eventId).update(fields);
+  // }
+
+  void addUpdateEventFieldsToBatch(
+      WriteBatch batch, Map<String, dynamic> fields, String eventId) {
+    final docRef = eventsRef.doc(eventId);
+    batch.update(docRef, fields);
+  }
+
   Future<List<Event>> getAllEvents() async {
     // TODO after login implementation:
 // - Check if the user is logged in
@@ -67,7 +78,6 @@ class FirestoreServices {
     try {
       List<Event> events = [];
       final snapshot = await eventsRef.get();
-      print('Fetched ${snapshot.docs} events');
       events = snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
       return events;
     } on FirebaseException catch (e) {
@@ -77,6 +87,20 @@ class FirestoreServices {
       print('Unknown error fetching events: $e');
       rethrow;
     }
+  }
+
+  Future<Event> getEventById(String eventId) async {
+    // TODO after login implementation:
+// - Check if the user is logged in
+// - Retrieve all events assigned to the user
+// - Fetch only the assigned events (Firestore rules will also apply)
+    final docRef = eventsRef.doc(eventId);
+    final snapshot =
+        await retryFirestore(() => docRef.get(), operationName: 'getEventById');
+    Event event;
+    event = Event.fromFirestore(snapshot);
+    print('Fetched event: ${event.toString()}');
+    return event;
   }
 
   Future<void> deleteEvent(String eventId) async {
@@ -92,7 +116,7 @@ class FirestoreServices {
   }
 
   Future<void> saveSetQuestions(
-      List<GuestProfileFieldConfig> list, String eventId) async {
+      List<EventQuestions> list, String eventId) async {
     final data = list.map((e) => e.toJson()).toList();
 
     try {
@@ -110,7 +134,7 @@ class FirestoreServices {
     }
   }
 
-  Future<List<GuestProfileFieldConfig>> fetchAllSetQuestions(
+  Future<List<EventQuestions>> fetchAllSetQuestions(
     String eventId,
   ) async {
     print('Fetching guest questions from: $eventId');
@@ -125,7 +149,7 @@ class FirestoreServices {
       if (data != null && data.containsKey('guestQuestions')) {
         final List<dynamic> fieldsData = data['guestQuestions'];
         return fieldsData.map((field) {
-          return GuestProfileFieldConfig(
+          return EventQuestions(
               fieldName: field['fieldName'],
               groupId: field['groupId'],
               inputType: InputType.values.firstWhere(
@@ -141,17 +165,24 @@ class FirestoreServices {
     }
   }
 
-  Future<void> saveMenus(List<MenuItem> menus, String eventId) async {
-    try {
-      final menuData = menus.map((menu) => menu.toFirestore()).toList();
-      await eventsRef.doc(eventId).collection('menus').doc('config').set({
-        'menus': menuData,
-      });
-      print('Menus saved successfully.');
-    } catch (error) {
-      print('Failed to save menus: $error');
-      rethrow;
-    }
+  // Future<void> saveMenus(List<MenuItem> menus, String eventId) async {
+  //   try {
+  //     final menuData = menus.map((menu) => menu.toFirestore()).toList();
+  //     await eventsRef.doc(eventId).collection('menus').doc('config').set({
+  //       'menus': menuData,
+  //     });
+  //     print('Menus saved successfully.');
+  //   } catch (error) {
+  //     print('Failed to save menus: $error');
+  //     rethrow;
+  //   }
+  // }
+
+  void addMenusToBatch(WriteBatch batch, List<MenuItem> menus, String eventId) {
+    final menuData = menus.map((menu) => menu.toFirestore()).toList();
+    final docRef = eventsRef.doc(eventId).collection('menus').doc('config');
+
+    batch.set(docRef, {'menus': menuData});
   }
 
   /// Fetches all menu items for a specific event.
@@ -185,6 +216,18 @@ class FirestoreServices {
     final guests =
         snapshot.docs.map((e) => Guest.fromFirestore(e.data(), e.id)).toList();
     return guests;
+  }
+
+  Future<Guest> fetchGuestById(String guestId, String eventId) async {
+    //Implement retry
+    final snapshot =
+        await eventsRef.doc(eventId).collection('guests').doc(guestId).get();
+    if (snapshot.exists) {
+      final data = snapshot.data();
+      final Guest guest = Guest.fromFirestore(data!, snapshot.id);
+      return guest;
+    }
+    throw Exception('');
   }
 
   // Future<void> saveGuests(String eventId, List<Guest> guests) async {
@@ -294,6 +337,59 @@ class FirestoreServices {
       print('Guest Invited Successfully');
     } catch (e) {
       print('Failed to invite guest: $e');
+      rethrow;
+    }
+  }
+
+  /// Saves multiple guest responses to a specific event in Firestore using batch write,
+  /// replacing any existing responses.
+  ///
+  /// Parameters:
+  /// - [eventId]: The ID of the event to which the responses belong
+  /// - [responses]: A list of [GuestResponse] objects containing guests' responses to event questions
+  ///
+  /// This method performs the following operations atomically in a batch:
+  /// 1. Deletes all existing responses in the 'guestResponses' subcollection
+  /// 2. Creates new documents for each response with auto-generated IDs
+  ///
+  /// The batch operation ensures that either all operations succeed or none do,
+  /// maintaining data consistency. This is particularly important when replacing
+  /// existing responses to avoid partial updates.
+  ///
+  /// Throws an exception if:
+  /// - The batch commit operation fails
+  /// - There are errors accessing the guestResponses collection
+  /// - The operation exceeds Firestore batch size limits
+  Future<void> saveGuestResponses(
+      String eventId, List<GuestResponse> responses) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    final existingDocs =
+        await eventsRef.doc(eventId).collection('guestResponses').get();
+    for (final doc in existingDocs.docs) {
+      batch.delete(doc.reference);
+    }
+
+    for (var response in responses) {
+      final docRef = eventsRef.doc(eventId).collection('guestResponses').doc();
+      batch.set(docRef, response.toFirestore());
+    }
+    await batch.commit();
+  }
+
+  Future<void> saveMenusAndUpdateEventFields(
+    String eventId,
+    List<MenuItem> menus,
+    Map<String, dynamic> fields,
+  ) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      addMenusToBatch(batch, menus, eventId);
+      addUpdateEventFieldsToBatch(batch, fields, eventId);
+      await batch.commit();
+      print('Batch commit successful!');
+    } catch (error) {
+      print('Failed to commit batch: $error');
       rethrow;
     }
   }

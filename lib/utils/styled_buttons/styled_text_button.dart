@@ -7,6 +7,8 @@ class StyledTextButton extends StatelessWidget {
   final String text;
   final bool isPrimary;
   final bool disabled;
+  final Color? backgroundColor;
+  final Color? textColor;
 
   const StyledTextButton({
     super.key,
@@ -14,6 +16,8 @@ class StyledTextButton extends StatelessWidget {
     required this.text,
     this.isPrimary = true,
     this.disabled = false,
+    this.backgroundColor,
+    this.textColor,
   });
 
   @override
@@ -21,18 +25,23 @@ class StyledTextButton extends StatelessWidget {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
-        backgroundColor: isPrimary
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.errorContainer,
+        backgroundColor: backgroundColor ??
+            (isPrimary
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.errorContainer),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      onPressed: onPressed,
-      child: AppText.styledBodyMedium(context, text,
-          color: isPrimary
-              ? Theme.of(context).colorScheme.surfaceBright
-              : Theme.of(context).colorScheme.error),
+      onPressed: disabled ? null : onPressed,
+      child: AppText.styledBodyMedium(
+        context,
+        text,
+        color: textColor ??
+            (isPrimary
+                ? Theme.of(context).colorScheme.surfaceBright
+                : Theme.of(context).colorScheme.error),
+      ),
     );
   }
 }

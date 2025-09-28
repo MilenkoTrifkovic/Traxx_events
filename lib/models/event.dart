@@ -3,9 +3,12 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:map_location_picker/map_location_picker.dart';
 import 'package:traxx_wepapp/forms/create_event/event_validator.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
+import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 class Event {
   String? id;
+  final ServiceType serviceType;
   final String name;
   final String address;
   final int capacity;
@@ -16,6 +19,7 @@ class Event {
   final String timezone;
   final LatLng location;
   final String status = 'Status';
+  List<MenuCategory> selectableCategories;
 
   // Optional fields
   final XFile? coverImage;
@@ -27,10 +31,9 @@ class Event {
   final String? specialNotes;
   final bool hideHostInfo;
 
-  
-
   Event({
     this.id,
+    required this.serviceType,
     required this.name,
     required this.address,
     required this.capacity,
@@ -48,6 +51,7 @@ class Event {
     this.plannerEmail,
     this.specialNotes,
     this.hideHostInfo = false,
+    this.selectableCategories = const [],
   });
 
   /// Creates an Event instance from a Firestore document
@@ -57,7 +61,8 @@ class Event {
   ///
   /// Returns:
   ///   A new Event instance populated with Firestore data
-  factory Event.fromFirestore(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  factory Event.fromFirestore(dynamic doc) {
+    // factory Event.fromFirestore(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
 
     // Extract location data
@@ -89,6 +94,14 @@ class Event {
       plannerEmail: data['plannerEmail'] as String?,
       specialNotes: data['specialNotes'] as String?,
       hideHostInfo: data['hideHostInfo'] as bool? ?? false,
+      serviceType: ServiceType.values.firstWhere(
+        (e) => e.name == (data['serviceType']),
+      ),
+      selectableCategories: (data['selectableMenuCategories'] as List<dynamic>?)
+              ?.map((name) =>
+                  MenuCategory.values.firstWhere((e) => e.name == name))
+              .toList() ??
+          [],
     );
   }
 
@@ -109,6 +122,7 @@ class Event {
       name: state.nameController.text,
       address: state.addressController.text,
       capacity: state.capacityController.text,
+      serviceType: state.serviceType,
       startDateTime: state.startDateTime,
       endDateTime: state.endDateTime,
       rsvpDeadline: state.rsvpDeadline,
@@ -119,6 +133,7 @@ class Event {
     final capacity = int.parse(state.capacityController.text);
 
     return Event(
+      serviceType: state.serviceType!,
       name: state.nameController.text,
       address: state.addressController.text,
       capacity: capacity,
@@ -170,15 +185,66 @@ class Event {
       'specialNotes': specialNotes,
       'hideHostInfo': hideHostInfo,
       'coverImageUrl': coverImageUrl,
+      'serviceType': serviceType.name,
       'createdAt': Timestamp.now(),
       'updatedAt': Timestamp.now(),
+      'selectableCategories': selectableCategories.map((e) => e.name).toList(),
     };
+  }
+
+  /// Creates a copy of this Event with the specified fields replaced with new values.
+  Event copyWith({
+    String? id,
+    ServiceType? serviceType,
+    String? name,
+    String? address,
+    int? capacity,
+    DateTime? startDateTime,
+    DateTime? endDateTime,
+    DateTime? rsvpDeadline,
+    String? eventType,
+    String? timezone,
+    LatLng? location,
+    XFile? coverImage,
+    String? coverImageUrl,
+    String? coverImageDownloadUrl,
+    String? description,
+    String? dressCode,
+    String? plannerEmail,
+    String? specialNotes,
+    bool? hideHostInfo,
+    List<MenuCategory>? selectableCategories,
+  }) {
+    return Event(
+      id: id ?? this.id,
+      serviceType: serviceType ?? this.serviceType,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      capacity: capacity ?? this.capacity,
+      startDateTime: startDateTime ?? this.startDateTime,
+      endDateTime: endDateTime ?? this.endDateTime,
+      rsvpDeadline: rsvpDeadline ?? this.rsvpDeadline,
+      eventType: eventType ?? this.eventType,
+      timezone: timezone ?? this.timezone,
+      location: location ?? this.location,
+      coverImage: coverImage ?? this.coverImage,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      coverImageDownloadUrl:
+          coverImageDownloadUrl ?? this.coverImageDownloadUrl,
+      description: description ?? this.description,
+      dressCode: dressCode ?? this.dressCode,
+      plannerEmail: plannerEmail ?? this.plannerEmail,
+      specialNotes: specialNotes ?? this.specialNotes,
+      hideHostInfo: hideHostInfo ?? this.hideHostInfo,
+      selectableCategories: selectableCategories ?? this.selectableCategories,
+    );
   }
 
   @override
   String toString() {
     return '''
 Event {
+  serviceType: $serviceType
   name: $name
   address: $address
   capacity: $capacity
@@ -195,6 +261,7 @@ Event {
   specialNotes: $specialNotes
   hideHostInfo: $hideHostInfo
   downloadURL: $coverImageDownloadUrl
+  selectableCategories: $selectableCategories
 }''';
   }
 }

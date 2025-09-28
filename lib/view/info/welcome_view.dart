@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
+import 'package:traxx_wepapp/utils/extensions/string_extensions.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -21,6 +25,8 @@ class WelcomeView extends StatefulWidget {
 }
 
 class _WelcomeViewState extends State<WelcomeView> {
+  late AuthController authController;
+
   /// Form key for validation
   final _formKey = GlobalKey<FormState>();
 
@@ -33,8 +39,13 @@ class _WelcomeViewState extends State<WelcomeView> {
   /// Focus node for password field
   final _passwordFocusNode = FocusNode();
 
-  /// Selected user role, defaults to 'planner'
-  String _selectedRole = 'planner';
+  /// Selected user role, defaults to guest
+  UserType _selectedRole = UserType.guest;
+  @override
+  void initState() {
+    authController = Get.find<AuthController>();
+    super.initState();
+  }
 
   @override
   void dispose() {
@@ -52,8 +63,12 @@ class _WelcomeViewState extends State<WelcomeView> {
   /// Handles the login action based on selected role
   void _handleLogin(BuildContext context) {
     // if (_formKey.currentState!.validate()) {//Commented for testing purposes
-    if (_selectedRole == 'host') {
+    if (_selectedRole == UserType.host) {
+      authController.setUserType(UserType.host);
       pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+    } else if (_selectedRole == UserType.guest) {
+      authController.setUserType(UserType.guest);
+      pushAndRemoveAllRoute(AppRoute.guestEvents, context);
     } else {
       SnackBarUtils.showInfo(context, 'Currently only host login is available');
     }
@@ -107,6 +122,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            //Email
                             TextFormField(
                               controller: _emailController,
                               textInputAction: TextInputAction.next,
@@ -139,6 +155,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                               },
                             ),
                             AppSpacing.verticalMd(context),
+                            //Password
                             TextFormField(
                               controller: _passwordController,
                               focusNode: _passwordFocusNode,
@@ -173,18 +190,20 @@ class _WelcomeViewState extends State<WelcomeView> {
                               },
                             ),
                             AppSpacing.verticalMd(context),
+                            // Role selection
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                _buildRoleOption('Planner',
+                                _buildRoleOption(UserType.planner,
                                     'assets/icons/clipboard-solid.svg'),
-                                _buildRoleOption(
-                                    'Host', 'assets/icons/user-tie-solid.svg'),
-                                _buildRoleOption(
-                                    'Guest', 'assets/icons/users-solid.svg'),
+                                _buildRoleOption(UserType.host,
+                                    'assets/icons/user-tie-solid.svg'),
+                                _buildRoleOption(UserType.guest,
+                                    'assets/icons/users-solid.svg'),
                               ],
                             ),
                             AppSpacing.verticalMd(context),
+                            // Login button
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
@@ -194,6 +213,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                               ),
                             ),
                             AppSpacing.verticalMd(context),
+                            //Register
                             TextButton(
                               onPressed: () {
                                 // pushRoute(AppRoute.register, context),
@@ -216,7 +236,7 @@ class _WelcomeViewState extends State<WelcomeView> {
     );
   }
 
-  Widget _buildRoleOption(String role, String iconPath) {
+  Widget _buildRoleOption(UserType role, String iconPath) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -229,15 +249,15 @@ class _WelcomeViewState extends State<WelcomeView> {
           ),
         ),
         const SizedBox(height: 8),
-        Radio<String>(
-          value: role.toLowerCase(),
+        Radio<UserType>(
+          value: role,
           groupValue: _selectedRole,
-          onChanged: (String? value) {
+          onChanged: (UserType? value) {
             setState(() => _selectedRole = value!);
           },
           fillColor: WidgetStateProperty.all(AppColors.onPrimary(context)),
         ),
-        AppText.styledBodyLarge(context, role,
+        AppText.styledBodyLarge(context, role.name.capitalizeString(),
             color: AppColors.onPrimary(context)),
       ],
     );

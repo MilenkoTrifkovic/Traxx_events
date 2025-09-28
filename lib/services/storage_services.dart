@@ -29,7 +29,7 @@ class StorageServices {
       return uploadTask.ref.fullPath;
     } catch (e) {
       print('Upload failed: $e');
-      throw Exception('Image upload failed: $e');
+      rethrow;
     }
   }
 

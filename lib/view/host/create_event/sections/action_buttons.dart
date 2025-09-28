@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 

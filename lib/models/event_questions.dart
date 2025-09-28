@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
 
-class GuestProfileFieldConfig {
+class EventQuestions {
   final TextEditingController fieldNameController = TextEditingController();
   final TextEditingController groupIdController = TextEditingController();
   final TextEditingController answerController = TextEditingController();
@@ -11,11 +11,23 @@ class GuestProfileFieldConfig {
   final String? groupId;
   final String? answer;
 
-  GuestProfileFieldConfig(
+  EventQuestions(
       {this.fieldName, this.groupId, this.inputType, this.answer, this.id}) {
     fieldNameController.text = fieldName ?? '';
     groupIdController.text = groupId ?? '';
     answerController.text = answer ?? '';
+  }
+  factory EventQuestions.copyFrom(EventQuestions other) {
+    return EventQuestions(
+      fieldName: other.fieldName,
+      groupId: other.groupId,
+      inputType: other.inputType,
+      answer: other.answer,
+      id: other.id,
+    )
+      ..fieldNameController.text = other.fieldNameController.text
+      ..groupIdController.text = other.groupIdController.text
+      ..answerController.text = other.answerController.text;
   }
   Map<String, dynamic> toJson({bool includeAnswer = false}) {
     return {

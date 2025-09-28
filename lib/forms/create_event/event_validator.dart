@@ -1,3 +1,7 @@
+import 'dart:developer';
+
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
+
 class EventValidationException implements Exception {
   final String message;
   EventValidationException(this.message);
@@ -11,6 +15,7 @@ class EventValidator {
     required String name,
     required String address,
     required String capacity,
+    required ServiceType? serviceType,
     required DateTime? startDateTime,
     required DateTime? endDateTime,
     required DateTime? rsvpDeadline,
@@ -26,6 +31,9 @@ class EventValidator {
     }
     if (startDateTime == null) {
       throw EventValidationException('Start date and time is required');
+    }
+    if (serviceType == null) {
+      throw EventValidationException('Service type is required');
     }
     if (endDateTime == null) {
       throw EventValidationException('End date and time is required');

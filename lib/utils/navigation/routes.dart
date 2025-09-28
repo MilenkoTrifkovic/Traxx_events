@@ -8,10 +8,18 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 /// ```dart
 /// pushRoute(AppRoute.profile, context);
 /// ```
-///
-void pushRoute(AppRoute route, BuildContext context) {
-  // TODO: make a centralized, type-safe navigation service with params, logging, and no BuildContext
-  context.push(route.path);
+/// Optionally, you can pass a value to replace a path parameter:
+void pushRoute(AppRoute route, BuildContext context,
+    {String? urlParam, Object? extra}) {
+  String path = route.path;
+  if (route.placeholder != null && urlParam != null) {
+    print('Replacing placeholder ${route.placeholder} with value $urlParam');
+    String placeholder =
+        ':${route.placeholder!}'; //adds colon to match the path format
+    path = path.replaceFirst(placeholder, urlParam);
+  }
+  print('Pushing route: $path');
+  context.push(path, extra: extra);
 }
 
 /// Removes all existing routes and pushes a new route.
@@ -21,8 +29,20 @@ void pushRoute(AppRoute route, BuildContext context) {
 /// pushAndRemoveAllRoute(AppRoute.login, context);
 /// ```
 ///
-void pushAndRemoveAllRoute(AppRoute route, BuildContext context) {
-  context.go(route.path);
+// void pushAndRemoveAllRoute(AppRoute route, BuildContext context) {
+//   context.go(route.path);
+// }
+void pushAndRemoveAllRoute(AppRoute route, BuildContext context,
+    {String? urlParam, Object? extra}) {
+  String path = route.path;
+  if (route.placeholder != null && urlParam != null) {
+    print('Replacing placeholder ${route.placeholder} with value $urlParam');
+    String placeholder =
+        ':${route.placeholder!}'; //adds colon to match the path format
+    path = path.replaceFirst(placeholder, urlParam);
+  }
+  print('Pushing route: $path');
+  context.go(path, extra: extra);
 }
 
 /// Replaces the current route with a new one.
@@ -46,7 +66,11 @@ void replaceRoute(
 ///
 /// Safely checks if the context is still mounted before popping.
 Future<void> popRoute(BuildContext context) async {
-  if (context.mounted) {
+  if (!context.mounted) return;
+
+  if (context.canPop()) {
     context.pop();
+  } else {
+    context.go(AppRoute.welcome.path);
   }
 }

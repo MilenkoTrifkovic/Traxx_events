@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/create_edit_event_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
@@ -21,6 +22,8 @@ class _CoverImageUploadState extends State<CoverImageUpload> {
   final CreateEditEventController _createEventController =
       Get.find<CreateEditEventController>();
   final HostController _hostController = Get.find<HostController>();
+  final EventListController _eventListController =
+      Get.find<EventListController>();
 
   /// Form state for storing the uploaded image
   final EventFormState formState = Get.find<EventFormState>();
@@ -32,7 +35,10 @@ class _CoverImageUploadState extends State<CoverImageUpload> {
   Widget build(BuildContext context) {
     if (_hostController.isEditingEvent.value &&
         _hostController.selectedEvent.value!.coverImageUrl != null &&
+        // this is an URL _eventListController.selectedEvent.value!.coverImageUrl != null &&
         coverImage == null) {
+      print(
+          'this is an URL ${_hostController.selectedEvent.value?.coverImageDownloadUrl}');
       return Column(
         children: [
           GestureDetector(
@@ -49,6 +55,8 @@ class _CoverImageUploadState extends State<CoverImageUpload> {
                 // fit: BoxFit.fill,
                 child: Image(
                   image: Image.network(
+                    // 'https://firebasestorage.googleapis.com/v0/b/traxx-e1232.firebasestorage.app/o/uploads%2F1756054157689.jpg?alt=media&token=7a05ff34-eeb1-4c64-8cc4-7f82a07277ce'
+                    // _eventListController
                     _hostController
                             .selectedEvent.value?.coverImageDownloadUrl ??
                         '',

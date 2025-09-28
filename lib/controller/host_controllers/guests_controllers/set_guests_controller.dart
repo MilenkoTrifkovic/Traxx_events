@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/exeptions/exeptions.dart';
 import 'package:traxx_wepapp/models/guest.dart';
@@ -7,7 +8,9 @@ import 'package:traxx_wepapp/services/firestore_services.dart';
 class SetGuestsController {
   RxBool isLoading = true.obs;
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
-  final HostController _hostController = Get.find<HostController>();
+  // final HostController _hostController = Get.find<HostController>();
+  final EventListController _eventListController =
+      Get.find<EventListController>();
 
   List<Guest> guests = [];
   RxInt guestLimit = 0.obs;
@@ -16,7 +19,7 @@ class SetGuestsController {
   Future<void> initializeGuestList() async {
     guests.clear();
     try {
-      final eventId = _hostController.eventId;
+      final eventId = _eventListController.eventId;
       if (eventId == null) {
         throw Exception('Cannot load guests: No event selected.');
       }
@@ -25,7 +28,7 @@ class SetGuestsController {
       _sortGuestList();
       _addGuestsToGuestCount(fetchedGuests);
     } finally {
-      guestLimit.value = _hostController.eventCapacity ?? 0;
+      guestLimit.value = _eventListController.eventCapacity ?? 0;
       isLoading.value = false;
     }
   }
@@ -47,7 +50,7 @@ class SetGuestsController {
     if (_guestLimitExceeded(companions)) {
       throw GuestLimitExceededException();
     }
-    final eventId = _hostController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.id!;
     Guest guest = Guest();
     guest.email = email;
     guest.name = name;
@@ -90,7 +93,7 @@ class SetGuestsController {
 
   //remove guest
   Future<Guest> removeGuest(int index) async {
-    final eventId = _hostController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.id!;
     Guest removedItem = guests.removeAt(index);
     await _firestoreServices.deleteGuest(eventId, removedItem);
     currentGuestCount -= (1 + removedItem.companions);
@@ -99,7 +102,7 @@ class SetGuestsController {
 
   //Implemented error handling with reactive variable
   Future<void> inviteGuest(Guest guest) async {
-    final eventId = _hostController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.id!;
     try {
       await _firestoreServices.inviteGuest(eventId, guest);
       guest.invited = true;

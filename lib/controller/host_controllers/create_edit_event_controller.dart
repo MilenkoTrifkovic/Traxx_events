@@ -1,6 +1,7 @@
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
@@ -13,13 +14,15 @@ class CreateEditEventController {
   final EventFormState formState = Get.find<EventFormState>();
   final FirestoreServices firestoreServices = Get.find<FirestoreServices>();
   final StorageServices storageServices = Get.find<StorageServices>();
+  final EventListController eventListController =
+      Get.find<EventListController>();
   final HostController hostController = Get.find<HostController>();
 
   final ImageServices _imageServices = ImageServices();
 
   /// Saves event data to Firestore with optional cover image upload.
   /// Throws Exception if save operation fails.
-  Future<void> saveEvent() async {
+  Future<Event> saveEvent() async {
     try {
       print('Saving event...form State: ${formState.toString()}');
       final Event event = Event.fromFormState(formState);
@@ -33,9 +36,10 @@ class CreateEditEventController {
             event); //gets download URL so event can be added to list without needing to refetch
       }
       await firestoreServices.saveEvent(event);
-      hostController.addCreatedEvenToList(event); //add event to list
-      //Planner Invite
+      eventListController.addCreatedEvenToList(event); //add event to list
       print('Event saved successfully');
+      return event;
+      //Planner Invite
     } catch (e) {
       print('Error saving event: $e');
       throw Exception('$e');
@@ -44,10 +48,12 @@ class CreateEditEventController {
 
   /// Updates an existing event in Firestore with optional cover image upload.
   /// Throws Exception if update operation fails.
-  Future<void> updateEvent() async {
+  Future<void> updateEvent(Event eventa) async {
     try {
       final Event event = Event.fromFormState(formState);
-      event.id = hostController.selectedEvent.value!.id;
+      event.id = eventa.id;
+      print('Event from form state: ${event.toString()}');
+      print('Event passed: ${eventa.toString()}');
 
       //if user selected new image it will overwrite the old one
       if (formState.coverImage != null) {
@@ -56,13 +62,15 @@ class CreateEditEventController {
         event.coverImageUrl = imagePath;
         await storageServices.loadImage(event);
       } else {
-        event.coverImageUrl = hostController.selectedEvent.value?.coverImageUrl;
-        event.coverImageDownloadUrl =
-            hostController.selectedEvent.value?.coverImageDownloadUrl;
+        event.coverImageUrl = eventa.coverImageUrl;
+        event.coverImageDownloadUrl = eventa.coverImageDownloadUrl;
       }
       await firestoreServices.updateEvent(event);
-      // hostController.addCreatedEvent(event); //add event to list
-      hostController.updateEventInEventList(event); //Update event in list
+      eventListController.updateEventInEventList(
+          event); //updates event in host controller for event details
+      hostController.updateSelectedEvent(
+          event); //updates event in event list controller for event list
+
       //Planner Invite
       print('Event updated successfully');
     } catch (e) {

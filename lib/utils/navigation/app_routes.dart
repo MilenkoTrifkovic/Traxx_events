@@ -8,9 +8,15 @@ enum AppRoute {
   hostEvents('/host-events'),
   hostCreateEvent('/host-create-event'),
 
-  eventDetails('/event-details'),
+  guestEvents('/guest-events'),
+  // guestEventDetails('/guest-event-details/:value'),
+  guestEventDetails('/guest-event-details/:eventId', 'eventId'),
+  guestEventRespond('/guest-event-details/:eventId/respond', 'eventId'),
+
+  eventDetails('/event-details/:eventId', 'eventId'),
   eventQuestions('/event-questions'),
-  eventMenus('/event-menus'),
+  // eventMenus('/event-menus'),
+  eventMenus('/guest-event-details/:eventId/event-menus', 'eventId'),
   eventGuests('/event-guests'),
 
   // Guest routes
@@ -21,17 +27,17 @@ enum AppRoute {
   aboutView('/about'),
   contactView('/contact');
 
-  final String path;
-  const AppRoute(this.path);
-
-  String get value => path;
-
-  /// Convert a path string to an AppRoute
   static AppRoute? fromPath(String path) {
     try {
-      return AppRoute.values.firstWhere((route) => route.path == path);
+      return AppRoute.values
+          .firstWhere((route) => path.contains(route.path.split('/:')[0]));
     } catch (_) {
       return null;
     }
   }
+
+  final String path;
+  final String? placeholder; // placeholder je sada opcionalan
+
+  const AppRoute(this.path, [this.placeholder]);
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 
 /// A search input field widget that provides real-time event filtering functionality.
 ///
@@ -16,8 +16,11 @@ class SearchField extends StatefulWidget {
 }
 
 class _SearchFieldState extends State<SearchField> {
+  // late AuthController authController;
+  late EventListController controller;
   @override
   void initState() {
+    controller = Get.find<EventListController>();
     super.initState();
   }
 
@@ -28,9 +31,12 @@ class _SearchFieldState extends State<SearchField> {
 
   @override
   Widget build(BuildContext context) {
-    HostController hostController = Get.find<HostController>();
     return TextField(
-      onChanged: (value) => hostController.filterEvents(value),
+      // onChanged: (value) => controller.filterEvents(value),
+      onChanged: (value) {
+        controller.filterEvents(value);
+        print('Filtered events: ${controller.filteredEvents.length}');
+      },
       decoration: InputDecoration(
         hintText: 'Search...',
         border: OutlineInputBorder(

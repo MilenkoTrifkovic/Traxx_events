@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:map_location_picker/map_location_picker.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/constants.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
@@ -41,6 +42,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     /// Initialize the form state by finding the global EventFormState instance
     formState = Get.find<EventFormState>();
     HostController hostController = Get.find<HostController>();
+    // HostController hostController =
+    //     Get.find<EventListController>() as HostController;
     formattedAdressController.text =
         hostController.isEditingEvent.value != false
             ? 'Address is displayed in map'

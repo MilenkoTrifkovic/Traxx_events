@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:traxx_wepapp/models/guest_profile_field_config.dart';
+import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/controller/host_controllers/set_questions_controller.dart';
 import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/helper/app_decoration.dart';
@@ -15,7 +15,7 @@ import 'package:traxx_wepapp/utils/enums/sizes.dart';
 /// Each field has a name, group ID, and input type (text, number, date, or yes/no).
 /// Supports both mobile and desktop layouts.
 class GuestInfoFieldWidget extends StatefulWidget {
-  final GuestProfileFieldConfig guestFieldConfig;
+  final EventQuestions guestFieldConfig;
   final SetQuestionsController guestInfoController;
   final VoidCallback? onDelete;
   const GuestInfoFieldWidget({
