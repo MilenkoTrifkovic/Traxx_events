@@ -11,7 +11,7 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/view/guest/respond/steps/first_step.dart';
 import 'package:traxx_wepapp/view/guest/respond/steps/second_step.dart';
-import 'package:traxx_wepapp/view/guest/respond/steps/widgets/third_step.dart';
+import 'package:traxx_wepapp/view/guest/respond/steps/third_step.dart';
 
 class RespondScreen extends StatefulWidget {
   // final String eventId;

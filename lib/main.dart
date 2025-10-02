@@ -41,7 +41,7 @@ Future<void> main() async {
   Get.lazyPut<StorageServices>(() => StorageServices(), fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
-  Get.lazyPut<GuestController>(() => GuestController(), fenix: true);
+  // Get.lazyPut<GuestController>(() => GuestController(), fenix: true);
 
   Get.put<EventController>(EventController(),
       permanent: true); //Holds selected event Event?

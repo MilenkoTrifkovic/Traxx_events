@@ -8,7 +8,7 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/extensions/string_extensions.dart';
+import 'package:traxx_wepapp/extensions/string_extensions.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';

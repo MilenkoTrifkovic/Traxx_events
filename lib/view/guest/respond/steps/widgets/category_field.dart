@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/models/menu.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
-import 'package:traxx_wepapp/utils/extensions/string_extensions.dart';
+import 'package:traxx_wepapp/extensions/string_extensions.dart';
 
 /// A widget that displays a selectable menu category field with the currently selected dish.
 ///

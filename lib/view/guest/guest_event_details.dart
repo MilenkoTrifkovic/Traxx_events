@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/guest_controller.dart/guest_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -20,66 +21,107 @@ class GuestEventDetails extends StatefulWidget {
 }
 
 class _GuestEventDetailsState extends State<GuestEventDetails> {
-  GuestController guestController = Get.put(GuestController());
+  Future<GuestController>? _guestControllerPromise;
+  late GuestController guestController;
+  late String eventId;
+  EventController eventController = Get.find<EventController>();
   @override
   void initState() {
     super.initState();
-    ever(
-      //Display error messages when they occur
-      guestController.errorMessage,
-      (String message) {
-        if (message.isNotEmpty) {
-          SnackBarUtils.showError(context, message);
-          guestController.errorMessage.value = ''; // Reset
-        }
-      },
+    eventId = eventController.selectedEvent.value!.id!;
+    _guestControllerPromise = Get.putAsync(
+      //putAsync to trigger onInit() in Controllers mixin
+      () => GuestController.create(eventId, 'GtVe8orzBte68w3YkMKX').then(
+        (controller) {
+          guestController = controller;
+          ever(
+            //Display error messages when they occur
+            guestController.errorMessage,
+            (String message) {
+              if (message.isNotEmpty) {
+                SnackBarUtils.showError(context, message);
+                guestController.errorMessage.value = ''; // Reset
+              }
+            },
+          );
+          return controller;
+        },
+      ),
     );
-    // Future.microtask(() async {
-    //   //make sure that ever is set before calling setEvent
-    //   await guestController.setEvent(widget.eventId, event: widget.event);
-    // });
+  }
+
+  @override
+  void dispose() {
+    Get.delete<GuestController>();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final Event event = guestController.selectedEvent.value;
-      return _buildEventDetails(event);
-    });
-  }
-
-  Widget _buildEventDetails(Event event) {
-    return Stack(
+    return Column(
       children: [
-        SingleChildScrollView(
-          child: Column(
-            children: [
-              //Cover Image and title
-              CoverImage(
-                eventListController: null,
-                event: event,
-                showAdminOptions: false,
-              ),
-              Padding(
-                padding: AppPadding.all(context, paddingType: Sizes.lg),
-                child: Column(
-                  children: [
-                    //Event info
-                    EventInfoSection(event: event),
-                    //
-                    SectionDivider(),
-
-                    //Respond to Invite Button
-                  ],
-                ),
-              )
-            ],
-          ),
-        ),
-        RespondToInviteButton(
-          guestController: guestController,
+        FutureBuilder(
+          future: _guestControllerPromise,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(),
+              );
+            } else if (snapshot.hasError) {
+              return Text('ERROR');
+            } else if (snapshot.hasData) {
+              // return Obx(() {
+              final controller = snapshot.data!; // Get controller from snapshot
+              final Event event = controller.selectedEvent.value;
+              return _buildEventDetails(event, controller);
+              // });
+            } else {
+              return Text('Default Return');
+            }
+          },
         )
       ],
+    );
+  }
+
+  Widget _buildEventDetails(Event event, GuestController guestController) {
+    return Expanded(
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  //Cover Image and title
+                  CoverImage(
+                    eventListController: null,
+                    event: event,
+                    showAdminOptions: false,
+                  ),
+                  Padding(
+                    padding: AppPadding.all(context, paddingType: Sizes.lg),
+                    child: Column(
+                      children: [
+                        //Event info
+                        EventInfoSection(event: event),
+                        //
+                        SectionDivider(),
+
+                        //Respond to Invite Button
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+          RespondToInviteButton(
+            hasResponse: guestController.responses
+                .isNotEmpty, //if responses is empty user didn't respond yet
+            guestController: guestController,
+          )
+        ],
+      ),
     );
   }
 }

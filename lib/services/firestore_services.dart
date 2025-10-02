@@ -377,6 +377,33 @@ class FirestoreServices {
     await batch.commit();
   }
 
+  /// Fetches responses for a guest from an event, including both direct responses and invited guest responses.
+  /// Uses a compound query to find responses where the guest is either the respondent or the inviter.
+  ///
+  /// Parameters:
+  /// - [eventId]: ID of the event to fetch responses from
+  /// - [guestId]: ID of the guest whose responses to fetch (as respondent or inviter)
+  ///
+  /// Returns a list of [GuestResponse] objects. Throws an exception if no responses are found.
+  Future<List<GuestResponse>> fetchGuestResponses(
+      String eventId, String guestId) async {
+    // final docRef =await  eventsRef.doc(eventId).collection('guestResponses').where('guestId', isEqualTo: guestId );
+    final docRef = eventsRef.doc(eventId).collection('guestResponses').where(
+        Filter.or(Filter('guestId', isEqualTo: guestId),
+            Filter('inviterId', isEqualTo: guestId)));
+    // where('guestId', isEqualTo: guestId );
+    final snapshot = await retryFirestore(() => docRef.get(),
+        operationName: 'Fetching guest responses');
+    if (snapshot.docs.isNotEmpty) {
+      final responses = snapshot.docs
+          .map((e) => GuestResponse.fromFirestore(e.data()))
+          .toList();
+      return responses;
+    }
+
+    return [];
+  }
+
   Future<void> saveMenusAndUpdateEventFields(
     String eventId,
     List<MenuItem> menus,
