@@ -32,10 +32,10 @@ class AppDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             header,
-            content,
+            Expanded(child: content),
             footer ??
                 SizedBox(
-                  height: 20,
+                  height: 0,
                 )
           ],
         ),

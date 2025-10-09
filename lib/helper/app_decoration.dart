@@ -41,4 +41,24 @@ class AppDecorations {
       ],
     );
   }
+
+  /// Creates a decoration with a shadow that suggests more content above
+  /// Useful for scrollable containers where you want to indicate there's scrolled content
+  static BoxDecoration topShadowDecoration(
+    BuildContext context, {
+    Color? backgroundColor,
+    double elevation = 4,
+  }) {
+    return BoxDecoration(
+      color: backgroundColor ?? AppColors.background(context),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.onBackground(context).withAlpha(16),
+          blurRadius: elevation,
+          offset: Offset(0, -elevation),
+          spreadRadius: 0,
+        ),
+      ],
+    );
+  }
 }

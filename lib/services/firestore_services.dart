@@ -404,6 +404,20 @@ class FirestoreServices {
     return [];
   }
 
+  Future<List<GuestResponse>> fetchAllGuestResponses(String eventId) async {
+    final docRef = eventsRef.doc(eventId).collection('guestResponses');
+    final snapshot = await retryFirestore(() => docRef.get(),
+        operationName: 'Fetching guest responses');
+    if (snapshot.docs.isNotEmpty) {
+      final responses = snapshot.docs
+          .map((e) => GuestResponse.fromFirestore(e.data()))
+          .toList();
+      return responses;
+    }
+
+    return [];
+  }
+
   Future<void> saveMenusAndUpdateEventFields(
     String eventId,
     List<MenuItem> menus,

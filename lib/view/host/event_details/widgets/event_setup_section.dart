@@ -30,19 +30,29 @@ class EventSetupSection extends StatelessWidget {
             'Menus',
             '',
             () {
-              pushRoute(AppRoute.eventMenus, context,
+              pushAndRemoveAllRoute(AppRoute.eventMenus, context,
                   extra: event, urlParam: event.id);
             },
           ),
           _buildWidgetItem(
               context, itemWidth, Icons.question_mark, 'Questions', '', () {
-            pushRoute(AppRoute.eventQuestions, context);
+            pushAndRemoveAllRoute(AppRoute.eventQuestions, context);
           }),
           _buildWidgetItem(context, itemWidth, Icons.people, 'Guests', '', () {
-            pushRoute(AppRoute.eventGuests, context);
+            pushAndRemoveAllRoute(AppRoute.eventGuests, context,
+                urlParam: event.id);
           }),
-          _buildWidgetItem(context, itemWidth, Icons.question_answer,
-              'Responses', 'Answered: 5t')
+          _buildWidgetItem(
+            context,
+            itemWidth,
+            Icons.question_answer,
+            'Responses',
+            '',
+            () {
+              pushAndRemoveAllRoute(AppRoute.eventResponses, context,
+                  urlParam: event.id);
+            },
+          )
         ];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,

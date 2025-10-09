@@ -17,12 +17,14 @@ import 'package:traxx_wepapp/view/host/event_details/widgets/guests_section/set_
 import 'package:traxx_wepapp/view/host/event_details/widgets/menu_section/set_menus_view.dart';
 import 'package:traxx_wepapp/view/host/event_details/widgets/questions_section/set_questions_view.dart';
 import 'package:traxx_wepapp/view/common/event_list_screen.dart';
+import 'package:traxx_wepapp/view/host/event_details/widgets/responses_section.dart/responses_view.dart';
 import 'package:traxx_wepapp/view/host/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/info/about_view.dart';
 import 'package:traxx_wepapp/view/info/contact_view.dart';
 import 'package:traxx_wepapp/view/info/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/app_scaffold.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
+import 'package:traxx_wepapp/widgets/event_loader.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -132,11 +134,11 @@ GoRouter buildRouter() {
             path: AppRoute.eventMenus.path,
             builder: (context, state) {
               final Event? selectedEvent = eventController.selectedEvent.value;
+              final eventId =
+                  state.pathParameters[AppRoute.eventDetails.placeholder]!;
               if (selectedEvent != null) {
                 return SetMenusView();
               }
-              final eventId =
-                  state.pathParameters[AppRoute.eventDetails.placeholder]!;
 
               return FutureBuilder<Event>(
                 future: EventFetcher.fetchEvent(eventId),
@@ -148,10 +150,6 @@ GoRouter buildRouter() {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
                   eventController.setSelectedEvent(snapshot.data!);
-                  print(
-                      'SetMenusView: Fetched event with id ${snapshot.data!}');
-                  print(
-                      'Selected event in controller: ${eventController.selectedEvent.value}');
 
                   return SetMenusView();
                 },
@@ -178,6 +176,18 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.eventGuests.path,
             builder: (context, state) => SetGuestsView(),
+          ),
+          GoRoute(
+            path: AppRoute.eventResponses.path,
+            builder: (context, state) {
+              String eventId =
+                  state.pathParameters[AppRoute.eventResponses.placeholder]!;
+              return EventLoader(
+                eventController: eventController,
+                eventId: eventId,
+                builder: (context, event) => ResponsesView(),
+              );
+            },
           ),
         ],
       ),

@@ -15,6 +15,7 @@ enum AppRoute {
 
   eventDetails('/event-details/:eventId', 'eventId'),
   eventQuestions('/event-questions'),
+  eventResponses('/event-responses/:eventId/responses', 'eventId'),
   // eventMenus('/event-menus'),
   eventMenus('/guest-event-details/:eventId/event-menus', 'eventId'),
   eventGuests('/event-guests'),
