@@ -1,11 +1,17 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
-import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
 import 'package:traxx_wepapp/exeptions/exeptions.dart';
 import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/services/parsers/file_parser/csv_parser.dart';
+import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/parsers/file_parser/xlsl_parser.dart';
 
 class SetGuestsController {
+  RxString errorMessage = ''.obs;
   RxBool isLoading = true.obs;
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   // final HostController _hostController = Get.find<HostController>();
@@ -64,6 +70,34 @@ class SetGuestsController {
     return index;
   }
 
+  //Removes all existing guests and adds new guests from CSV or XLSX file
+  Future<void> addGuestFromCsvXlsX(PlatformFile file) async {
+    List<Guest> guests = [];
+    int totalGuests = 0;
+    final eventId = _eventListController.selectedEvent.value!.id!;
+    FileParser fileParser =
+        file.extension == 'csv' ? CsvParser() : XlsXParser();
+    try {
+      List<Guest> parsedGuests = fileParser.parseFile(file);
+      for (var guest in parsedGuests) {
+        guests.add(Guest(
+            email: guest.email,
+            name: guest.name,
+            companions: guest.companions));
+        totalGuests += (1 + guest.companions);
+      }
+      if (totalGuests > guestLimit.value) {
+        throw Exception(
+            'Guest limit exceeded. Limit is ${guestLimit.value}. You are trying to add $totalGuests guests.');
+      }
+      await _firestoreServices
+          .deleteAllGuests(_eventListController.selectedEvent.value!.id!);
+      await _firestoreServices.saveGuestList(eventId, guests);
+    } on Exception catch (e) {
+      _addError(e.toString());
+    }
+  }
+
   bool _checkIfEmailIsUnique(String email) {
     for (var element in guests) {
       if (element.email == email) {
@@ -111,5 +145,14 @@ class SetGuestsController {
       print('Failed to invite guest: $e');
       rethrow;
     }
+  }
+
+  void _addError(String error) {
+    String message = error.split(':').last.trim();
+    errorMessage.value = message;
+  }
+
+  void clearError() {
+    errorMessage.value = '';
   }
 }

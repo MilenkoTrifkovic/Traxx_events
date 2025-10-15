@@ -2,6 +2,7 @@
 enum AppRoute {
   // Base routes
   welcome('/welcome'),
+  signup('/signup'),
 
   // Host routes
   host('/host'),

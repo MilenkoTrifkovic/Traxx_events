@@ -270,6 +270,15 @@ class FirestoreServices {
     }
   }
 
+  Future<void> saveGuestList(String eventId, List<Guest> guests) async {
+    final colRef = eventsRef.doc(eventId).collection('guests');
+    final batch = _db.batch();
+    for (var guest in guests) {
+      colRef.doc().set(guest.toFirestore(), SetOptions(merge: true));
+    }
+    batch.commit();
+  }
+
   /// Updates an existing guest in an event's guest collection in Firestore.
   ///
   /// Parameters:
@@ -317,6 +326,22 @@ class FirestoreServices {
       print('Guest Deleted Successfully');
     } catch (e) {
       print('Failed to delete guest: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteAllGuests(String eventId) async {
+    try {
+      final colRef = eventsRef.doc(eventId).collection('guests');
+      final snapshot = await colRef.get();
+      final batch = _db.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      print('All Guests Deleted Successfully');
+    } catch (e) {
+      print('Failed to delete all guests: $e');
       rethrow;
     }
   }

@@ -13,7 +13,7 @@ import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 
-import '../../widgets/welcome_app_bar.dart';
+import '../../../widgets/welcome_app_bar.dart';
 
 /// The welcome screen of the application.
 /// Provides login functionality with role selection (host/planner).
@@ -217,6 +217,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                             TextButton(
                               onPressed: () {
                                 // pushRoute(AppRoute.register, context),
+                                pushAndRemoveAllRoute(AppRoute.signup, context);
                               },
                               child: AppText.styledBodySmall(
                                   context, 'New user? Register here',

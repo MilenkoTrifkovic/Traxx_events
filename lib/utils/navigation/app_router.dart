@@ -9,6 +9,7 @@ import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
+import 'package:traxx_wepapp/view/authentication/signup/signup_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
 import 'package:traxx_wepapp/view/host/create_event/create_edit_event_view.dart';
@@ -21,7 +22,7 @@ import 'package:traxx_wepapp/view/host/event_details/widgets/responses_section.d
 import 'package:traxx_wepapp/view/host/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/info/about_view.dart';
 import 'package:traxx_wepapp/view/info/contact_view.dart';
-import 'package:traxx_wepapp/view/info/welcome_view.dart';
+import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/app_scaffold.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 import 'package:traxx_wepapp/widgets/event_loader.dart';
@@ -48,6 +49,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: AppRoute.welcome.path,
         builder: (context, state) => WelcomeView(),
+      ),
+      GoRoute(
+        path: AppRoute.signup.path,
+        builder: (context, state) => SignupView(),
       ),
       GoRoute(
         path: AppRoute.aboutView.path,
