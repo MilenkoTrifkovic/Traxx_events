@@ -87,7 +87,7 @@ class DetailsDialog extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.person,
-                    color: AppColors.primary(context),
+                    color: AppColors.primaryOld(context),
                   ),
                   AppSpacing.horizontalXs(context),
                   Expanded(

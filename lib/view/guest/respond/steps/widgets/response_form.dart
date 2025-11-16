@@ -124,7 +124,7 @@ class _ResponseFormState extends State<ResponseForm> {
 
       case InputType.yesno:
         return DropdownButtonFormField<String>(
-          value: question.answerController.text.isEmpty
+          initialValue: question.answerController.text.isEmpty
               ? null
               : question.answerController.text,
           hint: AppText.styledBodyMedium(context, 'Select an option'),
@@ -175,7 +175,7 @@ class _ResponseFormState extends State<ResponseForm> {
           children: [
             Icon(
               Icons.question_answer,
-              color: AppColors.primary(context),
+              color: AppColors.primaryOld(context),
             ),
             AppSpacing.horizontalSm(context),
             Flexible(
@@ -185,7 +185,7 @@ class _ResponseFormState extends State<ResponseForm> {
             AppSpacing.horizontalSm(context),
             Icon(
               Icons.question_answer,
-              color: AppColors.primary(context),
+              color: AppColors.primaryOld(context),
             )
           ],
         ),

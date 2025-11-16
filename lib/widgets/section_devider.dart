@@ -30,7 +30,7 @@ class SectionDivider extends StatelessWidget {
     return Divider(
       //Default values if called without parameters
       thickness: thickness ?? 0.0,
-      color: Theme.of(context).dividerColor,
+      color: color ?? Theme.of(context).dividerColor,
       indent: indent ?? 0.0,
       endIndent: endIndent ?? 0.0,
       height: height ?? 16.0,

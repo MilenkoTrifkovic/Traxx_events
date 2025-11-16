@@ -69,6 +69,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '781524162883',
     projectId: 'traxx-e1232',
     storageBucket: 'traxx-e1232.firebasestorage.app',
+    iosClientId: '781524162883-5sv2kncfvmumu0se62cuhr5a7ts4bk9m.apps.googleusercontent.com',
     iosBundleId: 'com.example.traxxWepapp',
   );
 

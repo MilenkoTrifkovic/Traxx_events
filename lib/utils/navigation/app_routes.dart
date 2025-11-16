@@ -3,9 +3,11 @@ enum AppRoute {
   // Base routes
   welcome('/welcome'),
   signup('/signup'),
+  emailVerification('/email-verification'),
 
   // Host routes
   host('/host'),
+  hostOrganisationInfoForm('/host-organisation-info-form'),
   hostEvents('/host-events'),
   hostCreateEvent('/host-create-event'),
 

@@ -34,11 +34,11 @@ class _ResponsesTableState extends State<ResponsesTable> {
           ),
           child: DataTable(
             headingRowColor: WidgetStateProperty.all(
-              AppColors.primary(context).withOpacity(0.1),
+              AppColors.primaryOld(context).withOpacity(0.1),
             ),
             dataRowColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.hovered)) {
-                return AppColors.primary(context).withOpacity(0.05);
+                return AppColors.primaryOld(context).withOpacity(0.05);
               }
               return null;
             }),

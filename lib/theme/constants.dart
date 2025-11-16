@@ -1,12 +1,18 @@
 /// Design system constants for the Traxx application
 class Constants {
+  //Configuration
+  static const String webClientId =
+      '781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com';
   // Font families
   static const font1 = 'Blanka';
   static const font2 = 'Inter';
 
+  static String lightLogo = 'assets/icons/light-logo.png';
+  static String darkLogo = 'assets/icons/dark-logo.png';
+
   /// Typography scale
   static const double headingLargeFontSize = 32.0;
-  static const double headingMediumFontSize = 28.0;
+  static const double headingMediumFontSize = 20.0;
   static const double headingSmallFontSize = 24.0;
 
   static const double bodyLargeFontSize = 16.0;

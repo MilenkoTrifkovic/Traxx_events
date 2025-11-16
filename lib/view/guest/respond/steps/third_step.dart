@@ -21,7 +21,7 @@ class ThirdStepContent extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: AppBorderRadius.radius(context, size: Sizes.sm),
             side: BorderSide(
-              color: AppColors.primary(context).withOpacity(0.2),
+              color: AppColors.primaryOld(context).withOpacity(0.2),
               width: 1,
             ),
           ),

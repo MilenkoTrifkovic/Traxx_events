@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 
 class AppText {
   static Widget styledHeadingMedium(BuildContext context, String text,
       {Color? color,
-      String family = Constants.font1,
+      String family = Constants.font2,
       TextDecoration? decoration,
       TextOverflow? overflow,
       FontStyle? style,
@@ -20,22 +21,23 @@ class AppText {
           fontFamily: family,
           fontSize: Constants.headingMediumFontSize,
           decoration: decoration,
-          fontWeight: weight,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
           fontStyle: style,
           letterSpacing: Constants.headingLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? AppColors.white),
     );
   }
 
   static Widget styledHeadingLarge(BuildContext context, String text,
       {Color? color,
-      String family = Constants.font1,
+      String family = Constants.font2,
       TextDecoration? decoration,
       TextOverflow? overflow,
       FontStyle? style,
       int? maxLines,
       TextAlign? textAlign,
-      FontWeight weight = FontWeight.normal}) {
+      FontWeight weight = FontWeight.bold}) {
     return Text(
       text,
       overflow: overflow,
@@ -43,18 +45,18 @@ class AppText {
       textAlign: textAlign,
       style: TextStyle(
           fontFamily: family,
-          fontSize: Constants.headingLargeFontSize,
+          fontSize: 32,
           decoration: decoration,
           fontWeight: weight,
           fontStyle: style,
           letterSpacing: Constants.headingLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? Colors.black),
     );
   }
 
   static Widget styledHeadingSmall(BuildContext context, String text,
       {Color? color,
-      String family = Constants.font1,
+      String family = Constants.font2,
       TextDecoration? decoration,
       TextOverflow? overflow,
       FontStyle? style,
@@ -73,7 +75,7 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           letterSpacing: Constants.headingLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? Colors.black),
     );
   }
 
@@ -185,7 +187,7 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           letterSpacing: Constants.labelLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? Colors.black),
     );
   }
 
@@ -210,7 +212,7 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           letterSpacing: Constants.labelLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? Colors.black),
     );
   }
 
@@ -235,7 +237,7 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           letterSpacing: Constants.labelLetterSpacing,
-          color: color ?? Theme.of(context).colorScheme.primary),
+          color: color ?? Colors.black),
     );
   }
 }

@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:781524162883:android:f723fa69ae867dffa377f6",
+        "mobilesdk_app_id": "1:781524162883:android:9650a2fd1e152ecaa377f6",
         "android_client_info": {
-          "package_name": "com.example.traxx_wepapp"
+          "package_name": "com.example.traxx_events_2"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB62YBIJlL0uBk55nr1mXli7AC9zjTgwlY"
@@ -20,7 +25,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "781524162883-5sv2kncfvmumu0se62cuhr5a7ts4bk9m.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.traxxWepapp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:781524162883:android:f723fa69ae867dffa377f6",
+        "android_client_info": {
+          "package_name": "com.example.traxx_wepapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB62YBIJlL0uBk55nr1mXli7AC9zjTgwlY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "781524162883-5sv2kncfvmumu0se62cuhr5a7ts4bk9m.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.traxxWepapp"
+              }
+            }
+          ]
         }
       }
     }

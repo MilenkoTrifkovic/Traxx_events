@@ -4,19 +4,31 @@ import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 abstract class AppPadding {
   static const Map<Sizes, double> mobileValues = {
-    Sizes.xs: 4.0,
-    Sizes.sm: 8.0,
+    Sizes.xxxs: 2.0,
+    Sizes.xxs: 4.0,
+    Sizes.xs: 8.0,
+    Sizes.sm: 12.0,
     Sizes.md: 16.0,
-    Sizes.lg: 24.0,
-    Sizes.xl: 32.0,
+    Sizes.lg: 20.0,
+    Sizes.xl: 24.0,
+    Sizes.xxl: 28.0,
+    Sizes.xxxl: 32.0,
+    Sizes.xxxxl: 40.0,
+    Sizes.xxxxxl: 56.0,
   };
 
   static const Map<Sizes, double> desktopValues = {
-    Sizes.xs: 8.0,
-    Sizes.sm: 12.0,
-    Sizes.md: 20.0,
-    Sizes.lg: 28.0,
-    Sizes.xl: 36.0,
+    Sizes.xxxs: 4.0,
+    Sizes.xxs: 8.0,
+    Sizes.xs: 16.0,
+    Sizes.sm: 24.0,
+    Sizes.md: 32.0,
+    Sizes.lg: 40.0,
+    Sizes.xl: 48.0,
+    Sizes.xxl: 56.0,
+    Sizes.xxxl: 64.0,
+    Sizes.xxxxl: 80.0,
+    Sizes.xxxxxl: 112.0,
   };
 
   static EdgeInsets all(BuildContext context, {required Sizes paddingType}) {
@@ -68,5 +80,24 @@ abstract class AppPadding {
         ? mobileValues[paddingType]!
         : desktopValues[paddingType]!;
     return EdgeInsets.only(right: value);
+  }
+
+  static EdgeInsets only(
+    BuildContext context, {
+    required Sizes paddingType,
+    bool left = false,
+    bool top = false,
+    bool right = false,
+    bool bottom = false,
+  }) {
+    final value = ScreenSize.isPhone(context)
+        ? mobileValues[paddingType]!
+        : desktopValues[paddingType]!;
+    return EdgeInsets.only(
+      left: left ? value : 0,
+      top: top ? value : 0,
+      right: right ? value : 0,
+      bottom: bottom ? value : 0,
+    );
   }
 }

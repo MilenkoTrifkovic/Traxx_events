@@ -54,7 +54,8 @@ class NavigationRailWrapper extends StatelessWidget {
       children: [
         NavigationRail(
           backgroundColor: AppColors.primaryContainer(context),
-          selectedIconTheme: IconThemeData(color: AppColors.primary(context)),
+          selectedIconTheme:
+              IconThemeData(color: AppColors.primaryOld(context)),
           labelType: NavigationRailLabelType.none,
           extended: true,
           selectedIndex: selectedIndex,
@@ -91,7 +92,7 @@ class NavigationRailWrapper extends StatelessWidget {
                 context,
                 'Events',
                 color: selectedIndex == 0
-                    ? AppColors.primary(context)
+                    ? AppColors.primaryOld(context)
                     : AppColors.onPrimaryContainer(context),
                 weight:
                     selectedIndex == 0 ? FontWeight.bold : FontWeight.normal,
@@ -104,7 +105,7 @@ class NavigationRailWrapper extends StatelessWidget {
                 context,
                 'Create Event',
                 color: selectedIndex == 1
-                    ? AppColors.primary(context)
+                    ? AppColors.primaryOld(context)
                     : AppColors.onPrimaryContainer(context),
                 weight:
                     selectedIndex == 1 ? FontWeight.bold : FontWeight.normal,

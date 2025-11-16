@@ -55,7 +55,8 @@ class StyledIconButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           borderRadius: AppBorderRadius.radius(context, size: borderRadius),
-          hoverColor: hoverColor ?? AppColors.primary(context).withOpacity(0.1),
+          hoverColor:
+              hoverColor ?? AppColors.primaryOld(context).withOpacity(0.1),
           child: Container(
             padding: padding ?? AppPadding.all(context, paddingType: Sizes.sm),
             decoration: BoxDecoration(

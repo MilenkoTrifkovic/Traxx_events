@@ -1,3 +1,6 @@
+import 'dart:ui' as html;
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -71,8 +74,11 @@ AppBar appBar(
                 ),
               ),
               IconButton(
-                  onPressed: () {},
-                  icon: Icon(Icons.settings)) //Will be opening dropdown menu
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                    pushAndRemoveAllRoute(AppRoute.welcome, context);
+                  },
+                  icon: Icon(Icons.logout)) //Will be opening dropdown menu
             ],
           ),
         )

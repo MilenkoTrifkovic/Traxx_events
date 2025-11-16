@@ -44,7 +44,7 @@ class AdditionalDescriptionShower {
               child: AppText.styledLabelMedium(
                 context,
                 'Close',
-                color: AppColors.primary(context),
+                color: AppColors.primaryOld(context),
               ),
             ),
           ],
@@ -93,7 +93,7 @@ class AdditionalDescriptionShower {
                   child: AppText.styledLabelMedium(
                     context,
                     'Close',
-                    color: AppColors.primary(context),
+                    color: AppColors.primaryOld(context),
                   ),
                 ),
               ),

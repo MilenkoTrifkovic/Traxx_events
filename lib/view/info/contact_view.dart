@@ -29,7 +29,7 @@ class ContactView extends StatelessWidget {
               flex: 3,
               child: Container(
                   width: MediaQuery.of(context).size.width,
-                  color: AppColors.primary(context),
+                  color: AppColors.primaryOld(context),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

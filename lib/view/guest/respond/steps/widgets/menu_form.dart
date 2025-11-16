@@ -46,7 +46,7 @@ class GuestMenuForm extends StatelessWidget {
           children: [
             Icon(
               Icons.restaurant_menu,
-              color: AppColors.primary(context),
+              color: AppColors.primaryOld(context),
             ),
             AppSpacing.horizontalSm(context),
             Flexible(
@@ -60,7 +60,7 @@ class GuestMenuForm extends StatelessWidget {
             AppSpacing.horizontalSm(context),
             Icon(
               Icons.restaurant_menu,
-              color: AppColors.primary(context),
+              color: AppColors.primaryOld(context),
             )
           ],
         ),

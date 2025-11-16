@@ -20,7 +20,7 @@ class AboutView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 AppText.styledHeadingLarge(context, 'ABOUT US',
-                    color: AppColors.primary(context)),
+                    color: AppColors.primaryOld(context)),
                 AppSpacing.verticalMd(context),
               ],
             ),
@@ -29,7 +29,7 @@ class AboutView extends StatelessWidget {
               flex: 3,
               child: Container(
                   width: MediaQuery.of(context).size.width,
-                  color: AppColors.primary(context),
+                  color: AppColors.primaryOld(context),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

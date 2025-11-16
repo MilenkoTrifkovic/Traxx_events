@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+lib/
+dist/
+
+# Firebase
+.firebaserc
+firebase.json
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db

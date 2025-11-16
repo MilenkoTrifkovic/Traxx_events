@@ -13,7 +13,7 @@ class ContentWrapper extends StatelessWidget {
   const ContentWrapper({
     super.key,
     required this.child,
-    this.maxWidth = 1200,
+    this.maxWidth = 1440,
     this.alignment = Alignment.center,
     this.contentColor,
     this.shadow,
@@ -44,12 +44,13 @@ class ContentWrapper extends StatelessWidget {
                     ),
               ],
             ),
-            child: Padding(
-              padding: needsPadding
-                  ? AppPadding.horizontal(context, paddingType: Sizes.md)
-                  : EdgeInsets.zero,
-              child: child,
-            ),
+            // child: Padding(
+            //   padding: needsPadding
+            //       ? AppPadding.horizontal(context, paddingType: Sizes.md)
+            //       : EdgeInsets.zero,
+            //   child: child,
+            // ),
+            child: child,
           ),
         );
       },

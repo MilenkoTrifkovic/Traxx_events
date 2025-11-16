@@ -22,7 +22,7 @@ AppBar welcomeAppBar(BuildContext context) {
             child: Image.asset(
               Constants.lightLogo,
               height: 50,
-              color: AppColors.primary(context),
+              color: AppColors.primaryOld(context),
             ),
           ),
         ),
@@ -38,11 +38,11 @@ AppBar welcomeAppBar(BuildContext context) {
                         pushAndRemoveAllRoute(AppRoute.aboutView, context);
                       },
                       child: AppText.styledBodyMedium(context, 'About',
-                          color: AppColors.primary(context),
+                          color: AppColors.primaryOld(context),
                           weight: FontWeight.bold)),
                   AppSpacing.horizontalXs(context),
                   AppText.styledBodyMedium(context, '|',
-                      color: AppColors.primary(context),
+                      color: AppColors.primaryOld(context),
                       weight: FontWeight.bold),
                   AppSpacing.horizontalXs(context),
                   GestureDetector(
@@ -50,7 +50,7 @@ AppBar welcomeAppBar(BuildContext context) {
                         pushAndRemoveAllRoute(AppRoute.contactView, context);
                       },
                       child: AppText.styledBodyMedium(context, 'Contact',
-                          color: AppColors.primary(context),
+                          color: AppColors.primaryOld(context),
                           weight: FontWeight.bold)),
                 ],
               )

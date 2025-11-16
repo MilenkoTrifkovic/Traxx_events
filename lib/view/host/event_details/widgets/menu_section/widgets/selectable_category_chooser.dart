@@ -44,7 +44,7 @@ class SelectableCategoryChooser extends StatelessWidget {
                           category.name,
                           color: setMenusController.selectableCategories
                                   .contains(category)
-                              ? AppColors.primary(context)
+                              ? AppColors.primaryOld(context)
                               : null,
                         ),
                         selected: setMenusController.selectableCategories

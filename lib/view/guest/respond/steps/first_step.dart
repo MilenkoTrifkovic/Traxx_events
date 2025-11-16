@@ -53,7 +53,7 @@ class FirstStepContent extends StatelessWidget {
                 child: Obx(() => Badge(
                       backgroundColor: AppColors.primaryContainer(context),
                       label: Icon(Icons.check,
-                          size: 18, color: AppColors.primary(context)),
+                          size: 18, color: AppColors.primaryOld(context)),
                       isLabelVisible: respondController.badgeState.value > 0,
                       child: SizedBox(
                         width: double.infinity,
@@ -106,7 +106,7 @@ class FirstStepContent extends StatelessWidget {
                       borderRadius:
                           AppBorderRadius.radius(context, size: Sizes.sm),
                       border: Border.all(
-                        color: AppColors.primary(context).withOpacity(0.3),
+                        color: AppColors.primaryOld(context).withOpacity(0.3),
                       ),
                     ),
                     child: DropdownButtonHideUnderline(

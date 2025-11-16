@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/guest_controller.dart/guest_controller.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
+import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/authentication/signup/signup_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
@@ -19,6 +23,7 @@ import 'package:traxx_wepapp/view/host/event_details/widgets/menu_section/set_me
 import 'package:traxx_wepapp/view/host/event_details/widgets/questions_section/set_questions_view.dart';
 import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 import 'package:traxx_wepapp/view/host/event_details/widgets/responses_section.dart/responses_view.dart';
+import 'package:traxx_wepapp/view/host/organisation_info_popup/organisation_info_popup_view.dart';
 import 'package:traxx_wepapp/view/host/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/info/about_view.dart';
 import 'package:traxx_wepapp/view/info/contact_view.dart';
@@ -48,7 +53,37 @@ GoRouter buildRouter() {
     routes: <RouteBase>[
       GoRoute(
         path: AppRoute.welcome.path,
-        builder: (context, state) => WelcomeView(),
+        builder: (context, state) {
+          // Check if user is already authenticated
+          final User? currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null) {
+            // If user is authenticated, redirect to host events
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+            });
+          }
+          return WelcomeView();
+        },
+      ),
+      GoRoute(
+        path: AppRoute.emailVerification.path,
+        // builder: (context, state) => EmailValidationView(),
+        builder: (context, state) {
+          final User? currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null && currentUser.emailVerified) {
+            // If user is authenticated, redirect to host events
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+            });
+          }
+          if (currentUser == null) {
+            // If user is authenticated, redirect to host events
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              pushAndRemoveAllRoute(AppRoute.welcome, context);
+            });
+          }
+          return EmailVerificationView();
+        },
       ),
       GoRoute(
         path: AppRoute.signup.path,
@@ -62,10 +97,27 @@ GoRouter buildRouter() {
         path: AppRoute.contactView.path,
         builder: (context, state) => ContactView(),
       ),
+      GoRoute(
+        path: AppRoute.hostOrganisationInfoForm.path,
+        builder: (context, state) => OrganisationInfoPopupView(),
+      ),
       //HOST SHELL ROUTE
       ShellRoute(
+        // redirect: (context, state) {
+        //   return AppRoute.hostOrganisationInfoForm.path;
+        // },
         navigatorKey: hostNavigatorKey,
         builder: (context, state, child) {
+          // Check if user is authenticated
+          final User? currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser == null || !currentUser.emailVerified) {
+            // If user is not authenticated, redirect to welcome
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              pushAndRemoveAllRoute(AppRoute.emailVerification, context);
+            });
+            return Center(child: CircularProgressIndicator());
+          }
+
           final eventListController = Get.find<EventListController>();
           final authController = Get.find<AuthController>();
           return Obx(() {

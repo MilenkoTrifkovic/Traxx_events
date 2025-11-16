@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
 
@@ -20,10 +21,24 @@ class FirestoreServices {
   /// Reference to locations collection in Firestore
   late final CollectionReference<Map<String, dynamic>> locationsRef;
 
+  /// Reference to organisations collection in Firestore
+  late final CollectionReference<Organisation> organisationsRef;
+
   FirestoreServices() {
     usersRef = _db.collection(usersCol);
     eventsRef = _db.collection(eventsCol);
     locationsRef = _db.collection(locationsCol);
+    organisationsRef =
+        _db.collection(organisationCol).withConverter<Organisation>(
+              fromFirestore: (snap, _) => Organisation.fromFirestore(snap),
+              toFirestore: (value, _) => value.toFirestore(),
+            );
+  }
+
+  /// Adds a new organisation to Firestore.
+  /// Throws [FirebaseException] if the add operation fails.
+  Future<void> addOrganisation(Organisation organisation) async {
+    await organisationsRef.add(organisation);
   }
 
   /// Saves a new event to Firestore.

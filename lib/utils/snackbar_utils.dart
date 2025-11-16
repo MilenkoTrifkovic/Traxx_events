@@ -33,7 +33,7 @@ class SnackBarUtils {
           message,
           color: AppColors.onPrimary(context),
         ),
-        backgroundColor: AppColors.primary(context),
+        backgroundColor: AppColors.primaryOld(context),
         duration: duration,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -91,7 +91,7 @@ class SnackBarUtils {
           message,
           color: AppColors.onSecondary(context),
         ),
-        backgroundColor: AppColors.secondary(context),
+        backgroundColor: AppColors.secondaryOld(context),
         duration: duration,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
