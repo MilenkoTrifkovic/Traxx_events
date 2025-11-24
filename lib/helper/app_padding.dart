@@ -4,8 +4,9 @@ import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 abstract class AppPadding {
   static const Map<Sizes, double> mobileValues = {
-    Sizes.xxxs: 2.0,
-    Sizes.xxs: 4.0,
+    Sizes.xxxxs: 2.0,
+    Sizes.xxxs: 4.0,
+    Sizes.xxs: 6.0,
     Sizes.xs: 8.0,
     Sizes.sm: 12.0,
     Sizes.md: 16.0,
@@ -18,8 +19,9 @@ abstract class AppPadding {
   };
 
   static const Map<Sizes, double> desktopValues = {
-    Sizes.xxxs: 4.0,
-    Sizes.xxs: 8.0,
+    Sizes.xxxxs: 4.0,
+    Sizes.xxxs: 8.0,
+    Sizes.xxs: 12.0,
     Sizes.xs: 16.0,
     Sizes.sm: 24.0,
     Sizes.md: 32.0,
@@ -98,6 +100,29 @@ abstract class AppPadding {
       top: top ? value : 0,
       right: right ? value : 0,
       bottom: bottom ? value : 0,
+    );
+  }
+
+  static EdgeInsets symmetric(
+    BuildContext context, {
+    Sizes? horizontalPadding,
+    Sizes? verticalPadding,
+  }) {
+    final horizontalValue = horizontalPadding != null
+        ? (ScreenSize.isPhone(context)
+            ? mobileValues[horizontalPadding]!
+            : desktopValues[horizontalPadding]!)
+        : 0.0;
+    
+    final verticalValue = verticalPadding != null
+        ? (ScreenSize.isPhone(context)
+            ? mobileValues[verticalPadding]!
+            : desktopValues[verticalPadding]!)
+        : 0.0;
+    
+    return EdgeInsets.symmetric(
+      horizontal: horizontalValue,
+      vertical: verticalValue,
     );
   }
 }

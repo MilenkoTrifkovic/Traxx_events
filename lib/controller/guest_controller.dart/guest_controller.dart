@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/extensions/guest_response_extensions.dart';
 import 'package:traxx_wepapp/mixins/selected_event_mixin.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 
@@ -11,7 +11,7 @@ class GuestController extends GetxController with SelectedEventMixin {
   final errorMessage =
       ''.obs; //for error handling - UI listens and shows snackBar
   final List<GuestResponse> responses; //Loaded at instance creation
-  final List<MenuItem> eventMenus;
+  final List<MenuItemOld> eventMenus;
 
   GuestController._({required this.responses, required this.eventMenus});
   // Create an instance of GuestController with pre-fetched guest responses.
@@ -26,7 +26,7 @@ class GuestController extends GetxController with SelectedEventMixin {
     return GuestController._(responses: fetchedResponses, eventMenus: menus);
   }
 
-  static Future<List<MenuItem>> _loadEventMenus(String eventId) async {
+  static Future<List<MenuItemOld>> _loadEventMenus(String eventId) async {
     //ERROR handling
     FirestoreServices firestoreServices = Get.find<FirestoreServices>(); //added
     final StorageServices storageServices = Get.find<StorageServices>(); //added

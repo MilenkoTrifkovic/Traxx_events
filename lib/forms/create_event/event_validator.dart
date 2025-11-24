@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'package:flutter/material.dart';
 
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 
@@ -16,8 +17,9 @@ class EventValidator {
     required String address,
     required String capacity,
     required ServiceType? serviceType,
-    required DateTime? startDateTime,
-    required DateTime? endDateTime,
+    required DateTime? date,
+    required TimeOfDay? startTime,
+    required TimeOfDay? endTime,
     required DateTime? rsvpDeadline,
     required String? eventType,
     required String? timezone,
@@ -29,14 +31,15 @@ class EventValidator {
     if (address.isEmpty) {
       throw EventValidationException('Event address is required');
     }
-    if (startDateTime == null) {
-      throw EventValidationException('Start date and time is required');
+    if (date == null) {
+      throw EventValidationException('Event date is required');
     }
-    if (serviceType == null) {
-      throw EventValidationException('Service type is required');
+    if (startTime == null) {
+      throw EventValidationException('Start time is required');
     }
-    if (endDateTime == null) {
-      throw EventValidationException('End date and time is required');
+    // ServiceType is now optional - no validation needed
+    if (endTime == null) {
+      throw EventValidationException('End time is required');
     }
     if (rsvpDeadline == null) {
       throw EventValidationException('RSVP deadline is required');
@@ -47,17 +50,31 @@ class EventValidator {
     if (timezone == null) {
       throw EventValidationException('Timezone is required');
     }
-    if (location == null) {
-      throw EventValidationException('Location is required');
-    }
+    // Location is now optional - no validation needed
 
     final capacityNum = int.tryParse(capacity);
     if (capacityNum == null) {
       throw EventValidationException('Valid capacity number is required');
     }
 
+    // Create DateTime objects for comparison
+    final startDateTime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      startTime.hour,
+      startTime.minute,
+    );
+    final endDateTime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      endTime.hour,
+      endTime.minute,
+    );
+
     if (endDateTime.isBefore(startDateTime)) {
-      throw EventValidationException('End date must be after start date');
+      throw EventValidationException('End time must be after start time');
     }
     if (rsvpDeadline.isAfter(startDateTime)) {
       throw EventValidationException(

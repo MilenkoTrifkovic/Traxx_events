@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/helper/app_decoration.dart';
 import 'package:traxx_wepapp/helper/app_margines.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
@@ -18,9 +18,9 @@ import 'package:traxx_wepapp/widgets/section_devider.dart';
 void showCategoryModal(
     BuildContext context,
     MenuCategory category,
-    List<MenuItem> dishes,
+    List<MenuItemOld> dishes,
     GuestResponse guestResponse,
-    Function(MenuItem)? onDishSelected) {
+    Function(MenuItemOld)? onDishSelected) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true, //allow full height

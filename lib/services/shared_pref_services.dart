@@ -4,16 +4,16 @@ import 'package:traxx_wepapp/utils/enums/user_type.dart';
 /// Service class for managing shared preferences
 /// Currently handles saving and retrieving user role.
 class SharedPrefServices {
-  void saveUserRole(UserType role) async {
+  void saveUserRole(UserRole role) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('userRole', role.name);
   }
 
-  Future<UserType?> getUserRole() async {
+  Future<UserRole?> getUserRole() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? roleString = prefs.getString('userRole');
     if (roleString != null) {
-      return UserType.values.firstWhere(
+      return UserRole.values.firstWhere(
         (e) => e.name == roleString,
       );
     }

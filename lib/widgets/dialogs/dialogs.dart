@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/constants.dart';
+import 'package:traxx_wepapp/utils/constantsOld.dart';
 
 class Dialogs {
   static void showConfirmationDialog(
@@ -14,7 +14,7 @@ class Dialogs {
             context,
             title,
             weight: FontWeight.bold,
-            family: Constants.font2,
+            family: ConstantsOld.font2,
           ),
           content: AppText.styledBodyMedium(context, message),
           actions: <Widget>[

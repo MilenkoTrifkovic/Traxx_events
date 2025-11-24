@@ -17,8 +17,9 @@ class EventFormState {
   final TextEditingController capacityController = TextEditingController();
 
   ServiceType? serviceType;
-  DateTime? startDateTime;
-  DateTime? endDateTime;
+  DateTime? date;
+  TimeOfDay? startTime;
+  TimeOfDay? endTime;
   DateTime? rsvpDeadline;
   String? selectedEventType;
   String? selectedTimezone;
@@ -47,8 +48,9 @@ class EventFormState {
     state.specialNotesController.text = event.specialNotes ?? '';
 
     // Initialize date/time fields
-    state.startDateTime = event.startDateTime;
-    state.endDateTime = event.endDateTime;
+    state.date = event.date;
+    state.startTime = event.startTime;
+    state.endTime = event.endTime;
     state.rsvpDeadline = event.rsvpDeadline;
 
     // Initialize selection fields
@@ -107,8 +109,9 @@ EventFormState {
   plannerEmail: ${plannerEmailController.text}
   specialNotes: ${specialNotesController.text}
   capacity: ${capacityController.text}
-  startDateTime: $startDateTime
-  endDateTime: $endDateTime
+  date: $date
+  startTime: $startTime
+  endTime: $endTime
   rsvpDeadline: $rsvpDeadline
   eventType: $selectedEventType
   timezone: $selectedTimezone

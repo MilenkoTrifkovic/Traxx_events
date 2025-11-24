@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -21,6 +22,7 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final AuthController authController = Get.find<AuthController>();
 
   @override
   void dispose() {
@@ -59,37 +61,39 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     // Setup listeners for messages and navigation
     _setupListeners(controller, context);
 
-    return SizedBox(
-      width: 400,
-      child: Card(
-        elevation: 0,
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Section
-              SignInHeader(controller: controller),
+    return SingleChildScrollView(
+      child: SizedBox(
+        width: 400,
+        child: Card(
+          elevation: 0,
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Section
+                SignInHeader(controller: controller),
 
-              // Form Section
-              SignInForm(
-                controller: controller,
-                formKey: _formKey,
-                emailController: _emailController,
-                passwordController: _passwordController,
-                confirmPasswordController: _confirmPasswordController,
-                onSubmit: () => _handleEmailPasswordAuth(controller),
-                onForgotPassword: () => _handleForgotPassword(controller),
-              ),
+                // Form Section
+                SignInForm(
+                  controller: controller,
+                  formKey: _formKey,
+                  emailController: _emailController,
+                  passwordController: _passwordController,
+                  confirmPasswordController: _confirmPasswordController,
+                  onSubmit: () => _handleEmailPasswordAuth(controller),
+                  onForgotPassword: () => _handleForgotPassword(controller),
+                ),
 
-              // Toggle Section
-              SignInToggle(
-                controller: controller,
-                onToggle: () => _clearFormAndToggleMode(controller),
-              ),
-            ],
+                // Toggle Section
+                SignInToggle(
+                  controller: controller,
+                  onToggle: () => _clearFormAndToggleMode(controller),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -121,8 +125,9 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     // Watch for navigation to email verification
     ever(controller.shouldNavigateToEmailVerification, (bool shouldNavigate) {
       if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
           print('UI: Navigating to email verification');
+          await authController.checkCompanyInfo();
           pushAndRemoveAllRoute(AppRoute.emailVerification, context);
           controller.clearNavigationFlags();
         });
@@ -132,8 +137,9 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     // Watch for navigation to host events
     ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
       if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
           print('UI: Navigating to host events');
+          await authController.checkCompanyInfo();
           pushAndRemoveAllRoute(AppRoute.hostEvents, context);
           controller.clearNavigationFlags();
         });

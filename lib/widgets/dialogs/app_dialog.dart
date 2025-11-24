@@ -4,40 +4,39 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 class AppDialog extends StatelessWidget {
-  final Widget header;
+  final Widget? header;
   final Widget content;
   final Widget? footer;
+
   const AppDialog({
     super.key,
-    required this.header,
+    this.header,
     required this.content,
-    required this.footer,
+    this.footer,
   });
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 1000,
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: AppBorderRadius.radius(context, size: Sizes.md),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            header,
-            Expanded(child: content),
-            footer ??
-                SizedBox(
-                  height: 0,
-                )
-          ],
+      child: IntrinsicWidth(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: AppBorderRadius.radius(context, size: Sizes.md),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (header != null) header!,
+              Expanded(child: content),
+              if (footer != null) footer!,
+            ],
+          ),
         ),
       ),
     );

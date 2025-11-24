@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
 import 'package:traxx_wepapp/controller/guest_controller.dart/respond_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
@@ -75,7 +75,8 @@ class GuestMenuForm extends StatelessWidget {
             runSpacing: 4.0,
             children: [
               ...activeCategories.map((category) {
-                final List<MenuItem> dishes = menusByCategory[category] ?? [];
+                final List<MenuItemOld> dishes =
+                    menusByCategory[category] ?? [];
 
                 return Obx(() {
                   bool hasError = respondController.shouldShowCategoryError(
@@ -87,7 +88,7 @@ class GuestMenuForm extends StatelessWidget {
                     borderColor: hasError
                         ? AppColors.error(context)
                         : AppColors.onBackground(context),
-                    serviceType: event.serviceType,
+                    serviceType: event.serviceType!,
                     showCategoryModal: () => showCategoryModal(
                       context,
                       category,

@@ -3,6 +3,30 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 
 class AppText {
+  static Widget styledMetaSmall(BuildContext context, String text,
+      {Color? color,
+      String family = Constants.font2,
+      TextDecoration? decoration,
+      TextOverflow? overflow,
+      FontStyle? style,
+      int? maxLines,
+      TextAlign? textAlign,
+      FontWeight weight = FontWeight.w400}) {
+    return Text(
+      text,
+      overflow: overflow,
+      maxLines: maxLines,
+      textAlign: textAlign,
+      style: TextStyle(
+          fontFamily: family,
+          fontSize: 12,
+          decoration: decoration,
+          fontWeight: weight,
+          fontStyle: style,
+          color: color ?? AppColors.white),
+    );
+  }
+
   static Widget styledHeadingMedium(BuildContext context, String text,
       {Color? color,
       String family = Constants.font2,

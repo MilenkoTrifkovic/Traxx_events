@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/utils/constants.dart';
+import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/widgets/welcome_app_bar.dart';
 
 class ContactView extends StatelessWidget {
@@ -44,7 +44,7 @@ class ContactView extends StatelessWidget {
                               textAlign: TextAlign.center),
                           AppSpacing.verticalMd(context),
                           AppSpacing.verticalMd(context),
-                          AppText.styledBodyMedium(context, Constants.email,
+                          AppText.styledBodyMedium(context, ConstantsOld.email,
                               color: AppColors.onPrimary(context),
                               weight: FontWeight.bold),
                           AppSpacing.verticalMd(context),
@@ -52,10 +52,11 @@ class ContactView extends StatelessWidget {
                           AppText.styledBodyMedium(context, 'Our hours are',
                               color: AppColors.onPrimary(context),
                               weight: FontWeight.bold),
-                          AppText.styledBodyMedium(context, Constants.timing,
+                          AppText.styledBodyMedium(context, ConstantsOld.timing,
                               color: AppColors.onPrimary(context)),
                           AppSpacing.verticalMd(context),
-                          AppText.styledBodyMedium(context, Constants.location,
+                          AppText.styledBodyMedium(
+                              context, ConstantsOld.location,
                               color: AppColors.onPrimary(context)),
                           AppSpacing.verticalMd(context),
                           AppSpacing.verticalMd(context),
@@ -69,7 +70,7 @@ class ContactView extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: AppText.styledBodySmall(
-                            context, Constants.trademark,
+                            context, ConstantsOld.trademark,
                             color: AppColors.onPrimary(context),
                             weight: FontWeight.normal),
                       ),

@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/controller/guest_controller.dart/guest_controller.d
 import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -20,7 +20,7 @@ import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 class GuestResponsesModal extends StatelessWidget {
   final GuestController guestController;
   final List<GuestResponse> responses;
-  final List<MenuItem> menuItems;
+  final List<MenuItemOld> menuItems;
 
   const GuestResponsesModal({
     required this.guestController,
@@ -46,7 +46,7 @@ class GuestResponsesModal extends StatelessWidget {
     BuildContext context, {
     required GuestController guestController,
     required List<GuestResponse> responses,
-    required List<MenuItem> menuItems,
+    required List<MenuItemOld> menuItems,
   }) {
     return showDialog(
       context: context,

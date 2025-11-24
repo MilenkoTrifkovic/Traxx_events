@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -10,6 +11,7 @@ import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 class EventListController extends GetxController {
   FirestoreServices firestoreServices = Get.find<FirestoreServices>();
   StorageServices storageServices = Get.find<StorageServices>();
+  AuthController authController = Get.find<AuthController>();
   var isLoading = true.obs;
   RxList<Event> events = <Event>[].obs;
   RxList<Event> filteredEvents = <Event>[].obs;
@@ -28,7 +30,8 @@ class EventListController extends GetxController {
   /// Fetches events from Firestore and loads their images from Storage
   Future<void> fetchEvents() async {
     try {
-      List<Event> eventsResult = await firestoreServices.getAllEvents();
+      List<Event> eventsResult =
+          await firestoreServices.getAllEvents(authController.organisationId!);
       eventsResult = await Future.wait(
           eventsResult.map((e) => storageServices.loadImage(e)));
       events.assignAll(eventsResult);
@@ -56,12 +59,12 @@ class EventListController extends GetxController {
   void sortEvents(SortType sortType) {
     switch (sortType) {
       case SortType.dateNewest:
-        filteredEvents
-            .sort((a, b) => b.startDateTime.compareTo(a.startDateTime));
+        filteredEvents.sort(
+            (a, b) => _getEventDateTime(b).compareTo(_getEventDateTime(a)));
         break;
       case SortType.dateOldest:
-        filteredEvents
-            .sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
+        filteredEvents.sort(
+            (a, b) => _getEventDateTime(a).compareTo(_getEventDateTime(b)));
         break;
       case SortType.nameAZ:
         filteredEvents.sort((a, b) => a.name.compareTo(b.name));
@@ -70,6 +73,17 @@ class EventListController extends GetxController {
         filteredEvents.sort((a, b) => b.name.compareTo(a.name));
         break;
     }
+  }
+
+  /// Helper method to combine date and start time for comparison
+  DateTime _getEventDateTime(Event event) {
+    return DateTime(
+      event.date.year,
+      event.date.month,
+      event.date.day,
+      event.startTime.hour,
+      event.startTime.minute,
+    );
   }
 
   /// Deletes an event from Firestore and removes it from local lists
@@ -88,7 +102,7 @@ class EventListController extends GetxController {
     }
   }
 
-  void addCreatedEvenToList(Event event) {
+  void addCreatedEventToList(Event event) {
     events.add(event);
     filteredEvents.add(event);
     sortEvents(SortType.dateNewest);

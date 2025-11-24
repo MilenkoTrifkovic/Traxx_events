@@ -1,4 +1,4 @@
-// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_auth/firebase_auth.dart};
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,7 +13,8 @@ import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
-import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
   //   FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
   //   FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
   // }
+  // Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<SharedPrefServices>(() => SharedPrefServices(), fenix: true);
   Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
@@ -56,10 +58,15 @@ Future<void> main() async {
       fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
+  // Get.lazyPut<VenuesController>(() => VenuesController(), fenix: true);
   // Get.lazyPut<GuestController>(() => GuestController(), fenix: true);
 
   Get.put<EventController>(EventController(),
       permanent: true); //Holds selected event Event?
+  final authController = Get.find<AuthController>();
+
+  // Only check company info if user is authenticated and verified
+  await authController.checkCompanyInfo();
 
   runApp(MyApp());
 }

@@ -40,7 +40,7 @@ class _RespondScreenState extends State<RespondScreen> {
   // This async function handles the loading process
   Future<void> _initializeController() async {
     final newController = await RespondController.create(widget.event.id!,
-        widget.event.selectableCategories, widget.event.serviceType);
+        widget.event.selectableCategories, widget.event.serviceType!);
 
     setState(() {
       _respondController = newController;

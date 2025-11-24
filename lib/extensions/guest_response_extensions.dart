@@ -1,10 +1,10 @@
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 
 extension GuestResponseTable on GuestResponse {
   /// Converts the guest response into a flat map structure for table display.
   /// Each field becomes a separate column in the resulting data structure.
-  Map<String, String> toTableRow(List<MenuItem> allMenuItems) {
+  Map<String, String> toTableRow(List<MenuItemOld> allMenuItems) {
     final Map<String, String> row = {
       'Guest Name': guestName ?? 'You',
     };
@@ -15,7 +15,7 @@ extension GuestResponseTable on GuestResponse {
     menus.forEach((category, menuItemId) {
       // row[category] = menuItemId;
       row[category] = allMenuItems
-          .firstWhere((element) => element.id == menuItemId)
+          .firstWhere((element) => element.menuItemId == menuItemId)
           .dishName;
     });
 

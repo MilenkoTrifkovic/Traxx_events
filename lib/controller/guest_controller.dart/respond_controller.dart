@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/extensions/guest_response_extensions.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/guest.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
@@ -13,7 +13,7 @@ class RespondController extends GetxController {
   //add mixin instead of current approach
   final String eventId;
   final List<MenuCategory> selectableCategories;
-  final List<MenuItem> eventMenus;
+  final List<MenuItemOld> eventMenus;
   final int peopleAllowed;
   final ServiceType serviceType;
   List<EventQuestions> eventQuestions;
@@ -138,7 +138,7 @@ class RespondController extends GetxController {
     return questions;
   }
 
-  static Future<List<MenuItem>> _loadEventMenus(String eventId) async {
+  static Future<List<MenuItemOld>> _loadEventMenus(String eventId) async {
     //ERROR handling
     FirestoreServices firestoreServices = Get.find<FirestoreServices>(); //added
     final StorageServices storageServices = Get.find<StorageServices>(); //added
@@ -152,8 +152,8 @@ class RespondController extends GetxController {
     return menus;
   }
 
-  void setSelectedDish(MenuItem dish, int responseId) {
-    allResponses[responseId].menus[dish.category.name] = dish.id;
+  void setSelectedDish(MenuItemOld dish, int responseId) {
+    allResponses[responseId].menus[dish.category.name] = dish.menuItemId;
     allResponses.refresh();
   }
 
@@ -162,8 +162,8 @@ class RespondController extends GetxController {
     return listOfCategories;
   }
 
-  Map<MenuCategory, List<MenuItem>> getMenusByCategory() {
-    final menusByCategory = <MenuCategory, List<MenuItem>>{};
+  Map<MenuCategory, List<MenuItemOld>> getMenusByCategory() {
+    final menusByCategory = <MenuCategory, List<MenuItemOld>>{};
 
     for (final menu in eventMenus) {
       if (!menusByCategory.containsKey(menu.category)) {

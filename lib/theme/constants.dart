@@ -1,5 +1,6 @@
 /// Design system constants for the Traxx application
 class Constants {
+  static const double maxContentWidth = 1200;
   //Configuration
   static const String webClientId =
       '781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com';
@@ -9,6 +10,10 @@ class Constants {
 
   static String lightLogo = 'assets/icons/light-logo.png';
   static String darkLogo = 'assets/icons/dark-logo.png';
+  static String cartoonRestaurant = 'assets/photos/cartoon_restaurant.png';
+
+  static const String googleMapsApiKey =
+      'AIzaSyDt2ZfJjvYxeOHITwVOLG45EqJuQRy9j9o';
 
   /// Typography scale
   static const double headingLargeFontSize = 32.0;

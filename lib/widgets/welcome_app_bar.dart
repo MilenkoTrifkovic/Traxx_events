@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/constants.dart';
+import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 
 AppBar welcomeAppBar(BuildContext context) {
@@ -20,7 +20,7 @@ AppBar welcomeAppBar(BuildContext context) {
           child: Container(
             margin: const EdgeInsets.only(top: 20, left: 10),
             child: Image.asset(
-              Constants.lightLogo,
+              ConstantsOld.lightLogo,
               height: 50,
               color: AppColors.primaryOld(context),
             ),

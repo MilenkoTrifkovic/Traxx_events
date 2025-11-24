@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/welcome_background.dart';
-import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 
 /// A reusable scaffold with full-screen background image and transparent content wrapper
 ///
@@ -58,16 +57,31 @@ class BackgroundScaffold extends StatelessWidget {
             child: WelcomeBackground(),
           ),
           // Content Layer with wrapper
-          ContentWrapper(
-            contentColor:
-                Colors.transparent, // Make content wrapper transparent
-            shadow: const BoxShadow(color: Colors.transparent), // Remove shadow
-            maxWidth: maxWidth ?? 1440, // Default or custom max width
-            alignment: contentAlignment,
-            child: child,
-          ),
+          child,
         ],
       ),
     );
+    // return Scaffold(
+    //   extendBodyBehindAppBar: extendBodyBehindAppBar,
+    //   backgroundColor: backgroundColor ?? AppColors.borderSubtle,
+    //   appBar: appBar,
+    //   body: Stack(
+    //     children: [
+    //       // Full Screen Background Layer
+    //       const Positioned.fill(
+    //         child: WelcomeBackground(),
+    //       ),
+    //       // Content Layer with wrapper
+    //       ContentWrapper(
+    //         contentColor:
+    //             Colors.transparent, // Make content wrapper transparent
+    //         shadow: const BoxShadow(color: Colors.transparent), // Remove shadow
+    //         maxWidth: maxWidth ?? 1440, // Default or custom max width
+    //         alignment: contentAlignment,
+    //         child: child,
+    //       ),
+    //     ],
+    //   ),
+    // );
   }
 }

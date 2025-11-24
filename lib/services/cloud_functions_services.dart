@@ -2,6 +2,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../models/organisation.dart';
+import '../models/organisation_check_response.dart';
 
 class CloudFunctionsService extends GetxService {
   late final FirebaseFunctions _functions;
@@ -83,8 +84,8 @@ class CloudFunctionsService extends GetxService {
   }
 
   /// Checks if organisation info already exists for the current user
-  /// Returns true if organisation exists, false otherwise
-  Future<bool> checkOrganisationInfo() async {
+  /// Returns OrganisationCheckResponse with hasOrganisation, organisationId, and role
+  Future<OrganisationCheckResponse> checkOrganisationInfo() async {
     try {
       // Ensure user is authenticated
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -106,22 +107,12 @@ class CloudFunctionsService extends GetxService {
         throw Exception('Cloud function returned null data');
       }
 
-      // The cloud function should return a boolean or an object with a boolean field
-      final responseData = result.data;
+      // The cloud function returns an object with hasOrganisation, organisationId, and role
+      final responseData = Map<String, dynamic>.from(result.data);
+      final response = OrganisationCheckResponse.fromJson(responseData);
 
-      bool exists;
-      if (responseData is bool) {
-        exists = responseData;
-      } else if (responseData is Map && responseData.containsKey('hasOrganisation')) {
-        exists = responseData['hasOrganisation'] as bool;
-      } else if (responseData is Map && responseData.containsKey('exists')) {
-        exists = responseData['exists'] as bool;
-      } else {
-        throw Exception('Invalid response format from cloud function');
-      }
-
-      print('Organisation exists: $exists');
-      return exists;
+      print('Organisation check response: $response');
+      return response;
     } on FirebaseFunctionsException catch (e) {
       print('Firebase Functions Error: ${e.code} - ${e.message}');
       print('Details: ${e.details}');
@@ -134,9 +125,13 @@ class CloudFunctionsService extends GetxService {
         case 'unauthenticated':
           throw Exception('User must be authenticated to check organisation');
         case 'not-found':
-          // If organisation is not found, return false
+          // If organisation is not found, return false response
           print('Organisation not found for user');
-          return false;
+          return const OrganisationCheckResponse(
+            hasOrganisation: false,
+            organisationId: null,
+            role: null,
+          );
         default:
           throw Exception('Cloud function error: ${e.message}');
       }

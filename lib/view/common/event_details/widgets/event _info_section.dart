@@ -15,12 +15,12 @@ class EventInfoSection extends StatelessWidget {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
-  String _formatTime(DateTime dateTime) {
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  String _formatTime(TimeOfDay timeOfDay) {
+    return '${timeOfDay.hour.toString().padLeft(2, '0')}:${timeOfDay.minute.toString().padLeft(2, '0')}';
   }
 
   String _formatDateTime(DateTime dateTime) {
-    return '${_formatDate(dateTime)} ${_formatTime(dateTime)}';
+    return '${_formatDate(dateTime)} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildInfoItem(BuildContext context, double width, IconData icon,
@@ -65,8 +65,9 @@ class EventInfoSection extends StatelessWidget {
             itemWidth,
             Icons.calendar_today,
             'Date & Time',
-            'Start: ${_formatDate(event.startDateTime)} - ${_formatTime(event.startDateTime)}\n'
-                'End:   ${_formatDate(event.endDateTime)} - ${_formatTime(event.endDateTime)}',
+            'Date: ${_formatDate(event.date)}\n'
+                'Start: ${_formatTime(event.startTime)}\n'
+                'End:   ${_formatTime(event.endTime)}',
           ),
           _buildInfoItem(
             context,
@@ -96,20 +97,13 @@ class EventInfoSection extends StatelessWidget {
             'Event Type',
             event.eventType,
           ),
-          _buildInfoItem(
-            context,
-            itemWidth,
-            Icons.category,
-            'Service Type',
-            event.serviceType.name.capitalizeString(),
-          ),
-          _buildInfoItem(
-            context,
-            itemWidth,
-            Icons.room_service,
-            'Service Type',
-            event.serviceType.name.capitalizeString(),
-          ),
+          // _buildInfoItem(
+          //   context,
+          //   itemWidth,
+          //   Icons.room_service,
+          //   'Service Type',
+          //   event.serviceType!.name.capitalizeString(),
+          // ),
           _buildInfoItem(
             context,
             itemWidth,

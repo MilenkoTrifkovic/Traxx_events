@@ -1,13 +1,17 @@
+import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
 import 'package:traxx_wepapp/models/guest.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
+import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
+import 'package:traxx_wepapp/models/menu_item.dart' as new_menu;
 
 class FirestoreServices {
   final _db = FirebaseFirestore.instance;
@@ -24,6 +28,12 @@ class FirestoreServices {
   /// Reference to organisations collection in Firestore
   late final CollectionReference<Organisation> organisationsRef;
 
+  /// Reference to venues collection in Firestore
+  late final CollectionReference<Venue> venuesRef;
+
+  final CollectionReference<Map<String, dynamic>> menuItemsRef =
+      FirebaseFirestore.instance.collection('menu_items');
+
   FirestoreServices() {
     usersRef = _db.collection(usersCol);
     eventsRef = _db.collection(eventsCol);
@@ -33,12 +43,46 @@ class FirestoreServices {
               fromFirestore: (snap, _) => Organisation.fromFirestore(snap),
               toFirestore: (value, _) => value.toFirestore(),
             );
+    venuesRef = _db.collection(venuesCol).withConverter<Venue>(
+          fromFirestore: (snap, _) => Venue.fromFirestore(snap),
+          toFirestore: (value, _) => value.toFirestore(),
+        );
   }
 
   /// Adds a new organisation to Firestore.
   /// Throws [FirebaseException] if the add operation fails.
   Future<void> addOrganisation(Organisation organisation) async {
     await organisationsRef.add(organisation);
+  }
+
+  /// Fetches an organisation by its organisationId field from Firestore.
+  ///
+  /// Parameters:
+  /// - [organisationId]: The organisationId field value to search for
+  ///
+  /// Returns the [Organisation] object if found.
+  /// Throws [FirebaseException] if the fetch operation fails.
+  /// Throws [Exception] if the organisation is not found.
+  Future<Organisation> getOrganisation(String organisationId) async {
+    try {
+      final querySnapshot = await organisationsRef
+          .where('organisationId', isEqualTo: organisationId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception(
+            'Organisation not found with organisationId: $organisationId');
+      }
+
+      return querySnapshot.docs.first.data();
+    } on FirebaseException catch (e) {
+      print('Firestore error fetching organisation: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error fetching organisation: $e');
+      rethrow;
+    }
   }
 
   /// Saves a new event to Firestore.
@@ -48,7 +92,7 @@ class FirestoreServices {
   Future<void> saveEvent(Event event) async {
     try {
       //Check if user logged in
-      final eventDocRef = await eventsRef.add(event.toJson());
+      await eventsRef.add(event.toJson());
       //Add event id to user document
     } on FirebaseException catch (e) {
       print('Firestore error: ${e.message}');
@@ -84,7 +128,7 @@ class FirestoreServices {
     batch.update(docRef, fields);
   }
 
-  Future<List<Event>> getAllEvents() async {
+  Future<List<Event>> getAllEvents(String organisationId) async {
     // TODO after login implementation:
 // - Check if the user is logged in
 // - Retrieve all events assigned to the user
@@ -92,7 +136,9 @@ class FirestoreServices {
 
     try {
       List<Event> events = [];
-      final snapshot = await eventsRef.get();
+      final snapshot = await eventsRef
+          .where('organisationId', isEqualTo: organisationId)
+          .get();
       events = snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
       return events;
     } on FirebaseException catch (e) {
@@ -193,7 +239,8 @@ class FirestoreServices {
   //   }
   // }
 
-  void addMenusToBatch(WriteBatch batch, List<MenuItem> menus, String eventId) {
+  void addMenusToBatch(
+      WriteBatch batch, List<MenuItemOld> menus, String eventId) {
     final menuData = menus.map((menu) => menu.toFirestore()).toList();
     final docRef = eventsRef.doc(eventId).collection('menus').doc('config');
 
@@ -204,7 +251,7 @@ class FirestoreServices {
   /// Returns an empty list if no menus are found.
   /// Returns a List of MenuItem objects if menus are found.
   /// If an error occurs, it throws an exception.
-  Future<List<MenuItem>> getMenus(String eventId) async {
+  Future<List<MenuItemOld>> getMenus(String eventId) async {
     try {
       final snapshot =
           await eventsRef.doc(eventId).collection('menus').doc('config').get();
@@ -214,7 +261,9 @@ class FirestoreServices {
       final data = snapshot.data();
       if (data != null && data.containsKey('menus')) {
         final List<dynamic> menusData = data['menus'];
-        return menusData.map((menu) => MenuItem.fromFirestore(menu)).toList();
+        return menusData
+            .map((menu) => MenuItemOld.fromFirestore(menu))
+            .toList();
       } else {
         throw Exception("No menus found");
       }
@@ -460,7 +509,7 @@ class FirestoreServices {
 
   Future<void> saveMenusAndUpdateEventFields(
     String eventId,
-    List<MenuItem> menus,
+    List<MenuItemOld> menus,
     Map<String, dynamic> fields,
   ) async {
     try {
@@ -473,5 +522,179 @@ class FirestoreServices {
       print('Failed to commit batch: $error');
       rethrow;
     }
+  }
+
+  // VENUE SERVICES
+
+  /// Creates a new venue in Firestore.
+  ///
+  /// Parameters:
+  /// - [venue]: The venue object to create
+  ///
+  /// Returns the document ID of the created venue.
+  /// Throws [FirebaseException] if the create operation fails.
+  Future<String> createVenue(Venue venue) async {
+    try {
+      // Ensure venueID is set (UUID4)
+      final uuid = Uuid();
+      final venueWithId = venue.copyWith(venueID: uuid.v4());
+
+      // Use add with explicit create data to ensure proper timestamps
+      final docRef =
+          await _db.collection(venuesCol).add(venueWithId.toFirestoreCreate());
+      print('Venue created successfully with ID: ${docRef.id}');
+      return docRef.id;
+    } on FirebaseException catch (e) {
+      print('Firestore error creating venue: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error creating venue: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches all venues for a specific organisation from Firestore.
+  ///
+  /// Parameters:
+  /// - [organisationId]: The organisation ID to filter venues by
+  ///
+  /// Returns a list of [Venue] objects for the organisation.
+  /// Returns empty list if no venues are found.
+  /// Throws [FirebaseException] if the fetch operation fails.
+  Future<List<Venue>> getVenues(String organisationId) async {
+    try {
+      final querySnapshot = await retryFirestore(
+        () => venuesRef
+            .where('organisationId', isEqualTo: organisationId)
+            .where('isDisabled', isEqualTo: false)
+            .orderBy('name')
+            .get(),
+        operationName: 'Fetching venues for organisation',
+      );
+
+      if (querySnapshot.docs.isEmpty) {
+        print('No venues found for organisation: $organisationId');
+        return [];
+      }
+
+      final venues = querySnapshot.docs.map((doc) => doc.data()).toList();
+      print('Found ${venues.length} venues for organisation: $organisationId');
+      return venues;
+    } on FirebaseException catch (e) {
+      print('Firestore error fetching venues: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error fetching venues: $e');
+      rethrow;
+    }
+  }
+
+  /// Updates an existing venue in Firestore.
+  ///
+  /// Parameters:
+  /// - [venue]: The venue object with updated data
+  ///
+  /// Throws [FirebaseException] if the update operation fails.
+  /// Throws [Exception] if venue ID is null.
+  Future<void> updateVenue(Venue venue) async {
+    if (venue.venueID == null) {
+      throw Exception('Cannot update venue: venue ID is null');
+    }
+
+    try {
+      await venuesRef.doc(venue.venueID).update(venue.toFirestoreUpdate());
+      print('Venue updated successfully: ${venue.venueID}');
+    } on FirebaseException catch (e) {
+      print('Firestore error updating venue: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error updating venue: $e');
+      rethrow;
+    }
+  }
+
+  /// Soft deletes a venue by setting isDisabled to true.
+  ///
+  /// Parameters:
+  /// - [venueId]: The ID of the venue to disable
+  ///
+  /// Throws [FirebaseException] if the delete operation fails.
+  Future<void> deleteVenue(String venueId) async {
+    try {
+      await venuesRef.doc(venueId).update({
+        'isDisabled': true,
+        'modifiedAt': FieldValue.serverTimestamp(),
+      });
+      print('Venue soft deleted successfully: $venueId');
+    } on FirebaseException catch (e) {
+      print('Firestore error deleting venue: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error deleting venue: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches a single venue by its ID.
+  ///
+  /// Parameters:
+  /// - [venueId]: The ID of the venue to fetch
+  ///
+  /// Returns the [Venue] object if found.
+  /// Throws [FirebaseException] if the fetch operation fails.
+  /// Throws [Exception] if the venue is not found.
+  Future<Venue> getVenueById(String venueId) async {
+    try {
+      final docSnapshot = await retryFirestore(
+        () => venuesRef.doc(venueId).get(),
+        operationName: 'Fetching venue by ID',
+      );
+
+      if (!docSnapshot.exists) {
+        throw Exception('Venue not found with ID: $venueId');
+      }
+
+      final venue = docSnapshot.data();
+      if (venue == null) {
+        throw Exception('Venue data is null for ID: $venueId');
+      }
+
+      print('Venue fetched successfully: $venueId');
+      return venue;
+    } on FirebaseException catch (e) {
+      print('Firestore error fetching venue: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error fetching venue: $e');
+      rethrow;
+    }
+  }
+
+  Future<MenuItem> createMenuItem(MenuItem menuItem) async {
+    final uuid = Uuid();
+    final menuItemId = uuid.v4();
+    final item = menuItem.copyWith(menuItemId: menuItemId);
+    final result = await menuItemsRef.add(item.toFirestoreCreate());
+    return item;
+  }
+
+  Future<List<new_menu.MenuItem>> getAllMenus(String organisationId) async {
+    final query =
+        await menuItemsRef.where('venuID', isEqualTo: organisationId).get();
+    return query.docs
+        .map((doc) => new_menu.MenuItem.fromFirestore(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<void> updateMenuItem(new_menu.MenuItem menuItem) async {
+    if (menuItem.menuItemId == null)
+      throw Exception('menuItemId required for update');
+    await menuItemsRef
+        .doc(menuItem.menuItemId)
+        .update(menuItem.toFirestoreUpdate());
+  }
+
+  Future<void> deleteMenuItem(String menuItemId) async {
+    await menuItemsRef.doc(menuItemId).delete();
   }
 }

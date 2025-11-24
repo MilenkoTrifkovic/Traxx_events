@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -167,6 +168,7 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
         // Remove fixed maxHeight to allow for validation errors
         minHeight: widget.height ?? 68.0,
       ),
+      margin: EdgeInsets.only(bottom: AppSpacing.xxxs(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

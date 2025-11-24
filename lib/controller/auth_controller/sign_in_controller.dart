@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/auth_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 
@@ -8,6 +9,7 @@ class SignInController extends GetxController {
   final AuthServices _authServices = AuthServices();
   final CloudFunctionsService _cloudFunctionsService =
       Get.find<CloudFunctionsService>();
+  final AuthController _authController = Get.find<AuthController>();
 
   // Observables
   var isLoading = false.obs;
@@ -72,6 +74,7 @@ class SignInController extends GetxController {
           email: email,
           password: password,
         );
+        await _authController.checkCompanyInfo();
         print('Controller: User signed in');
       }
 
@@ -82,7 +85,8 @@ class SignInController extends GetxController {
       if (user != null && !user.emailVerified) {
         print('Controller: Should navigate to email verification');
         shouldNavigateToEmailVerification.value = true;
-      } else if (await _checkIfOrganisationExists() == false) {
+      } else if (_authController.companyInfoExists.value == false) {
+        print('Controller: Should navigate to organisation info');
         shouldNavigateToOrganisationInfo.value = true;
       } else {
         print('Controller: Should navigate to host events');
@@ -98,19 +102,19 @@ class SignInController extends GetxController {
 
   /// Checks if organisation info already exists for the current user
   /// Returns true if organisation exists, false otherwise
-  Future<bool> _checkIfOrganisationExists() async {
-    try {
-      print('Checking if organisation info already exists...');
+  // Future<bool> _checkIfOrganisationExists() async {
+  //   try {
+  //     print('Checking if organisation info already exists...');
 
-      final exists = await _cloudFunctionsService.checkOrganisationInfo();
+  //     final exists = await _cloudFunctionsService.checkOrganisationInfo();
 
-      print('Organisation exists: $exists');
-      return exists;
-    } catch (e) {
-      print('Error checking organisation existence: $e');
-      rethrow;
-    }
-  }
+  //     print('Organisation exists: $exists');
+  //     return exists;
+  //   } catch (e) {
+  //     print('Error checking organisation existence: $e');
+  //     rethrow;
+  //   }
+  // }
 
   /// Handle forgot password
   Future<void> handleForgotPassword(String email) async {

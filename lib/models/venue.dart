@@ -1,0 +1,201 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// A model representing a venue that can host events.
+///
+/// This class handles venue data including basic information,
+/// optional description and photo, and tracking metadata.
+class Venue {
+  /// Unique identifier for the venue
+  final String? venueID;
+
+  /// The organization that owns this venue
+  final String organisationId;
+
+  /// The name of the venue
+  final String name;
+
+  /// Optional description of the venue
+  final String? description;
+
+  /// Optional URL to the venue's photo
+  final String? photoUrl;
+
+  /// Timestamp when the venue was created (optional - uses server timestamp when null)
+  final DateTime? createdAt;
+
+  /// Timestamp when the venue was last modified (optional - uses server timestamp when null)
+  final DateTime? modifiedAt;
+
+  /// Whether the venue is disabled/inactive
+  final bool isDisabled;
+
+  /// Creates a new Venue instance
+  Venue({
+    this.venueID,
+    required this.organisationId,
+    required this.name,
+    this.description,
+    this.photoUrl,
+    this.createdAt,
+    this.modifiedAt,
+    this.isDisabled = false,
+  });
+
+  /// Creates a Venue from a Firestore document snapshot
+  factory Venue.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+
+    return Venue(
+      venueID: doc.id,
+      organisationId: data['organisationId'] ?? '',
+      name: data['name'] ?? '',
+      description: data['description'],
+      photoUrl: data['photoUrl'],
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      modifiedAt:
+          (data['modifiedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isDisabled: data['isDisabled'] ?? false,
+    );
+  }
+
+  /// Creates a Venue from a JSON map
+  factory Venue.fromJson(Map<String, dynamic> json) {
+    return Venue(
+      venueID: json['venueID'],
+      organisationId: json['organisationId'] ?? '',
+      name: json['name'] ?? '',
+      description: json['description'],
+      photoUrl: json['photoUrl'],
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      modifiedAt: json['modifiedAt'] != null
+          ? DateTime.parse(json['modifiedAt'])
+          : DateTime.now(),
+      isDisabled: json['isDisabled'] ?? false,
+    );
+  }
+
+  /// Converts the Venue to a Firestore-compatible map
+  Map<String, dynamic> toFirestore() {
+    return {
+      'venueID': venueID,
+      'organisationId': organisationId,
+      'name': name,
+      'description': description,
+      'photoUrl': photoUrl,
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : FieldValue.serverTimestamp(),
+      'modifiedAt': FieldValue.serverTimestamp(),
+      'isDisabled': isDisabled,
+    };
+  }
+
+  /// Converts the Venue to a Firestore-compatible map for creating new venues
+  /// Uses server timestamp for both createdAt and modifiedAt
+  Map<String, dynamic> toFirestoreCreate() {
+    return {
+      'venueID': venueID,
+      'organisationId': organisationId,
+      'name': name,
+      'description': description,
+      'photoUrl': photoUrl,
+      'createdAt': FieldValue.serverTimestamp(),
+      'modifiedAt': FieldValue.serverTimestamp(),
+      'isDisabled': isDisabled,
+    };
+  }
+
+  /// Converts the Venue to a Firestore-compatible map for updates
+  /// Only uses server timestamp for modifiedAt
+  Map<String, dynamic> toFirestoreUpdate() {
+    return {
+      'organisationId': organisationId,
+      'name': name,
+      'description': description,
+      'photoUrl': photoUrl,
+      'modifiedAt': FieldValue.serverTimestamp(),
+      'isDisabled': isDisabled,
+    };
+  }
+
+  /// Converts the Venue to a JSON map
+  Map<String, dynamic> toJson() {
+    return {
+      'venueID': venueID,
+      'organisationId': organisationId,
+      'name': name,
+      'description': description,
+      'photoUrl': photoUrl,
+      'createdAt': createdAt?.toIso8601String(),
+      'modifiedAt': modifiedAt?.toIso8601String(),
+      'isDisabled': isDisabled,
+    };
+  }
+
+  /// Creates a copy of this Venue with updated values
+  Venue copyWith({
+    String? venueID,
+    String? organisationId,
+    String? name,
+    String? description,
+    String? photoUrl,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+    bool? isDisabled,
+  }) {
+    return Venue(
+      venueID: venueID ?? this.venueID,
+      organisationId: organisationId ?? this.organisationId,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      photoUrl: photoUrl ?? this.photoUrl,
+      createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+      isDisabled: isDisabled ?? this.isDisabled,
+    );
+  }
+
+  /// Updates the modifiedAt timestamp to now
+  Venue updateModifiedAt() {
+    return copyWith(modifiedAt: DateTime.now());
+  }
+
+  /// Returns a string representation of the venue
+  @override
+  String toString() {
+    return 'Venue{venueID: $venueID, organisationId: $organisationId, name: $name, description: $description, '
+        'photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
+        'isDisabled: $isDisabled}';
+  }
+
+  /// Checks if two venues are equal
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is Venue &&
+        other.venueID == venueID &&
+        other.organisationId == organisationId &&
+        other.name == name &&
+        other.description == description &&
+        other.photoUrl == photoUrl &&
+        other.createdAt == createdAt &&
+        other.modifiedAt == modifiedAt &&
+        other.isDisabled == isDisabled;
+  }
+
+  /// Returns the hash code for this venue
+  @override
+  int get hashCode {
+    return venueID.hashCode ^
+        organisationId.hashCode ^
+        name.hashCode ^
+        description.hashCode ^
+        photoUrl.hashCode ^
+        (createdAt?.hashCode ?? 0) ^
+        (modifiedAt?.hashCode ?? 0) ^
+        isDisabled.hashCode;
+  }
+}

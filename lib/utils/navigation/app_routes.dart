@@ -9,7 +9,12 @@ enum AppRoute {
   host('/host'),
   hostOrganisationInfoForm('/host-organisation-info-form'),
   hostEvents('/host-events'),
+  hostVenues('/host-venues'),
+  hostVenueDetails('/host-venue-details/:eventId', 'eventId'),
+  hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
+
+  adminEventDetails('/host-event-details/:eventId', 'eventId'),
 
   guestEvents('/guest-events'),
   // guestEventDetails('/guest-event-details/:value'),

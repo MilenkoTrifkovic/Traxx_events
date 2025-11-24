@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
@@ -22,22 +23,26 @@ class SortEvents extends StatelessWidget {
     final EventListController controller = Get.find<EventListController>();
 
     return PopupMenuButton<SortType>(
-      child: Container(
-        padding: AppPadding.all(context, paddingType: Sizes.md),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.sort,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            AppSpacing.horizontalXs(context),
-            AppText.styledBodyMedium(
-              context,
-              'Sort',
-            ),
-          ],
+      child: Padding(
+        padding: AppPadding.horizontal(context, paddingType: Sizes.xxxs),
+        child: SizedBox(
+          height: 24,
+          // padding: AppPadding.all(context, paddingType: Sizes.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.sort,
+                size: 20,
+                color: AppColors.primaryAccent,
+              ),
+              AppSpacing.horizontalXxxs(context),
+              AppText.styledBodyMedium(
+                context,
+                'SORT BY',
+              ),
+            ],
+          ),
         ),
       ),
       onSelected: (SortType sortType) {

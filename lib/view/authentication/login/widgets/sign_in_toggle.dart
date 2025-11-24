@@ -17,11 +17,13 @@ class SignInToggle extends StatelessWidget {
     return Obx(() => Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              controller.isSignUpMode.value
-                  ? "Already have an account? "
-                  : "Don't have an account? ",
-              style: Theme.of(context).textTheme.bodySmall,
+            Flexible(
+              child: Text(
+                controller.isSignUpMode.value
+                    ? "Already have an account? "
+                    : "Don't have an account? ",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
             TextButton(
               onPressed: onToggle,

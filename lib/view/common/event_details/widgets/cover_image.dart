@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
-import 'package:traxx_wepapp/controller/host_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/constants.dart';
+import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
@@ -30,7 +30,7 @@ class CoverImage extends StatelessWidget {
 
     String? eventImage = event.coverImageDownloadUrl;
 
-    String defaultImage = Constants.lightLogo;
+    String defaultImage = ConstantsOld.lightLogo;
     return Stack(children: [
       Container(
         width: double.infinity,
@@ -64,7 +64,7 @@ class CoverImage extends StatelessWidget {
             padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
             child: AppText.styledHeadingMedium(context, event.name,
                 color: AppColors.onBackground(context),
-                family: Constants.font2,
+                family: ConstantsOld.font2,
                 weight: FontWeight.bold),
           ),
         ),

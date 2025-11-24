@@ -1,1 +1,1 @@
-enum UserType { guest, host, planner }
+enum UserRole { guest, admin, planner }

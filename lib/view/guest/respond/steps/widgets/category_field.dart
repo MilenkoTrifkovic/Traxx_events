@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/state_manager.dart';
 import 'package:traxx_wepapp/controller/guest_controller.dart/respond_controller.dart';
-import 'package:traxx_wepapp/models/menu.dart';
+import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
@@ -49,7 +49,7 @@ class CategoryField extends StatelessWidget {
   final MenuCategory category;
 
   /// List of available dishes for this category
-  final List<MenuItem> dishes;
+  final List<MenuItemOld> dishes;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +99,7 @@ class CategoryField extends StatelessWidget {
                                   dishes //move to controller
                                       .firstWhere(
                                         (element) =>
-                                            element.id ==
+                                            element.menuItemId ==
                                             respondController
                                                 .allResponses[responseId]
                                                 .menus[category.name],

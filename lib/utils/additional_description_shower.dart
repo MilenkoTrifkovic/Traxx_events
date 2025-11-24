@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/constants.dart';
+import 'package:traxx_wepapp/utils/constantsOld.dart';
 
 class AdditionalDescriptionShower {
   static Future<void> showMessage(
@@ -17,7 +17,7 @@ class AdditionalDescriptionShower {
           backgroundColor: AppColors.primaryContainer(context),
           title: AppText.styledHeadingSmall(
             weight: FontWeight.bold,
-            family: Constants.font2,
+            family: ConstantsOld.font2,
             context,
             title,
             color: AppColors.onSurface(context),
@@ -61,7 +61,7 @@ class AdditionalDescriptionShower {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppText.styledHeadingSmall(
-                family: Constants.font2,
+                family: ConstantsOld.font2,
                 weight: FontWeight.bold,
                 context,
                 title,
