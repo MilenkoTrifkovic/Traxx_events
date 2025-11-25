@@ -54,7 +54,7 @@ class CreateEditEventController {
   Future<void> updateEvent(Event eventa) async {
     try {
       final Event event = Event.fromFormState(formState, eventa.organisationId);
-      event.id = eventa.id;
+      // event.eventId = eventa.eventId;
       print('Event from form state: ${event.toString()}');
       print('Event passed: ${eventa.toString()}');
 

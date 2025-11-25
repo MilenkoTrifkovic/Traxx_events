@@ -38,7 +38,8 @@ class RespondToInviteButton extends StatelessWidget {
                     onPressed: () {
                       pushAndRemoveAllRoute(AppRoute.guestEventRespond, context,
                           extra: guestController.selectedEvent.value,
-                          urlParam: guestController.selectedEvent.value.id);
+                          urlParam:
+                              guestController.selectedEvent.value.eventId);
                     },
                     text: respond)
                 : AppText.styledBodyLarge(context,

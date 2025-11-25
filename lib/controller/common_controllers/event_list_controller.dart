@@ -19,7 +19,7 @@ class EventListController extends GetxController {
 
   String? get eventId {
     final event = selectedEvent.value;
-    return event?.id;
+    return event?.eventId;
   }
 
   int? get eventCapacity {
@@ -90,10 +90,10 @@ class EventListController extends GetxController {
   /// Throws Exception if delete operation fails
   Future<void> deleteEvent() async {
     try {
-      String eventId = selectedEvent.value!.id!;
+      String eventId = selectedEvent.value!.eventId!;
 
       await firestoreServices.deleteEvent(eventId);
-      events.removeWhere((event) => event.id == eventId);
+      events.removeWhere((event) => event.eventId == eventId);
       filteredEvents.assignAll(events);
       print('Event deleted successfully');
     } catch (e) {
@@ -109,14 +109,14 @@ class EventListController extends GetxController {
   }
 
   void updateEventInEventList(Event event) {
-    int index = events.indexWhere((e) => e.id == event.id);
+    int index = events.indexWhere((e) => e.eventId == event.eventId);
     if (index != -1) {
       events[index] = event;
     }
     filteredEvents.assignAll(events);
 
     sortEvents(SortType.dateNewest);
-    if (selectedEvent.value?.id == event.id) {
+    if (selectedEvent.value?.eventId == event.eventId) {
       selectedEvent.value = event;
     }
   }

@@ -28,7 +28,7 @@ class _GuestEventDetailsState extends State<GuestEventDetails> {
   @override
   void initState() {
     super.initState();
-    eventId = eventController.selectedEvent.value!.id!;
+    eventId = eventController.selectedEvent.value!.eventId!;
     _guestControllerPromise = Get.putAsync(
       //putAsync to trigger onInit() in Controllers mixin
       () => GuestController.create(eventId, 'GtVe8orzBte68w3YkMKX').then(

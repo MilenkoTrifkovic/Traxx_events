@@ -91,8 +91,10 @@ class FirestoreServices {
   /// TODO: Add user authentication check and link event to user.
   Future<void> saveEvent(Event event) async {
     try {
-      //Check if user logged in
-      await eventsRef.add(event.toJson());
+      // Assign a new UUID v4 to eventId if not provided
+      final uuid = Uuid();
+      final eventWithId = event.copyWith(eventId: event.eventId ?? uuid.v4());
+      await eventsRef.add(eventWithId.toJson());
       //Add event id to user document
     } on FirebaseException catch (e) {
       print('Firestore error: ${e.message}');
@@ -105,8 +107,15 @@ class FirestoreServices {
 
   Future<void> updateEvent(Event event) async {
     try {
-      //Check if user logged in
-      final eventDocRef = eventsRef.doc(event.id);
+      // Query for the document where eventId == event.eventId
+      final querySnapshot = await eventsRef
+          .where('eventId', isEqualTo: event.eventId)
+          .limit(1)
+          .get();
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('No event found with eventId: ${event.eventId}');
+      }
+      final eventDocRef = querySnapshot.docs.first.reference;
       await eventDocRef.update(event.toJson());
       //Add event id to user document
     } on FirebaseException catch (e) {

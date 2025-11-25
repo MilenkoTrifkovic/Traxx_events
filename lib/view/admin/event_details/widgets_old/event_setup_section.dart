@@ -31,7 +31,7 @@ class EventSetupSection extends StatelessWidget {
             '',
             () {
               pushAndRemoveAllRoute(AppRoute.eventMenus, context,
-                  extra: event, urlParam: event.id);
+                  extra: event, urlParam: event.eventId);
             },
           ),
           _buildWidgetItem(
@@ -40,7 +40,7 @@ class EventSetupSection extends StatelessWidget {
           }),
           _buildWidgetItem(context, itemWidth, Icons.people, 'Guests', '', () {
             pushAndRemoveAllRoute(AppRoute.eventGuests, context,
-                urlParam: event.id);
+                urlParam: event.eventId);
           }),
           _buildWidgetItem(
             context,
@@ -50,7 +50,7 @@ class EventSetupSection extends StatelessWidget {
             '',
             () {
               pushAndRemoveAllRoute(AppRoute.eventResponses, context,
-                  urlParam: event.id);
+                  urlParam: event.eventId);
             },
           )
         ];

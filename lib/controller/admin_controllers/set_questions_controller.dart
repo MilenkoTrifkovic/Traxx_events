@@ -61,7 +61,7 @@ class SetQuestionsController {
     customFields.clear();
 
     print("Initialisation Started");
-    String eventId = hostController.selectedEvent.value!.id!;
+    String eventId = hostController.selectedEvent.value!.eventId!;
     customFields.clear();
     try {
       final fetchedFields =
@@ -123,7 +123,7 @@ class SetQuestionsController {
   /// Validates and saves the current state of customFields to Firestore.
   /// Returns true if saving was successful.
   Future<bool> saveGuestFields() async {
-    String eventId = hostController.selectedEvent.value!.id!;
+    String eventId = hostController.selectedEvent.value!.eventId!;
     try {
       print('validation started');
       validateFields();

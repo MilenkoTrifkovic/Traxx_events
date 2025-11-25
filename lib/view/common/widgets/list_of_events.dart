@@ -56,10 +56,10 @@ class ListOfEvents extends StatelessWidget {
                 eventController.setSelectedEvent(event);
                 if (authController.userRole.value == UserRole.admin) {
                   pushAndRemoveAllRoute(AppRoute.eventDetails, context,
-                      urlParam: event.id);
+                      urlParam: event.eventId);
                 } else {
                   pushRoute(AppRoute.guestEventDetails, context,
-                      urlParam: event.id, extra: event);
+                      urlParam: event.eventId, extra: event);
                 }
               },
             ),

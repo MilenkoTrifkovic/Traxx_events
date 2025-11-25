@@ -56,7 +56,7 @@ class SetGuestsController {
     if (_guestLimitExceeded(companions)) {
       throw GuestLimitExceededException();
     }
-    final eventId = _eventListController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.eventId!;
     Guest guest = Guest();
     guest.email = email;
     guest.name = name;
@@ -74,7 +74,7 @@ class SetGuestsController {
   Future<void> addGuestFromCsvXlsX(PlatformFile file) async {
     List<Guest> guests = [];
     int totalGuests = 0;
-    final eventId = _eventListController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.eventId!;
     FileParser fileParser =
         file.extension == 'csv' ? CsvParser() : XlsXParser();
     try {
@@ -91,7 +91,7 @@ class SetGuestsController {
             'Guest limit exceeded. Limit is ${guestLimit.value}. You are trying to add $totalGuests guests.');
       }
       await _firestoreServices
-          .deleteAllGuests(_eventListController.selectedEvent.value!.id!);
+          .deleteAllGuests(_eventListController.selectedEvent.value!.eventId!);
       await _firestoreServices.saveGuestList(eventId, guests);
     } on Exception catch (e) {
       _addError(e.toString());
@@ -127,7 +127,7 @@ class SetGuestsController {
 
   //remove guest
   Future<Guest> removeGuest(int index) async {
-    final eventId = _eventListController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.eventId!;
     Guest removedItem = guests.removeAt(index);
     await _firestoreServices.deleteGuest(eventId, removedItem);
     currentGuestCount -= (1 + removedItem.companions);
@@ -136,7 +136,7 @@ class SetGuestsController {
 
   //Implemented error handling with reactive variable
   Future<void> inviteGuest(Guest guest) async {
-    final eventId = _eventListController.selectedEvent.value!.id!;
+    final eventId = _eventListController.selectedEvent.value!.eventId!;
     try {
       await _firestoreServices.inviteGuest(eventId, guest);
       guest.invited = true;

@@ -54,7 +54,7 @@ class SetMenusController extends GetxController with SelectedEventMixin {
         'Selected event in controller: ${eventController.selectedEvent.value}');
 
     print('Initializing menus for event: ${selectedEvent.value}');
-    String eventId = selectedEvent.value.id!;
+    String eventId = selectedEvent.value.eventId!;
     menus.clear();
     menuImages.clear();
 
@@ -138,7 +138,7 @@ class SetMenusController extends GetxController with SelectedEventMixin {
       selectableCategories
           .removeWhere((element) => !checkIfSelectAllowed(element));
 
-      String eventId = selectedEvent.value.id!;
+      String eventId = selectedEvent.value.eventId!;
 
       // First save all menu-related changes
       _syncroniseMenusAndControllers();

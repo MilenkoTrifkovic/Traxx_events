@@ -127,7 +127,7 @@ class GuestResponsesModal extends StatelessWidget {
               onPressed: () {
                 popRoute(context);
                 pushAndRemoveAllRoute(AppRoute.guestEventRespond, context,
-                    urlParam: guestController.selectedEvent.value.id);
+                    urlParam: guestController.selectedEvent.value.eventId);
               },
               text: 'Submit new response'),
         ],

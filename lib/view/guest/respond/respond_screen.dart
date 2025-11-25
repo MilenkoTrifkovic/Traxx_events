@@ -39,7 +39,7 @@ class _RespondScreenState extends State<RespondScreen> {
 
   // This async function handles the loading process
   Future<void> _initializeController() async {
-    final newController = await RespondController.create(widget.event.id!,
+    final newController = await RespondController.create(widget.event.eventId!,
         widget.event.selectableCategories, widget.event.serviceType!);
 
     setState(() {
@@ -118,7 +118,7 @@ class _RespondScreenState extends State<RespondScreen> {
 
                         pushAndRemoveAllRoute(
                             AppRoute.guestEventDetails, context,
-                            urlParam: widget.event.id);
+                            urlParam: widget.event.eventId);
                       },
                       text: 'Submit',
                     ),

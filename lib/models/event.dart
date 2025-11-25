@@ -9,7 +9,8 @@ import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 class Event {
-  String? id;
+  final bool? isDisabled;
+  final String? eventId;
   final String organisationId;
   final String venueId;
   final ServiceType? serviceType;
@@ -37,7 +38,8 @@ class Event {
   final bool hideHostInfo;
 
   Event({
-    this.id,
+    this.isDisabled,
+    this.eventId,
     required this.organisationId,
     required this.venueId,
     this.serviceType,
@@ -89,7 +91,7 @@ class Event {
     final rsvpDeadline = (data['rsvpDeadline'] as Timestamp).toDate();
 
     return Event(
-      id: doc.id,
+      eventId: data['eventId'] as String?,
       organisationId: data['organisationId'] as String,
       venueId: data['venueId'] as String,
       name: data['name'] as String,
@@ -111,6 +113,7 @@ class Event {
       plannerEmail: data['plannerEmail'] as String?,
       specialNotes: data['specialNotes'] as String?,
       hideHostInfo: data['hideHostInfo'] as bool? ?? false,
+      isDisabled: data['isDisabled'] as bool?,
       serviceType: data['serviceType'] != null
           ? ServiceType.values.firstWhere(
               (e) => e.name == (data['serviceType']),
@@ -209,6 +212,7 @@ class Event {
     );
 
     return {
+      'eventId': eventId ?? '',
       'organisationId': organisationId,
       'venueId': venueId,
       'name': name,
@@ -236,11 +240,13 @@ class Event {
       'createdAt': Timestamp.now(),
       'updatedAt': Timestamp.now(),
       'selectableCategories': selectableCategories.map((e) => e.name).toList(),
+      'isDisabled': isDisabled ?? false,
     };
   }
 
   /// Creates a copy of this Event with the specified fields replaced with new values.
   Event copyWith({
+    String? eventId,
     String? id,
     String? organisationId,
     String? venueId,
@@ -265,9 +271,10 @@ class Event {
     String? specialNotes,
     bool? hideHostInfo,
     List<MenuCategory>? selectableCategories,
+    bool? isDisabled,
   }) {
     return Event(
-      id: id ?? this.id,
+      eventId: eventId ?? this.eventId,
       organisationId: organisationId ?? this.organisationId,
       venueId: venueId ?? this.venueId,
       serviceType: serviceType ?? this.serviceType,
@@ -292,6 +299,7 @@ class Event {
       specialNotes: specialNotes ?? this.specialNotes,
       hideHostInfo: hideHostInfo ?? this.hideHostInfo,
       selectableCategories: selectableCategories ?? this.selectableCategories,
+      isDisabled: isDisabled ?? this.isDisabled,
     );
   }
 
@@ -299,6 +307,7 @@ class Event {
   String toString() {
     return '''
 Event {
+  eventId: $eventId
   organisationId: $organisationId
   serviceType: $serviceType
   name: $name
@@ -320,6 +329,7 @@ Event {
   hideHostInfo: $hideHostInfo
   downloadURL: $coverImageDownloadUrl
   selectableCategories: $selectableCategories
+  isDisabled: $isDisabled
 }''';
   }
 }

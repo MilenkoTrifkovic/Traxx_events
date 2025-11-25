@@ -26,7 +26,7 @@ class _ResponsesViewState extends State<ResponsesView> {
   // late ResponsesController responsesController;
   @override
   void initState() {
-    eventId = eventController.selectedEvent.value!.id!;
+    eventId = eventController.selectedEvent.value!.eventId!;
     responsesControllerFuture = ResponsesController.create(eventId);
     //Not a good idea to use .then here as it makes the code asynchronous
     //and we cannot use the responsesController in the build method directly. Can  fail

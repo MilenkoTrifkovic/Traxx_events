@@ -35,7 +35,7 @@ class EventsController extends GetxController {
 
   Event? getEventById(String eventId) {
     try {
-      return events.firstWhere((event) => event.id == eventId);
+      return events.firstWhere((event) => event.eventId == eventId);
     } catch (e) {
       print('Event with ID $eventId not found: $e');
       return null;
