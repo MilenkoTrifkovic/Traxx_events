@@ -12,9 +12,13 @@ class AppColors {
   static Color inputError = Color(0xFFE53935);
   static Color borderInput = Color(0xFFD0D0D0);
   static Color borderHover = Color(0xFFA0A0A0);
+  static Color borderHoverDark = const Color(0xFF6B7280);
   static Color surfaceBase = Color(0xFFA0A0A0);
   static Color surfaceCard = Color(0xFFF9FAFB);
   static Color borderMenuTiles = Color(0xFFF3F4F6);
+  static Color chipBackground = const Color(0xFFF3F4F6);
+  static Color skeletonBase = const Color(0xFFF3F4F6);
+  static Color skeletonHighlight = const Color(0xFFE5E7EB);
 
 // old colors
   static Color seedColor = Color(0xFF003A70);
