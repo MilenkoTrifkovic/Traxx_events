@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
+import 'package:traxx_wepapp/layout/headers/widgets/add_question_dialog.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
@@ -8,6 +9,7 @@ class QuestionsManagementHeader extends StatelessWidget {
   QuestionsManagementHeader({super.key});
   final EventListController eventListController =
       Get.find<EventListController>();
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -17,17 +19,16 @@ class QuestionsManagementHeader extends StatelessWidget {
         Row(
           children: [
             AppPrimaryButton(
-                icon: Icons.add,
-                text: 'Add Question',
-                onPressed: () {
-                  // showDialog(
-                  //   context: context,
-                  //   builder: (context) {
-                  //     return CreateEventPopupView();
-                  //   },
-                  // );
-                  // Handle add question action
-                }),
+              icon: Icons.add,
+              text: 'Add Question',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const AddQuestionDialog(),
+                );
+              },
+            ),
           ],
         )
       ],

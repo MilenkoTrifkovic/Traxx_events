@@ -39,7 +39,7 @@ class _CreateEventPopupViewState extends State<CreateEventPopupView> {
 
     // Listen for snackbar messages
     ever(controller.snackBarMessage, (message) {
-      print('Snackbar message received: ${message?.message}');
+      /*  print('Snackbar message received: ${message?.message}'); */
       if (message != null && mounted) {
         // Show appropriate snackbar based on type
         // switch (message.type) {
