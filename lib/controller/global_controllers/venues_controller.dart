@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 
@@ -9,12 +10,25 @@ class VenuesController extends GetxController {
 
   // Observable list of venues
   final venues = <Venue>[].obs;
+  final Map<String, List<MenuItem>> menusByVenue = {};
   final isLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
     loadVenues();
+  }
+
+  /// Returns cached menu items for a venue if available, otherwise fetches from Firestore, caches, and returns them.
+  Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
+    // Check cache first
+    if (menusByVenue.containsKey(venueId)) {
+      return menusByVenue[venueId]!;
+    }
+    // Fetch from Firestore
+    final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
+    menusByVenue[venueId] = menuList;
+    return menuList;
   }
 
   /// Loads all venues from Firestore and updates the observable list

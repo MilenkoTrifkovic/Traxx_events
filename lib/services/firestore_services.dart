@@ -11,7 +11,8 @@ import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
-import 'package:traxx_wepapp/models/menu_item.dart' as new_menu;
+// import 'package:traxx_wepapp/models/menu_item.dart' as new_menu;
+import 'package:traxx_wepapp/models/menu_item.dart';
 
 class FirestoreServices {
   final _db = FirebaseFirestore.instance;
@@ -687,15 +688,15 @@ class FirestoreServices {
     return item;
   }
 
-  Future<List<new_menu.MenuItem>> getAllMenus(String organisationId) async {
+  Future<List<MenuItem>> getAllMenus(String organisationId) async {
     final query =
         await menuItemsRef.where('venuID', isEqualTo: organisationId).get();
     return query.docs
-        .map((doc) => new_menu.MenuItem.fromFirestore(doc.data(), doc.id))
+        .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))
         .toList();
   }
 
-  Future<void> updateMenuItem(new_menu.MenuItem menuItem) async {
+  Future<void> updateMenuItem(MenuItem menuItem) async {
     if (menuItem.menuItemId == null)
       throw Exception('menuItemId required for update');
     await menuItemsRef
@@ -705,5 +706,15 @@ class FirestoreServices {
 
   Future<void> deleteMenuItem(String menuItemId) async {
     await menuItemsRef.doc(menuItemId).delete();
+  }
+
+  Future<List<MenuItem>> getMenuItemsByVenueId(String venueId) async {
+    final querySnapshot = await retryFirestore(
+      () => menuItemsRef.where('venuID', isEqualTo: venueId).get(),
+      operationName: 'Fetching menu items by venueID',
+    );
+    return querySnapshot.docs
+        .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))
+        .toList();
   }
 }

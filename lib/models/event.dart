@@ -26,6 +26,7 @@ class Event {
   final LatLng? location;
   final EventStatus status;
   List<MenuCategory> selectableCategories;
+  List<String>? selectedMenus;
 
   // Optional fields
   final XFile? coverImage;
@@ -63,6 +64,7 @@ class Event {
     this.specialNotes,
     this.hideHostInfo = false,
     this.selectableCategories = const [],
+    this.selectedMenus,
   });
 
   /// Creates an Event instance from a Firestore document
@@ -123,6 +125,10 @@ class Event {
       selectableCategories: (data['selectableMenuCategories'] as List<dynamic>?)
               ?.map((name) =>
                   MenuCategory.values.firstWhere((e) => e.name == name))
+              .toList() ??
+          [],
+      selectedMenus: (data['selectedMenus'] as List<dynamic>?)
+              ?.map((e) => e as String)
               .toList() ??
           [],
     );

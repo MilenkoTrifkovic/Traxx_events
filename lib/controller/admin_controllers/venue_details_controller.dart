@@ -143,7 +143,7 @@ class VenueDetailsController {
     isCreatingMenuItem.value = true;
     try {
       final menuItem = await _buildMenuItem();
-      _firestoreServices.createMenuItem(menuItem);
+      final result = await _firestoreServices.createMenuItem(menuItem);
 
       snackbarMessageController.showSuccessMessage('Menu item created!');
     } catch (e) {
@@ -160,6 +160,7 @@ class VenueDetailsController {
       imagePath = await _storageServices.uploadImage(selectedImage.value!);
     }
     final menuItem = MenuItem(
+      venueID: venue!.venueID,
       name: menuNameController.text.trim(),
       category: selectedCategory.value!,
       description: menuDescriptionController.text.trim().isEmpty

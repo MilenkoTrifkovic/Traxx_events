@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 class MenuItem {
   final String? menuItemId;
-  final String? venuID;
+  final String? venueID;
   final String name;
   final MenuCategory category;
   final String? description;
@@ -15,7 +15,7 @@ class MenuItem {
 
   MenuItem({
     this.menuItemId,
-    this.venuID,
+    this.venueID,
     required this.name,
     required this.category,
     this.description,
@@ -34,7 +34,7 @@ class MenuItem {
       'category': category.name,
       'description': description,
       'imagePath': imagePath,
-      'venuID': venuID,
+      'venuID': venueID,
       'isDisabled': isDisabled,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -49,7 +49,7 @@ class MenuItem {
       'category': category.name,
       'description': description,
       'imagePath': imagePath,
-      'venuID': venuID,
+      'venuID': venueID,
       'isDisabled': isDisabled,
       // keep old createdAt, only update modifiedAt
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -91,7 +91,7 @@ class MenuItem {
   }) {
     return MenuItem(
       menuItemId: menuItemId ?? this.menuItemId,
-      venuID: venuID ?? this.venuID,
+      venueID: venuID ?? venueID,
       name: name ?? this.name,
       category: category ?? this.category,
       description: description ?? this.description,

@@ -13,6 +13,8 @@ class AppColors {
   static Color borderInput = Color(0xFFD0D0D0);
   static Color borderHover = Color(0xFFA0A0A0);
   static Color surfaceBase = Color(0xFFA0A0A0);
+  static Color surfaceCard = Color(0xFFF9FAFB);
+  static Color borderMenuTiles = Color(0xFFF3F4F6);
 
 // old colors
   static Color seedColor = Color(0xFF003A70);

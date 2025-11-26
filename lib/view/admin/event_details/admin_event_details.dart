@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controller.dart';
-import 'package:traxx_wepapp/models/organisation.dart';
-import 'package:traxx_wepapp/utils/enums/event_status.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/menu_panel_body.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
-import 'widgets/menu_expansion_panel_widget.dart';
 
 class AdminEventDetails extends StatefulWidget {
   final String eventId;
@@ -65,6 +64,9 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
           venue: venue.name,
         ),
         ExpansionPanelList(
+          materialGapSize: 12,
+          expandedHeaderPadding: EdgeInsets.zero,
+          dividerColor: Colors.transparent,
           expansionCallback: (panelIndex, isExpanded) {
             setState(() {
               _expandedPanels[panelIndex] = !isExpanded;
@@ -72,16 +74,40 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
           },
           children: [
             //Menu Panel
-            MenuExpansionPanelWidget.buildPanel(
+            ExpansionPanel(
+              backgroundColor: AppColors.white,
               isExpanded: _expandedPanels[0],
-              onHeaderTap: () {
-                setState(() {
-                  _expandedPanels[0] = !_expandedPanels[0];
-                });
+              headerBuilder: (context, isExpanded) {
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _expandedPanels[0] = !_expandedPanels[0];
+                    });
+                  },
+                  hoverColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  splashColor: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 16),
+                    child: Row(
+                      children: [
+                        AppText.styledHeadingMedium(
+                          context,
+                          'Menu',
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               },
-              context: context,
+              body: MenuPanelBody(
+                mainController: controller,
+              ),
             ),
             ExpansionPanel(
+              backgroundColor: AppColors.white,
               isExpanded: _expandedPanels[1],
               headerBuilder: (context, isExpanded) {
                 return InkWell(
@@ -98,8 +124,11 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
                         vertical: 16, horizontal: 16),
                     child: Row(
                       children: [
-                        Text('Guest List',
-                            style: Theme.of(context).textTheme.titleMedium),
+                        AppText.styledHeadingMedium(
+                          context,
+                          'Guest List',
+                          color: AppColors.primary,
+                        ),
                       ],
                     ),
                   ),
