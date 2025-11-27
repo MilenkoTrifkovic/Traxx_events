@@ -3,10 +3,12 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/storage_services.dart';
 
 class VenuesController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final AuthController _authController = Get.find<AuthController>();
+  final StorageServices _storageServices = Get.find<StorageServices>();
 
   // Observable list of venues
   final venues = <Venue>[].obs;
@@ -19,16 +21,35 @@ class VenuesController extends GetxController {
     loadVenues();
   }
 
-  /// Returns cached menu items for a venue if available, otherwise fetches from Firestore, caches, and returns them.
+  // /// Returns cached menu items for a venue if available, otherwise fetches from Firestore, caches, and returns them.
+  // Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
+  //   // Check cache first
+  //   if (menusByVenue.containsKey(venueId)) {
+  //     return menusByVenue[venueId]!;
+  //   }
+  //   // Fetch from Firestore
+  //   final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
+
+  //   menusByVenue[venueId] = menuList;
+  //   return menuList;
+  // }
   Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
-    // Check cache first
     if (menusByVenue.containsKey(venueId)) {
       return menusByVenue[venueId]!;
     }
-    // Fetch from Firestore
     final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
-    menusByVenue[venueId] = menuList;
-    return menuList;
+    final updated = await _withImageUrls(menuList);
+    menusByVenue[venueId] = updated;
+    return updated;
+  }
+
+  Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
+    return Future.wait(menuList.map((item) async {
+      if (item.imageUrl != null || item.imagePath == null) return item;
+      final url = await _storageServices.loadImageURL(item.imagePath);
+      if (url == null) return item;
+      return item.copyWith(imageUrl: url);
+    }));
   }
 
   /// Loads all venues from Firestore and updates the observable list

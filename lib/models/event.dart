@@ -246,6 +246,7 @@ class Event {
       'createdAt': Timestamp.now(),
       'updatedAt': Timestamp.now(),
       'selectableCategories': selectableCategories.map((e) => e.name).toList(),
+      'selectedMenus': selectedMenus ?? [],
       'isDisabled': isDisabled ?? false,
     };
   }

@@ -14,16 +14,13 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
-import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:url_strategy/url_strategy.dart';
-import 'package:firebase_ui_localizations/firebase_ui_localizations.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'firebase_options.dart';
