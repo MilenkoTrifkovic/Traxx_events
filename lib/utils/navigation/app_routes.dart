@@ -11,6 +11,11 @@ enum AppRoute {
   hostEvents('/host-events'),
   hostVenues('/host-venues'),
   hostVenueDetails('/host-venue-details/:eventId', 'eventId'),
+  // NEW: question sets list page
+  hostQuestionSets('/host-question-sets'),
+
+  // NEW: questions for a specific set (HostQuestionsScreen)
+  hostQuestionSetQuestions('/host-question-sets/:setId', 'setId'),
   hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
 

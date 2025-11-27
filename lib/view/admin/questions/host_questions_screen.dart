@@ -18,7 +18,14 @@ const Color _gfBackground = Color(0xFFF4F0FB); // light lavender background
 const Color _gfTextColor = Color(0xFF202124); // main text color
 
 class HostQuestionsScreen extends StatefulWidget {
-  const HostQuestionsScreen({super.key});
+  final String questionSetId;
+  final String questionSetTitle;
+
+  const HostQuestionsScreen({
+    super.key,
+    required this.questionSetId,
+    required this.questionSetTitle,
+  });
 
   @override
   State<HostQuestionsScreen> createState() => _HostQuestionsScreenState();
@@ -36,6 +43,13 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
   /// When true, after a new question is added we want to focus it.
   bool _pendingFocusNew = false;
+
+  bool _isProcessing = false; // 👈 NEW
+
+  void _setProcessing(bool value) {
+    if (!mounted) return;
+    setState(() => _isProcessing = value);
+  }
 
   @override
   void initState() {
@@ -68,43 +82,199 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     });
   }
 
-  Future<void> _handleAddQuestion() async {
-    // TODO: plug real companyId / eventId if needed
-    const companyId = '';
-    const eventId = '';
+  Future<void> _removeOption(DemographicQuestionOption opt) async {
+    // Confirm dialog with a loader on the Delete button
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        bool isDeleting = false;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Delete option?'),
+              content: Text(
+                'Do you want to delete "${opt.label}"?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                  ),
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setState(() => isDeleting = true);
+                          try {
+                            await _controller.deleteOption(opt.id);
+                            // close dialog and return true
+                            Navigator.of(dialogContext).pop(true);
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Failed to delete option: $e',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                            Navigator.of(dialogContext).pop(false);
+                          }
+                        },
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.red),
+                          ),
+                        )
+                      : const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
 
+    // If user cancelled OR delete failed, do nothing here
+    if (confirmed != true) return;
+  }
+
+  Future<void> _updateQuestionType(String questionId, String type) async {
+    _setProcessing(true);
+    try {
+      await _controller.updateQuestion(
+        questionDocId: questionId,
+        data: {'questionType': type},
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update type: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _setProcessing(false);
+    }
+  }
+
+  Future<void> _updateRequired(String questionId, bool value) async {
+    _setProcessing(true);
+    try {
+      await _controller.updateQuestion(
+        questionDocId: questionId,
+        data: {'isRequired': value},
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update required: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _setProcessing(false);
+    }
+  }
+
+  Future<void> _confirmDeleteQuestion(
+      DemographicQuestionWithOptions item) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete question?'),
+        content: const Text(
+          'This will permanently delete the question and its options.',
+        ),
+        actions: [
+          TextButton(
+            // IMPORTANT: use dialogContext, not the outer context
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    _setProcessing(true);
+    try {
+      await _controller.deleteQuestionWithOptions(item.question.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete question: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _setProcessing(false);
+    }
+  }
+
+  Future<void> _handleAddQuestion() async {
     _pendingFocusNew = true;
 
-    await _controller.createQuestionWithOptions(
-      questionText: '',
-      questionCategory: 'general',
-      questionType: 'multiple_choice',
-      isRequired: false,
-      companyId: companyId,
-      eventId: eventId,
-      options: [
-        NewOptionInput(label: 'Option 1', value: 'option_1'),
-        NewOptionInput(label: 'Option 2', value: 'option_2'),
-      ],
+    final bool? created = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AddQuestionDialog(
+        questionSetId: widget.questionSetId,
+      ),
     );
+
+    if (created == true) {
+      // brief overlay while Firestore sends new snapshot
+      _setProcessing(true);
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) _setProcessing(false);
+      });
+    } else {
+      _pendingFocusNew = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // We draw our own Google Forms style background; outer wrapper handles scroll.
-    return Container(
+    final body = Container(
       color: _gfBackground,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 900;
-
           final formContent = Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 960),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildFormHeaderCard(context),
+                  const SizedBox(height: 12),
+                  _buildHeaderWithAddButton(
+                      context), // 👈 new row with card + button
                   const SizedBox(height: 12),
                   _buildQuestionsStream(),
                 ],
@@ -112,25 +282,27 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
             ),
           );
 
-          return Stack(
-            children: [
-              formContent,
-              if (isWide)
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 40),
-                      child: _GoogleFormsSideToolbar(
-                        onAddQuestionTapped: _handleAddQuestion,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
+          return formContent;
         },
       ),
+    );
+
+    return Stack(
+      children: [
+        body,
+        if (_isProcessing)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.05),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: _gfPurple,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -205,7 +377,9 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
-      stream: _controller.streamQuestions(),
+      stream: _controller.streamQuestions(
+        questionSetId: widget.questionSetId,
+      ),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final err = snapshot.error;
@@ -251,17 +425,31 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           itemCount: questions.length,
-          onReorder: (oldIndex, newIndex) {
+          onReorder: (oldIndex, newIndex) async {
             if (newIndex > oldIndex) newIndex--;
             final item = questions.removeAt(oldIndex);
             questions.insert(newIndex, item);
 
-            for (int i = 0; i < questions.length; i++) {
-              final q = questions[i].question;
-              _controller.updateQuestion(
-                questionDocId: q.id,
-                data: {'displayOrder': i + 1},
-              );
+            _setProcessing(true);
+            try {
+              await Future.wait([
+                for (int i = 0; i < questions.length; i++)
+                  _controller.updateQuestion(
+                    questionDocId: questions[i].question.id,
+                    data: {'displayOrder': i + 1},
+                  ),
+              ]);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to reorder questions: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            } finally {
+              _setProcessing(false);
             }
           },
           itemBuilder: (context, index) {
@@ -273,28 +461,17 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                 index: index,
                 item: item,
                 isActive: item.question.id == _activeQuestionId,
+                onRemoveOption: (opt) => _removeOption(opt),
                 onTap: () => _setActiveQuestion(item.question.id),
-                onQuestionTextChanged: (text) {
-                  _debouncedUpdateQuestion(
-                    item.question.id,
-                    {'questionText': text},
-                  );
-                },
-                onQuestionTypeChanged: (type) {
-                  _controller.updateQuestion(
-                    questionDocId: item.question.id,
-                    data: {'questionType': type},
-                  );
-                },
-                onRequiredChanged: (required) {
-                  _controller.updateQuestion(
-                    questionDocId: item.question.id,
-                    data: {'isRequired': required},
-                  );
-                },
-                onDelete: () {
-                  _controller.deleteQuestionWithOptions(item.question.id);
-                },
+                onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
+                  item.question.id,
+                  {'questionText': text},
+                ),
+                onQuestionTypeChanged: (type) =>
+                    _updateQuestionType(item.question.id, type),
+                onRequiredChanged: (required) =>
+                    _updateRequired(item.question.id, required),
+                onDelete: () => _confirmDeleteQuestion(item),
               ),
             );
           },
@@ -308,37 +485,12 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   // ---------------------------------------------------------------------------
 
   Widget _buildLoadingSkeleton(BuildContext context) {
-    return Column(
-      children: List.generate(
-        3,
-        (index) => TweenAnimationBuilder<double>(
-          duration: Duration(milliseconds: 500 + index * 120),
-          tween: Tween(begin: 0, end: 1),
-          builder: (context, value, child) => Opacity(
-            opacity: value,
-            child: child,
-          ),
-          child: Card(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Container(
-              height: 90,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.skeletonBase,
-                    AppColors.skeletonHighlight,
-                    AppColors.skeletonBase,
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-              ),
-            ),
-          ),
+    return SizedBox(
+      height: 300, // give it some space under the header
+      child: const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 3,
+          color: _gfPurple, // violet loader
         ),
       ),
     );
@@ -393,6 +545,46 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
+  Widget _buildHeaderWithAddButton(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Untitled form card takes all available space
+        Expanded(
+          child: _buildFormHeaderCard(context),
+        ),
+        const SizedBox(width: 12),
+        // Purple "Add Question" button
+        Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 8, 0, 0),
+            height: 40,
+            child: ElevatedButton.icon(
+              onPressed: _isProcessing ? null : _handleAddQuestion,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _gfPurple,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: 'Inter', // or 'Roboto' if you prefer
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              /* icon: const Icon(Icons.add, size: 18), */
+              label: const Text('Add Question'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildErrorState(BuildContext context, String error) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -416,70 +608,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 }
-
-// -----------------------------------------------------------------------------
-// RIGHT-SIDE GOOGLE FORMS TOOLBAR
-// -----------------------------------------------------------------------------
-
-class _GoogleFormsSideToolbar extends StatelessWidget {
-  final Future<void> Function() onAddQuestionTapped;
-
-  const _GoogleFormsSideToolbar({
-    required this.onAddQuestionTapped,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 1,
-      borderRadius: BorderRadius.circular(28),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _toolbarIcon(
-              icon: Icons.add_circle_outline,
-              tooltip: 'Add question',
-              onTap: onAddQuestionTapped,
-            ),
-            _toolbarIcon(
-              icon: Icons.description_outlined,
-              tooltip: 'Add title and description',
-            ),
-            _toolbarIcon(
-              icon: Icons.image_outlined,
-              tooltip: 'Add image',
-            ),
-            _toolbarIcon(
-              icon: Icons.smart_display_outlined,
-              tooltip: 'Add video',
-            ),
-            _toolbarIcon(
-              icon: Icons.view_agenda_outlined,
-              tooltip: 'Add section',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _toolbarIcon({
-    required IconData icon,
-    required String tooltip,
-    Future<void> Function()? onTap,
-  }) {
-    return IconButton(
-      icon: Icon(icon, size: 24),
-      tooltip: tooltip,
-      color: _gfPurple,
-      onPressed: onTap == null ? null : () => onTap(),
-    );
-  }
-}
-
 // -----------------------------------------------------------------------------
 // QUESTION CARD – Google Forms look & feel
 // -----------------------------------------------------------------------------
@@ -493,6 +621,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
   final ValueChanged<String> onQuestionTypeChanged;
   final ValueChanged<bool> onRequiredChanged;
   final VoidCallback onDelete;
+  final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
   const _GoogleFormsQuestionCard({
     required this.index, // NEW
@@ -503,6 +632,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
     required this.onQuestionTypeChanged,
     required this.onRequiredChanged,
     required this.onDelete,
+    required this.onRemoveOption,
   });
 
   @override
@@ -608,6 +738,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
               type: normalizedType,
               options: item.options,
               isActive: isActive,
+              onRemoveOption: onRemoveOption,
             ),
 
             const SizedBox(height: 12),
@@ -733,11 +864,13 @@ class _QuestionBody extends StatelessWidget {
   final String type;
   final List<DemographicQuestionOption> options;
   final bool isActive;
+  final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
   const _QuestionBody({
     required this.type,
     required this.options,
     required this.isActive,
+    this.onRemoveOption,
   });
 
   @override
@@ -851,9 +984,16 @@ class _QuestionBody extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (isActive) ...[
+                  if (isActive && onRemoveOption != null) ...[
                     const SizedBox(width: 4),
-                    const Icon(Icons.close, size: 18, color: Colors.black45),
+                    GestureDetector(
+                      onTap: () => onRemoveOption!(opt),
+                      child: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.black87,
+                      ),
+                    ),
                   ],
                 ],
               ),
