@@ -1,12 +1,21 @@
 // lib/views/host_questions_screen.dart
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_questions_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/layout/headers/widgets/add_question_dialog.dart';
 import 'package:traxx_wepapp/models/host_questions_option.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+
+// Google Forms colors
+// Google Forms colors
+const Color _gfPurple = Color(0xFF673AB7); // top bar + accents
+const Color _gfBackground = Color(0xFFF4F0FB); // light lavender background
+const Color _gfTextColor = Color(0xFF202124); // main text color
 
 class HostQuestionsScreen extends StatefulWidget {
   const HostQuestionsScreen({super.key});
@@ -19,6 +28,15 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     with SingleTickerProviderStateMixin {
   late final HostQuestionsController _controller;
 
+  /// Which question is currently focused / “editing”.
+  String? _activeQuestionId;
+
+  /// Simple debounce map so we don’t spam Firestore while typing.
+  final Map<String, Timer> _debounceTimers = {};
+
+  /// When true, after a new question is added we want to focus it.
+  bool _pendingFocusNew = false;
+
   @override
   void initState() {
     super.initState();
@@ -27,88 +45,152 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 
   @override
+  void dispose() {
+    for (final t in _debounceTimers.values) {
+      t.cancel();
+    }
+    super.dispose();
+  }
+
+  void _setActiveQuestion(String id) {
+    if (_activeQuestionId == id) return;
+    setState(() => _activeQuestionId = id);
+  }
+
+  void _debouncedUpdateQuestion(
+    String questionDocId,
+    Map<String, dynamic> data,
+  ) {
+    final key = questionDocId;
+    _debounceTimers[key]?.cancel();
+    _debounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
+      _controller.updateQuestion(questionDocId: questionDocId, data: data);
+    });
+  }
+
+  Future<void> _handleAddQuestion() async {
+    // TODO: plug real companyId / eventId if needed
+    const companyId = '';
+    const eventId = '';
+
+    _pendingFocusNew = true;
+
+    await _controller.createQuestionWithOptions(
+      questionText: '',
+      questionCategory: 'general',
+      questionType: 'multiple_choice',
+      isRequired: false,
+      companyId: companyId,
+      eventId: eventId,
+      options: [
+        NewOptionInput(label: 'Option 1', value: 'option_1'),
+        NewOptionInput(label: 'Option 2', value: 'option_2'),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        top: AppSpacing.md(context),
-        bottom: AppSpacing.lg(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAnimatedHeader(context),
-          AppSpacing.verticalLg(context),
-          _buildQuestionsStream(),
-        ],
+    // We draw our own Google Forms style background; outer wrapper handles scroll.
+    return Container(
+      color: _gfBackground,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 900;
+
+          final formContent = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildFormHeaderCard(context),
+                  const SizedBox(height: 12),
+                  _buildQuestionsStream(),
+                ],
+              ),
+            ),
+          );
+
+          return Stack(
+            children: [
+              formContent,
+              if (isWide)
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 40),
+                      child: _GoogleFormsSideToolbar(
+                        onAddQuestionTapped: _handleAddQuestion,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  // ────────────────────────────────────────────────────────────────
-  // Header with subtle gradient + icon animation
-  // ────────────────────────────────────────────────────────────────
-  Widget _buildAnimatedHeader(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 600),
-      tween: Tween(begin: 0, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+  // ---------------------------------------------------------------------------
+  // HEADER CARD – Form title / description (Google Forms style)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildFormHeaderCard(BuildContext context) {
+    return Card(
+      color: Colors.white, // NEW
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: AppColors.borderSubtle),
+      ),
+
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withOpacity(0.1),
-              AppColors.secondary.withOpacity(0.08),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            top: BorderSide(
+              color: _gfPurple, // Google Forms top colored bar
+              width: 8,
+            ),
           ),
-          border: Border.all(color: AppColors.borderHover),
         ),
-        child: Row(
-          children: [
-            // animated icon bubble
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withOpacity(0.12),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            // Title
+            TextField(
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Untitled form',
               ),
-              child: Icon(
-                Icons.quiz_rounded,
-                size: 32,
-                color: AppColors.primary,
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 32,
+                fontWeight: FontWeight.w400,
+                color: _gfTextColor,
+                letterSpacing: 0.1,
               ),
             ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppText.styledHeadingMedium(
-                    context,
-                    'Demographic Questions',
-                    color: Colors.black,
-                  ),
-                  const SizedBox(height: 4),
-                  AppText.styledBodySmall(
-                    context,
-                    'Design beautiful RSVP & survey experiences. '
-                    'Questions and options below are loaded live from Firestore.',
-                    color: AppColors.secondary,
-                  ),
-                ],
+            SizedBox(height: 8),
+            // Description
+            TextField(
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Form description',
+              ),
+              maxLines: 3,
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF9CA3AF),
               ),
             ),
           ],
@@ -117,23 +199,18 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
-  // ────────────────────────────────────────────────────────────────
-  // StreamBuilder → listens to Firestore via controller
-  // ────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // QUESTIONS STREAM
+  // ---------------------------------------------------------------------------
+
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
       stream: _controller.streamQuestions(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingSkeleton(context);
-        }
-
         if (snapshot.hasError) {
           final err = snapshot.error;
-
           if (kDebugMode) {
             if (err is FirebaseException) {
-              // This will include the "create index" URL for Firestore web
               print(
                   '🔥 Firestore error in HostQuestionsScreen: ${err.code} – ${err.message}');
               print('🔥 Full error: $err');
@@ -141,212 +218,96 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
               print('🔥 Unknown error in HostQuestionsScreen: $err');
             }
           }
-
           return _buildErrorState(context, err.toString());
         }
 
-        final items = snapshot.data ?? [];
+        if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildLoadingSkeleton(context);
+          }
+          return _buildEmptyState(context);
+        }
 
+        final items = snapshot.data!;
         if (items.isEmpty) {
           return _buildEmptyState(context);
         }
 
-        return Column(
-          children: [
-            for (int i = 0; i < items.length; i++)
-              _buildAnimatedQuestionCard(items[i], i),
-          ],
+        final questions = List<DemographicQuestionWithOptions>.from(items);
+
+        // If we just added a new question, focus the last one.
+        if (_pendingFocusNew && questions.isNotEmpty) {
+          _pendingFocusNew = false;
+          final newId = questions.last.question.id;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _setActiveQuestion(newId);
+          });
+        }
+
+        return ReorderableListView.builder(
+          buildDefaultDragHandles: false,
+          key: const PageStorageKey('questions_reorderable_list'),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: questions.length,
+          onReorder: (oldIndex, newIndex) {
+            if (newIndex > oldIndex) newIndex--;
+            final item = questions.removeAt(oldIndex);
+            questions.insert(newIndex, item);
+
+            for (int i = 0; i < questions.length; i++) {
+              final q = questions[i].question;
+              _controller.updateQuestion(
+                questionDocId: q.id,
+                data: {'displayOrder': i + 1},
+              );
+            }
+          },
+          itemBuilder: (context, index) {
+            final item = questions[index];
+            return Padding(
+              key: ValueKey(item.question.id),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _GoogleFormsQuestionCard(
+                index: index,
+                item: item,
+                isActive: item.question.id == _activeQuestionId,
+                onTap: () => _setActiveQuestion(item.question.id),
+                onQuestionTextChanged: (text) {
+                  _debouncedUpdateQuestion(
+                    item.question.id,
+                    {'questionText': text},
+                  );
+                },
+                onQuestionTypeChanged: (type) {
+                  _controller.updateQuestion(
+                    questionDocId: item.question.id,
+                    data: {'questionType': type},
+                  );
+                },
+                onRequiredChanged: (required) {
+                  _controller.updateQuestion(
+                    questionDocId: item.question.id,
+                    data: {'isRequired': required},
+                  );
+                },
+                onDelete: () {
+                  _controller.deleteQuestionWithOptions(item.question.id);
+                },
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  // ────────────────────────────────────────────────────────────────
-  // Animated question card
-  // ────────────────────────────────────────────────────────────────
-  Widget _buildAnimatedQuestionCard(
-    DemographicQuestionWithOptions item,
-    int index,
-  ) {
-    final question = item.question;
-    final options = item.options;
-
-    final Color accentColor = _categoryColor(question.questionCategory);
-    final IconData iconData =
-        _categoryIcon(question.questionCategory, question.questionType);
-
-    return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 450 + index * 80),
-      tween: Tween(begin: 0, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 24 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: _HoverCard(
-        margin: EdgeInsets.only(
-          bottom: AppSpacing.md(context),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top row: icon + question text + chips
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Icon bubble
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accentColor.withOpacity(0.15),
-                  ),
-                  child: Icon(
-                    iconData,
-                    color: accentColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AppText.styledBodyLarge(
-                        context,
-                        question.questionText,
-                        color: Colors.black,
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          _buildTagChip(
-                            label: question.questionCategory.isEmpty
-                                ? 'General'
-                                : question.questionCategory,
-                            icon: Icons.category_rounded,
-                            color: accentColor.withOpacity(0.12),
-                            textColor: accentColor,
-                          ),
-                          _buildTagChip(
-                            label: question.questionType,
-                            icon: Icons.tune_rounded,
-                            color: AppColors.chipBackground,
-                            textColor: AppColors.secondary,
-                          ),
-                          if (question.isRequired)
-                            _buildTagChip(
-                              label: 'Required',
-                              icon: Icons.star_rounded,
-                              color: Colors.red.withOpacity(0.08),
-                              textColor: Colors.red.shade600,
-                            ),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Divider with subtle gradient
-            Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.transparent,
-                    AppColors.borderHover,
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Options rendered as animated pills
-            if (options.isEmpty)
-              AppText.styledBodySmall(
-                context,
-                'No options configured yet for this question.',
-                color: AppColors.secondary,
-              )
-            else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: options.map((opt) {
-                  return _buildOptionPill(opt, accentColor);
-                }).toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ────────────────────────────────────────────────────────────────
-  // Option pill with slight hover animation
-  // ────────────────────────────────────────────────────────────────
-  Widget _buildOptionPill(DemographicQuestionOption opt, Color accentColor) {
-    final bool hasText = opt.requiresFreeText;
-
-    return _HoverCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      radius: 999,
-      elevation: 2,
-      borderColor: accentColor.withOpacity(0.5),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            hasText ? Icons.edit_note_rounded : Icons.check_circle_rounded,
-            size: 18,
-            color: accentColor,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            opt.label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-          if (hasText) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: const Text(
-                'Free text',
-                style: TextStyle(fontSize: 10),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
   // Loading / Empty / Error
-  // ────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+
   Widget _buildLoadingSkeleton(BuildContext context) {
-    // simple animated shimmer-like placeholders
     return Column(
       children: List.generate(
         3,
@@ -357,11 +318,15 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
             opacity: value,
             child: child,
           ),
-          child: _HoverCard(
-            margin: EdgeInsets.only(bottom: AppSpacing.md(context)),
+          child: Card(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Container(
               height: 90,
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
                 gradient: LinearGradient(
                   colors: [
                     AppColors.skeletonBase,
@@ -393,189 +358,572 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
           ),
         );
       },
-      child: _HoverCard(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // you can replace this with a Lottie later
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryAccent.withOpacity(0.08),
-              ),
-              child: Icon(
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
                 Icons.help_outline_rounded,
                 size: 48,
-                color: AppColors.primaryAccent,
+                color: _gfPurple,
               ),
-            ),
-            const SizedBox(height: 16),
-            AppText.styledBodyLarge(
-              context,
-              'No questions yet',
-              color: Colors.black,
-            ),
-            const SizedBox(height: 6),
-            AppText.styledBodySmall(
-              context,
-              'Start by adding your first demographic question.\n'
-              'Click “Add Question” in the top-right.',
-              color: AppColors.secondary,
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 16),
+              AppText.styledBodyLarge(
+                context,
+                'No questions yet',
+                color: Colors.black,
+              ),
+              const SizedBox(height: 6),
+              AppText.styledBodySmall(
+                context,
+                'Start by adding your first question using the + button on the right.',
+                color: AppColors.secondary,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildErrorState(BuildContext context, String error) {
-    return _HoverCard(
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red.shade600),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AppText.styledBodySmall(
-              context,
-              'Failed to load questions: $error',
-              color: Colors.red.shade600,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade600),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppText.styledBodySmall(
+                context,
+                'Failed to load questions: $error',
+                color: Colors.red.shade600,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
-  }
-
-  // Small pill-style chip used for category / type / required
-  Widget _buildTagChip({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required Color textColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 14,
-            color: textColor,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ────────────────────────────────────────────────────────────────
-  // Helpers: category → color / icon
-  // ────────────────────────────────────────────────────────────────
-  Color _categoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'dietary':
-        return Colors.green.shade600;
-      case 'accessibility':
-        return Colors.deepPurple.shade500;
-      case 'profile':
-        return Colors.blue.shade600;
-      case 'travel':
-        return Colors.orange.shade600;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  IconData _categoryIcon(String category, String type) {
-    final c = category.toLowerCase();
-    if (c == 'dietary') return Icons.restaurant_menu_rounded;
-    if (c == 'accessibility') return Icons.accessibility_new_rounded;
-    if (c == 'profile') return Icons.person_rounded;
-    if (c == 'travel') return Icons.flight_takeoff_rounded;
-
-    if (type == 'multi_select') return Icons.checklist_rounded;
-    if (type == 'single_select') return Icons.radio_button_checked_rounded;
-    if (type == 'text') return Icons.short_text_rounded;
-
-    return Icons.help_outline_rounded;
   }
 }
 
-class _HoverCard extends StatefulWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
-  final double radius;
-  final double elevation;
-  final Color? borderColor;
+// -----------------------------------------------------------------------------
+// RIGHT-SIDE GOOGLE FORMS TOOLBAR
+// -----------------------------------------------------------------------------
 
-  const _HoverCard({
-    required this.child,
-    this.padding,
-    this.margin,
-    this.radius = 16,
-    this.elevation = 4,
-    this.borderColor,
+class _GoogleFormsSideToolbar extends StatelessWidget {
+  final Future<void> Function() onAddQuestionTapped;
+
+  const _GoogleFormsSideToolbar({
+    required this.onAddQuestionTapped,
   });
 
   @override
-  State<_HoverCard> createState() => _HoverCardState();
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 1,
+      borderRadius: BorderRadius.circular(28),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _toolbarIcon(
+              icon: Icons.add_circle_outline,
+              tooltip: 'Add question',
+              onTap: onAddQuestionTapped,
+            ),
+            _toolbarIcon(
+              icon: Icons.description_outlined,
+              tooltip: 'Add title and description',
+            ),
+            _toolbarIcon(
+              icon: Icons.image_outlined,
+              tooltip: 'Add image',
+            ),
+            _toolbarIcon(
+              icon: Icons.smart_display_outlined,
+              tooltip: 'Add video',
+            ),
+            _toolbarIcon(
+              icon: Icons.view_agenda_outlined,
+              tooltip: 'Add section',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _toolbarIcon({
+    required IconData icon,
+    required String tooltip,
+    Future<void> Function()? onTap,
+  }) {
+    return IconButton(
+      icon: Icon(icon, size: 24),
+      tooltip: tooltip,
+      color: _gfPurple,
+      onPressed: onTap == null ? null : () => onTap(),
+    );
+  }
 }
 
-class _HoverCardState extends State<_HoverCard> {
-  bool _hovering = false;
+// -----------------------------------------------------------------------------
+// QUESTION CARD – Google Forms look & feel
+// -----------------------------------------------------------------------------
+
+class _GoogleFormsQuestionCard extends StatelessWidget {
+  final int index; // NEW
+  final DemographicQuestionWithOptions item;
+  final bool isActive;
+  final VoidCallback onTap;
+  final ValueChanged<String> onQuestionTextChanged;
+  final ValueChanged<String> onQuestionTypeChanged;
+  final ValueChanged<bool> onRequiredChanged;
+  final VoidCallback onDelete;
+
+  const _GoogleFormsQuestionCard({
+    required this.index, // NEW
+    required this.item,
+    required this.isActive,
+    required this.onTap,
+    required this.onQuestionTextChanged,
+    required this.onQuestionTypeChanged,
+    required this.onRequiredChanged,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final padding = widget.padding ??
-        const EdgeInsets.symmetric(horizontal: 20, vertical: 18);
+    final q = item.question;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
+    // Only these 5 types are supported now
+    final normalizedType = _QuestionTypeDropdown.normalizeType(q.questionType);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 4),
-        padding: padding,
+        duration: const Duration(milliseconds: 120),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(widget.radius),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: widget.borderColor ??
-                (_hovering ? AppColors.borderHoverDark : AppColors.borderHover),
+            color: isActive ? _gfPurple : AppColors.borderSubtle,
+            width: isActive ? 2 : 1,
           ),
           boxShadow: [
-            if (_hovering)
+            if (isActive)
               BoxShadow(
                 color: Colors.black.withOpacity(0.06),
-                offset: const Offset(0, 10),
-                blurRadius: 24,
-              )
-            else
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                offset: const Offset(0, 4),
-                blurRadius: 10,
-              )
+                offset: const Offset(0, 2),
+                blurRadius: 6,
+              ),
           ],
         ),
-        child: widget.child,
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: ReorderableDragStartListener(
+                index: index,
+                child: Icon(
+                  Icons.drag_indicator,
+                  size: 20,
+                  color: AppColors.borderHover,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Header row: question text + type dropdown/label
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Question text (bigger & slightly bolder)
+                Expanded(
+                  child: TextFormField(
+                    initialValue: q.questionText,
+                    onChanged: onQuestionTextChanged,
+                    readOnly: !isActive,
+                    minLines: 1,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'Question',
+                      border: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.transparent),
+                      ),
+                      enabledBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.transparent),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _gfPurple,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    style: const TextStyle(
+                      fontFamily: 'Roboto',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                      color: _gfTextColor,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                SizedBox(
+                  width: 190,
+                  child: isActive
+                      ? _QuestionTypeDropdown(
+                          currentType: normalizedType,
+                          onChanged: onQuestionTypeChanged,
+                        )
+                      : _QuestionTypeDropdown.readonlyLabel(normalizedType),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Question body based on type
+            _QuestionBody(
+              type: normalizedType,
+              options: item.options,
+              isActive: isActive,
+            ),
+
+            const SizedBox(height: 12),
+
+            // Bottom toolbar: only show while active (Required + delete)
+            if (isActive)
+              Row(
+                children: [
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    color: Colors.black54,
+                    tooltip: 'Delete question',
+                    onPressed: onDelete,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Required',
+                    style: TextStyle(
+                      fontFamily: 'Roboto',
+                      fontSize: 13,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Switch(
+                    value: q.isRequired,
+                    onChanged: onRequiredChanged,
+                    activeColor: _gfPurple,
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Question type dropdown – only 5 types
+// -----------------------------------------------------------------------------
+
+class _QuestionTypeDropdown extends StatelessWidget {
+  final String currentType;
+  final ValueChanged<String> onChanged;
+
+  const _QuestionTypeDropdown({
+    required this.currentType,
+    required this.onChanged,
+  });
+
+  // Only these 5 types
+  static const _typeLabels = <String, String>{
+    'short_answer': 'Short answer',
+    'paragraph': 'Paragraph',
+    'multiple_choice': 'Multiple choice',
+    'checkboxes': 'Checkboxes',
+    'dropdown': 'Dropdown',
+  };
+
+  static String normalizeType(String type) {
+    if (_typeLabels.containsKey(type)) return type;
+    return 'multiple_choice';
+  }
+
+  static String labelFor(String type) =>
+      _typeLabels[normalizeType(type)] ?? 'Multiple choice';
+
+  static Widget readonlyLabel(String type) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.transparent),
+        color: Colors.transparent,
+      ),
+      child: Text(
+        labelFor(type),
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: _gfTextColor,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _typeLabels.entries.toList();
+    final value = normalizeType(currentType);
+
+    return DropdownButtonFormField<String>(
+      value: value,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        isDense: true,
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      items: [
+        for (final e in entries)
+          DropdownMenuItem(
+            value: e.key,
+            child: Text(e.value, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Question body for different types (visual only, like Google Forms)
+// -----------------------------------------------------------------------------
+
+class _QuestionBody extends StatelessWidget {
+  final String type;
+  final List<DemographicQuestionOption> options;
+  final bool isActive;
+
+  const _QuestionBody({
+    required this.type,
+    required this.options,
+    required this.isActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    switch (type) {
+      case 'short_answer':
+        return _shortAnswer();
+      case 'paragraph':
+        return _paragraph();
+      case 'checkboxes':
+        return _choiceList(isCheckbox: true);
+      case 'dropdown':
+        return _dropdownPreview();
+      case 'multiple_choice':
+      default:
+        return _choiceList(isCheckbox: false);
+    }
+  }
+
+  Widget _shortAnswer() {
+    return Container(
+      padding: const EdgeInsets.only(top: 2, bottom: 4),
+      child: const Text(
+        'Short answer text',
+        style: TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          height: 1.2,
+          color: Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  Widget _paragraph() {
+    return Container(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: const Text(
+        'Long answer text',
+        style: TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  /// Multiple choice / checkboxes list.
+  Widget _choiceList({required bool isCheckbox}) {
+    final baseOptions = options.isNotEmpty
+        ? options
+        : [
+            DemographicQuestionOption(
+              id: '1',
+              questionId: '',
+              label: 'Option 1',
+              value: 'option_1',
+              optionType: 'choice',
+              requiresFreeText: false,
+              isDisabled: false,
+              displayOrder: 1,
+            ),
+          ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final opt in baseOptions)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SizedBox(
+              height: 38, // fixed height for icon + text
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    isCheckbox
+                        ? Icons.check_box_outline_blank
+                        : Icons.radio_button_unchecked,
+                    size: 15,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      readOnly: !isActive,
+                      controller: TextEditingController(text: opt.label),
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.transparent),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: _gfPurple,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      style: const TextStyle(
+                        fontFamily: 'Roboto',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        height: 1.8, // keeps baseline near center
+                        color: _gfTextColor,
+                      ),
+                    ),
+                  ),
+                  if (isActive) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.close, size: 18, color: Colors.black45),
+                  ],
+                ],
+              ),
+            ),
+          ),
+/*         const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(
+              isCheckbox
+                  ? Icons.check_box_outline_blank
+                  : Icons.radio_button_unchecked,
+              size: 15,
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Add option',
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'or',
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'add "Other"',
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+ */
+      ],
+    );
+  }
+
+  Widget _dropdownPreview() {
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.black26),
+      ),
+      child: Row(
+        children: [
+          Text(
+            options.isNotEmpty ? options.first.label : 'Option 1',
+            style: const TextStyle(
+              fontFamily: 'Roboto',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: _gfTextColor,
+            ),
+          ),
+          const Spacer(),
+          const Icon(Icons.arrow_drop_down),
+        ],
       ),
     );
   }
