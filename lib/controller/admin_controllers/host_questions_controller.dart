@@ -1,8 +1,7 @@
-// lib/controllers/host_questions_controller.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/host_questions.dart';
 import 'package:traxx_wepapp/models/host_questions_option.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class HostQuestionsController {
   final FirebaseFirestore _db;
@@ -16,68 +15,61 @@ class HostQuestionsController {
 
   String? get _uid => _auth.currentUser?.uid;
 
-  /// Live stream of all active demographic questions + their options
+  /// Live stream of all questions + options for a given set
   Stream<List<DemographicQuestionWithOptions>> streamQuestions({
-    String? companyId,
-    String? eventId,
+    required String questionSetId,
   }) {
     Query questionsQuery = _db
         .collection('demographicQuestions')
         .where('isDisabled', isEqualTo: false)
+        .where('questionSetId', isEqualTo: questionSetId)
         .orderBy('displayOrder');
 
-    if (companyId != null && companyId.isNotEmpty) {
-      questionsQuery = questionsQuery.where('companyId', isEqualTo: companyId);
-    }
-    if (eventId != null && eventId.isNotEmpty) {
-      questionsQuery = questionsQuery.where('eventId', isEqualTo: eventId);
-    }
+    return questionsQuery.snapshots().asyncMap((snapshot) async {
+      final questions =
+          snapshot.docs.map((doc) => DemographicQuestion.fromDoc(doc)).toList();
 
-    return questionsQuery.snapshots().asyncMap(
-      (snapshot) async {
-        final questions = snapshot.docs
-            .map((doc) => DemographicQuestion.fromDoc(doc))
+      if (questions.isEmpty) return <DemographicQuestionWithOptions>[];
+
+      final List<DemographicQuestionWithOptions> result = [];
+
+      for (final q in questions) {
+        final optsSnap = await _db
+            .collection('demographicQuestionOptions')
+            .where('questionId', isEqualTo: q.questionId)
+            .where('isDisabled', isEqualTo: false)
+            .orderBy('displayOrder')
+            .get();
+
+        final options = optsSnap.docs
+            .map((doc) => DemographicQuestionOption.fromDoc(doc))
             .toList();
 
-        if (questions.isEmpty) return <DemographicQuestionWithOptions>[];
+        result.add(
+          DemographicQuestionWithOptions(
+            question: q,
+            options: options,
+          ),
+        );
+      }
 
-        final List<DemographicQuestionWithOptions> result = [];
-
-        for (final q in questions) {
-          final optsSnap = await _db
-              .collection('demographicQuestionOptions')
-              .where('questionId', isEqualTo: q.questionId)
-              .where('isDisabled', isEqualTo: false)
-              .orderBy('displayOrder')
-              .get();
-
-          final options = optsSnap.docs
-              .map((doc) => DemographicQuestionOption.fromDoc(doc))
-              .toList();
-
-          result.add(
-            DemographicQuestionWithOptions(
-              question: q,
-              options: options,
-            ),
-          );
-        }
-
-        return result;
-      },
-    );
+      return result;
+    });
   }
 
-  // ────────────────────────────────────────────────────────────────
+  Future<void> deleteOption(String optionId) async {
+    if (_uid == null) {
+      throw Exception('User not authenticated');
+    }
+    await _db.collection('demographicQuestionOptions').doc(optionId).delete();
+  }
+
   // CREATE question + options
-  // ────────────────────────────────────────────────────────────────
   Future<void> createQuestionWithOptions({
+    required String questionSetId,
     required String questionText,
-    required String questionCategory,
     required String questionType,
     required bool isRequired,
-    required String companyId,
-    required String eventId,
     required List<NewOptionInput> options,
   }) async {
     if (_uid == null) {
@@ -88,20 +80,18 @@ class HostQuestionsController {
     final questionsCol = _db.collection('demographicQuestions');
     final optionsCol = _db.collection('demographicQuestionOptions');
 
-    final questionDoc = questionsCol.doc(); // use generated id
+    final questionDoc = questionsCol.doc();
     final String questionId = questionDoc.id;
 
     final now = FieldValue.serverTimestamp();
 
     batch.set(questionDoc, {
       'questionId': questionId,
+      'questionSetId': questionSetId,
       'questionText': questionText,
-      'questionType': questionType, // single_select / multi_select / text
-      'questionCategory': questionCategory,
-      'companyId': companyId,
-      'eventId': eventId,
+      'questionType': questionType,
       'userId': _uid,
-      'displayOrder': 1, // you can compute later
+      'displayOrder': 1, // we recompute later when reordering
       'isRequired': isRequired,
       'isDisabled': false,
       'createdDate': now,
@@ -125,10 +115,6 @@ class HostQuestionsController {
     await batch.commit();
   }
 
-  // ────────────────────────────────────────────────────────────────
-  // UPDATE question text / meta
-  // (options can be edited with a separate screen later)
-  // ────────────────────────────────────────────────────────────────
   Future<void> updateQuestion({
     required String questionDocId,
     required Map<String, dynamic> data,
@@ -144,9 +130,6 @@ class HostQuestionsController {
     });
   }
 
-  // ────────────────────────────────────────────────────────────────
-  // DELETE question + all its options
-  // ────────────────────────────────────────────────────────────────
   Future<void> deleteQuestionWithOptions(String questionId) async {
     if (_uid == null) {
       throw Exception('User not authenticated');
@@ -170,7 +153,7 @@ class HostQuestionsController {
   }
 }
 
-/// Helper class for new option inputs used by the dialog
+/// Helper class for new option inputs
 class NewOptionInput {
   final String label;
   final String value;

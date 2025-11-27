@@ -17,6 +17,7 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
+import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/venue_details_view.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/authentication/signup/signup_view.dart';
@@ -212,9 +213,46 @@ GoRouter buildRouter() {
               return VenueDetailsView(venueId: venueId);
             },
           ),
-          GoRoute(
+          /*  GoRoute(
             path: AppRoute.hostQuestions.path,
             builder: (context, state) => HostQuestionsScreen(),
+          ), */
+          // 🔹 NEW: Question Sets list page
+          GoRoute(
+            path: AppRoute.hostQuestionSets.path,
+            builder: (context, state) => const QuestionSetsScreen(),
+          ),
+          GoRoute(
+            path: AppRoute.hostQuestions.path,
+            builder: (context, state) {
+              final setId = state.uri.queryParameters['setId'] ?? '';
+              final setTitle = state.uri.queryParameters['setTitle'] ?? '';
+              if (setId == null || setId.isEmpty) {
+                // No set specified, go back to sets list
+                return const QuestionSetsScreen();
+              }
+
+              return HostQuestionsScreen(
+                questionSetId: setId,
+                questionSetTitle: setTitle,
+              );
+            },
+          ),
+
+// 🔹 NEW: Questions for a specific set (your existing HostQuestionsScreen)
+          GoRoute(
+            path: AppRoute.hostQuestionSetQuestions.path,
+            builder: (context, state) {
+              final setId = state.pathParameters[
+                  AppRoute.hostQuestionSetQuestions.placeholder]!;
+              final setTitle = Uri.decodeComponent(
+                  state.uri.queryParameters['setTitle'] ?? 'Question set');
+              return HostQuestionsScreen(
+                questionSetId:
+                    setId, // add this param to your HostQuestionsScreen
+                questionSetTitle: setTitle,
+              );
+            },
           ),
           GoRoute(
             path: AppRoute.hostCreateEvent.path,

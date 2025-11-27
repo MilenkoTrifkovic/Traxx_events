@@ -17,9 +17,9 @@ Widget getPageHeader(GoRouterState state) {
   if (state.matchedLocation == AppRoute.hostVenues.path) {
     return AppBarCustom(content: MenusManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostQuestions.path) {
+/*   if (state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
-  }
+  } */
 
   return const SizedBox.shrink();
 }

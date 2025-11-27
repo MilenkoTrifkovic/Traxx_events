@@ -47,15 +47,17 @@ class NavigationRailWrapper extends StatelessWidget {
 
     /// Determine which navigation item should be selected based on the current route
     int selectedIndex;
-    if (location == '/host-events') {
-      selectedIndex = 0; // Events list view
-    } else if (location == '/host-menus') {
-      selectedIndex = 1; // Menus view
-    } else if (location == '/host-questions') {
-      selectedIndex = 2; // Questions view
+    if (location.startsWith(AppRoute.hostEvents.path)) {
+      selectedIndex = 0;
+    } else if (location.startsWith(AppRoute.hostVenues.path)) {
+      selectedIndex = 1;
+    } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
+        location.startsWith(AppRoute.hostQuestions.path)) {
+      selectedIndex = 2;
     } else {
-      selectedIndex = 0; // Default to events list
+      selectedIndex = 0;
     }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -108,7 +110,7 @@ class NavigationRailWrapper extends StatelessWidget {
                 pushAndRemoveAllRoute(AppRoute.hostVenues, context);
               } else if (index == 2) {
                 // Navigate to questions
-                pushAndRemoveAllRoute(AppRoute.hostQuestions, context);
+                pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
               } else if (index == 3) {
                 try {
                   // Properly await logout to ensure it completes

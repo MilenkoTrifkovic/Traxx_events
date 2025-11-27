@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/layout/headers/widgets/add_question_dialog.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
-class QuestionsManagementHeader extends StatelessWidget {
+/* class QuestionsManagementHeader extends StatelessWidget {
   QuestionsManagementHeader({super.key});
   final EventListController eventListController =
       Get.find<EventListController>();
@@ -34,4 +34,4 @@ class QuestionsManagementHeader extends StatelessWidget {
       ],
     );
   }
-}
+} */
