@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
@@ -8,6 +6,7 @@ import 'package:traxx_wepapp/controller/global_controllers/events_controller.dar
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/venue.dart';
+import 'package:traxx_wepapp/services/firestore_services.dart';
 
 class AdminEventDetailsController {
   /// Loads selected menu items from availableMenuItems based on event.selectedMenus
@@ -15,7 +14,7 @@ class AdminEventDetailsController {
   final OrganisationController _organisationController =
       Get.find<OrganisationController>();
   final EventsController _eventsController = Get.find<EventsController>();
-  // final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
+  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final VenuesController _venuesController = Get.find<VenuesController>();
 
   Event? event;
@@ -32,6 +31,17 @@ class AdminEventDetailsController {
       await _assignAvailableMenuItems();
       _loadSelectedMenuItems();
     }
+  }
+
+  /// Adds a menu item to event.selectedMenus and selectedMenuItems
+  void addMenuItemToSelection(MenuItem item) {
+    if (event == null || item.menuItemId == null) return;
+    event!.selectedMenus ??= <String>[];
+    if (!event!.selectedMenus!.contains(item.menuItemId!)) {
+      event!.selectedMenus!.add(item.menuItemId!);
+      selectedMenuItems.add(item);
+    }
+    print('Added:${item.menuItemId} ${event!.selectedMenus}');
   }
 
   Future<void> _loadVenue(String venueId) async {
@@ -57,6 +67,35 @@ class AdminEventDetailsController {
     selectedMenuItems = availableMenuItems
         .where((item) => event!.selectedMenus!.contains(item.menuItemId))
         .toList();
+  }
+
+  /// Persists the currently loaded event to Firestore and updates
+  /// the global events list in [EventsController].
+  Future<void> updateEvent() async {
+    if (event == null) {
+      throw Exception('Cannot update event: no event loaded');
+    }
+
+    if (event!.eventId == null) {
+      throw Exception('Cannot update event: eventId is null');
+    }
+
+    try {
+      await _firestoreServices.updateEvent(event!);
+      print('Event updated in Firestore: ${event!.toString()}');
+
+      final index = _eventsController.events
+          .indexWhere((e) => e.eventId == event!.eventId);
+      if (index != -1) {
+        _eventsController.events[index] = event!;
+      }
+      _loadSelectedMenuItems();
+
+      print('Admin event details updated successfully: ${event!.eventId}');
+    } catch (e) {
+      print('Error updating event from admin details: $e');
+      rethrow;
+    }
   }
 
   void dispose() {

@@ -3,6 +3,7 @@ import 'package:get/get_utils/get_utils.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/menu_panel_controller.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/menu_panel_item.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/menu_selection_dialog.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
 class MenuPanelBody extends StatefulWidget {
@@ -55,11 +56,29 @@ class _MenuPanelBodyState extends State<MenuPanelBody> {
                 showDialog(
                   context: context,
                   builder: (context) {
-                    return AppDialog(
-                      content: Container(
-                        color: Colors.red,
-                      ),
+                    return MenuSelectionDialog(
+                      availableMenus: {
+                        controller.availableMenus.value.entries
+                                .elementAt(index)
+                                .key:
+                            controller.availableMenus.value.entries
+                                .elementAt(index)
+                                .value
+                      },
+                      selectedMenus: {},
+                      onSelectionChanged: (selected) {},
+                      selectNewMenuItem: (selected) {
+                        widget.mainController.addMenuItemToSelection(selected);
+                      },
+                      updateEvent: () {
+                        widget.mainController.updateEvent();
+                      },
                     );
+                    // return AppDialog(
+                    //   content: Container(
+                    //     color: Colors.red,
+                    //   ),
+                    // );
                   },
                 );
               },
