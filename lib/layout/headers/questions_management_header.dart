@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/layout/headers/widgets/add_question_dialog.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
-/* class QuestionsManagementHeader extends StatelessWidget {
+class QuestionsManagementHeader extends StatelessWidget {
   QuestionsManagementHeader({super.key});
   final EventListController eventListController =
       Get.find<EventListController>();
@@ -15,7 +15,7 @@ import 'package:traxx_wepapp/widgets/app_primary_button.dart';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AppText.styledHeadingLarge(context, 'Questions Management'),
+        AppText.styledHeadingLarge(context, 'Demographic Questions'),
         Row(
           children: [
             AppPrimaryButton(
@@ -25,7 +25,9 @@ import 'package:traxx_wepapp/widgets/app_primary_button.dart';
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (_) => const AddQuestionDialog(),
+                  builder: (_) => const AddQuestionDialog(
+                    questionSetId: '',
+                  ),
                 );
               },
             ),
@@ -34,4 +36,4 @@ import 'package:traxx_wepapp/widgets/app_primary_button.dart';
       ],
     );
   }
-} */
+}

@@ -19,33 +19,18 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 /// The navigation rail uses [GoRouter] for navigation and maintains the selected
 /// state based on the current route.
 class NavigationRailWrapper extends StatelessWidget {
-  /// The main content to display beside the navigation rail.
-  /// This will be expanded to fill the remaining space.
   final Widget child;
   final AuthController authController = Get.find<AuthController>();
 
-  /// Creates a NavigationRailWrapper.
-  ///
-  /// Requires a [child] widget that will be displayed as the main content
-  /// next to the navigation rail.
   NavigationRailWrapper({
     super.key,
     required this.child,
   });
 
-  /// Builds the navigation rail layout
-  ///
-  /// The build process:
-  /// 1. Determines the current route from GoRouter
-  /// 2. Sets the selected index based on the current route
-  /// 3. Creates a navigation rail with themed destinations
-  /// 4. Displays the main content beside the rail
   @override
   Widget build(BuildContext context) {
-    /// Get the current route path from GoRouter
     final String location = GoRouterState.of(context).uri.path;
 
-    /// Determine which navigation item should be selected based on the current route
     int selectedIndex;
     if (location.startsWith(AppRoute.hostEvents.path)) {
       selectedIndex = 0;
@@ -53,6 +38,7 @@ class NavigationRailWrapper extends StatelessWidget {
       selectedIndex = 1;
     } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path)) {
+      // both question sets and question detail pages are “Questions” tab
       selectedIndex = 2;
     } else {
       selectedIndex = 0;
@@ -77,12 +63,14 @@ class NavigationRailWrapper extends StatelessWidget {
                 alignment: Alignment.bottomCenter,
                 child: SizedBox(
                   width: 24.0,
-                  child: AppText.styledHeadingLarge(context, 'X',
-                      color: AppColors.white),
+                  child: AppText.styledHeadingLarge(
+                    context,
+                    'X',
+                    color: AppColors.white,
+                  ),
                 ),
               ),
             ),
-
             selectedIconTheme: IconThemeData(color: AppColors.white),
             indicatorColor: AppColors.primaryAccent,
             indicatorShape: RoundedRectangleBorder(
@@ -93,50 +81,35 @@ class NavigationRailWrapper extends StatelessWidget {
             labelType: NavigationRailLabelType.none,
             extended: false,
             selectedIndex: selectedIndex,
-
-            /// Handles navigation when a destination is selected
-            ///
-            /// - Prevents re-navigation to the current route
-            /// - Uses different navigation strategies for different destinations:
-            ///   * Events list: Clears navigation stack and pushes route
-            ///   * Create event: Pushes route on top of current stack
             onDestinationSelected: (index) async {
-              if (index == selectedIndex)
-                return; // Prevents opening the same page
+              // ❌ DO NOT early return based on selectedIndex anymore
+              // we want index 2 to always go back to the Question Sets page
+
               if (index == 0) {
                 pushAndRemoveAllRoute(AppRoute.hostEvents, context);
               } else if (index == 1) {
-                // Navigate to menus
                 pushAndRemoveAllRoute(AppRoute.hostVenues, context);
               } else if (index == 2) {
-                // Navigate to questions
+                // Always go to the Question Sets page for the Questions tab
                 pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
               } else if (index == 3) {
                 try {
-                  // Properly await logout to ensure it completes
                   await authController.logout();
                   if (context.mounted) {
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
                   }
                 } catch (e) {
                   print('Logout error: $e');
-                  // Navigate even if logout fails
                   if (context.mounted) {
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
                   }
                 }
               }
             },
-
-            /// Navigation destinations configuration
-            /// Each destination includes:
-            /// - Regular and selected state icons
-            /// - Themed labels with dynamic styling based on selection state
-            /// - Color and weight changes to indicate active state
             destinations: [
               NavigationRailDestination(
-                icon: Icon(Icons.wine_bar_outlined), // unselected state
-                selectedIcon: Icon(Icons.wine_bar), // selected state
+                icon: const Icon(Icons.wine_bar_outlined),
+                selectedIcon: const Icon(Icons.wine_bar),
                 label: AppText.styledBodyMedium(
                   context,
                   'Events',
@@ -148,8 +121,8 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.restaurant_menu_outlined), // unselected state
-                selectedIcon: Icon(Icons.restaurant_menu), // selected state
+                icon: const Icon(Icons.restaurant_menu_outlined),
+                selectedIcon: const Icon(Icons.restaurant_menu),
                 label: AppText.styledBodyMedium(
                   context,
                   'Menus',
@@ -161,8 +134,8 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.quiz_outlined), // unselected state
-                selectedIcon: Icon(Icons.quiz), // selected state
+                icon: const Icon(Icons.quiz_outlined),
+                selectedIcon: const Icon(Icons.quiz),
                 label: AppText.styledBodyMedium(
                   context,
                   'Questions',
@@ -177,8 +150,8 @@ class NavigationRailWrapper extends StatelessWidget {
                 icon: Icon(
                   Icons.logout_outlined,
                   color: AppColors.white,
-                ), // unselected state
-                selectedIcon: Icon(Icons.logout), // selected state
+                ),
+                selectedIcon: const Icon(Icons.logout),
                 label: AppText.styledBodyMedium(
                   context,
                   'Logout',

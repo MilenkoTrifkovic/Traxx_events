@@ -8,7 +8,7 @@ class AppColors {
   static Color textMuted = Color(0xFF9CA3AF);
   static Color white = Color(0xFFFFFFFF);
   static Color black = Color(0xFF000000);
-  static Color fofofo = Color(0xFFF0F0F0);
+  static Color fofofo = Color.fromARGB(255, 255, 255, 255);
   static Color inputError = Color(0xFFE53935);
   static Color borderInput = Color(0xFFD0D0D0);
   static Color borderHover = Color(0xFFA0A0A0);

@@ -64,22 +64,14 @@ class _ContentWrapperState extends State<ContentWrapper> {
 
           return Container(
             alignment: widget.alignment,
+            // 🔹 FULL-WIDTH background color (grey or purple)
+            color: widget.contentColor ?? AppColors.fofofo,
             child: Container(
-              constraints: BoxConstraints(
-                  // maxWidth: effectiveMaxWidth,
-                  ),
+              // 🔹 Centered, width-limited content panel
+              constraints: BoxConstraints(maxWidth: effectiveMaxWidth),
               decoration: BoxDecoration(
-                // color: contentColor ?? AppColors.surface(context),
-                // color: AppColors.fofofo,
-                // boxShadow: [
-                //   shadow ??
-                //       BoxShadow(
-                //         color: AppColors.shadow(context).withAlpha(50),
-                //         blurRadius: 6,
-                //         offset: const Offset(0, 2),
-                //       ),
-                // ],
-                color: widget.contentColor ?? AppColors.fofofo,
+                // inner container is transparent; cards inside will be white
+                color: Colors.transparent,
                 boxShadow: widget.shadow != null ? [widget.shadow!] : null,
               ),
               child: widget.header != null
@@ -94,17 +86,18 @@ class _ContentWrapperState extends State<ContentWrapper> {
                           child: SingleChildScrollView(
                             child: Align(
                               alignment: Alignment.topCenter,
-                              child: ConstrainedBox(
-                                constraints:
-                                    BoxConstraints(maxWidth: effectiveMaxWidth),
-                                child: widget.child,
-                              ),
+                              child: widget.child,
                             ),
                           ),
-                        )
+                        ),
                       ],
                     )
-                  : widget.child,
+                  : SingleChildScrollView(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: widget.child,
+                      ),
+                    ),
             ),
           );
         },

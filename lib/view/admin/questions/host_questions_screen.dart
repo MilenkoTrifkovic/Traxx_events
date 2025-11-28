@@ -1,30 +1,35 @@
 // lib/views/host_questions_screen.dart
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_questions_controller.dart';
-import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/layout/headers/widgets/add_question_dialog.dart';
 import 'package:traxx_wepapp/models/host_questions_option.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-// Google Forms colors
-// Google Forms colors
-const Color _gfPurple = Color(0xFF673AB7); // top bar + accents
-const Color _gfBackground = Color(0xFFF4F0FB); // light lavender background
-const Color _gfTextColor = Color(0xFF202124); // main text color
+// 🔹 New bright palette
+const Color kAccent = Color(0xFF6C4BFF);
+const Color kAccentLight = Color(0xFFA18CFF);
+const Color kPanelBg = Color(0xFFF4E9FF); // vertical purple-ish area
+const Color kBorder = Color(0xFFE5E5E5);
+const Color kTextDark = Color(0xFF1A1A1A);
+const Color kTextBody = Color(0xFF333333);
+const Color kGfPurple = Color(0xFF673AB7); // header stripe + button
+const Color kGfBackground = Color(0xFFF1EBFF); // page background (lavender)
+const Color _gfBackground = Color(0xFFF4F0FB);
+const Color _gfPurple = Color(0xFF673AB7);
 
 class HostQuestionsScreen extends StatefulWidget {
   final String questionSetId;
   final String questionSetTitle;
+  final String questionSetDescription;
 
   const HostQuestionsScreen({
     super.key,
     required this.questionSetId,
     required this.questionSetTitle,
+    required this.questionSetDescription,
   });
 
   @override
@@ -35,16 +40,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     with SingleTickerProviderStateMixin {
   late final HostQuestionsController _controller;
 
-  /// Which question is currently focused / “editing”.
   String? _activeQuestionId;
-
-  /// Simple debounce map so we don’t spam Firestore while typing.
   final Map<String, Timer> _debounceTimers = {};
-
-  /// When true, after a new question is added we want to focus it.
   bool _pendingFocusNew = false;
-
-  bool _isProcessing = false; // 👈 NEW
+  bool _isProcessing = false;
 
   void _setProcessing(bool value) {
     if (!mounted) return;
@@ -83,7 +82,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 
   Future<void> _removeOption(DemographicQuestionOption opt) async {
-    // Confirm dialog with a loader on the Delete button
     final bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -92,16 +90,20 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('Delete option?'),
+              title: Text(
+                'Delete option?',
+                style: GoogleFonts.poppins(),
+              ),
               content: Text(
                 'Do you want to delete "${opt.label}"?',
+                style: GoogleFonts.poppins(),
               ),
               actions: [
                 TextButton(
                   onPressed: isDeleting
                       ? null
                       : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
                 ),
                 TextButton(
                   style: TextButton.styleFrom(
@@ -113,7 +115,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                           setState(() => isDeleting = true);
                           try {
                             await _controller.deleteOption(opt.id);
-                            // close dialog and return true
                             Navigator.of(dialogContext).pop(true);
                           } catch (e) {
                             if (mounted) {
@@ -121,6 +122,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                                 SnackBar(
                                   content: Text(
                                     'Failed to delete option: $e',
+                                    style: GoogleFonts.poppins(),
                                   ),
                                   backgroundColor: Colors.red,
                                 ),
@@ -139,7 +141,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                                 AlwaysStoppedAnimation<Color>(Colors.red),
                           ),
                         )
-                      : const Text('Delete'),
+                      : Text('Delete', style: GoogleFonts.poppins()),
                 ),
               ],
             );
@@ -148,7 +150,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       },
     );
 
-    // If user cancelled OR delete failed, do nothing here
     if (confirmed != true) return;
   }
 
@@ -163,7 +164,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update type: $e'),
+            content: Text(
+              'Failed to update type: $e',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -184,7 +188,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update required: $e'),
+            content: Text(
+              'Failed to update required: $e',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -200,20 +207,29 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete question?'),
-        content: const Text(
+        title: Text(
+          'Delete question?',
+          style: GoogleFonts.poppins(),
+        ),
+        content: Text(
           'This will permanently delete the question and its options.',
+          style: GoogleFonts.poppins(),
         ),
         actions: [
           TextButton(
-            // IMPORTANT: use dialogContext, not the outer context
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.poppins(),
+            ),
           ),
         ],
       ),
@@ -228,7 +244,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete question: $e'),
+            content: Text(
+              'Failed to delete question: $e',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -250,7 +269,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
 
     if (created == true) {
-      // brief overlay while Firestore sends new snapshot
       _setProcessing(true);
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted) _setProcessing(false);
@@ -260,113 +278,151 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // BUILD
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final body = Container(
-      color: _gfBackground,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final formContent = Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 12),
-                  _buildHeaderWithAddButton(
-                      context), // 👈 new row with card + button
-                  const SizedBox(height: 12),
-                  _buildQuestionsStream(),
-                ],
-              ),
+    return DefaultTextStyle(
+      // ✅ Force Poppins across this whole page
+      style: GoogleFonts.poppins(),
+      child: Stack(
+        children: [
+          // Full lavender background behind everything
+          const Positioned.fill(
+            child: ColoredBox(
+              color: _gfBackground, // 0xFFF4F0FB
             ),
-          );
+          ),
 
-          return formContent;
-        },
-      ),
-    );
-
-    return Stack(
-      children: [
-        body,
-        if (_isProcessing)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.05),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: _gfPurple,
+          // Centered, width-limited content (like QuestionSets)
+          Align(
+            alignment: Alignment.topCenter,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeaderWithAddButton(context),
+                      const SizedBox(height: 16),
+                      _buildQuestionsStream(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-      ],
+
+          if (_isProcessing)
+            Positioned.fill(
+              child: Container(
+                color: _gfBackground.withOpacity(0.35),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: _gfPurple,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // HEADER CARD – Form title / description (Google Forms style)
+  // HEADER CARD + BUTTON ROW
   // ---------------------------------------------------------------------------
 
-  Widget _buildFormHeaderCard(BuildContext context) {
-    return Card(
-      color: Colors.white, // NEW
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AppColors.borderSubtle),
-      ),
-
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border(
-            top: BorderSide(
-              color: _gfPurple, // Google Forms top colored bar
-              width: 8,
+  Widget _buildHeaderWithAddButton(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _buildFormHeaderCard()),
+        const SizedBox(width: 16),
+        SizedBox(
+          height: 44,
+          child: ElevatedButton(
+            onPressed: _isProcessing ? null : _handleAddQuestion,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kGfPurple,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
+            child: const Text('Add Question'),
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            // Title
-            TextField(
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: 'Untitled form',
-              ),
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 32,
-                fontWeight: FontWeight.w400,
-                color: _gfTextColor,
-                letterSpacing: 0.1,
-              ),
+      ],
+    );
+  }
+
+  Widget _buildFormHeaderCard() {
+    final title = widget.questionSetTitle.isEmpty
+        ? 'Untitled form'
+        : widget.questionSetTitle;
+    final description = widget.questionSetDescription.isEmpty
+        ? 'Form description'
+        : widget.questionSetDescription;
+
+    return Card(
+      color: Colors.white, // pure white like Forms
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.08),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Colored top border like Google Forms
+          Container(
+            height: 6,
+            decoration: const BoxDecoration(
+              color: kGfPurple,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
-            SizedBox(height: 8),
-            // Description
-            TextField(
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: 'Form description',
-              ),
-              maxLines: 3,
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF9CA3AF),
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                    color: kTextDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: kTextDark,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -377,39 +433,28 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
-      stream: _controller.streamQuestions(
-        questionSetId: widget.questionSetId,
-      ),
+      stream: _controller.streamQuestions(questionSetId: widget.questionSetId),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final err = snapshot.error;
           if (kDebugMode) {
-            if (err is FirebaseException) {
-              print(
-                  '🔥 Firestore error in HostQuestionsScreen: ${err.code} – ${err.message}');
-              print('🔥 Full error: $err');
-            } else {
-              print('🔥 Unknown error in HostQuestionsScreen: $err');
-            }
+            print('🔥 HostQuestionsScreen error: $err');
           }
-          return _buildErrorState(context, err.toString());
+          return _buildErrorState(err.toString());
         }
 
         if (!snapshot.hasData) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingSkeleton(context);
+            return _buildLoadingSkeleton();
           }
-          return _buildEmptyState(context);
+          return _buildEmptyState();
         }
 
         final items = snapshot.data!;
-        if (items.isEmpty) {
-          return _buildEmptyState(context);
-        }
+        if (items.isEmpty) return _buildEmptyState();
 
         final questions = List<DemographicQuestionWithOptions>.from(items);
 
-        // If we just added a new question, focus the last one.
         if (_pendingFocusNew && questions.isNotEmpty) {
           _pendingFocusNew = false;
           final newId = questions.last.question.id;
@@ -419,8 +464,8 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         }
 
         return ReorderableListView.builder(
-          buildDefaultDragHandles: false,
           key: const PageStorageKey('questions_reorderable_list'),
+          buildDefaultDragHandles: false,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
@@ -443,7 +488,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to reorder questions: $e'),
+                    content: Text(
+                      'Failed to reorder questions: $e',
+                      style: GoogleFonts.poppins(),
+                    ),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -481,62 +529,58 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Loading / Empty / Error
+  // STATES
   // ---------------------------------------------------------------------------
 
-  Widget _buildLoadingSkeleton(BuildContext context) {
-    return SizedBox(
-      height: 300, // give it some space under the header
-      child: const Center(
+  Widget _buildLoadingSkeleton() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 80),
+      child: Center(
         child: CircularProgressIndicator(
           strokeWidth: 3,
-          color: _gfPurple, // violet loader
+          color: kGfPurple,
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 600),
-      tween: Tween(begin: 0, end: 1),
-      curve: Curves.easeOutBack,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.scale(
-            scale: 0.95 + 0.05 * value,
-            child: child,
-          ),
-        );
-      },
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
+        color: Colors.white, // ❗️Make sure this is white, not lavender
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.05),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.help_outline_rounded,
                 size: 48,
-                color: _gfPurple,
+                color: kGfPurple,
               ),
-              const SizedBox(height: 16),
-              AppText.styledBodyLarge(
-                context,
+              SizedBox(height: 16),
+              Text(
                 'No questions yet',
-                color: Colors.black,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: kTextDark,
+                ),
               ),
-              const SizedBox(height: 6),
-              AppText.styledBodySmall(
-                context,
-                'Start by adding your first question using the + button on the right.',
-                color: AppColors.secondary,
+              SizedBox(height: 6),
+              Text(
+                'Start by adding your first question using the "Add Question" button.',
                 textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: kTextBody,
+                ),
               ),
             ],
           ),
@@ -545,49 +589,9 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
-  Widget _buildHeaderWithAddButton(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Untitled form card takes all available space
-        Expanded(
-          child: _buildFormHeaderCard(context),
-        ),
-        const SizedBox(width: 12),
-        // Purple "Add Question" button
-        Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 8, 0, 0),
-            height: 40,
-            child: ElevatedButton.icon(
-              onPressed: _isProcessing ? null : _handleAddQuestion,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _gfPurple,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                textStyle: const TextStyle(
-                  fontFamily: 'Inter', // or 'Roboto' if you prefer
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              /* icon: const Icon(Icons.add, size: 18), */
-              label: const Text('Add Question'),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, String error) {
+  Widget _buildErrorState(String error) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -596,10 +600,13 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
             Icon(Icons.error_outline, color: Colors.red.shade600),
             const SizedBox(width: 12),
             Expanded(
-              child: AppText.styledBodySmall(
-                context,
+              child: Text(
                 'Failed to load questions: $error',
-                color: Colors.red.shade600,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red.shade600,
+                ),
               ),
             ),
           ],
@@ -609,11 +616,11 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 }
 // -----------------------------------------------------------------------------
-// QUESTION CARD – Google Forms look & feel
+// QUESTION CARD – updated styling
 // -----------------------------------------------------------------------------
 
 class _GoogleFormsQuestionCard extends StatelessWidget {
-  final int index; // NEW
+  final int index;
   final DemographicQuestionWithOptions item;
   final bool isActive;
   final VoidCallback onTap;
@@ -624,7 +631,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
   const _GoogleFormsQuestionCard({
-    required this.index, // NEW
+    required this.index,
     required this.item,
     required this.isActive,
     required this.onTap,
@@ -638,89 +645,87 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = item.question;
-
-    // Only these 5 types are supported now
     final normalizedType = _QuestionTypeDropdown.normalizeType(q.questionType);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(8),
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 160),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isActive ? _gfPurple : AppColors.borderSubtle,
+            color: isActive ? kAccent : kBorder,
             width: isActive ? 2 : 1,
           ),
           boxShadow: [
-            if (isActive)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                offset: const Offset(0, 2),
-                blurRadius: 6,
-              ),
+            BoxShadow(
+              color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
+              offset: const Offset(0, 4),
+              blurRadius: 10,
+            ),
           ],
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Drag handle
             Center(
               child: ReorderableDragStartListener(
                 index: index,
                 child: Icon(
-                  Icons.drag_indicator,
+                  Icons.drag_indicator_rounded,
                   size: 20,
-                  color: AppColors.borderHover,
+                  color: Colors.grey.shade500,
                 ),
               ),
             ),
-
             const SizedBox(height: 8),
 
-            // Header row: question text + type dropdown/label
+            // Question row
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Question text (bigger & slightly bolder)
                 Expanded(
                   child: TextFormField(
                     initialValue: q.questionText,
                     onChanged: onQuestionTextChanged,
                     readOnly: !isActive,
                     minLines: 1,
-                    maxLines: 2,
+                    maxLines: 3,
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'Question',
-                      border: const UnderlineInputBorder(
+                      hintStyle: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                      border: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.transparent),
                       ),
-                      enabledBorder: const UnderlineInputBorder(
+                      enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.transparent),
                       ),
                       focusedBorder: UnderlineInputBorder(
                         borderSide: BorderSide(
-                          color: _gfPurple,
+                          color: kAccent,
                           width: 2,
                         ),
                       ),
                     ),
-                    style: const TextStyle(
-                      fontFamily: 'Roboto',
+                    style: GoogleFonts.poppins(
                       fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: _gfTextColor,
+                      fontWeight: FontWeight.w600,
+                      color: kTextDark,
                     ),
                   ),
                 ),
-
-                const SizedBox(width: 16),
-
+                const SizedBox(width: 20),
                 SizedBox(
-                  width: 190,
+                  width: 200,
                   child: isActive
                       ? _QuestionTypeDropdown(
                           currentType: normalizedType,
@@ -731,9 +736,8 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // Question body based on type
             _QuestionBody(
               type: normalizedType,
               options: item.options,
@@ -743,7 +747,6 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Bottom toolbar: only show while active (Required + delete)
             if (isActive)
               Row(
                 children: [
@@ -757,17 +760,18 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     'Required',
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
+                    style: GoogleFonts.poppins(
                       fontSize: 13,
-                      color: AppColors.secondary,
+                      fontWeight: FontWeight.w500,
+                      color: kTextBody,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Switch(
                     value: q.isRequired,
                     onChanged: onRequiredChanged,
-                    activeColor: _gfPurple,
+                    activeColor: kAccent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
               ),
@@ -791,7 +795,6 @@ class _QuestionTypeDropdown extends StatelessWidget {
     required this.onChanged,
   });
 
-  // Only these 5 types
   static const _typeLabels = <String, String>{
     'short_answer': 'Short answer',
     'paragraph': 'Paragraph',
@@ -812,18 +815,16 @@ class _QuestionTypeDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.transparent),
-        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey.shade100,
       ),
       child: Text(
         labelFor(type),
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontFamily: 'Roboto',
+        style: GoogleFonts.poppins(
           fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: _gfTextColor,
+          fontWeight: FontWeight.w500,
+          color: kTextBody,
         ),
       ),
     );
@@ -837,16 +838,25 @@ class _QuestionTypeDropdown extends StatelessWidget {
     return DropdownButtonFormField<String>(
       value: value,
       isExpanded: true,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         isDense: true,
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
       items: [
         for (final e in entries)
           DropdownMenuItem(
             value: e.key,
-            child: Text(e.value, overflow: TextOverflow.ellipsis),
+            child: Text(
+              e.value,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
       ],
       onChanged: (v) {
@@ -857,7 +867,7 @@ class _QuestionTypeDropdown extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Question body for different types (visual only, like Google Forms)
+// Question body (visual preview)
 // -----------------------------------------------------------------------------
 
 class _QuestionBody extends StatelessWidget {
@@ -891,37 +901,33 @@ class _QuestionBody extends StatelessWidget {
   }
 
   Widget _shortAnswer() {
-    return Container(
-      padding: const EdgeInsets.only(top: 2, bottom: 4),
-      child: const Text(
+    return Padding(
+      padding: EdgeInsets.only(top: 2, bottom: 4),
+      child: Text(
         'Short answer text',
-        style: TextStyle(
-          fontFamily: 'Roboto',
-          fontSize: 15,
+        style: GoogleFonts.poppins(
+          fontSize: 14,
           fontWeight: FontWeight.w400,
-          height: 1.2,
-          color: Colors.black54,
+          color: Colors.grey,
         ),
       ),
     );
   }
 
   Widget _paragraph() {
-    return Container(
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
-      child: const Text(
+    return Padding(
+      padding: EdgeInsets.only(top: 4, bottom: 8),
+      child: Text(
         'Long answer text',
-        style: TextStyle(
-          fontFamily: 'Roboto',
+        style: GoogleFonts.poppins(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: Colors.black54,
+          color: Colors.grey,
         ),
       ),
     );
   }
 
-  /// Multiple choice / checkboxes list.
   Widget _choiceList({required bool isCheckbox}) {
     final baseOptions = options.isNotEmpty
         ? options
@@ -945,7 +951,7 @@ class _QuestionBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SizedBox(
-              height: 38, // fixed height for icon + text
+              height: 32, // slightly tighter so icon and text align better
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -953,7 +959,8 @@ class _QuestionBody extends StatelessWidget {
                     isCheckbox
                         ? Icons.check_box_outline_blank
                         : Icons.radio_button_unchecked,
-                    size: 15,
+                    size: 18,
+                    color: Colors.grey.shade700,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -963,24 +970,20 @@ class _QuestionBody extends StatelessWidget {
                       textAlignVertical: TextAlignVertical.center,
                       decoration: const InputDecoration(
                         isDense: true,
+                        // vertical padding keeps text visually centered with the icon
+                        contentPadding: EdgeInsets.symmetric(vertical: 4),
                         border: InputBorder.none,
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.transparent),
-                        ),
                         focusedBorder: UnderlineInputBorder(
                           borderSide: BorderSide(
-                            color: _gfPurple,
+                            color: kAccent,
                             width: 2,
                           ),
                         ),
-                        contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(
-                        fontFamily: 'Roboto',
-                        fontSize: 15,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        height: 1.8, // keeps baseline near center
-                        color: _gfTextColor,
+                        color: kTextDark,
                       ),
                     ),
                   ),
@@ -999,45 +1002,6 @@ class _QuestionBody extends StatelessWidget {
               ),
             ),
           ),
-/*         const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(
-              isCheckbox
-                  ? Icons.check_box_outline_blank
-                  : Icons.radio_button_unchecked,
-              size: 15,
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Add option',
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 14,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'or',
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 14,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'add "Other"',
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 14,
-                color: Colors.blue,
-              ),
-            ),
-          ],
-        ),
- */
       ],
     );
   }
@@ -1047,18 +1011,17 @@ class _QuestionBody extends StatelessWidget {
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.black26),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kBorder),
       ),
       child: Row(
         children: [
           Text(
             options.isNotEmpty ? options.first.label : 'Option 1',
-            style: const TextStyle(
-              fontFamily: 'Roboto',
+            style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: _gfTextColor,
+              color: kTextDark,
             ),
           ),
           const Spacer(),
