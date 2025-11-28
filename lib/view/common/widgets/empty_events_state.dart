@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/view/admin/create_event_old/create_event_popup_view.dart';
+import 'package:traxx_wepapp/view/admin/create_event/create_event_popup_view.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
 /// Empty state widget displayed when no events are created

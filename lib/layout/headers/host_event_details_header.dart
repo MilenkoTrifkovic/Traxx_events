@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/layout/headers/widgets/header_back_button.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -17,6 +18,7 @@ class HostEventDetailsHeader extends StatelessWidget {
       Get.find<EventListController>();
   @override
   Widget build(BuildContext context) {
+    bool idDesktop = ScreenSize.isDesktop(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -35,17 +37,20 @@ class HostEventDetailsHeader extends StatelessWidget {
 
             AppSpacing.horizontalXs(context),
             AppSecondaryButton(
-              text: 'Preview Guest Page',
+              text: idDesktop ? 'Preview Guest Page' : '',
+              icon: Icons.remove_red_eye,
               onPressed: () {},
             ),
             // AppSecondaryButton(text: 'text'),
             AppSpacing.horizontalXs(context),
             AppSecondaryButton(
-                text: 'Edit Details', icon: Icons.edit_note, onPressed: () {}),
+                text: idDesktop ? 'Edit Details' : '',
+                icon: Icons.edit_note,
+                onPressed: () {}),
             AppSpacing.horizontalXs(context),
             AppPrimaryButton(
                 // icon: Icons.add,
-                text: 'Publish Event',
+                text: idDesktop ? 'Publish Event' : 'Publish',
                 onPressed: () {
                   // Handle add event action
                 }),

@@ -8,14 +8,17 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_bar_custom.dart';
 
 Widget getPageHeader(GoRouterState state) {
+  print('Matched location: ${state.matchedLocation}');
   if (state.matchedLocation == AppRoute.hostEvents.path) {
     return AppBarCustom(content: EventListHeader());
   }
-  if (state.matchedLocation == AppRoute.eventDetails.path) {
+  // if (state.matchedLocation == AppRoute.eventDetails.path) {
+  if (state.matchedLocation.startsWith('/event-details/')) {
     return AppBarCustom(content: HostEventDetailsHeader());
   }
   if (state.matchedLocation == AppRoute.hostVenues.path) {
-    return AppBarCustom(content: MenusManagementHeader());
+    return AppBarCustom(
+        content: MenusManagementHeader.VenuesManagementHeader());
   }
   if (state.matchedLocation == AppRoute.hostQuestionSets.path) {
     return AppBarCustom(content: QuestionsManagementHeader());

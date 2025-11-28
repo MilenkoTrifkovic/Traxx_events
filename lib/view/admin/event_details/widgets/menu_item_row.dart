@@ -7,10 +7,12 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 class SelectedMenuItemRow extends StatelessWidget {
   final MenuItem menuItem;
   final double imageSize;
+  final VoidCallback? onRemove;
 
   const SelectedMenuItemRow({
     super.key,
     required this.menuItem,
+    required this.onRemove,
     this.imageSize = 72,
   });
 
@@ -44,6 +46,19 @@ class SelectedMenuItemRow extends StatelessWidget {
             ],
           ),
         ),
+        Column(
+          children: [
+            SizedBox(
+              child: TextButton(
+                  onPressed: onRemove,
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: AppColors.black,
+                  )),
+            ),
+          ],
+        )
       ],
     );
   }

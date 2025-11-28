@@ -431,6 +431,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   // QUESTIONS STREAM
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // QUESTIONS STREAM
+  // ---------------------------------------------------------------------------
+
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
       stream: _controller.streamQuestions(questionSetId: widget.questionSetId),

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
@@ -21,7 +23,9 @@ class AdminEventDetailsController {
   Venue? venue;
   Organisation? organisation;
   List<MenuItem> availableMenuItems = [];
-  List<MenuItem> selectedMenuItems = [];
+  Rx<List<MenuItem>> selectedMenusEvent = Rx<List<MenuItem>>([]);
+  Rx<List<MenuItem>> selectedMenusLocally = Rx<List<MenuItem>>([]);
+  Rx<List<MenuItem>> availableMenus = Rx<List<MenuItem>>([]);
 
   Future<void> loadEvent(String eventId) async {
     event = await _eventsController.fetchEventById(eventId);
@@ -29,8 +33,22 @@ class AdminEventDetailsController {
       await _loadVenue(event!.venueId);
       await _loadOrganisation(event!.organisationId);
       await _assignAvailableMenuItems();
+      await _assignAvailableMenus();
       _loadSelectedMenuItems();
     }
+  }
+
+  /// Removes a menu item from selectedMenuItems and event.selectedMenus
+  void removeMenuItemFromSelection(MenuItem item) {
+    // selectedMenusFirestore.value = selectedMenusFirestore.value
+    //     .where((i) => i.menuItemId != item.menuItemId)
+    //     .toList();
+    selectedMenusLocally.value = selectedMenusLocally.value
+        .where((i) => i.menuItemId != item.menuItemId)
+        .toList();
+    event?.selectedMenus?.remove(
+        item.menuItemId); //////////////////////////////////////////////////
+    print('Removed:${item.menuItemId} ${event?.selectedMenus}');
   }
 
   /// Adds a menu item to event.selectedMenus and selectedMenuItems
@@ -39,7 +57,8 @@ class AdminEventDetailsController {
     event!.selectedMenus ??= <String>[];
     if (!event!.selectedMenus!.contains(item.menuItemId!)) {
       event!.selectedMenus!.add(item.menuItemId!);
-      selectedMenuItems.add(item);
+      // selectedMenusFirestore.value = [...selectedMenusFirestore.value, item];
+      selectedMenusLocally.value = [...selectedMenusLocally.value, item];
     }
     print('Added:${item.menuItemId} ${event!.selectedMenus}');
   }
@@ -63,10 +82,21 @@ class AdminEventDetailsController {
     }
   }
 
+  Future<void> _assignAvailableMenus() async {
+    if (event?.venueId == null) return;
+    try {
+      availableMenus.value =
+          await _venuesController.getEventMenusByVenueId(event!.venueId);
+    } catch (e) {
+      availableMenus.value = [];
+    }
+  }
+
   void _loadSelectedMenuItems() {
-    selectedMenuItems = availableMenuItems
+    selectedMenusEvent.value = availableMenuItems
         .where((item) => event!.selectedMenus!.contains(item.menuItemId))
         .toList();
+    selectedMenusLocally.value = selectedMenusEvent.value;
   }
 
   /// Persists the currently loaded event to Firestore and updates
@@ -96,6 +126,12 @@ class AdminEventDetailsController {
       print('Error updating event from admin details: $e');
       rethrow;
     }
+  }
+
+  void syncSelectedMenusLists() {
+    selectedMenusLocally.value = List<MenuItem>.from(selectedMenusEvent.value);
+    event?.selectedMenus =
+        selectedMenusEvent.value.map((item) => item.menuItemId!).toList();
   }
 
   void dispose() {

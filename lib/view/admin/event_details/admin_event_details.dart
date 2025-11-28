@@ -61,6 +61,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
           date: dateStr,
           time: timeStr,
           location: organisation.city,
+          serviceType: event.serviceType,
           venue: venue.name,
         ),
         ExpansionPanelList(

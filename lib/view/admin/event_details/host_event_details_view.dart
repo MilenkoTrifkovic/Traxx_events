@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/view/admin/create_event_old/create_edit_event_view.dart';
+import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
 import 'package:traxx_wepapp/view/common/event_details/widgets/cover_image.dart';
 import 'package:traxx_wepapp/view/common/event_details/widgets/event%20_info_section.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/event_setup_section.dart';
