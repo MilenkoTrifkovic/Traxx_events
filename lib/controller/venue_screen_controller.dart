@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
-import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
-import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 
 /// Controller for managing venue operations including creation, deletion, and form validation.
 class VenueScreenController extends GetxController {

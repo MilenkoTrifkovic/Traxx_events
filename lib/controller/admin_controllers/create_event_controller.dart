@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/utils/enums/event_status.dart';
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
@@ -37,6 +38,10 @@ class CreateEventController extends GetxController {
   final Rx<TimeOfDay?> selectedStartTime = Rx<TimeOfDay?>(null);
   final Rx<TimeOfDay?> selectedEndTime = Rx<TimeOfDay?>(null);
   final Rx<DateTime?> selectedRsvpDeadline = Rx<DateTime?>(null);
+  final Rx<ServiceType?> selectedServiceType = Rx<ServiceType?>(null);
+
+  // Service Type error
+  final RxString serviceTypeError = ''.obs;
   final RxBool hideHostInfo = false.obs;
   final RxBool isLoading = false.obs;
 
@@ -82,6 +87,8 @@ class CreateEventController extends GetxController {
     endTimeError.value = '';
     rsvpDeadlineError.value = '';
     capacityError.value = '';
+    serviceTypeError.value = '';
+    venueError.value = '';
   }
 
   /// Validate step 1 - Event Name, Event Type, Date, RSVP Date, Start Time, End Time
@@ -99,6 +106,22 @@ class CreateEventController extends GetxController {
     if (selectedEventType.value == null || selectedEventType.value!.isEmpty) {
       eventTypeError.value = 'Please select an event type';
       isValid = false;
+    }
+
+    // Validate venue
+    if (selectedVenue.value == null || selectedVenue.value!.isEmpty) {
+      venueError.value = 'Please select a venue';
+      isValid = false;
+    } else {
+      venueError.value = '';
+    }
+
+    // Validate service type
+    if (selectedServiceType.value == null) {
+      serviceTypeError.value = 'Please select a service type';
+      isValid = false;
+    } else {
+      serviceTypeError.value = '';
     }
 
     // Validate date
@@ -191,6 +214,14 @@ class CreateEventController extends GetxController {
     }
   }
 
+  /// Update selected service type
+  void updateServiceType(ServiceType? serviceType) {
+    selectedServiceType.value = serviceType;
+    if (serviceType != null) {
+      serviceTypeError.value = '';
+    }
+  }
+
   /// Update selected venue
   void updateVenue(String? venue) {
     print('Updating venue to: $venue');
@@ -266,7 +297,7 @@ class CreateEventController extends GetxController {
     return Event(
       venueId: selectedVenue.value!,
       organisationId: organisationId,
-      serviceType: null, // Optional field
+      serviceType: selectedServiceType.value!,
       name: nameController.text.trim(),
       address: addressController.text.trim().isNotEmpty
           ? addressController.text.trim()

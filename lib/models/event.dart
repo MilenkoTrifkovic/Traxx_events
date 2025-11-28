@@ -13,7 +13,7 @@ class Event {
   final String? eventId;
   final String organisationId;
   final String venueId;
-  final ServiceType? serviceType;
+  final ServiceType serviceType;
   final String name;
   final String address;
   final int capacity;
@@ -43,7 +43,7 @@ class Event {
     this.eventId,
     required this.organisationId,
     required this.venueId,
-    this.serviceType,
+    required this.serviceType,
     required this.name,
     required this.address,
     required this.capacity,
@@ -116,12 +116,10 @@ class Event {
       specialNotes: data['specialNotes'] as String?,
       hideHostInfo: data['hideHostInfo'] as bool? ?? false,
       isDisabled: data['isDisabled'] as bool?,
-      serviceType: data['serviceType'] != null
-          ? ServiceType.values.firstWhere(
-              (e) => e.name == (data['serviceType']),
-              orElse: () => ServiceType.buffet,
-            )
-          : null,
+      serviceType: ServiceType.values.firstWhere(
+        (e) => e.name == (data['serviceType']),
+        orElse: () => ServiceType.buffet,
+      ),
       selectableCategories: (data['selectableMenuCategories'] as List<dynamic>?)
               ?.map((name) =>
                   MenuCategory.values.firstWhere((e) => e.name == name))
@@ -166,7 +164,7 @@ class Event {
     return Event(
       venueId: 'state.selectedVenue!.id!',
       organisationId: organisationId,
-      serviceType: state.serviceType,
+      serviceType: state.serviceType!,
       name: state.nameController.text,
       address: state.addressController.text,
       capacity: capacity,
@@ -241,7 +239,7 @@ class Event {
       'specialNotes': specialNotes,
       'hideHostInfo': hideHostInfo,
       'coverImageUrl': coverImageUrl,
-      'serviceType': serviceType?.name,
+      'serviceType': serviceType.name,
       'status': status.statusName,
       'createdAt': Timestamp.now(),
       'updatedAt': Timestamp.now(),

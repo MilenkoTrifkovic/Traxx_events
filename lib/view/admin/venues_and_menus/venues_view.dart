@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/venue_screen_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
+import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
@@ -57,22 +60,14 @@ class _VenuesViewState extends State<VenuesView> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          'Coding in progress',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
         SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          // padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildVenueForm(context),
               AppSpacing.verticalLg(context),
-              _buildVenuesListSection(context),
+              _buildVenuesListSection(context, venuesController),
             ],
           ),
         ),
@@ -88,7 +83,7 @@ class _VenuesViewState extends State<VenuesView> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: AppColors.borderHover),
+        // border: Border.all(color: AppColors.borderHover),
       ),
       child: Form(
         key: controller.formKey,
@@ -159,54 +154,76 @@ class _VenuesViewState extends State<VenuesView> {
   }
 
   /// Builds the horizontal list of venue cards
-  Widget _buildVenuesListSection(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24.0),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: AppColors.borderHover),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppText.styledHeadingMedium(
-            context,
-            'Existing Venues',
+  Widget _buildVenuesListSection(
+      BuildContext context, VenuesController venuesController) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: venuesController.venues.length,
+      itemBuilder: (context, index) {
+        final venue = venuesController.venues[index];
+        return Padding(
+          padding: AppPadding.bottom(context, paddingType: Sizes.xxs),
+          child: VenueCard(
+            venue: venue,
+            onTap: () {
+              // controller.selectedEvent.value = event;
+              // eventController.setSelectedEvent(event);
+              // if (authController.userRole.value == UserRole.admin) {
+              //   pushAndRemoveAllRoute(AppRoute.eventDetails, context,
+              //       urlParam: event.eventId);
+              // } else {
+              //   pushRoute(AppRoute.guestEventDetails, context,
+              //       urlParam: event.eventId, extra: event);
+              // }
+            },
           ),
-          AppSpacing.verticalMd(context),
-          Obx(() {
-            final venues = venuesController.venues;
-            if (venues.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    'No venues found.',
-                    style: TextStyle(
-                      color: AppColors.secondary,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              );
-            }
-            return SizedBox(
-              height: 180,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: venues.length,
-                itemBuilder: (context, index) {
-                  final venue = venues[index];
-                  return _buildVenueCard(context, venue);
-                },
-              ),
-            );
-          }),
-        ],
-      ),
+        );
+      },
     );
+    // return Container(
+    //   width: double.infinity,
+    //   padding: const EdgeInsets.all(24.0),
+    //   decoration: BoxDecoration(
+    //     color: AppColors.white,
+    //     borderRadius: BorderRadius.circular(8.0),
+    //     border: Border.all(color: AppColors.borderHover),
+    //   ),
+    //   child: Column(
+    //     crossAxisAlignment: CrossAxisAlignment.start,
+    //     children: [
+    //       AppSpacing.verticalMd(context),
+    //       Obx(() {
+    //         final venues = venuesController.venues;
+    //         if (venues.isEmpty) {
+    //           return Center(
+    //             child: Padding(
+    //               padding: const EdgeInsets.all(32.0),
+    //               child: Text(
+    //                 'No venues found.',
+    //                 style: TextStyle(
+    //                   color: AppColors.secondary,
+    //                   fontStyle: FontStyle.italic,
+    //                 ),
+    //               ),
+    //             ),
+    //           );
+    //         }
+    //         return SizedBox(
+    //           height: 180,
+    //           child: ListView.builder(
+    //             scrollDirection: Axis.horizontal,
+    //             itemCount: venues.length,
+    //             itemBuilder: (context, index) {
+    //               final venue = venues[index];
+    //               return _buildVenueCard(context, venue);
+    //             },
+    //           ),
+    //         );
+    //       }),
+    //     ],
+    //   ),
+    // );
   }
 
   /// Builds a single horizontal venue card

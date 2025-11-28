@@ -49,8 +49,8 @@ class NavigationRailWrapper extends StatelessWidget {
     int selectedIndex;
     if (location == '/host-events') {
       selectedIndex = 0; // Events list view
-    } else if (location == '/host-menus') {
-      selectedIndex = 1; // Menus view
+    } else if (location == '/host-venues') {
+      selectedIndex = 1; // Venues view
     } else if (location == '/host-questions') {
       selectedIndex = 2; // Questions view
     } else {

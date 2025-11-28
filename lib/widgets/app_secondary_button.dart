@@ -60,12 +60,9 @@ class AppSecondaryButton extends StatelessWidget {
           ),
           foregroundColor: textColor ?? AppColors.secondary,
           backgroundColor: backgroundColor ?? Colors.transparent,
-
-          // 🔥 ČINI DA SE PONAŠA KAO ELEVATED BUTTON
           minimumSize: Size(width ?? 0, height ?? 44),
           padding: padding ??
               const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
@@ -91,7 +88,7 @@ class AppSecondaryButton extends StatelessWidget {
                       color: iconColor ?? textColor ?? AppColors.secondary,
                       size: 20.0,
                     ),
-                    const SizedBox(width: 8.0),
+                    if (text.isNotEmpty) const SizedBox(width: 8.0),
                   ],
                   Flexible(
                     child: Text(

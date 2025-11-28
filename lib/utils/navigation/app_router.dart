@@ -22,7 +22,7 @@ import 'package:traxx_wepapp/view/authentication/login/email_verification_view.d
 import 'package:traxx_wepapp/view/authentication/signup/signup_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
-import 'package:traxx_wepapp/view/admin/create_event_old/create_edit_event_view.dart';
+import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/host_event_details_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/guests_section/set_guests._view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/menu_section/set_menus_view.dart';
