@@ -1,6 +1,6 @@
 /// Design system constants for the Traxx application
 class Constants {
-  static const double maxContentWidth = 1200;
+  static const double maxContentWidth = 1600;
   //Configuration
   static const String webClientId =
       '781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com';

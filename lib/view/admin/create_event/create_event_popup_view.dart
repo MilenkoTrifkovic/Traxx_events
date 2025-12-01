@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/create_event_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/form_step_model.dart';
 import 'package:traxx_wepapp/utils/enums/date_time_input_type.dart';
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -30,16 +32,18 @@ class CreateEventPopupView extends StatefulWidget {
 
 class _CreateEventPopupViewState extends State<CreateEventPopupView> {
   late CreateEventController controller;
+  late VenuesController venuesController;
 
   @override
   void initState() {
     super.initState();
     // Initialize controller
     controller = Get.put(CreateEventController());
+    venuesController = Get.find<VenuesController>();
 
     // Listen for snackbar messages
     ever(controller.snackBarMessage, (message) {
-      /*  print('Snackbar message received: ${message?.message}'); */
+      print('Snackbar message received: ${message?.message}');
       if (message != null && mounted) {
         // Show appropriate snackbar based on type
         // switch (message.type) {
@@ -125,7 +129,49 @@ class _CreateEventPopupViewState extends State<CreateEventPopupView> {
                             controller.updateEventType(newValue);
                           },
                         )),
-
+                    // Service Type Dropdown
+                    Obx(() => AppDropdownMenu<ServiceType>(
+                          label: 'Service Type',
+                          items: ServiceType.values.map((serviceType) {
+                            return DropdownMenuItem<ServiceType>(
+                              value: serviceType,
+                              child: Text(describeEnum(serviceType.toString())
+                                  .capitalize!),
+                            );
+                          }).toList(),
+                          hintText: 'Select service type',
+                          errorText: controller.serviceTypeError.value.isEmpty
+                              ? null
+                              : controller.serviceTypeError.value,
+                          value: controller.selectedServiceType.value,
+                          onChanged: (ServiceType? newValue) {
+                            controller.updateServiceType(newValue);
+                          },
+                        )),
+                    // Venue Dropdown
+                    Obx(() => AppDropdownMenu<String>(
+                          label: 'Venue',
+                          hintText: 'Select venue',
+                          value: controller.selectedVenue.value,
+                          errorText: controller.venueError.value.isEmpty
+                              ? null
+                              : controller.eventTypeError.value,
+                          items: venuesController.venues.map((element) {
+                            return DropdownMenuItem<String>(
+                              value: element.venueID,
+                              child: Text(element.name),
+                            );
+                          }).toList(),
+                          // items: StaticData.eventTypes.map((String type) {
+                          //   return DropdownMenuItem<String>(
+                          //     value: type,
+                          //     child: Text(type),
+                          //   );
+                          // }).toList(),
+                          onChanged: (String? venueId) {
+                            controller.updateVenue(venueId);
+                          },
+                        )),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

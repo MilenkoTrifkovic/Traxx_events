@@ -65,11 +65,11 @@ void replaceRoute(
 /// await popRoute(context);
 ///
 /// Safely checks if the context is still mounted before popping.
-Future<void> popRoute(BuildContext context) async {
+Future<void> popRoute(BuildContext context, [bool? result]) async {
   if (!context.mounted) return;
 
   if (context.canPop()) {
-    context.pop();
+    context.pop(result);
   } else {
     context.go(AppRoute.welcome.path);
   }

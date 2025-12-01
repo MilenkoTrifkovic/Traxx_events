@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/event_status.dart';
+import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/widgets/event_status_widget.dart';
+import 'package:traxx_wepapp/widgets/service_type_widget.dart';
 
 class EventDetailsHeader extends StatelessWidget {
   final String title;
@@ -11,6 +13,7 @@ class EventDetailsHeader extends StatelessWidget {
   final String time;
   final String location;
   final String venue;
+  final ServiceType serviceType;
 
   const EventDetailsHeader({
     super.key,
@@ -20,6 +23,7 @@ class EventDetailsHeader extends StatelessWidget {
     required this.time,
     required this.location,
     required this.venue,
+    required this.serviceType,
   });
 
   @override
@@ -51,15 +55,20 @@ class EventDetailsHeader extends StatelessWidget {
                           color: Colors.red, size: 24),
                     ),
                     const SizedBox(width: 12),
-                    AppText.styledHeadingLarge(
-                      context,
-                      title,
-                      color: AppColors.primary,
+                    Flexible(
+                      child: AppText.styledHeadingLarge(
+                        context,
+                        title,
+                        color: AppColors.primary,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     EventStatusWidget(
                       status: status,
                     ),
+                    const SizedBox(width: 8),
+                    ServiceTypeWidget(serviceType: serviceType),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -77,36 +86,42 @@ class EventDetailsHeader extends StatelessWidget {
                     const Icon(Icons.location_on,
                         size: 18, color: Color(0xFF9CA3AF)),
                     const SizedBox(width: 4),
-                    AppText.styledBodyMedium(context, location,
-                        color: AppColors.secondary),
+                    Flexible(
+                      child: AppText.styledBodyMedium(context, location,
+                          color: AppColors.secondary,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                     const SizedBox(width: 8),
                     Text('•', style: TextStyle(color: Colors.grey.shade400)),
                     const SizedBox(width: 8),
-                    AppText.styledBodyMedium(context, venue,
-                        color: AppColors.secondary),
+                    Flexible(
+                      child: AppText.styledBodyMedium(context, venue,
+                          color: AppColors.secondary,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
           // Right section: 4 placeholders for avatars/images
-          Row(
-            children: List.generate(
-                4,
-                (index) => Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.image_not_supported,
-                            color: Colors.grey, size: 28),
-                      ),
-                    )),
-          ),
+          // Row(
+          //   children: List.generate(
+          //       4,
+          //       (index) => Padding(
+          //             padding: const EdgeInsets.only(left: 12),
+          //             child: Container(
+          //               width: 48,
+          //               height: 48,
+          //               decoration: BoxDecoration(
+          //                 color: Colors.grey.shade300,
+          //                 borderRadius: BorderRadius.circular(8),
+          //               ),
+          //               child: const Icon(Icons.image_not_supported,
+          //                   color: Colors.grey, size: 28),
+          //             ),
+          //           )),
+          // ),
         ],
       ),
     );

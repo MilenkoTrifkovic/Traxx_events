@@ -64,8 +64,7 @@ class _MenuPanelItemInteractiveState extends State<_MenuPanelItemInteractive> {
         width: widget.itemWidth,
         child: AspectRatio(
           aspectRatio: 1,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
@@ -74,11 +73,14 @@ class _MenuPanelItemInteractiveState extends State<_MenuPanelItemInteractive> {
                     : AppColors.borderMenuTiles,
                 width: 2,
               ),
-              color: _isHovered ? AppColors.fofofo : AppColors.surfaceCard,
+              color: _isHovered
+                  ? AppColors.primaryAccent.withAlpha(25)
+                  : AppColors.surfaceCard,
             ),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: InkWell(
+                hoverColor: Colors.transparent,
                 onTap: widget.onTap,
                 borderRadius: BorderRadius.circular(12),
                 child: Column(

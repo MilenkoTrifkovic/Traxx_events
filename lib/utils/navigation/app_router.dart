@@ -8,11 +8,9 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
-import 'package:traxx_wepapp/controller/guest_controller.dart/guest_controller.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -20,10 +18,9 @@ import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/venue_details_view.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
-import 'package:traxx_wepapp/view/authentication/signup/signup_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
-import 'package:traxx_wepapp/view/admin/create_event_old/create_edit_event_view.dart';
+import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/host_event_details_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/guests_section/set_guests._view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/menu_section/set_menus_view.dart';
@@ -34,8 +31,6 @@ import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/responses_section.dart/responses_view.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/organisation_info_popup_view.dart';
 import 'package:traxx_wepapp/view/admin/widgets/navigation_rail_wrapper.dart';
-import 'package:traxx_wepapp/view/info/about_view.dart';
-import 'package:traxx_wepapp/view/info/contact_view.dart';
 import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/app_scaffold.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
@@ -168,6 +163,11 @@ GoRouter buildRouter() {
           Get.put(VenuesController());
           Get.put(EventsController());
           Get.put(OrganisationController(authController.organisationId!));
+          final location = state.matchedLocation;
+          final isQuestionsPage =
+              location.startsWith(AppRoute.hostQuestions.path) ||
+                  location.startsWith(AppRoute.hostQuestionSets.path) ||
+                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
 
           return Obx(() {
             try {
@@ -175,14 +175,27 @@ GoRouter buildRouter() {
                   authController.isLoading.value) {
                 return Center(child: CircularProgressIndicator());
               }
-              // final name = authController.userName.value;
-              // print('Building host shell route for user: $name');
-              print('State location: ${state.matchedLocation}');
+              final location = state.matchedLocation;
+
+// Treat these paths as Google Forms–style question pages
+              final isQuestionsPage = location
+                      .startsWith(AppRoute.hostQuestionSets.path) ||
+                  location.startsWith(AppRoute.hostQuestions.path) ||
+                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
+
+              const Color _gfBackground = Color(0xFFF4F0FB);
+
               return NavigationRailWrapper(
-                  child: ContentWrapper(
-                header: getPageHeader(state),
-                child: child,
-              ));
+                child: ContentWrapper(
+                  // ✅ All non-question pages keep the old grey background
+                  // ✅ Question pages use the SAME lavender as in the screen files (_gfBackground)
+                  contentColor: isQuestionsPage
+                      ? _gfBackground // Color(0xFFF4F0FB)
+                      : const Color.fromARGB(255, 247, 247, 247),
+                  header: getPageHeader(state),
+                  child: child,
+                ),
+              );
               // return AppScaffold(
               //   body:
               //       NavigationRailWrapper(child: ContentWrapper(child: child)),
@@ -222,38 +235,43 @@ GoRouter buildRouter() {
             path: AppRoute.hostQuestionSets.path,
             builder: (context, state) => const QuestionSetsScreen(),
           ),
+
           GoRoute(
             path: AppRoute.hostQuestions.path,
             builder: (context, state) {
               final setId = state.uri.queryParameters['setId'] ?? '';
               final setTitle = state.uri.queryParameters['setTitle'] ?? '';
-              if (setId == null || setId.isEmpty) {
-                // No set specified, go back to sets list
+              final setDescription =
+                  state.uri.queryParameters['setDescription'] ?? '';
+              if (setId.isEmpty) {
                 return const QuestionSetsScreen();
               }
-
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: setTitle,
+                questionSetTitle: Uri.decodeComponent(setTitle),
+                questionSetDescription: Uri.decodeComponent(setDescription),
               );
             },
           ),
 
-// 🔹 NEW: Questions for a specific set (your existing HostQuestionsScreen)
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {
               final setId = state.pathParameters[
                   AppRoute.hostQuestionSetQuestions.placeholder]!;
               final setTitle = Uri.decodeComponent(
-                  state.uri.queryParameters['setTitle'] ?? 'Question set');
+                state.uri.queryParameters['setTitle'] ?? 'Question set',
+              );
+              final setDescription = Uri.decodeComponent(
+                  state.uri.queryParameters['setDescription'] ?? '');
               return HostQuestionsScreen(
-                questionSetId:
-                    setId, // add this param to your HostQuestionsScreen
+                questionSetId: setId,
                 questionSetTitle: setTitle,
+                questionSetDescription: setDescription,
               );
             },
           ),
+
           GoRoute(
             path: AppRoute.hostCreateEvent.path,
             builder: (context, state) => CreateEditEventView(),
@@ -378,18 +396,58 @@ GoRouter buildRouter() {
             try {
               if (eventListController.isLoading.value ||
                   authController.isLoading.value) {
-                return Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator());
               }
-              final name = authController.userName.value;
-              return AppScaffold(
-                body: ContentWrapper(child: child),
-                role: 'guest',
-                name: name,
-                onLogout: authController.logout,
-              );
+
+              final location = state.matchedLocation;
+
+              // Treat these paths as Google Forms–style question pages
+              final isQuestionsPage = location
+                      .startsWith(AppRoute.hostQuestionSets.path) ||
+                  location.startsWith(AppRoute.hostQuestions.path) ||
+                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
+
+              const Color _gfBackground = Color(0xFFF4F0FB);
+
+              if (isQuestionsPage) {
+                // ✅ QUESTION PAGES:
+                // Header is drawn OUTSIDE ContentWrapper so it spans full width.
+                return NavigationRailWrapper(
+                  child: Column(
+                    children: [
+                      // full-width header
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 40,
+                          right: 40,
+                          top: 24,
+                          bottom: 8,
+                        ),
+                        child: getPageHeader(state),
+                      ),
+                      // content area with lavender background + limited-width body
+                      Expanded(
+                        child: ContentWrapper(
+                          contentColor: _gfBackground,
+                          // no header here – body only
+                          child: child,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                // ✅ ALL OTHER PAGES – behave exactly as before
+                return NavigationRailWrapper(
+                  child: ContentWrapper(
+                    contentColor: const Color.fromARGB(255, 247, 247, 247),
+                    header: getPageHeader(state),
+                    child: child,
+                  ),
+                );
+              }
             } catch (e) {
               return Container(); //Temporary
-              // Error Handling or redirection
             }
           });
         },

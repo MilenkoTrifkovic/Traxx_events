@@ -4,8 +4,9 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 class AppTheme {
   static ThemeData get light => ThemeData(
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white, // 🔥 PURE WHITE EVERYWHERE
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.seedColor),
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins', // 🔥 GLOBAL FONT = POPPINS
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: ButtonStyle(
             minimumSize: WidgetStateProperty.all<Size>(
@@ -23,62 +24,52 @@ class AppTheme {
         ),
         inputDecorationTheme: InputDecorationTheme(
           labelStyle: TextStyle(
+            fontFamily: 'Poppins',
             color: AppColors.textMuted,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
-          // border: OutlineInputBorder(
-          //   borderRadius: BorderRadius.circular(8),
-          // ),
-          // Content padding for height and left padding
-          contentPadding: EdgeInsets.only(left: 16),
-
-          // Normal border (unfocused)
+          contentPadding: const EdgeInsets.only(left: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(
+            borderSide: const BorderSide(
               color: Colors.black,
               width: 1,
             ),
           ),
-
-          // Enabled border (normal state)
           enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
             borderSide: BorderSide(
               color: AppColors.borderSubtle,
             ),
           ),
-
-          // Focused border (when user taps on input)
           focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
             borderSide: BorderSide(
               color: AppColors.primaryAccent,
+              width: 1.6,
             ),
           ),
-
-          // Error border
-
-          // Constraints for consistent height (44px)
-          constraints: BoxConstraints(
+          constraints: const BoxConstraints(
             minHeight: 44,
             maxHeight: 44,
           ),
         ),
         textTheme: TextTheme(
-          // Changed because of Sign in to Trax Events
           headlineSmall: TextStyle(
+            fontFamily: 'Poppins',
             fontSize: 32,
-            fontWeight: FontWeight.w700, // Medium
+            fontWeight: FontWeight.w700,
             color: AppColors.primary,
           ),
-          // Changed because of Sign in to Trax Events
           labelLarge: TextStyle(
+            fontFamily: 'Poppins',
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppColors.primaryAccent,
           ),
-          // Changed because of Sign in to Trax Events
           bodySmall: TextStyle(
+            fontFamily: 'Poppins',
             fontSize: 14,
             fontWeight: FontWeight.w400,
             color: AppColors.secondary,
