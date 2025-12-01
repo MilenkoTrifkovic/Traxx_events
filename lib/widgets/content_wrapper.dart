@@ -38,18 +38,18 @@ class _ContentWrapperState extends State<ContentWrapper> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    ever(controller.message, (message) {
-      if (message != null && context.mounted) {
-        if (message.type == SnackBarType.success) {
-          SnackBarUtils.showSuccess(context, message.message);
-        } else {
-          SnackBarUtils.showError(context, message.message);
-        }
+    // ever(controller.message, (message) {
+    //   if (message != null && context.mounted) {
+    //     if (message.type == SnackBarType.success) {
+    //       SnackBarUtils.showSuccess(context, message.message);
+    //     } else {
+    //       SnackBarUtils.showError(context, message.message);
+    //     }
 
-        // Clear message after showing
-        controller.clearMessage();
-      }
-    });
+    //     // Clear message after showing
+    //     controller.clearMessage();
+    //   }
+    // });
   }
 
   @override
@@ -64,14 +64,22 @@ class _ContentWrapperState extends State<ContentWrapper> {
 
           return Container(
             alignment: widget.alignment,
-            // 🔹 FULL-WIDTH background color (grey or purple)
-            color: widget.contentColor ?? AppColors.fofofo,
             child: Container(
-              // 🔹 Centered, width-limited content panel
-              constraints: BoxConstraints(maxWidth: effectiveMaxWidth),
+              constraints: BoxConstraints(
+                  // maxWidth: effectiveMaxWidth,
+                  ),
               decoration: BoxDecoration(
-                // inner container is transparent; cards inside will be white
-                color: Colors.transparent,
+                // color: contentColor ?? AppColors.surface(context),
+                // color: AppColors.fofofo,
+                // boxShadow: [
+                //   shadow ??
+                //       BoxShadow(
+                //         color: AppColors.shadow(context).withAlpha(50),
+                //         blurRadius: 6,
+                //         offset: const Offset(0, 2),
+                //       ),
+                // ],
+                color: widget.contentColor ?? AppColors.fofofo,
                 boxShadow: widget.shadow != null ? [widget.shadow!] : null,
               ),
               child: widget.header != null
@@ -86,18 +94,17 @@ class _ContentWrapperState extends State<ContentWrapper> {
                           child: SingleChildScrollView(
                             child: Align(
                               alignment: Alignment.topCenter,
-                              child: widget.child,
+                              child: ConstrainedBox(
+                                constraints:
+                                    BoxConstraints(maxWidth: effectiveMaxWidth),
+                                child: widget.child,
+                              ),
                             ),
                           ),
-                        ),
+                        )
                       ],
                     )
-                  : SingleChildScrollView(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: widget.child,
-                      ),
-                    ),
+                  : widget.child,
             ),
           );
         },

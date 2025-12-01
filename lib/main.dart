@@ -14,12 +14,15 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
+import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
@@ -72,10 +75,28 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
+    final snackbarController = Get.put(SnackbarMessageController());
+
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
-      builder: EasyLoading.init(),
+      // builder: EasyLoading.init(),
+      builder: (context, child) {
+        // GLOBAL LISTENER
+        ever(snackbarController.message, (msg) {
+          if (msg == null) return;
+
+          if (msg.type == SnackBarType.success) {
+            SnackBarUtils.showSuccess(context, msg.message);
+          } else {
+            SnackBarUtils.showError(context, msg.message);
+          }
+
+          snackbarController.clearMessage();
+        });
+
+        return EasyLoading.init()(context, child);
+      },
       theme: AppTheme.light,
       routerConfig: buildRouter(),
     );
