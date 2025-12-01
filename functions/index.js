@@ -7,17 +7,15 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import { initializeApp } from 'firebase-admin/app';
+// functions/index.js
 
-// Import individual functions
-import { signupAdmin } from "./signupAdmin.js";
-import { saveCompanyInfo } from "./saveCompanyInfo.js";
-import { checkOrganisationInfo } from "./checkOrganisationInfo.js";
+import { initializeApp, getApps } from "firebase-admin/app";
 
-// Initialize Firebase Admin
-initializeApp();
+// Guard so we don't double-initialize if any module already called initializeApp()
+if (!getApps().length) {
+    initializeApp();
+}
 
-// Export all functions
-export { signupAdmin };
-export { saveCompanyInfo };
-export { checkOrganisationInfo };
+export { signupAdmin } from "./signupAdmin.js";
+export { saveCompanyInfo } from "./saveCompanyInfo.js";
+export { checkOrganisationInfo } from "./checkOrganisationInfo.js";

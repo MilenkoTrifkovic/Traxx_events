@@ -2,6 +2,17 @@
   "projects": {
     "default": "traxx-e1232"
   },
-  "targets": {},
+  "targets": {
+    "traxx-e1232": {
+      "hosting": {
+        "dev": [
+          "traxx-e1232"
+        ],
+        "prod": [
+          "traxx-events-prod"
+        ]
+      }
+    }
+  },
   "etags": {}
 }
