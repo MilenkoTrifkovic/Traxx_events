@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 class FirstSectionVenues extends StatelessWidget {
