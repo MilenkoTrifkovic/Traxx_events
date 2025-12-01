@@ -107,23 +107,30 @@ class AuthServices {
 
   // Handle Firebase Functions exceptions
   String _handleFunctionsException(FirebaseFunctionsException e) {
+    // Prefer backend-provided message when available
+    final backendMessage = e.message;
+
     switch (e.code) {
       case 'permission-denied':
-        return 'Permission denied. Please check your access rights.';
+        return backendMessage ??
+            'Permission denied. Please check your access rights.';
       case 'not-found':
-        return 'The requested function was not found.';
+        return backendMessage ?? 'The requested function was not found.';
       case 'already-exists':
-        return 'The account already exists for this email.';
+        return backendMessage ?? 'The account already exists for this email.';
       case 'failed-precondition':
-        return 'Invalid request. Please check your information.';
+        return backendMessage ??
+            'Invalid request. Please check your information.';
       case 'invalid-argument':
-        return 'Invalid email or password format.';
+        // This is the one you are seeing now.
+        return backendMessage ?? 'Invalid email or password format.';
       case 'unauthenticated':
-        return 'Authentication required. Please try again.';
+        return backendMessage ?? 'Authentication required. Please try again.';
       case 'unavailable':
-        return 'Service temporarily unavailable. Please try again later.';
+        return backendMessage ??
+            'Service temporarily unavailable. Please try again later.';
       default:
-        return e.message ??
+        return backendMessage ??
             'An unexpected error occurred during account creation.';
     }
   }

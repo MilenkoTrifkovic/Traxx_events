@@ -135,6 +135,7 @@ class SignInController extends GetxController {
   void _resetNavigationFlags() {
     shouldNavigateToEmailVerification.value = false;
     shouldNavigateToHostEvents.value = false;
+    shouldNavigateToOrganisationInfo.value = false;
   }
 
   /// Clear navigation flags after navigation
