@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
-class FourthSection extends StatelessWidget {
-  final Venue venue;
+class FourthSectionMenus extends StatelessWidget {
+  final MenuItem menu;
   final VoidCallback? onPressed;
-  const FourthSection({
+  const FourthSectionMenus({
     super.key,
-    required this.venue,
+    required this.menu,
     required this.onPressed,
   });
 

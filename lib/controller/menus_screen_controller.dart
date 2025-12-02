@@ -3,14 +3,15 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
-import 'package:traxx_wepapp/models/venue.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
-import 'package:traxx_wepapp/utils/loader.dart';
+// loader not required in this controller
 
 /// Controller for managing venue operations including creation, deletion, and form validation.
-class VenueScreenController extends GetxController {
+class MenusScreenController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final ImageServices _imageServices = ImageServices();
   final StorageServices _storageServices = Get.find<StorageServices>();
@@ -18,8 +19,8 @@ class VenueScreenController extends GetxController {
 
   // Loading states
   final isLoading = false.obs;
-  final isCreatingVenue = false.obs;
-  final isDeletingVenue = false.obs;
+  final isCreatingMenuItem = false.obs;
+  final isDeletingMenuItem = false.obs;
 
   // Form controllers
   final nameController = TextEditingController();
@@ -29,6 +30,9 @@ class VenueScreenController extends GetxController {
   final nameError = RxnString();
   final descriptionError = RxnString();
   final formKey = GlobalKey<FormState>();
+
+  // Category selection for menu item
+  final selectedCategory = Rx<MenuCategory?>(MenuCategory.other);
 
   // Image handling
   final selectedImage = Rxn<XFile>();
@@ -87,22 +91,23 @@ class VenueScreenController extends GetxController {
   //   }
   // }
 
-  /// Creates a new venue with all required and optional parameters
+  /// Creates a new menu item with required parameters
   ///
-  /// Required parameters:
-  /// - name: The venue name
-  ///
-  /// Optional parameters:
-  /// - description: Optional venue description
-  /// - image: Optional venue photo (XFile)
-  Future<Venue> createVenue({
+  /// Required:
+  /// - name
+  /// - category
+  /// Optional:
+  /// - description
+  /// - image
+  Future<MenuItem> createMenuItem({
     required String name,
+    required MenuCategory category,
     String? description,
   }) async {
     try {
       // Validate required fields
       if (name.trim().isEmpty) {
-        throw Exception('Venue name is required');
+        throw Exception('Menu item name is required');
       }
 
       final organisationId = _authController.organisationId;
@@ -110,72 +115,69 @@ class VenueScreenController extends GetxController {
         throw Exception('Organisation ID not found');
       }
 
-      isCreatingVenue.value = true;
+      isCreatingMenuItem.value = true;
 
       // Upload image if selected
-      String? photoUrl;
+      String? photoPath;
       if (selectedImage.value != null) {
         try {
-          photoUrl = await _storageServices.uploadImage(selectedImage.value!);
-          print('Image uploaded successfully: $photoUrl');
+          photoPath = await _storageServices.uploadImage(selectedImage.value!);
+          print('Image uploaded successfully: $photoPath');
         } catch (e) {
           print('Failed to upload image: $e');
           // Continue without image - image upload is optional
         }
       }
 
-      // Create venue object
-      final venue = Venue(
+      // Create menu item object
+      final menuItem = MenuItem(
         organisationId: organisationId,
         name: name.trim(),
+        category: category,
         description:
             description?.trim().isEmpty == true ? null : description?.trim(),
-        photoUrl: photoUrl,
+        imagePath: photoPath,
         isDisabled: false,
       );
 
-      // Save to Firestore using the create method which handles server timestamps
-      final venueId = await _firestoreServices.createVenue(venue);
-      print('Venue created with ID: $venueId');
+      // Save to Firestore
+      print('Creating menu item: ${menuItem.imagePath}');
+      final created = await _firestoreServices.createMenuItem(menuItem);
+      print('Creating menu item: ${created.imagePath}');
 
-      // Refresh venues list
-      // await fetchVenues();
+      // Attempt to load a public URL for the uploaded image (if any)
+      final imageUrl = created.imagePath == null
+          ? null
+          : await _storageServices.loadImageURL(created.imagePath);
+      print('Loaded image URL: $imageUrl');
+
+      // copyWith returns a new MenuItem instance; it does NOT mutate `created`.
+      // Assign the returned copy to a variable and persist the change if needed.
+      var result = created;
+      if (imageUrl != null) {
+        result = created.copyWith(imageUrl: imageUrl);
+        // Persist the imageUrl back to Firestore so future reads include it
+        try {
+          await _firestoreServices.updateMenuItem(result);
+        } catch (e) {
+          print('Failed to update menu item with imageUrl: $e');
+        }
+      }
+
+      print('Menu item created with imageUrl: ${result.imageUrl}');
 
       // Clear form
       clearForm();
 
-      _showSuccessMessage('Venue "$name" created successfully!');
-      return venue.copyWith(venueID: venueId);
+  _showSuccessMessage('Menu item "${result.name}" created successfully!');
+  return result;
     } catch (e) {
-      _showErrorMessage('Failed to create venue: $e');
-      throw Exception('Failed to create venue');
+      _showErrorMessage('Failed to create menu item: $e');
+      throw Exception('Failed to create menu item');
     } finally {
-      isCreatingVenue.value = false;
+      isCreatingMenuItem.value = false;
     }
   }
-
-  /// Deletes a venue by setting isDisabled to true (soft delete)
-  ///
-  /// Parameters:
-  /// - venueID: The ID of the venue to delete
-  // Future<void> deleteVenue(String venueID) async {
-  //   try {
-  //     showLoadingIndicator();
-  //     isDeletingVenue.value = true;
-
-  //     await _firestoreServices.deleteVenue(venueID);
-
-  //     // Remove from local list
-  //     // venues.removeWhere((venue) => venue.venueID == venueID);
-
-  //     _showSuccessMessage('Venue deleted successfully!');
-  //   } catch (e) {
-  //     _showErrorMessage('Failed to delete venue: $e');
-  //   } finally {
-  //     isDeletingVenue.value = false;
-  //     hideLoadingIndicator();
-  //   }
-  // }
 
   /// Picks an image from the device gallery
   Future<void> pickImage() async {
@@ -198,16 +200,16 @@ class VenueScreenController extends GetxController {
     imageError.value = null;
   }
 
-  /// Validates the venue name
+  /// Validates the menu item name
   String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Venue name is required';
+      return 'Menu item name is required';
     }
     if (value.trim().length < 2) {
-      return 'Venue name must be at least 2 characters';
+      return 'Menu item name must be at least 2 characters';
     }
     if (value.trim().length > 100) {
-      return 'Venue name must be less than 100 characters';
+      return 'Menu item name must be less than 100 characters';
     }
     return null;
   }
@@ -262,43 +264,19 @@ class VenueScreenController extends GetxController {
     }
   }
 
-  /// Submits the form and creates the venue
-  Future<Venue> submitForm() async {
+  /// Submits the form and creates the menu item
+  Future<MenuItem> submitForm() async {
     if (validateForm()) {
-      final venue = await createVenue(
+      final category = selectedCategory.value ?? MenuCategory.other;
+      final item = await createMenuItem(
         name: nameController.text,
+        category: category,
         description: descriptionController.text.isNotEmpty
             ? descriptionController.text
             : null,
       );
-      return venue;
+      return item;
     }
     throw Exception('Form validation failed');
   }
-
-  /// Shows a confirmation dialog before deleting a venue
-  // Future<void> confirmDeleteVenue(Venue venue) async {
-  //   final result = await Get.dialog<bool>(
-  //     AlertDialog(
-  //       title: const Text('Delete Venue'),
-  //       content: Text(
-  //           'Are you sure you want to delete "${venue.name}"?\n\nThis action cannot be undone.'),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Get.back(result: false),
-  //           child: const Text('Cancel'),
-  //         ),
-  //         TextButton(
-  //           onPressed: () => Get.back(result: true),
-  //           style: TextButton.styleFrom(foregroundColor: Colors.red),
-  //           child: const Text('Delete'),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-
-  //   if (result == true && venue.venueID != null) {
-  //     await deleteVenue(venue.venueID!);
-  //   }
-  // }
 }

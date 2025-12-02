@@ -10,6 +10,7 @@ enum AppRoute {
   hostOrganisationInfoForm('/host-organisation-info-form'),
   hostEvents('/host-events'),
   hostVenues('/host-venues'),
+  hostMenus('/host-menus'),
   hostVenueDetails('/host-venue-details/:eventId', 'eventId'),
   // NEW: question sets list page
   hostQuestionSets('/host-question-sets'),

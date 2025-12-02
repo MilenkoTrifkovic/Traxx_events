@@ -160,7 +160,7 @@ class VenueDetailsController {
       imagePath = await _storageServices.uploadImage(selectedImage.value!);
     }
     final menuItem = MenuItem(
-      venueID: venue!.venueID,
+      organisationId: venue!.venueID,
       name: menuNameController.text.trim(),
       category: selectedCategory.value!,
       description: menuDescriptionController.text.trim().isEmpty

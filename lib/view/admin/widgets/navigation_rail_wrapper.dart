@@ -36,10 +36,12 @@ class NavigationRailWrapper extends StatelessWidget {
       selectedIndex = 0;
     } else if (location.startsWith(AppRoute.hostVenues.path)) {
       selectedIndex = 1;
+    } else if (location.startsWith(AppRoute.hostMenus.path)) {
+      selectedIndex = 2;
     } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path)) {
       // both question sets and question detail pages are “Questions” tab
-      selectedIndex = 2;
+      selectedIndex = 3;
     } else {
       selectedIndex = 0;
     }
@@ -83,16 +85,18 @@ class NavigationRailWrapper extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) async {
               // ❌ DO NOT early return based on selectedIndex anymore
-              // we want index 2 to always go back to the Question Sets page
-
+              // Map indices to routes:
+              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions, 4 -> Logout
               if (index == 0) {
                 pushAndRemoveAllRoute(AppRoute.hostEvents, context);
               } else if (index == 1) {
                 pushAndRemoveAllRoute(AppRoute.hostVenues, context);
               } else if (index == 2) {
+                pushAndRemoveAllRoute(AppRoute.hostMenus, context);
+              } else if (index == 3) {
                 // Always go to the Question Sets page for the Questions tab
                 pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
-              } else if (index == 3) {
+              } else if (index == 4) {
                 try {
                   await authController.logout();
                   if (context.mounted) {
@@ -121,11 +125,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.restaurant_menu_outlined),
-                selectedIcon: const Icon(Icons.restaurant_menu),
+                icon: const Icon(Icons.location_on_outlined),
+                selectedIcon: const Icon(Icons.location_on),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Menus',
+                  'Venues',
                   color: selectedIndex == 1
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -134,16 +138,29 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.quiz_outlined),
-                selectedIcon: const Icon(Icons.quiz),
+                icon: const Icon(Icons.restaurant_menu_outlined),
+                selectedIcon: const Icon(Icons.restaurant_menu),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Questions',
+                  'Menus',
                   color: selectedIndex == 2
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
                   weight:
                       selectedIndex == 2 ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.quiz_outlined),
+                selectedIcon: const Icon(Icons.quiz),
+                label: AppText.styledBodyMedium(
+                  context,
+                  'Questions',
+                  color: selectedIndex == 3
+                      ? AppColors.primaryOld(context)
+                      : AppColors.onPrimaryContainer(context),
+                  weight:
+                      selectedIndex == 3 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               NavigationRailDestination(
@@ -155,11 +172,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 label: AppText.styledBodyMedium(
                   context,
                   'Logout',
-                  color: selectedIndex == 3
+                  color: selectedIndex == 4
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
                   weight:
-                      selectedIndex == 3 ? FontWeight.bold : FontWeight.normal,
+                      selectedIndex == 4 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],
