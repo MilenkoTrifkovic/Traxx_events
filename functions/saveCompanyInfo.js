@@ -7,7 +7,7 @@ import { validateCompanyInfo } from "./validators/organisationValidator.js";
 const db = getFirestore();
 
 // Save company info function
-export const saveCompanyInfo = onCall(async (request) => {
+/* export const saveCompanyInfo = onCall(async (request) => {
     try {
         // Check if user is authenticated
         if (!request.auth || !request.auth.uid) {
@@ -109,6 +109,156 @@ export const saveCompanyInfo = onCall(async (request) => {
         }
 
         // Generic error for unexpected issues
+        throw new HttpsError(
+            "internal",
+            "An error occurred while saving the company information."
+        );
+    }
+}); */
+
+
+
+// 👑 your super admin bootstrap list
+
+
+// ------------------------------
+// SAVE COMPANY INFO
+// ------------------------------
+export const saveCompanyInfo = onCall(async (request) => {
+    try {
+        if (!request.auth || !request.auth.uid) {
+            throw new HttpsError("unauthenticated", "You must be signed in.");
+        }
+
+        const userId = request.auth.uid;
+
+        // Load caller user doc
+        const userRef = db.collection("users").doc(userId);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+            throw new HttpsError(
+                "failed-precondition",
+                "User document does not exist for this account."
+            );
+        }
+        const userData = userSnap.data();
+        const currentRole = userData.role || "guest";
+        const currentOrgId = userData.organisationId || null;
+        const isSuperAdmin = currentRole === "superAdmin";
+
+        // Normal users: can create at most one org (and only if they don't already belong to one)
+        if (!isSuperAdmin && currentOrgId) {
+            throw new HttpsError(
+                "permission-denied",
+                "You already belong to an organisation."
+            );
+        }
+
+        // Check if this user already has an admin role somewhere
+        const existingAdminRole = await db
+            .collection("roles")
+            .where("userId", "==", userId)
+            .where("role", "==", "admin")
+            .where("isDisabled", "==", false)
+            .limit(1)
+            .get();
+
+        if (!existingAdminRole.empty && !isSuperAdmin) {
+            const existingRole = existingAdminRole.docs[0].data();
+            console.log(
+                `User ${userId} already has an admin role for organisation ${existingRole.organisationId}`
+            );
+            throw new HttpsError(
+                "already-exists",
+                "You have already created an organisation. Each user can only create one organisation."
+            );
+        }
+
+        // Validate the company info data (your existing helper)
+        validateCompanyInfo(request.data);
+
+        const organisationId = uuidv4();
+        const roleId = uuidv4();
+
+        const organisationData = {
+            organisationId,
+            name: request.data.name,
+            phone: request.data.phone.toString(),
+            website: request.data.website || null,
+            address: {
+                street: request.data.address.street,
+                city: request.data.address.city,
+                state: request.data.address.state,
+                zip: request.data.address.zip.toString(),
+                country: request.data.address.country,
+            },
+            timezone: request.data.timezone,
+            logo: request.data.logo || null,
+            isDisabled: false,
+            createdAt: FieldValue.serverTimestamp(),
+            modifiedAt: FieldValue.serverTimestamp(),
+        };
+
+        const roleData = {
+            roleId,
+            userId,
+            organisationId,
+            role: "admin",
+            isDisabled: false,
+            createdAt: FieldValue.serverTimestamp(),
+            modifiedAt: FieldValue.serverTimestamp(),
+        };
+
+        // Create organisation + initial admin role in a transaction
+        const result = await db.runTransaction(async (transaction) => {
+            const organisationRef = db.collection("organisations").doc();
+            transaction.set(organisationRef, organisationData);
+
+            const roleRef = db.collection("roles").doc();
+            transaction.set(roleRef, roleData);
+
+            return {
+                organisationDocId: organisationRef.id,
+                roleDocId: roleRef.id,
+                organisationId,
+                roleId,
+            };
+        });
+
+        // Update user document with new role and org
+        await userRef.set(
+            {
+                role: "admin",
+                organisationId,
+                modifiedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+        );
+
+        // Update custom claims
+        await admin.auth().setCustomUserClaims(userId, {
+            role: "admin",
+            organisationId,
+        });
+
+        console.log(
+            `Company info and role saved. OrgUUID: ${organisationId}, RoleUUID: ${roleId}`
+        );
+
+        return {
+            success: true,
+            message: "Company information and admin role created successfully",
+            organisationId,
+            roleId,
+            roleDocumentId: result.roleDocId,
+        };
+    } catch (error) {
+        console.error("Error saving company info:", error);
+
+        if (error.code && error.message) {
+            throw error;
+        }
+
         throw new HttpsError(
             "internal",
             "An error occurred while saving the company information."
