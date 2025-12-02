@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 class MenuItem {
   final String? menuItemId;
-  final String? venueID;
+  final String? organisationId;
   final String name;
   final MenuCategory category;
   final String? description;
@@ -15,7 +15,7 @@ class MenuItem {
 
   MenuItem({
     this.menuItemId,
-    this.venueID,
+    this.organisationId,
     required this.name,
     required this.category,
     this.description,
@@ -34,7 +34,7 @@ class MenuItem {
       'category': category.name,
       'description': description,
       'imagePath': imagePath,
-      'venuID': venueID,
+      'organisationId': organisationId,
       'isDisabled': isDisabled,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -49,7 +49,7 @@ class MenuItem {
       'category': category.name,
       'description': description,
       'imagePath': imagePath,
-      'venuID': venueID,
+      'organisationId': organisationId,
       'isDisabled': isDisabled,
       // keep old createdAt, only update modifiedAt
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -58,6 +58,7 @@ class MenuItem {
 
   factory MenuItem.fromFirestore(Map<String, dynamic> data, [String? id]) {
     return MenuItem(
+      organisationId: (data['organisationId'] ?? data['venuID']) as String?,
       menuItemId: id ?? data['menuItemId'] as String?,
       name: data['name'] as String,
       category: MenuCategory.values.firstWhere(
@@ -79,7 +80,7 @@ class MenuItem {
 
   MenuItem copyWith({
     String? menuItemId,
-    String? venuID,
+    String? organisationId,
     String? name,
     MenuCategory? category,
     String? description,
@@ -91,7 +92,7 @@ class MenuItem {
   }) {
     return MenuItem(
       menuItemId: menuItemId ?? this.menuItemId,
-      venueID: venuID ?? venueID,
+      organisationId: organisationId ?? this.organisationId,
       name: name ?? this.name,
       category: category ?? this.category,
       description: description ?? this.description,

@@ -107,9 +107,9 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
       pushAndRemoveAllRoute(AppRoute.hostEvents, context);
 
       // Handle success
-      print('✅ Organisation saved successfully!');
+      /*   print('✅ Organisation saved successfully!');
       print('📄 Saved organisation data: ${savedOrganisation.toJson()}');
-      print('🆔 Assigned organisationId: ${savedOrganisation.organisationId}');
+      print('🆔 Assigned organisationId: ${savedOrganisation.organisationId}'); */
 
       // TODO: Show success message to user
       // TODO: Navigate to next screen

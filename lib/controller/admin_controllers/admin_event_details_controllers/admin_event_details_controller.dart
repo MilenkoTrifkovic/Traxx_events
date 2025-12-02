@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -18,6 +19,7 @@ class AdminEventDetailsController {
   final EventsController _eventsController = Get.find<EventsController>();
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final VenuesController _venuesController = Get.find<VenuesController>();
+  final MenusController _menusController = Get.find<MenusController>();
 
   Event? event;
   Venue? venue;
@@ -75,8 +77,8 @@ class AdminEventDetailsController {
   Future<void> _assignAvailableMenuItems() async {
     if (event?.venueId == null) return;
     try {
-      availableMenuItems =
-          await _venuesController.getEventMenusByVenueId(event!.venueId);
+      availableMenuItems = await _menusController
+          .getMenuItemsByOrganisationId(event!.organisationId);
     } catch (e) {
       availableMenuItems = [];
     }
@@ -85,8 +87,8 @@ class AdminEventDetailsController {
   Future<void> _assignAvailableMenus() async {
     if (event?.venueId == null) return;
     try {
-      availableMenus.value =
-          await _venuesController.getEventMenusByVenueId(event!.venueId);
+      availableMenus.value = await _menusController
+          .getMenuItemsByOrganisationId(event!.organisationId);
     } catch (e) {
       availableMenus.value = [];
     }

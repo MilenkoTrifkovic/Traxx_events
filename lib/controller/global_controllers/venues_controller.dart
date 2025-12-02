@@ -4,6 +4,7 @@ import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/utils/loader.dart';
 
 class VenuesController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
@@ -12,7 +13,7 @@ class VenuesController extends GetxController {
 
   // Observable list of venues
   final venues = <Venue>[].obs;
-  final Map<String, List<MenuItem>> menusByVenue = {};
+  // final Map<String, List<Ven>> menusByVenue = {};
   final isLoading = false.obs;
 
   @override
@@ -33,15 +34,15 @@ class VenuesController extends GetxController {
   //   menusByVenue[venueId] = menuList;
   //   return menuList;
   // }
-  Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
-    if (menusByVenue.containsKey(venueId)) {
-      return menusByVenue[venueId]!;
-    }
-    final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
-    final updated = await _withImageUrls(menuList);
-    menusByVenue[venueId] = updated;
-    return updated;
-  }
+  // Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
+  //   if (menusByVenue.containsKey(venueId)) {
+  //     return menusByVenue[venueId]!;
+  //   }
+  //   final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
+  //   final updated = await _withImageUrls(menuList);
+  //   menusByVenue[venueId] = updated;
+  //   return updated;
+  // }
 
   Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
     return Future.wait(menuList.map((item) async {
@@ -95,5 +96,30 @@ class VenuesController extends GetxController {
   /// Adds a new venue to the observable list
   void addVenue(Venue venue) {
     venues.add(venue);
+  }
+
+  /// Deletes a venue from Firestore and updates local cache
+  Future<bool> removeVenue(String venueId) async {
+    try {
+      showLoadingIndicator();
+
+      // Delete the document in Firestore
+      await _firestoreServices.deleteVenue(venueId);
+      venues.removeWhere((venue) => venue.venueID == venueId);
+
+      // Clear from any cached menu lists (menusByVenue)
+      // menusByVenue.forEach((key, list) {
+      //   list.removeWhere((m) => m.venueId == venueId);
+      // });
+
+      // If you keep other local lists of menu items elsewhere, remove from them too.
+      // print('Menu item $menuItemId deleted and cache cleared.');
+      return true;
+    } catch (e) {
+      // print('Failed to remove menu item $menuItemId: $e');
+      return false;
+    } finally {
+      hideLoadingIndicator();
+    }
   }
 }

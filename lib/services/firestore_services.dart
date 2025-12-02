@@ -66,6 +66,13 @@ class FirestoreServices {
   /// Throws [Exception] if the organisation is not found.
   Future<Organisation> getOrganisation(String organisationId) async {
     try {
+      // 1️⃣ First, try direct doc lookup using organisationId as the doc id
+      final byDoc = await organisationsRef.doc(organisationId).get();
+      if (byDoc.exists) {
+        return byDoc.data()!; // Organisation from doc id
+      }
+
+      // 2️⃣ Fallback: legacy path, search by organisationId field
       final querySnapshot = await organisationsRef
           .where('organisationId', isEqualTo: organisationId)
           .limit(1)
@@ -73,7 +80,8 @@ class FirestoreServices {
 
       if (querySnapshot.docs.isEmpty) {
         throw Exception(
-            'Organisation not found with organisationId: $organisationId');
+          'Organisation not found with organisationId: $organisationId',
+        );
       }
 
       return querySnapshot.docs.first.data();
@@ -685,12 +693,14 @@ class FirestoreServices {
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
     final result = await menuItemsRef.add(item.toFirestoreCreate());
+    
     return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {
-    final query =
-        await menuItemsRef.where('venuID', isEqualTo: organisationId).get();
+  final query =
+    await menuItemsRef.where('organisationId', isEqualTo: organisationId).get();
+    print('menu items fetched: ${query.docs.length}');
     return query.docs
         .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))
         .toList();
