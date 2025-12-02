@@ -116,14 +116,18 @@ GoRouter buildRouter() {
           if (!authController.isAuthenticatedAndVerified) {
             return AppRoute.emailVerification.path;
           }
-          if (authController.companyInfoExists.value == true) {
+          if (authController.companyInfoExists) {
             return AppRoute.hostEvents.path;
+          }
+          if (!authController.companyInfoExists) {
+            return AppRoute.hostOrganisationInfoForm.path;
           }
           return null;
         },
         path: AppRoute.hostOrganisationInfoForm.path,
-        builder: (context, state) => OrganisationInfoPopupView(),
+        builder: (context, state) => const OrganisationInfoPopupView(),
       ),
+
       //HOST SHELL ROUTE
       ShellRoute(
         redirect: (context, state) {
@@ -135,9 +139,8 @@ GoRouter buildRouter() {
             print('Redirecting to email verification');
             return AppRoute.emailVerification.path;
           }
-          if (authController.companyInfoExists.value == false) {
-            print(
-                'Company info exists? ${authController.companyInfoExists.value}');
+          if (!authController.companyInfoExists) {
+            print('Company info exists? ${authController.companyInfoExists}');
             print('Redirecting to organisation info form');
             return AppRoute.hostOrganisationInfoForm.path;
           }

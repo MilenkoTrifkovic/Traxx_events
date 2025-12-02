@@ -85,7 +85,7 @@ class SignInController extends GetxController {
       if (user != null && !user.emailVerified) {
         print('Controller: Should navigate to email verification');
         shouldNavigateToEmailVerification.value = true;
-      } else if (_authController.companyInfoExists.value == false) {
+      } else if (_authController.companyInfoExists == false) {
         print('Controller: Should navigate to organisation info');
         shouldNavigateToOrganisationInfo.value = true;
       } else {
@@ -135,7 +135,6 @@ class SignInController extends GetxController {
   void _resetNavigationFlags() {
     shouldNavigateToEmailVerification.value = false;
     shouldNavigateToHostEvents.value = false;
-    shouldNavigateToOrganisationInfo.value = false;
   }
 
   /// Clear navigation flags after navigation
