@@ -1,25 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
-import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
 import 'package:traxx_wepapp/controller/venue_screen_controller.dart';
-import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/create_menu_popup_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/create_venue_popup_view.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
-import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
 
-class MenusManagementHeader extends StatelessWidget {
-  MenusManagementHeader({super.key});
-  // final VenueScreenController controller = VenueScreenController();
-  final MenusScreenController controller = MenusScreenController();
-  // final VenuesController venuesController = Get.find<VenuesController>();
-  final MenusController menusController = Get.find<MenusController>();
+class VenuesManagementHeader extends StatelessWidget {
+  VenuesManagementHeader({super.key});
+  final VenueScreenController controller = VenueScreenController();
+  final VenuesController venuesController = Get.find<VenuesController>();
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
   @override
@@ -27,7 +19,7 @@ class MenusManagementHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AppText.styledHeadingLarge(context, 'Menus'),
+        AppText.styledHeadingLarge(context, 'Venues'),
         Row(
           children: [
             // if (ScreenSize.isDesktop(context) == true)
@@ -38,25 +30,16 @@ class MenusManagementHeader extends StatelessWidget {
             //     },
             //   ),
             // AppSpacing.horizontalXs(context),
-            if (ScreenSize.isDesktop(context) == true)
-              AppSearchInputField(
-                hintText: 'Search events...',
-                onChanged: (value) {
-                  menusController.filterMenus(value);
-                },
-              ),
-            AppSpacing.horizontalXs(context),
             AppPrimaryButton(
                 icon: Icons.add,
-                text: 'Add Menu',
+                text: 'Add Venue',
                 onPressed: () {
                   showDialog(
                     context: context,
                     builder: (context) {
-                      return CreateMenuPopupView(
+                      return CreateVenuePopupView(
                         controller: controller,
-
-                        // venuesController: venuesController,
+                        venuesController: venuesController,
                       );
                     },
                   ).then(
@@ -64,14 +47,13 @@ class MenusManagementHeader extends StatelessWidget {
                       if (value != null && value is bool && value) {
                         try {
                           showLoadingIndicator();
-                          final createdMenu = await controller.submitForm();
-                          // venuesController.addVenue(createdVenue);//////////////////
-                          menusController.addMenuItem(createdMenu);
+                          final createdVenue = await controller.submitForm();
+                          venuesController.addVenue(createdVenue);
                           snackbarMessageController.showSuccessMessage(
-                              'Menu created successfully.');
+                              'Venue created successfully.');
                         } on Exception catch (e) {
                           snackbarMessageController
-                              .showErrorMessage('Error creating menu');
+                              .showErrorMessage('Error creating venue');
                         } finally {
                           hideLoadingIndicator();
                         }

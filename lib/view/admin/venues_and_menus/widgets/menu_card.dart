@@ -1,26 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/menu_card_sections/first_section_menus.dart';
+import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/menu_card_sections/fourth_section_venues.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card_sections/first_section_venues.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card_sections/fourth_section_venues.dart';
 
 /// A card widget that displays event information in a consistent format.
 ///
 /// Features:
 /// - Displays event cover image with fallback placeholder
 /// - Shows event name, date, and status
-class VenueCard extends StatelessWidget {
+class MenuCard extends StatelessWidget {
   /// The event data to display in the card
-  final Venue venue;
+  final MenuItem menu;
 
   /// Callback function when the card is tapped
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
 
-  const VenueCard({
+  const MenuCard({
     super.key,
-    required this.venue,
+    required this.menu,
     this.onTap,
     this.onDelete,
   });
@@ -48,13 +50,13 @@ class VenueCard extends StatelessWidget {
         onTap: onTap,
         child: Row(
           children: [
-            Expanded(child: FirstSectionVenues(venue: venue)),
+            Expanded(child: FirstSectionMenus(menu: menu)),
             // if (ScreenSize.isDesktop(context))
             //   Expanded(child: SecondSection(event: event)),
             // if (ScreenSize.isDesktop(context))
             //   Expanded(child: ThirdSection(event: event)),
             if (ScreenSize.isDesktop(context))
-              Expanded(child: FourthSection(venue: venue, onPressed: onDelete)),
+              Expanded(child: FourthSection(menu: menu, onPressed: onDelete)),
           ],
         ),
       ),

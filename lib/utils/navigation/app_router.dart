@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
@@ -16,6 +17,7 @@ import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
+import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/venue_details_view.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
@@ -161,6 +163,7 @@ GoRouter buildRouter() {
           final eventListController = Get.find<EventListController>();
           final authController = Get.find<AuthController>();
           Get.put(VenuesController());
+          Get.put(MenusController());
           Get.put(EventsController());
           Get.put(OrganisationController(authController.organisationId!));
           final location = state.matchedLocation;
@@ -177,7 +180,7 @@ GoRouter buildRouter() {
               }
               final location = state.matchedLocation;
 
-// Treat these paths as Google Forms–style question pages
+              // Treat these paths as Google Forms–style question pages
               final isQuestionsPage = location
                       .startsWith(AppRoute.hostQuestionSets.path) ||
                   location.startsWith(AppRoute.hostQuestions.path) ||
@@ -215,6 +218,10 @@ GoRouter buildRouter() {
             builder: (context, state) => EventListScreen(),
           ),
           GoRoute(
+            path: AppRoute.hostMenus.path,
+            builder: (context, state) => MenusView(),
+          ),
+          GoRoute(
             path: AppRoute.hostVenues.path,
             builder: (context, state) => VenuesView(),
           ),
@@ -223,7 +230,7 @@ GoRouter buildRouter() {
             builder: (context, state) {
               final venueId =
                   state.pathParameters[AppRoute.hostVenueDetails.placeholder]!;
-              return VenueDetailsView(venueId: venueId);
+              return VenuesView();
             },
           ),
           /*  GoRoute(

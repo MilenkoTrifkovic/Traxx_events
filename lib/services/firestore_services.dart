@@ -685,12 +685,14 @@ class FirestoreServices {
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
     final result = await menuItemsRef.add(item.toFirestoreCreate());
+    
     return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {
-    final query =
-        await menuItemsRef.where('venuID', isEqualTo: organisationId).get();
+  final query =
+    await menuItemsRef.where('organisationId', isEqualTo: organisationId).get();
+    print('menu items fetched: ${query.docs.length}');
     return query.docs
         .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))
         .toList();
