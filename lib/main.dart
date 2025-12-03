@@ -38,18 +38,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tzdata.initializeTimeZones();
   setPathUrlStrategy();
-  GoRouter.optionURLReflectsImperativeAPIs =
-      true; //makes sure url is updated on navigation
+  GoRouter.optionURLReflectsImperativeAPIs = true;
+
   await dotenv.load(fileName: "dotenv");
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // if (kDebugMode) {
-  //   FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-  //   FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-  //   FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-  // }
-  // Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
+
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<SharedPrefServices>(() => SharedPrefServices(), fenix: true);
   Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
@@ -58,17 +53,15 @@ Future<void> main() async {
       fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
-  // Get.lazyPut<VenuesController>(() => VenuesController(), fenix: true);
-  // Get.lazyPut<GuestController>(() => GuestController(), fenix: true);
 
-  Get.put<EventController>(EventController(),
-      permanent: true); //Holds selected event Event?
+  Get.put<EventController>(EventController(), permanent: true);
+
   final authController = Get.find<AuthController>();
 
-  // Only check company info if user is authenticated and verified
-  await authController.checkCompanyInfo();
+  // 🔄 read userRole + organisationId from /users/{uid} if logged in
+  await authController.loadUserProfile();
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

@@ -101,6 +101,7 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   }
 
   /// Setup all GetX listeners for messages and navigation
+  /// Setup all GetX listeners for messages and navigation
   void _setupListeners(SignInController controller, BuildContext context) {
     // Watch for success messages
     ever(controller.successMessage, (String? message) {
@@ -122,37 +123,19 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
       }
     });
 
-    // Watch for navigation to email verification
-    ever(controller.shouldNavigateToEmailVerification, (bool shouldNavigate) {
-      if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          print('UI: Navigating to email verification');
-          await authController.checkCompanyInfo();
-          pushAndRemoveAllRoute(AppRoute.emailVerification, context);
-          controller.clearNavigationFlags();
-        });
-      }
-    });
-
-    // Watch for navigation to host events
+    // ✅ NEW: after login/signup success → always go to host events
     ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
       if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          print('UI: Navigating to host events');
-          await authController.checkCompanyInfo();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          print('UI: Navigating to host events (login/signup success)');
           pushAndRemoveAllRoute(AppRoute.hostEvents, context);
           controller.clearNavigationFlags();
         });
       }
     });
-    ever(controller.shouldNavigateToOrganisationInfo, (bool shouldNavigate) {
-      if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          print('UI: Navigating to organisation info');
-          pushAndRemoveAllRoute(AppRoute.hostOrganisationInfoForm, context);
-          controller.clearNavigationFlags();
-        });
-      }
-    });
+
+    // We no longer listen for:
+    // - shouldNavigateToEmailVerification
+    // - shouldNavigateToOrganisationInfo
   }
 }

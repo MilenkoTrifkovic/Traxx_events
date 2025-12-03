@@ -1,33 +1,64 @@
-import * as logger from "firebase-functions/logger";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onAuthUserCreated } from "firebase-functions/v2/auth";
+/* /* eslint-disable 
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const { v4: uuidv4 } = require("uuid");
 
-import { initializeApp, getApps } from "firebase-admin/app";
-import * as admin from "firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
-
-import { v4 as uuidv4 } from "uuid";
-
-// Initialize Firebase Admin exactly once
-if (!getApps().length) {
-    initializeApp();
+// Initialize Firebase Admin once
+if (admin.apps.length === 0) {
+    admin.initializeApp();
 }
 
-// Firestore & Auth handles
 const db = admin.firestore();
 const auth = admin.auth();
 
 const SUPER_ADMIN_EMAILS = [
-    "rahulross23@gmail.com", // example, change to your real emails
+    "rahulross23@gmail.com", // update as needed
 ];
+function validateCompanyInfo(data) {
+    const HttpsError = functions.https.HttpsError;
 
-export const saveCompanyInfo = onCall(async (request) => {
+    if (!data) {
+        throw new HttpsError("invalid-argument", "Company data is required.");
+    }
+
+    if (!data.name || typeof data.name !== "string") {
+        throw new HttpsError("invalid-argument", "Company name is required.");
+    }
+
+    if (!data.phone) {
+        throw new HttpsError("invalid-argument", "Company phone is required.");
+    }
+
+    if (!data.address) {
+        throw new HttpsError("invalid-argument", "Company address is required.");
+    }
+
+    const { street, city, state, zip, country } = data.address;
+    if (!street || !city || !state || !zip || !country) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Address must include street, city, state, zip and country."
+        );
+    }
+
+    if (!data.timezone) {
+        throw new HttpsError("invalid-argument", "timezone is required.");
+    }
+}
+
+// Convenience helper (so we don't repeat)
+function getHttpsError() {
+    return functions.https.HttpsError;
+}
+exports.saveCompanyInfo = functions.https.onCall(async (data, context) => {
+    const HttpsError = getHttpsError();
+
     try {
-        if (!request.auth || !request.auth.uid) {
+        if (!context.auth || !context.auth.uid) {
             throw new HttpsError("unauthenticated", "You must be signed in.");
         }
 
-        const userId = request.auth.uid;
+        const userId = context.auth.uid;
 
         // Load caller
         const userRef = db.collection("users").doc(userId);
@@ -38,32 +69,37 @@ export const saveCompanyInfo = onCall(async (request) => {
                 "User document does not exist for this account."
             );
         }
-        const userData = userSnap.data();
+
+        const userData = userSnap.data() || {};
         const currentRole = userData.role || "guest";
         const currentOrgId = userData.organisationId || null;
-        const isSuperAdmin = currentRole === "superAdmin";
+        const isPlatformSuperAdmin =
+            currentRole === "superAdmin" && !currentOrgId;
 
         // Normal users: only one organisation
-        if (!isSuperAdmin && currentOrgId) {
+        if (!isPlatformSuperAdmin && currentOrgId) {
             throw new HttpsError(
                 "permission-denied",
                 "You already belong to an organisation."
             );
         }
 
-        // Each user can only be admin of one org (optional extra guard)
-        const existingAdminRole = await db
+        // Each user can only be superAdmin of one org
+        const existingSuperAdminRole = await db
             .collection("roles")
             .where("userId", "==", userId)
-            .where("role", "==", "admin")
+            .where("role", "==", "superAdmin")
             .where("isDisabled", "==", false)
             .limit(1)
             .get();
 
-        if (!existingAdminRole.empty && !isSuperAdmin) {
-            const existingRole = existingAdminRole.docs[0].data();
+        if (!existingSuperAdminRole.empty && !isPlatformSuperAdmin) {
+            const existingRole = existingSuperAdminRole.docs[0].data();
             console.log(
-                `User ${userId} already has an admin role for organisation ${existingRole.organisationId}`
+                "User " +
+                userId +
+                " already has a superAdmin role for organisation " +
+                existingRole.organisationId
             );
 
             throw new HttpsError(
@@ -72,42 +108,42 @@ export const saveCompanyInfo = onCall(async (request) => {
             );
         }
 
-        // Your existing validation
-        validateCompanyInfo(request.data);
+        // Validate incoming data (from `data`, not `request.data` anymore)
+        validateCompanyInfo(data);
 
         const organisationId = uuidv4();
         const roleId = uuidv4();
 
         const organisationData = {
             organisationId,
-            name: request.data.name,
-            phone: request.data.phone.toString(),
-            website: request.data.website || null,
+            name: data.name,
+            phone: data.phone.toString(),
+            website: data.website || null,
             address: {
-                street: request.data.address.street,
-                city: request.data.address.city,
-                state: request.data.address.state,
-                zip: request.data.address.zip.toString(),
-                country: request.data.address.country,
+                street: data.address.street,
+                city: data.address.city,
+                state: data.address.state,
+                zip: data.address.zip.toString(),
+                country: data.address.country,
             },
-            timezone: request.data.timezone,
-            logo: request.data.logo || null,
+            timezone: data.timezone,
+            logo: data.logo || null,
             isDisabled: false,
-            createdAt: FieldValue.serverTimestamp(),
-            modifiedAt: FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
         const roleData = {
             roleId,
             userId,
             organisationId,
-            role: "admin",
+            role: "superAdmin", // company owner
             isDisabled: false,
-            createdAt: FieldValue.serverTimestamp(),
-            modifiedAt: FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        // Create organisation + role in a transaction
+        // Create organisation + superAdmin role in a transaction
         const result = await db.runTransaction(async (transaction) => {
             const organisationRef = db.collection("organisations").doc();
             transaction.set(organisationRef, organisationData);
@@ -123,29 +159,33 @@ export const saveCompanyInfo = onCall(async (request) => {
             };
         });
 
-        // 🔑 KEY PART: make this user admin of the new company
+        // Make this user SUPERADMIN of the new company
         await userRef.set(
             {
-                role: "admin",
+                role: "superAdmin",
                 organisationId,
-                modifiedAt: FieldValue.serverTimestamp(),
+                modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true }
         );
 
-        // And set Auth custom claims as well
+        // Custom claims for auth
         await admin.auth().setCustomUserClaims(userId, {
-            role: "admin",
+            role: "superAdmin",
             organisationId,
         });
 
         console.log(
-            `Company info and admin role saved. OrgUUID: ${organisationId}, RoleUUID: ${roleId}`
+            "Company info and superAdmin role saved. OrgUUID: " +
+            organisationId +
+            ", RoleUUID: " +
+            roleId
         );
 
         return {
             success: true,
-            message: "Company information and admin role created successfully",
+            message:
+                "Company information and super admin role created successfully",
             organisationId,
             roleId,
             roleDocumentId: result.roleDocId,
@@ -163,198 +203,162 @@ export const saveCompanyInfo = onCall(async (request) => {
         );
     }
 });
+exports.attachUserToExistingOrganisation = functions.https.onCall(
+    async (data, context) => {
+        const HttpsError = getHttpsError();
 
-export const attachUserToExistingOrganisation = onCall(async (request) => {
-    if (!request.auth || !request.auth.uid) {
-        throw new HttpsError("unauthenticated", "You must be signed in.");
-    }
+        if (!context.auth || !context.auth.uid) {
+            throw new HttpsError("unauthenticated", "You must be signed in.");
+        }
 
-    const userId = request.auth.uid;
-    const orgId = request.data?.organisationId;
+        const userId = context.auth.uid;
+        const orgId = data && data.organisationId;
 
-    if (!orgId) {
-        throw new HttpsError(
-            "invalid-argument",
-            "organisationId is required."
+        if (!orgId) {
+            throw new HttpsError("invalid-argument", "organisationId is required.");
+        }
+
+        const userRef = db.collection("users").doc(userId);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+            throw new HttpsError(
+                "failed-precondition",
+                "User document does not exist."
+            );
+        }
+
+        const userData = userSnap.data() || {};
+        const currentOrgId = userData.organisationId || null;
+
+        if (currentOrgId && currentOrgId !== orgId) {
+            throw new HttpsError(
+                "permission-denied",
+                "User already belongs to an organisation."
+            );
+        }
+
+        await userRef.set(
+            {
+                organisationId: orgId,
+                modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
         );
+
+        return { success: true };
     }
+);
+exports.inviteOrganisationUser = functions.https.onCall(
+    async (data, context) => {
+        const HttpsError = getHttpsError();
 
-    const userRef = db.collection("users").doc(userId);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-        throw new HttpsError(
-            "failed-precondition",
-            "User document does not exist."
-        );
+        const authContext = context.auth;
+        if (!authContext) {
+            throw new HttpsError("unauthenticated", "You must be signed in.");
+        }
+
+        data = data || {};
+        const email = data.email;
+        const organisationId = data.organisationId;
+        const role = data.role;
+
+        if (!email) {
+            throw new HttpsError("invalid-argument", "email is required.");
+        }
+
+        const validRoles = ["user", "admin"];
+        if (!validRoles.includes(role)) {
+            throw new HttpsError(
+                "invalid-argument",
+                "role must be 'user' or 'admin'."
+            );
+        }
+
+        const callerUid = authContext.uid;
+        const callerDoc = await db.collection("users").doc(callerUid).get();
+        if (!callerDoc.exists) {
+            throw new HttpsError(
+                "permission-denied",
+                "Caller user document does not exist."
+            );
+        }
+
+        const caller = callerDoc.data() || {};
+        const callerRole = caller.role;
+        const callerOrgId = caller.organisationId || null;
+
+        if (!callerRole) {
+            throw new HttpsError("permission-denied", "Caller has no role.");
+        }
+
+        const isSuperAdmin = callerRole === "superAdmin";
+
+        // Only SUPER ADMIN can invite new ADMINS directly
+        if (role === "admin" && !isSuperAdmin) {
+            throw new HttpsError(
+                "permission-denied",
+                "Only super admins can invite admins directly. Admins should invite as 'user' and then promote."
+            );
+        }
+
+        // Only ADMIN or SUPER ADMIN can invite normal org users
+        if (role === "user" && !["admin", "superAdmin"].includes(callerRole)) {
+            throw new HttpsError(
+                "permission-denied",
+                "Only admins or super admins can invite organisation users."
+            );
+        }
+
+        // Determine target organisation
+        let targetOrgId = organisationId || callerOrgId;
+        if (!targetOrgId) {
+            throw new HttpsError(
+                "invalid-argument",
+                "organisationId is required for this invite."
+            );
+        }
+
+        // Admins can only invite into *their* organisation
+        if (callerRole === "admin" && targetOrgId !== callerOrgId) {
+            throw new HttpsError(
+                "permission-denied",
+                "Admins can only invite into their own organisation."
+            );
+        }
+
+        const inviteRef = await db.collection("organisationInvites").add({
+            email: email.toLowerCase(),
+            organisationId: targetOrgId,
+            role, // 'user' or 'admin'
+            status: "pending",
+            createdByUserId: callerUid,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { inviteId: inviteRef.id };
     }
-
-    const userData = userSnap.data();
-    const currentOrgId = userData.organisationId || null;
-
-    // Allow attaching only if user has no organisation yet
-    if (currentOrgId && currentOrgId !== orgId) {
-        throw new HttpsError(
-            "permission-denied",
-            "User already belongs to an organisation."
-        );
-    }
-
-    await userRef.set(
-        {
-            organisationId: orgId,
-            modifiedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-    );
-
-    // Optionally keep role as-is (guest/user/admin), we don't change it here
-    // Or set to 'user' if you want every attached user to be normal user:
-    // await userRef.set({ role: "user" }, { merge: true });
-
-    return { success: true };
-});
-
-
-export const inviteOrganisationUser = onCall(async (request) => {
-    const auth = request.auth;
-    if (!auth) {
-        throw new HttpsError("unauthenticated", "You must be signed in.");
-    }
-
-    const { email, organisationId, role } = request.data || {};
-    if (!email) {
-        throw new HttpsError("invalid-argument", "email is required.");
-    }
-
-    const validRoles = ["user", "admin"];
-    if (!validRoles.includes(role)) {
-        throw new HttpsError(
-            "invalid-argument",
-            "role must be 'user' or 'admin'."
-        );
-    }
-
-    const callerUid = auth.uid;
-    const callerDoc = await db.collection("users").doc(callerUid).get();
-    if (!callerDoc.exists) {
-        throw new HttpsError(
-            "permission-denied",
-            "Caller user document does not exist."
-        );
-    }
-
-    const caller = callerDoc.data();
-    const callerRole = caller.role; // guest/user/admin/superAdmin
-    const callerOrgId = caller.organisationId || null;
-
-    if (!callerRole) {
-        throw new HttpsError("permission-denied", "Caller has no role.");
-    }
-
-    const isSuperAdmin = callerRole === "superAdmin";
-
-    // Only SUPER ADMIN can invite new ADMINS directly
-    if (role === "admin" && !isSuperAdmin) {
-        throw new HttpsError(
-            "permission-denied",
-            "Only super admins can invite admins directly. Admins should invite as 'user' and then promote."
-        );
-    }
-
-    // Only ADMIN or SUPER ADMIN can invite normal org users
-    if (role === "user" && !["admin", "superAdmin"].includes(callerRole)) {
-        throw new HttpsError(
-            "permission-denied",
-            "Only admins or super admins can invite organisation users."
-        );
-    }
-
-    // Determine target organisation
-    let targetOrgId = organisationId || callerOrgId;
-    if (!targetOrgId) {
-        throw new HttpsError(
-            "invalid-argument",
-            "organisationId is required for this invite."
-        );
-    }
-
-    // Admins can only invite into *their* organisation
-    if (callerRole === "admin" && targetOrgId !== callerOrgId) {
-        throw new HttpsError(
-            "permission-denied",
-            "Admins can only invite into their own organisation."
-        );
-    }
-
-    const inviteRef = await db.collection("organisationInvites").add({
-        email: email.toLowerCase(),
-        organisationId: targetOrgId,
-        role, // 'user' or 'admin'
-        status: "pending",
-        createdByUserId: callerUid,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    return { inviteId: inviteRef.id };
-});
-
-export const handleNewUser = onAuthUserCreated(async (event) => {
-    const user = event.data;
+);
+exports.handleNewUser = functions.auth.user().onCreate(async (user) => {
     const email = (user.email || "").toLowerCase();
 
-    let role = "guest";
-    let organisationId = null;
-
-    // Super admin shortcut
-    if (SUPER_ADMIN_EMAILS.includes(email)) {
-        role = "superAdmin";
-    } else {
-        // Check if this email was invited
-        const inviteSnap = await db
-            .collection("organisationInvites")
-            .where("email", "==", email)
-            .where("status", "==", "pending")
-            .limit(1)
-            .get();
-
-        if (!inviteSnap.empty) {
-            const inviteDoc = inviteSnap.docs[0];
-            const invite = inviteDoc.data();
-
-            role = invite.role || "user"; // 'user' or 'admin'
-            organisationId = invite.organisationId || null;
-
-            await inviteDoc.ref.update({
-                status: "accepted",
-                acceptedUserId: user.uid,
-                acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-        }
-    }
+    // New simple logic: everyone who signs up is an admin, no organisation yet.
+    const role = "admin";
+    const organisationId = null;
 
     const userDoc = {
         userId: user.uid,
         email,
-        role,
-        organisationId,
+        role,               // "admin"
+        organisationId,     // null initially
         isDisabled: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
+    // Create /users/{uid} doc
     await db.collection("users").doc(user.uid).set(userDoc);
 
-    if (organisationId) {
-        await db.collection("roles").add({
-            userId: user.uid,
-            organisationId,
-            role, // 'admin' or 'user'
-            isDisabled: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-    }
-
+    // Optional: keep custom claims in sync
     await admin.auth().setCustomUserClaims(user.uid, {
         role,
         organisationId,
@@ -362,139 +366,140 @@ export const handleNewUser = onAuthUserCreated(async (event) => {
 
     return;
 });
+exports.updateOrganisationUserRole = functions.https.onCall(
+    async (data, context) => {
+        const HttpsError = getHttpsError();
 
-export const updateOrganisationUserRole = onCall(async (request) => {
-    const auth = request.auth;
-    if (!auth) {
-        throw new HttpsError("unauthenticated", "You must be signed in.");
-    }
+        const authContext = context.auth;
+        if (!authContext) {
+            throw new HttpsError("unauthenticated", "You must be signed in.");
+        }
 
-    const { userId, organisationId, newRole } = request.data || {};
-    if (!userId || !organisationId || !newRole) {
-        throw new HttpsError(
-            "invalid-argument",
-            "userId, organisationId and newRole are required."
+        data = data || {};
+        const userId = data.userId;
+        const organisationId = data.organisationId;
+        const newRole = data.newRole;
+
+        if (!userId || !organisationId || !newRole) {
+            throw new HttpsError(
+                "invalid-argument",
+                "userId, organisationId and newRole are required."
+            );
+        }
+
+        const allowedRoles = ["user", "admin"];
+        if (!allowedRoles.includes(newRole)) {
+            throw new HttpsError(
+                "invalid-argument",
+                "newRole must be 'user' or 'admin'."
+            );
+        }
+
+        const callerUid = authContext.uid;
+        const callerSnap = await db.collection("users").doc(callerUid).get();
+        if (!callerSnap.exists) {
+            throw new HttpsError(
+                "permission-denied",
+                "Caller user document does not exist."
+            );
+        }
+
+        const caller = callerSnap.data() || {};
+        const callerRole = caller.role;
+        const callerOrgId = caller.organisationId || null;
+        const callerIsSuperAdmin = callerRole === "superAdmin";
+
+        if (!callerRole) {
+            throw new HttpsError("permission-denied", "Caller has no role.");
+        }
+
+        // Only superAdmin OR admin of this org may change roles
+        if (
+            !callerIsSuperAdmin &&
+            !(
+                callerRole === "admin" &&
+                callerOrgId != null &&
+                callerOrgId === organisationId
+            )
+        ) {
+            throw new HttpsError(
+                "permission-denied",
+                "Only admins of this organisation or super admins can change user roles."
+            );
+        }
+
+        // Target user
+        const targetRef = db.collection("users").doc(userId);
+        const targetSnap = await targetRef.get();
+        if (!targetSnap.exists) {
+            throw new HttpsError("not-found", "Target user does not exist.");
+        }
+        const target = targetSnap.data() || {};
+
+        if (target.role === "superAdmin") {
+            throw new HttpsError(
+                "permission-denied",
+                "Cannot change role of a super admin with this function."
+            );
+        }
+
+        const targetOrgId = target.organisationId || null;
+        if (!callerIsSuperAdmin && targetOrgId !== organisationId) {
+            throw new HttpsError(
+                "permission-denied",
+                "Admins may only update users that belong to their own organisation."
+            );
+        }
+
+        await targetRef.set(
+            {
+                role: newRole,
+                organisationId,
+                modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
         );
-    }
 
-    const allowedRoles = ["user", "admin"];
-    if (!allowedRoles.includes(newRole)) {
-        throw new HttpsError(
-            "invalid-argument",
-            "newRole must be 'user' or 'admin'."
-        );
-    }
+        // Keep roles collection in sync
+        const rolesSnap = await db
+            .collection("roles")
+            .where("userId", "==", userId)
+            .where("organisationId", "==", organisationId)
+            .where("isDisabled", "==", false)
+            .limit(1)
+            .get();
 
-    // ───────── Caller (who is trying to change someone) ─────────
-    const callerUid = auth.uid;
-    const callerSnap = await db.collection("users").doc(callerUid).get();
-    if (!callerSnap.exists) {
-        throw new HttpsError(
-            "permission-denied",
-            "Caller user document does not exist."
-        );
-    }
+        if (!rolesSnap.empty) {
+            await rolesSnap.docs[0].ref.update({
+                role: newRole,
+                modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } else {
+            await db.collection("roles").add({
+                userId,
+                organisationId,
+                role: newRole,
+                isDisabled: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                modifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
 
-    const caller = callerSnap.data();
-    const callerRole = caller.role;              // guest/user/admin/superAdmin
-    const callerOrgId = caller.organisationId || null;
-    const callerIsSuperAdmin = callerRole === "superAdmin";
-
-    if (!callerRole) {
-        throw new HttpsError("permission-denied", "Caller has no role.");
-    }
-
-    // ✅ ONLY superAdmin OR admin of *this* org may change roles
-    if (
-        !callerIsSuperAdmin &&              // not superAdmin
-        !(
-            callerRole === "admin" &&
-            callerOrgId != null &&
-            callerOrgId === organisationId    // must match the org being edited
-        )
-    ) {
-        throw new HttpsError(
-            "permission-denied",
-            "Only admins of this organisation or super admins can change user roles."
-        );
-    }
-
-    // ───────── Target user (the one whose role will change) ─────────
-    const targetRef = db.collection("users").doc(userId);
-    const targetSnap = await targetRef.get();
-    if (!targetSnap.exists) {
-        throw new HttpsError("not-found", "Target user does not exist.");
-    }
-    const target = targetSnap.data();
-
-    // Never allow this function to touch superAdmin accounts
-    if (target.role === "superAdmin") {
-        throw new HttpsError(
-            "permission-denied",
-            "Cannot change role of a super admin with this function."
-        );
-    }
-
-    const targetOrgId = target.organisationId || null;
-
-    // ✅ Extra safety: an admin can ONLY update users from THEIR company
-    if (!callerIsSuperAdmin && targetOrgId !== organisationId) {
-        throw new HttpsError(
-            "permission-denied",
-            "Admins may only update users that belong to their own organisation."
-        );
-    }
-
-    // ───────── Perform updates ─────────
-    await targetRef.set(
-        {
+        await admin.auth().setCustomUserClaims(userId, {
             role: newRole,
             organisationId,
-            modifiedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-    );
-
-    // Keep roles collection in sync
-    const rolesSnap = await db
-        .collection("roles")
-        .where("userId", "==", userId)
-        .where("organisationId", "==", organisationId)
-        .where("isDisabled", "==", false)
-        .limit(1)
-        .get();
-
-    if (!rolesSnap.empty) {
-        await rolesSnap.docs[0].ref.update({
-            role: newRole,
-            modifiedAt: FieldValue.serverTimestamp(),
         });
-    } else {
-        await db.collection("roles").add({
-            userId,
-            organisationId,
-            role: newRole,
-            isDisabled: false,
-            createdAt: FieldValue.serverTimestamp(),
-            modifiedAt: FieldValue.serverTimestamp(),
-        });
+
+        return { success: true };
     }
+);
+exports.signupAdmin = functions.https.onCall(async (data, context) => {
+    const HttpsError = getHttpsError();
 
-    await admin.auth().setCustomUserClaims(userId, {
-        role: newRole,
-        organisationId,
-    });
-
-    return { success: true };
-});
-
-export const signupAdmin = onCall(async (request) => {
-    const data = request.data || {};
-
+    data = data || {};
     const email = (data.email || "").toString().trim();
     const password = (data.password || "").toString();
 
-    // ── Basic validation (must match Flutter ValidationHelper) ────────────────
     if (!email || !password) {
         throw new HttpsError(
             "invalid-argument",
@@ -502,7 +507,7 @@ export const signupAdmin = onCall(async (request) => {
         );
     }
 
-    const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+    const emailRegex = /^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$/;
     if (!emailRegex.test(email)) {
         throw new HttpsError("invalid-argument", "Invalid email format.");
     }
@@ -514,24 +519,18 @@ export const signupAdmin = onCall(async (request) => {
         );
     }
 
-    // If you want to use your own validator:
-    // const validationError = validateUserCredentials(email, password);
-    // if (validationError) {
-    //   throw new HttpsError("invalid-argument", validationError);
-    // }
-
     try {
-        // ── Create the Firebase Auth user ──────────────────────────────────────
         let userRecord;
+
         try {
-            // Check if the user already exists
+            // Check if user already exists
             userRecord = await auth.getUserByEmail(email);
             throw new HttpsError(
                 "already-exists",
                 "The account already exists for this email."
             );
         } catch (err) {
-            if (err.code === "auth/user-not-found") {
+            if (err && err.code === "auth/user-not-found") {
                 userRecord = await auth.createUser({
                     email,
                     password,
@@ -539,35 +538,29 @@ export const signupAdmin = onCall(async (request) => {
                     disabled: false,
                 });
             } else {
-                logger.error("Auth error while checking/creating user:", err);
-                throw new HttpsError("internal", err.message || "Auth error");
+                if (err && err.code !== "auth/user-not-found") {
+                    console.error("Auth error while checking/creating user:", err);
+                    throw new HttpsError("internal", err.message || "Auth error");
+                }
             }
         }
 
-        // ── Create Firestore user document ─────────────────────────────────────
-        await db.collection("users").add({
-            email,
-            userId: userRecord.uid,
-            isDisabled: false,
-            createdAt: FieldValue.serverTimestamp(),
-            modifiedAt: FieldValue.serverTimestamp(),
-        });
+        // /users/{uid} document is created by handleNewUser (auth trigger)
 
-        // Response back to Flutter
         return {
             uid: userRecord.uid,
             email,
         };
     } catch (err) {
-        if (err instanceof HttpsError) {
+        if (err instanceof functions.https.HttpsError) {
             throw err;
         }
 
-        logger.error("Unexpected error in signupAdmin:", err);
+        console.error("Unexpected error in signupAdmin:", err);
         throw new HttpsError(
             "internal",
             "Failed to create account. Please try again."
         );
     }
 });
-
+ */

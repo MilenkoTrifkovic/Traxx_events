@@ -12,6 +12,7 @@ import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dar
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -61,17 +62,20 @@ GoRouter buildRouter() {
       GoRoute(
         path: AppRoute.welcome.path,
         builder: (context, state) {
-          // Check if user is already authenticated
           final User? currentUser = FirebaseAuth.instance.currentUser;
+
           if (currentUser != null) {
-            // If user is authenticated, redirect to host events
             WidgetsBinding.instance.addPostFrameCallback((_) {
+              print(
+                  'Router: User already signed in, go straight to host events');
               pushAndRemoveAllRoute(AppRoute.hostEvents, context);
             });
           }
-          return WelcomeView();
+
+          return const WelcomeView();
         },
       ),
+
       GoRoute(
         redirect: (context, state) {
           if (authController.isAuthenticatedAndVerified) {
@@ -110,7 +114,7 @@ GoRouter buildRouter() {
       //   path: AppRoute.contactView.path,
       //   builder: (context, state) => ContactView(),
       // ),
-      GoRoute(
+      /* GoRoute(
         redirect: (context, state) {
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
@@ -128,6 +132,17 @@ GoRouter buildRouter() {
         },
         path: AppRoute.hostOrganisationInfoForm.path,
         builder: (context, state) => const OrganisationInfoPopupView(),
+      ), */
+      GoRoute(
+        redirect: (context, state) {
+          if (!authController.isAuthenticated) {
+            return AppRoute.welcome.path;
+          }
+          // No email verification or role gating anymore
+          return null;
+        },
+        path: AppRoute.hostOrganisationInfoForm.path,
+        builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
       //HOST SHELL ROUTE
@@ -137,15 +152,7 @@ GoRouter buildRouter() {
             print('Redirecting to welcome');
             return AppRoute.welcome.path;
           }
-          if (!authController.isAuthenticatedAndVerified) {
-            print('Redirecting to email verification');
-            return AppRoute.emailVerification.path;
-          }
-          if (!authController.companyInfoExists) {
-            print('Company info exists? ${authController.companyInfoExists}');
-            print('Redirecting to organisation info form');
-            return AppRoute.hostOrganisationInfoForm.path;
-          }
+          // No email verification or role/organisation gating anymore
           return null;
         },
         navigatorKey: hostNavigatorKey,
@@ -168,7 +175,12 @@ GoRouter buildRouter() {
           Get.put(VenuesController());
           Get.put(MenusController());
           Get.put(EventsController());
-          Get.put(OrganisationController(authController.organisationId!));
+          final orgId = authController.organisationId;
+          if (orgId != null && orgId.isNotEmpty) {
+            if (!Get.isRegistered<OrganisationController>()) {
+              Get.put(OrganisationController(orgId));
+            }
+          }
           final location = state.matchedLocation;
           final isQuestionsPage =
               location.startsWith(AppRoute.hostQuestions.path) ||

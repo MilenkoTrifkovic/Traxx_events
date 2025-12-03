@@ -551,7 +551,33 @@ class FirestoreServices {
   ///
   /// Returns the document ID of the created venue.
   /// Throws [FirebaseException] if the create operation fails.
+  ///
   Future<String> createVenue(Venue venue) async {
+    try {
+      // Ensure venueID is set (UUID4)
+      final uuid = Uuid();
+      final venueWithId = venue.copyWith(venueID: uuid.v4());
+
+      // Build the data map
+      final Map<String, dynamic> data = venueWithId.toFirestoreCreate();
+
+      // 🔐 IMPORTANT: ensure organisationId is present for security rules
+      // (even if toFirestoreCreate already adds it, this is safe and explicit)
+      data['organisationId'] = venueWithId.organisationId;
+
+      // Use add with explicit create data to ensure proper timestamps
+      final docRef = await _db.collection(venuesCol).add(data);
+      print('Venue created successfully with ID: ${docRef.id}');
+      return docRef.id;
+    } on FirebaseException catch (e) {
+      print('Firestore error creating venue: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error creating venue: $e');
+      rethrow;
+    }
+  }
+  /* Future<String> createVenue(Venue venue) async {
     try {
       // Ensure venueID is set (UUID4)
       final uuid = Uuid();
@@ -569,7 +595,7 @@ class FirestoreServices {
       print('Unknown error creating venue: $e');
       rethrow;
     }
-  }
+  } */
 
   /// Fetches all venues for a specific organisation from Firestore.
   ///
@@ -693,13 +719,14 @@ class FirestoreServices {
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
     final result = await menuItemsRef.add(item.toFirestoreCreate());
-    
+
     return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {
-  final query =
-    await menuItemsRef.where('organisationId', isEqualTo: organisationId).get();
+    final query = await menuItemsRef
+        .where('organisationId', isEqualTo: organisationId)
+        .get();
     print('menu items fetched: ${query.docs.length}');
     return query.docs
         .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))

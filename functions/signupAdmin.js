@@ -1,5 +1,3 @@
-// functions/signupAdmin.js
-
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import logger from "firebase-functions/logger";
 import { initializeApp, getApps } from "firebase-admin/app";
@@ -17,11 +15,87 @@ if (!getApps().length) {
 const auth = getAuth();
 const db = getFirestore();
 
+export const signupAdmin = onCall(async (request) => {
+    const data = request.data || {};
+
+    const email = (data.email || "").toString().trim();
+    const password = (data.password || "").toString();
+
+    // ── Basic validation (must match Flutter ValidationHelper) ────────────────
+    if (!email || !password) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Email and password are required."
+        );
+    }
+
+    const emailRegex = /^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$/;
+    if (!emailRegex.test(email)) {
+        throw new HttpsError("invalid-argument", "Invalid email format.");
+    }
+
+    if (password.length < 6) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Password must be at least 6 characters long."
+        );
+    }
+
+    try {
+        let userRecord;
+
+        try {
+            // Check if user already exists
+            userRecord = await auth.getUserByEmail(email);
+
+            // If we got a user, the account already exists
+            throw new HttpsError(
+                "already-exists",
+                "The account already exists for this email."
+            );
+        } catch (err) {
+            if (err && err.code === "auth/user-not-found") {
+                // Safe to create a new user
+                userRecord = await auth.createUser({
+                    email,
+                    password,
+                    emailVerified: false,
+                    disabled: false,
+                });
+            } else if (err instanceof HttpsError) {
+                // The "already-exists" error we just threw above
+                throw err;
+            } else if (err && err.code) {
+                logger.error("Auth error while checking/creating user:", err);
+                throw new HttpsError("internal", err.message || "Auth error");
+            }
+        }
+
+        // /users/{uid} will be created by handleNewUser (auth trigger).
+
+        return {
+            uid: userRecord.uid,
+            email,
+        };
+    } catch (err) {
+        if (err instanceof HttpsError) {
+            throw err;
+        }
+
+        logger.error("Unexpected error in signupAdmin:", err);
+        throw new HttpsError(
+            "internal",
+            "Failed to create account. Please try again."
+        );
+    }
+});
+
 /**
  * Callable function used by the Flutter client to sign up a new admin user.
  * Expected payload: { email: string, password: string }
  */
-export const signupAdmin = onCall(async (request) => {
+/* export const signupAdmin = onCall(async (request) => {
+
     const data = request.data || {};
 
     const email = (data.email || "").toString().trim();
@@ -102,4 +176,4 @@ export const signupAdmin = onCall(async (request) => {
             "Failed to create account. Please try again."
         );
     }
-});
+}); */

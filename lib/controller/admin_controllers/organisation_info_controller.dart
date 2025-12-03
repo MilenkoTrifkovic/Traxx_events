@@ -424,20 +424,9 @@ class OrganisationInfoController extends GetxController {
           await _cloudFunctionsService.saveCompanyInfo(organisation);
 
       print(
-        'Organisation saved successfully: ${savedOrganisation.organisationId}',
-      );
+          'Organisation saved successfully: ${savedOrganisation.organisationId}');
 
-      // Link the user to the new org using CF's organisationId
-      final newOrgId = savedOrganisation.organisationId;
-      if (newOrgId != null && newOrgId.isNotEmpty) {
-        await _attachUserToExistingOrganisation(newOrgId);
-      } else {
-        print(
-          '⚠️ saveCompanyInfo did not return organisationId – user not auto-linked. ' +
-              'Check CF to ensure it returns organisationId.',
-        );
-      }
-
+      // After saveCompanyInfo, CF already set role=admin and organisationId
       return savedOrganisation;
     } catch (e) {
       print('Error saving organisation / attaching: $e');

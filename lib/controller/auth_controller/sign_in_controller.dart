@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/auth_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 /// Controller for managing sign-in and sign-up functionality
 class SignInController extends GetxController {
@@ -56,42 +57,30 @@ class SignInController extends GetxController {
       UserCredential userCredential;
 
       if (isSignUpMode.value) {
-        print('Controller: Creating admin user');
-        // Call cloud function to create admin user
+        print('Controller: Creating admin user (signup)');
+        // Directly sign up with Firebase Auth
         userCredential = await _authServices.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
-        print('Controller: Creating admin user completed');
 
-        // Send email verification for new users
-        print('Controller: Sending email verification');
-        await _authServices.sendEmailVerification();
-        print('Controller: Email verification sent');
+        // We are NOT gating on email verification anymore
+        // await _authServices.sendEmailVerification();
       } else {
         print('Controller: Signing in user');
         userCredential = await _authServices.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
-        await _authController.checkCompanyInfo();
-        print('Controller: User signed in');
       }
+
+      // Load profile from Firestore (/users/{uid} created by handleNewUser)
+      await _authController.loadUserProfile();
 
       authResult.value = userCredential;
 
-      // Set navigation flags based on email verification status
-      final user = userCredential.user;
-      if (user != null && !user.emailVerified) {
-        print('Controller: Should navigate to email verification');
-        shouldNavigateToEmailVerification.value = true;
-      } else if (_authController.companyInfoExists == false) {
-        print('Controller: Should navigate to organisation info');
-        shouldNavigateToOrganisationInfo.value = true;
-      } else {
-        print('Controller: Should navigate to host events');
-        shouldNavigateToHostEvents.value = true;
-      }
+      // ✅ New behaviour: after any successful sign-in or sign-up → go to host events
+      shouldNavigateToHostEvents.value = true;
     } catch (e) {
       print('Controller: Error occurred: $e');
       _showErrorMessage(e.toString());
@@ -133,7 +122,6 @@ class SignInController extends GetxController {
 
   /// Reset navigation flags
   void _resetNavigationFlags() {
-    shouldNavigateToEmailVerification.value = false;
     shouldNavigateToHostEvents.value = false;
   }
 
