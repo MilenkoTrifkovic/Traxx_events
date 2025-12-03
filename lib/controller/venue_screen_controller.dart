@@ -113,11 +113,11 @@ class VenueScreenController extends GetxController {
       isCreatingVenue.value = true;
 
       // Upload image if selected
-      String? photoUrl;
+      String? photoPath;
       if (selectedImage.value != null) {
         try {
-          photoUrl = await _storageServices.uploadImage(selectedImage.value!);
-          print('Image uploaded successfully: $photoUrl');
+          photoPath = await _storageServices.uploadImage(selectedImage.value!);
+          print('Image uploaded successfully: $photoPath');
         } catch (e) {
           print('Failed to upload image: $e');
           // Continue without image - image upload is optional
@@ -130,7 +130,7 @@ class VenueScreenController extends GetxController {
         name: name.trim(),
         description:
             description?.trim().isEmpty == true ? null : description?.trim(),
-        photoUrl: photoUrl,
+        photoPath: photoPath,
         isDisabled: false,
       );
 

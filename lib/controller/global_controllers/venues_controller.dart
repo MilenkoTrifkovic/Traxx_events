@@ -44,12 +44,23 @@ class VenuesController extends GetxController {
   //   return updated;
   // }
 
-  Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
-    return Future.wait(menuList.map((item) async {
-      if (item.imageUrl != null || item.imagePath == null) return item;
-      final url = await _storageServices.loadImageURL(item.imagePath);
-      if (url == null) return item;
-      return item.copyWith(imageUrl: url);
+  // Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
+  //   return Future.wait(menuList.map((item) async {
+  //     if (item.imageUrl != null || item.imagePath == null) return item;
+  //     final url = await _storageServices.loadImageURL(item.imagePath);
+  //     if (url == null) return item;
+  //     return item.copyWith(imageUrl: url);
+  //   }));
+  // }
+
+  Future<List<Venue>> _withPhotoUrls(List<Venue> venueList) async {
+    return Future.wait(venueList.map((v) async {
+      // if photoUrl already set or no photoPath available, skip
+      if (v.photoUrl != null || v.photoPath == null) return v;
+      final url = await _storageServices.loadImageURL(v.photoPath);
+      print('Loaded photo URL for venue ${v.venueID}: $url');
+      if (url == null) return v;
+      return v.copyWith(photoUrl: url);
     }));
   }
 
@@ -62,7 +73,8 @@ class VenuesController extends GetxController {
       final organisationId = _authController.organisationId!;
       print('Organisation ID in VenuesController: $organisationId');
       final allVenues = await _firestoreServices.getVenues(organisationId);
-      venues.assignAll(allVenues);
+      final withUrls = await _withPhotoUrls(allVenues);
+      venues.assignAll(withUrls);
       isLoading.value = false;
     } catch (e) {
       isLoading.value = false;
@@ -94,8 +106,11 @@ class VenuesController extends GetxController {
   }
 
   /// Adds a new venue to the observable list
-  void addVenue(Venue venue) {
-    venues.add(venue);
+  Future<void> addVenue(Venue venue) async {
+    // _withPhotoUrls returns copies with photoUrl set when possible.
+    final updatedList = await _withPhotoUrls([venue]);
+    final updated = updatedList.isNotEmpty ? updatedList.first : venue;
+    venues.add(updated);
   }
 
   /// Deletes a venue from Firestore and updates local cache

@@ -18,7 +18,6 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/venue_details_view.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';

@@ -2,16 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/view/admin/create_event/create_event_popup_view.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
-/// Empty state widget displayed when no events are created
-class EmptyEventsState extends StatelessWidget {
-  final VoidCallback? onCreateEvent;
+/// Reusable empty state widget.
+///
+/// Accepts a [title], [description] (text below the image), an [imageAsset]
+/// path (defaults to the app cartoon), a [buttonText] and an [onButtonPressed]
+/// callback.
+class EmptyState extends StatelessWidget {
+  final String title;
+  final String description;
+  final String? imageAsset;
+  final String buttonText;
+  final VoidCallback? onButtonPressed;
 
-  const EmptyEventsState({
+  const EmptyState({
     super.key,
-    this.onCreateEvent,
+    required this.title,
+    required this.description,
+  this.imageAsset,
+    required this.buttonText,
+    this.onButtonPressed,
   });
 
   @override
@@ -23,10 +34,13 @@ class EmptyEventsState extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Welcome heading
-              AppText.styledHeadingLarge(
-                context,
-                'Welcome to TRAX Events!',
+              // Heading
+              Flexible(
+                child: AppText.styledHeadingLarge(
+                  context,
+                  title,
+                  textAlign: TextAlign.center,
+                ),
               ),
 
               // Spacing
@@ -43,7 +57,7 @@ class EmptyEventsState extends StatelessWidget {
                   child: AspectRatio(
                     aspectRatio: 680.0 / 413.1,
                     child: Image.asset(
-                      Constants.cartoonRestaurant,
+                      imageAsset ?? Constants.cartoonRestaurant,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -53,38 +67,21 @@ class EmptyEventsState extends StatelessWidget {
               // Spacing
               AppSpacing.verticalMd(context),
 
-              // Create first event heading
-              AppText.styledHeadingLarge(
-                context,
-                'Let\'s Create Your First Event.',
-              ),
-
-              // Spacing
-              AppSpacing.verticalMd(context),
-
               // Description text
               AppText.styledBodyMedium(
                 context,
-                'Let\'s get started! Create your first event to begin managing guests, menus, and RSVPs all in one place.',
+                description,
                 textAlign: TextAlign.center,
               ),
 
               // Spacing
               AppSpacing.verticalMd(context),
 
-              // Add Event button
+              // Primary action button
               AppPrimaryButton(
-                text: 'Add Event',
+                text: buttonText,
                 icon: Icons.add,
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return CreateEventPopupView();
-                    },
-                  );
-                  // Handle add event action
-                },
+                onPressed: onButtonPressed,
               ),
             ],
           ),

@@ -137,7 +137,7 @@ class CreateMenuPopupView extends StatelessWidget {
                 icon: Icons.file_upload,
                 iconColor: AppColors.primaryAccent,
                 textColor: AppColors.primaryAccent,
-                text: 'Upload Venue Photo',
+                text: 'Upload Menu Photo',
                 onPressed: controller.pickImage);
           }
         }),

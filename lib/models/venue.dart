@@ -18,6 +18,12 @@ class Venue {
   final String? description;
 
   /// Optional URL to the venue's photo
+  final String? photoPath;
+  
+  /// Optional in-memory download URL for the venue's photo.
+  ///
+  /// This field is NOT written to Firestore and is used only at runtime
+  /// (for example, when a download URL has been resolved from a storage path).
   final String? photoUrl;
 
   /// Timestamp when the venue was created (optional - uses server timestamp when null)
@@ -35,6 +41,7 @@ class Venue {
     required this.organisationId,
     required this.name,
     this.description,
+    this.photoPath,
     this.photoUrl,
     this.createdAt,
     this.modifiedAt,
@@ -50,7 +57,7 @@ class Venue {
       organisationId: data['organisationId'] ?? '',
       name: data['name'] ?? '',
       description: data['description'],
-      photoUrl: data['photoUrl'],
+      photoPath: data['photoPath'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       modifiedAt:
           (data['modifiedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -65,7 +72,7 @@ class Venue {
       organisationId: json['organisationId'] ?? '',
       name: json['name'] ?? '',
       description: json['description'],
-      photoUrl: json['photoUrl'],
+      photoPath: json['photoPath'],
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -83,7 +90,7 @@ class Venue {
       'organisationId': organisationId,
       'name': name,
       'description': description,
-      'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -100,7 +107,7 @@ class Venue {
       'organisationId': organisationId,
       'name': name,
       'description': description,
-      'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
@@ -114,7 +121,7 @@ class Venue {
       'organisationId': organisationId,
       'name': name,
       'description': description,
-      'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
     };
@@ -127,7 +134,7 @@ class Venue {
       'organisationId': organisationId,
       'name': name,
       'description': description,
-      'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'createdAt': createdAt?.toIso8601String(),
       'modifiedAt': modifiedAt?.toIso8601String(),
       'isDisabled': isDisabled,
@@ -140,6 +147,7 @@ class Venue {
     String? organisationId,
     String? name,
     String? description,
+    String? photoPath,
     String? photoUrl,
     DateTime? createdAt,
     DateTime? modifiedAt,
@@ -150,6 +158,7 @@ class Venue {
       organisationId: organisationId ?? this.organisationId,
       name: name ?? this.name,
       description: description ?? this.description,
+      photoPath: photoPath ?? this.photoPath,
       photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
@@ -166,7 +175,7 @@ class Venue {
   @override
   String toString() {
     return 'Venue{venueID: $venueID, organisationId: $organisationId, name: $name, description: $description, '
-        'photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
+    'photoPath: $photoPath, photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
         'isDisabled: $isDisabled}';
   }
 
@@ -180,7 +189,8 @@ class Venue {
         other.organisationId == organisationId &&
         other.name == name &&
         other.description == description &&
-        other.photoUrl == photoUrl &&
+        other.photoPath == photoPath &&
+    other.photoUrl == photoUrl &&
         other.createdAt == createdAt &&
         other.modifiedAt == modifiedAt &&
         other.isDisabled == isDisabled;
@@ -193,7 +203,8 @@ class Venue {
         organisationId.hashCode ^
         name.hashCode ^
         description.hashCode ^
-        photoUrl.hashCode ^
+    (photoPath?.hashCode ?? 0) ^
+    (photoUrl?.hashCode ?? 0) ^
         (createdAt?.hashCode ?? 0) ^
         (modifiedAt?.hashCode ?? 0) ^
         isDisabled.hashCode;
