@@ -1,15 +1,19 @@
-[ 
-    {
-     "origin": [
+
+
+[
+  {
+    "origin": [
       "http://localhost",
       "http://localhost:*",
       "http://127.0.0.1",
       "http://127.0.0.1:*",
       "https://traxx-e1232.web.app",
-      "https://trax-event.app/host-events",
-      "https://traxx-e1232.firebaseapp.com"
+      "https://traxx-e1232.firebaseapp.com",
+      "https://trax-event.app",
+      "https://www.trax-event.app"
     ],
-    "method": ["GET", "POST", "PUT", "DELETE"],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Authorization"],
     "maxAgeSeconds": 3600
-    }
+  }
 ]

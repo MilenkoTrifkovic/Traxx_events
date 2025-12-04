@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/menu_section/widgets/menu_form.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/menu_section/widgets/selectable_category_chooser.dart';
 import 'package:traxx_wepapp/widgets/page_header.dart';
@@ -47,10 +47,12 @@ class _SetMenusViewState extends State<SetMenusView> {
       Get.put(MenuControllersManager());
   // Main controller for menu operations and state management
   late final SetMenusController setMenusController;
+  late final SnackbarMessageController snackbarController;
 
   @override
   void initState() {
     setMenusController = Get.put(SetMenusController());
+    snackbarController = Get.find<SnackbarMessageController>();
     setMenusController.initializeMenus();
     super.initState();
   }
@@ -187,7 +189,7 @@ class _SetMenusViewState extends State<SetMenusView> {
                 if (success) {
                   popRoute(context);
                 } else {
-                  SnackBarUtils.showError(context,
+                  snackbarController.showErrorMessage(
                       "Some required fields are missing. Please complete all required fields.");
                 }
               }

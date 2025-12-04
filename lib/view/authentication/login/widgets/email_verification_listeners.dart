@@ -3,17 +3,21 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/email_verification_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 
 class EmailVerificationListeners extends StatelessWidget {
   final EmailVerificationController controller;
   final Widget child;
 
-  const EmailVerificationListeners({
+  EmailVerificationListeners({
     super.key,
     required this.controller,
     required this.child,
   });
+
+  // Single snackbar controller lookup for this stateless widget
+  final SnackbarMessageController snackbarController =
+      Get.find<SnackbarMessageController>();
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +25,7 @@ class EmailVerificationListeners extends StatelessWidget {
     ever(controller.successMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showSuccess(context, message);
+          snackbarController.showSuccessMessage(message);
           controller.clearSuccessMessage();
         });
       }
@@ -31,7 +35,7 @@ class EmailVerificationListeners extends StatelessWidget {
     ever(controller.errorMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showError(context, message);
+          snackbarController.showErrorMessage(message);
           controller.clearErrorMessage();
         });
       }

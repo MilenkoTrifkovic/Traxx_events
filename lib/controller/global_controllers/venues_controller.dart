@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -10,6 +12,8 @@ class VenuesController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final AuthController _authController = Get.find<AuthController>();
   final StorageServices _storageServices = Get.find<StorageServices>();
+  final SnackbarMessageController snackbarMessageController =
+      Get.find<SnackbarMessageController>();
 
   // Observable list of venues
   final venues = <Venue>[].obs;
@@ -44,12 +48,22 @@ class VenuesController extends GetxController {
   //   return updated;
   // }
 
-  Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
-    return Future.wait(menuList.map((item) async {
-      if (item.imageUrl != null || item.imagePath == null) return item;
-      final url = await _storageServices.loadImageURL(item.imagePath);
-      if (url == null) return item;
-      return item.copyWith(imageUrl: url);
+  // Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
+  //   return Future.wait(menuList.map((item) async {
+  //     if (item.imageUrl != null || item.imagePath == null) return item;
+  //     final url = await _storageServices.loadImageURL(item.imagePath);
+  //     if (url == null) return item;
+  //     return item.copyWith(imageUrl: url);
+  //   }));
+  // }
+
+  Future<List<Venue>> _withPhotoUrls(List<Venue> venueList) async {
+    return Future.wait(venueList.map((v) async {
+      // if photoUrl already set or no photoPath available, skip
+      if (v.photoUrl != null || v.photoPath == null) return v;
+      final url = await _storageServices.loadImageURL(v.photoPath);
+      if (url == null) return v;
+      return v.copyWith(photoUrl: url);
     }));
   }
 
@@ -62,7 +76,8 @@ class VenuesController extends GetxController {
       final organisationId = _authController.organisationId!;
       print('Organisation ID in VenuesController: $organisationId');
       final allVenues = await _firestoreServices.getVenues(organisationId);
-      venues.assignAll(allVenues);
+      final withUrls = await _withPhotoUrls(allVenues);
+      venues.assignAll(withUrls);
       isLoading.value = false;
     } catch (e) {
       isLoading.value = false;
@@ -94,8 +109,11 @@ class VenuesController extends GetxController {
   }
 
   /// Adds a new venue to the observable list
-  void addVenue(Venue venue) {
-    venues.add(venue);
+  Future<void> addVenue(Venue venue) async {
+    // _withPhotoUrls returns copies with photoUrl set when possible.
+    final updatedList = await _withPhotoUrls([venue]);
+    final updated = updatedList.isNotEmpty ? updatedList.first : venue;
+    venues.add(updated);
   }
 
   /// Deletes a venue from Firestore and updates local cache
@@ -114,9 +132,12 @@ class VenuesController extends GetxController {
 
       // If you keep other local lists of menu items elsewhere, remove from them too.
       // print('Menu item $menuItemId deleted and cache cleared.');
+      snackbarMessageController
+          .showSuccessMessage('Venue deleted successfully!');
       return true;
     } catch (e) {
       // print('Failed to remove menu item $menuItemId: $e');
+      snackbarMessageController.showErrorMessage('Failed to delete venue: $e');
       return false;
     } finally {
       hideLoadingIndicator();

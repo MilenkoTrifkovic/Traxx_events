@@ -10,7 +10,7 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/widgets/buttons/styled_back_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
@@ -18,11 +18,15 @@ class CoverImage extends StatelessWidget {
   final EventListController? eventListController;
   final Event event;
   final bool showAdminOptions; // Whether to show edit/delete buttons
-  const CoverImage(
+  CoverImage(
       {super.key,
       required this.eventListController,
       required this.event,
       required this.showAdminOptions});
+
+  // Single lookup for snackbar controller in this stateless widget
+  final SnackbarMessageController snackbarController =
+      Get.find<SnackbarMessageController>();
 
   @override
   Widget build(BuildContext context) {
@@ -96,16 +100,14 @@ class CoverImage extends StatelessWidget {
                         "Are you sure you want to delete this event? \nThis action cannot be undone.",
                         () async {
                           try {
-                            await eventListController!
-                                .deleteEvent(); ///////////////////////////////////////////////////
-                            if (!context.mounted) return;
-                            SnackBarUtils.showSuccess(
-                                context, 'Event deleted successfully');
+                                        await eventListController!
+                                            .deleteEvent(); ///////////////////////////////////////////////////
+                          if (!context.mounted) return;
+                          snackbarController.showSuccessMessage('Event deleted successfully');
                             popRoute(context);
                           } on Exception catch (e) {
                             print('Error deleting event: $e');
-                            SnackBarUtils.showError(
-                                context, 'Event deletion failed. Try again');
+                          snackbarController.showErrorMessage('Event deletion failed. Try again');
                           }
                         },
                       );

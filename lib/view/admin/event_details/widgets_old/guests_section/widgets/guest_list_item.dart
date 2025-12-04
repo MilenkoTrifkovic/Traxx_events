@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/extensions/string_extensions.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
@@ -40,6 +40,13 @@ class GuestListItem extends StatefulWidget {
 class _GuestListItemState extends State<GuestListItem> {
   final SetGuestsController setGuestsController =
       Get.find<SetGuestsController>();
+  late final SnackbarMessageController snackbarController;
+
+  @override
+  void initState() {
+    super.initState();
+    snackbarController = Get.find<SnackbarMessageController>();
+  }
 
   String? fieldValidation(String message, String? value) {
     if (value == null || value.isEmpty) {
@@ -120,8 +127,8 @@ class _GuestListItemState extends State<GuestListItem> {
                                         .inviteGuest(widget.item);
                                     setState(() {});
                                   } catch (e) {
-                                    SnackBarUtils.showError(
-                                        context, 'Invitation failed');
+                                    snackbarController.showErrorMessage(
+                                        'Invitation failed');
                                   }
                                 },
                           text: widget.item.invited ? 'Invited' : 'Invite',
