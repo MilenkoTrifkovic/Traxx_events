@@ -16,7 +16,7 @@ class QuestionsManagementHeader extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         AppText.styledHeadingLarge(context, 'Demographic Questions'),
-        Row(
+        /*  Row(
           children: [
             AppPrimaryButton(
               icon: Icons.add,
@@ -32,7 +32,7 @@ class QuestionsManagementHeader extends StatelessWidget {
               },
             ),
           ],
-        )
+        ) */
       ],
     );
   }

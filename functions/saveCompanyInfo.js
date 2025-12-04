@@ -72,11 +72,25 @@ export const saveCompanyInfo = onCall(async (request) => {
     };
 
     const result = await db.runTransaction(async (transaction) => {
+      // organisations/{autoId}
       const organisationRef = db.collection("organisations").doc();
       transaction.set(organisationRef, organisationData);
 
+      // roles/{autoId}
       const roleRef = db.collection("roles").doc();
       transaction.set(roleRef, roleData);
+
+      // 🔥 NEW: update users/{userId} with organisationId + role
+      const userRef = db.collection("users").doc(userId);
+      transaction.set(
+        userRef,
+        {
+          organisationId: organisationId, // 👈 this is what your AuthController reads
+          role: "admin",
+          modifiedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       return {
         organisationDocId: organisationRef.id,
@@ -96,6 +110,7 @@ export const saveCompanyInfo = onCall(async (request) => {
       roleDocumentId: result.roleDocId,
       organisationId,
       roleId,
+      role: "admin",
     };
   } catch (error) {
     logger.error("Error saving company info:", error);
@@ -110,3 +125,6 @@ export const saveCompanyInfo = onCall(async (request) => {
     );
   }
 });
+
+
+

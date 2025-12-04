@@ -42,6 +42,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
   String? _activeQuestionId;
   final Map<String, Timer> _debounceTimers = {};
+  final Map<String, Timer> _optionDebounceTimers = {};
   bool _pendingFocusNew = false;
   bool _isProcessing = false;
 
@@ -62,6 +63,9 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     for (final t in _debounceTimers.values) {
       t.cancel();
     }
+    for (final t in _optionDebounceTimers.values) {
+      t.cancel();
+    }
     super.dispose();
   }
 
@@ -70,6 +74,16 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     setState(() => _activeQuestionId = id);
   }
 
+  /*  void _debouncedUpdateQuestion(
+    String questionDocId,
+    Map<String, dynamic> data,
+  ) {
+    final key = questionDocId;
+    _debounceTimers[key]?.cancel();
+    _debounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
+      _controller.updateQuestion(questionDocId: questionDocId, data: data);
+    });
+  } */
   void _debouncedUpdateQuestion(
     String questionDocId,
     Map<String, dynamic> data,
@@ -78,6 +92,17 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     _debounceTimers[key]?.cancel();
     _debounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
       _controller.updateQuestion(questionDocId: questionDocId, data: data);
+    });
+  }
+
+  void _debouncedUpdateOption(
+    String optionDocId,
+    Map<String, dynamic> data,
+  ) {
+    final key = 'opt_$optionDocId';
+    _optionDebounceTimers[key]?.cancel();
+    _optionDebounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
+      _controller.updateOption(optionDocId: optionDocId, data: data);
     });
   }
 
@@ -524,6 +549,13 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                 onRequiredChanged: (required) =>
                     _updateRequired(item.question.id, required),
                 onDelete: () => _confirmDeleteQuestion(item),
+
+                // 🔹 NEW: update option labels
+                onOptionLabelChanged: (opt, newLabel) {
+                  // Optional: ignore if there are no real options in Firestore
+                  if (opt.id.isEmpty) return;
+                  _debouncedUpdateOption(opt.id, {'label': newLabel});
+                },
               ),
             );
           },
@@ -634,6 +666,10 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
   final VoidCallback onDelete;
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
+  // 🔹 NEW:
+  final void Function(DemographicQuestionOption opt, String newLabel)?
+      onOptionLabelChanged;
+
   const _GoogleFormsQuestionCard({
     required this.index,
     required this.item,
@@ -644,6 +680,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
     required this.onRequiredChanged,
     required this.onDelete,
     required this.onRemoveOption,
+    this.onOptionLabelChanged, // NEW
   });
 
   @override
@@ -747,6 +784,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
               options: item.options,
               isActive: isActive,
               onRemoveOption: onRemoveOption,
+              onOptionLabelChanged: onOptionLabelChanged,
             ),
 
             const SizedBox(height: 12),
@@ -879,12 +917,15 @@ class _QuestionBody extends StatelessWidget {
   final List<DemographicQuestionOption> options;
   final bool isActive;
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
+  final void Function(DemographicQuestionOption opt, String newLabel)?
+      onOptionLabelChanged;
 
   const _QuestionBody({
     required this.type,
     required this.options,
     required this.isActive,
     this.onRemoveOption,
+    this.onOptionLabelChanged,
   });
 
   @override
@@ -897,6 +938,7 @@ class _QuestionBody extends StatelessWidget {
       case 'checkboxes':
         return _choiceList(isCheckbox: true);
       case 'dropdown':
+        // ✅ Only show the dropdown – no options listed below
         return _dropdownPreview();
       case 'multiple_choice':
       default:
@@ -906,7 +948,7 @@ class _QuestionBody extends StatelessWidget {
 
   Widget _shortAnswer() {
     return Padding(
-      padding: EdgeInsets.only(top: 2, bottom: 4),
+      padding: const EdgeInsets.only(top: 2, bottom: 4),
       child: Text(
         'Short answer text',
         style: GoogleFonts.poppins(
@@ -920,7 +962,7 @@ class _QuestionBody extends StatelessWidget {
 
   Widget _paragraph() {
     return Padding(
-      padding: EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
       child: Text(
         'Long answer text',
         style: GoogleFonts.poppins(
@@ -932,12 +974,16 @@ class _QuestionBody extends StatelessWidget {
     );
   }
 
+  /// Multiple choice / checkbox options list
   Widget _choiceList({required bool isCheckbox}) {
-    final baseOptions = options.isNotEmpty
+    final hasRealOptions = options.isNotEmpty;
+
+    final baseOptions = hasRealOptions
         ? options
         : [
+            // Preview-only fallback when there are no real options
             DemographicQuestionOption(
-              id: '1',
+              id: '',
               questionId: '',
               label: 'Option 1',
               value: 'option_1',
@@ -955,7 +1001,7 @@ class _QuestionBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SizedBox(
-              height: 32, // slightly tighter so icon and text align better
+              height: 32,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -974,9 +1020,13 @@ class _QuestionBody extends StatelessWidget {
                       textAlignVertical: TextAlignVertical.center,
                       decoration: const InputDecoration(
                         isDense: true,
-                        // vertical padding keeps text visually centered with the icon
                         contentPadding: EdgeInsets.symmetric(vertical: 4),
+
+                        // ❌ No box / border in normal state
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+
+                        // ✅ Purple underline only while editing (focused)
                         focusedBorder: UnderlineInputBorder(
                           borderSide: BorderSide(
                             color: kAccent,
@@ -989,9 +1039,18 @@ class _QuestionBody extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: kTextDark,
                       ),
+                      onChanged: (value) {
+                        if (!isActive ||
+                            !hasRealOptions ||
+                            onOptionLabelChanged == null ||
+                            opt.id.isEmpty) {
+                          return;
+                        }
+                        onOptionLabelChanged!(opt, value);
+                      },
                     ),
                   ),
-                  if (isActive && onRemoveOption != null) ...[
+                  if (isActive && hasRealOptions && onRemoveOption != null) ...[
                     const SizedBox(width: 4),
                     GestureDetector(
                       onTap: () => onRemoveOption!(opt),
@@ -1010,28 +1069,48 @@ class _QuestionBody extends StatelessWidget {
     );
   }
 
+  /// Dropdown preview – real clickable dropdown using the options
   Widget _dropdownPreview() {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: kBorder),
+    final labels = options.isNotEmpty
+        ? options.map((o) => o.label).toList()
+        : <String>['Option 1'];
+
+    return DropdownButtonFormField<String>(
+      isExpanded: true,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: kBorder),
+        ),
       ),
-      child: Row(
-        children: [
-          Text(
-            options.isNotEmpty ? options.first.label : 'Option 1',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: kTextDark,
+      hint: Text(
+        'Choose an option',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey,
+        ),
+      ),
+      items: [
+        for (final label in labels)
+          DropdownMenuItem<String>(
+            value: label,
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: kTextDark,
+              ),
             ),
           ),
-          const Spacer(),
-          const Icon(Icons.arrow_drop_down),
-        ],
-      ),
+      ],
+      // Preview only – selection isn't persisted here
+      onChanged: isActive ? (_) {} : null,
     );
   }
 }

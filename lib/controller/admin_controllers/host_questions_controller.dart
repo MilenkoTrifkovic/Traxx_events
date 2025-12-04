@@ -57,6 +57,23 @@ class HostQuestionsController {
     });
   }
 
+  Future<void> updateOption({
+    required String optionDocId,
+    required Map<String, dynamic> data,
+  }) async {
+    if (_uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final docRef =
+        _db.collection('demographicQuestionOptions').doc(optionDocId);
+
+    await docRef.update({
+      ...data,
+      'modifiedDate': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> deleteOption(String optionId) async {
     if (_uid == null) {
       throw Exception('User not authenticated');

@@ -84,61 +84,22 @@ GoRouter buildRouter() {
           return null;
         },
         path: AppRoute.emailVerification.path,
-        // builder: (context, state) => EmailValidationView(),
-        builder: (context, state) {
-          // final User? currentUser = FirebaseAuth.instance.currentUser;
-          // if (currentUser != null && currentUser.emailVerified) {
-          //   // If user is authenticated, redirect to host events
-          //   WidgetsBinding.instance.addPostFrameCallback((_) {
-          //     pushAndRemoveAllRoute(AppRoute.hostEvents, context);
-          //   });
-          // }
-          // if (currentUser == null) {
-          //   // If user is authenticated, redirect to host events
-          //   WidgetsBinding.instance.addPostFrameCallback((_) {
-          //     pushAndRemoveAllRoute(AppRoute.welcome, context);
-          //   });
-          // }
-          return EmailVerificationView();
-        },
+        builder: (context, state) => EmailVerificationView(),
       ),
-      // GoRoute(
-      //   path: AppRoute.signup.path,
-      //   builder: (context, state) => SignupView(),
-      // ),
-      // GoRoute(
-      //   path: AppRoute.aboutView.path,
-      //   builder: (context, state) => AboutView(),
-      // ),
-      // GoRoute(
-      //   path: AppRoute.contactView.path,
-      //   builder: (context, state) => ContactView(),
-      // ),
-      /* GoRoute(
-        redirect: (context, state) {
-          if (!authController.isAuthenticated) {
-            return AppRoute.welcome.path;
-          }
-          if (!authController.isAuthenticatedAndVerified) {
-            return AppRoute.emailVerification.path;
-          }
-          if (authController.companyInfoExists) {
-            return AppRoute.hostEvents.path;
-          }
-          if (!authController.companyInfoExists) {
-            return AppRoute.hostOrganisationInfoForm.path;
-          }
-          return null;
-        },
-        path: AppRoute.hostOrganisationInfoForm.path,
-        builder: (context, state) => const OrganisationInfoPopupView(),
-      ), */
       GoRoute(
         redirect: (context, state) {
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
           }
-          // No email verification or role gating anymore
+          if (!authController.isAuthenticatedAndVerified) {
+            // Must verify email first
+            return AppRoute.emailVerification.path;
+          }
+          if (authController.companyInfoExists) {
+            // Org already exists → go straight to host events
+            return AppRoute.hostEvents.path;
+          }
+          // Otherwise show the organisation form
           return null;
         },
         path: AppRoute.hostOrganisationInfoForm.path,
@@ -152,7 +113,18 @@ GoRouter buildRouter() {
             print('Redirecting to welcome');
             return AppRoute.welcome.path;
           }
-          // No email verification or role/organisation gating anymore
+
+          if (!authController.isAuthenticatedAndVerified) {
+            print('Redirecting to email verification');
+            return AppRoute.emailVerification.path;
+          }
+
+          if (!authController.companyInfoExists) {
+            print('Redirecting to organisation info form');
+            return AppRoute.hostOrganisationInfoForm.path;
+          }
+
+          // Authenticated, verified, and has organisation → can stay in host shell
           return null;
         },
         navigatorKey: hostNavigatorKey,
@@ -249,9 +221,9 @@ GoRouter buildRouter() {
             },
           ),
           /*  GoRoute(
-            path: AppRoute.hostQuestions.path,
-            builder: (context, state) => HostQuestionsScreen(),
-          ), */
+              path: AppRoute.hostQuestions.path,
+              builder: (context, state) => HostQuestionsScreen(),
+            ), */
           // 🔹 NEW: Question Sets list page
           GoRoute(
             path: AppRoute.hostQuestionSets.path,

@@ -135,17 +135,15 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
     final authController = Get.find<AuthController>();
 
     try {
-      // Show loading indicator
       showLoadingIndicator(status: 'Saving company info...');
       print('🏁 Saving organisation through cloud function...');
 
       // Save organisation through cloud function (or attach to existing)
       await controller.saveOrganisation();
 
-      // 🔄 IMPORTANT: refresh user profile so router sees new org + role
+      // 🔄 refresh user profile so router sees new org + role
       await authController.loadUserProfile();
 
-      // Hide loading indicator
       hideLoadingIndicator();
 
       // Now navigate – router will see companyInfoExists == true

@@ -21,7 +21,7 @@ export const signupAdmin = onCall(async (request) => {
   const email = (data.email || "").toString().trim();
   const password = (data.password || "").toString();
 
-  // ── Basic validation ────────────────────────────────────────────────────────
+  // ── Basic validation ───────────────────────────────────────────────────────
   if (!email || !password) {
     throw new HttpsError(
       "invalid-argument",
@@ -52,7 +52,6 @@ export const signupAdmin = onCall(async (request) => {
         disabled: false,
       });
     } catch (err) {
-      // If the email already exists in Firebase Auth
       if (err?.code === "auth/email-already-exists") {
         throw new HttpsError(
           "already-exists",
@@ -60,7 +59,6 @@ export const signupAdmin = onCall(async (request) => {
         );
       }
 
-    //   logger.error("Error creating user in Firebase Auth:", err);
       throw new HttpsError(
         "internal",
         err?.message || "Auth error while creating user."
@@ -75,6 +73,13 @@ export const signupAdmin = onCall(async (request) => {
         isDisabled: false,
         createdAt: FieldValue.serverTimestamp(),
         modifiedAt: FieldValue.serverTimestamp(),
+
+        // 🔥 Everyone who signs up is an admin by default
+        role: "admin",
+
+        // organisationId is not known yet. It will be
+        // filled by saveCompanyInfo later.
+        organisationId: null,
       },
       { merge: true }
     );
@@ -83,17 +88,17 @@ export const signupAdmin = onCall(async (request) => {
     return {
       uid: userRecord.uid,
       email,
+      role: "admin",
+      organisationId: null,
     };
   } catch (err) {
     if (err instanceof HttpsError) {
-      // Let known HttpsErrors bubble up to the client
       throw err;
     }
 
-    // logger.error("Unexpected error in signupAdmin:", err);
     throw new HttpsError(
       "internal",
-      "Failed to create account. Please try again."
+      err?.message || "Failed to create account. Please try again."
     );
   }
 });
