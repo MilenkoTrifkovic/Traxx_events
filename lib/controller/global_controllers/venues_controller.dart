@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -10,6 +12,8 @@ class VenuesController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final AuthController _authController = Get.find<AuthController>();
   final StorageServices _storageServices = Get.find<StorageServices>();
+  final SnackbarMessageController snackbarMessageController =
+      Get.find<SnackbarMessageController>();
 
   // Observable list of venues
   final venues = <Venue>[].obs;
@@ -58,7 +62,6 @@ class VenuesController extends GetxController {
       // if photoUrl already set or no photoPath available, skip
       if (v.photoUrl != null || v.photoPath == null) return v;
       final url = await _storageServices.loadImageURL(v.photoPath);
-      print('Loaded photo URL for venue ${v.venueID}: $url');
       if (url == null) return v;
       return v.copyWith(photoUrl: url);
     }));
@@ -129,9 +132,12 @@ class VenuesController extends GetxController {
 
       // If you keep other local lists of menu items elsewhere, remove from them too.
       // print('Menu item $menuItemId deleted and cache cleared.');
+      snackbarMessageController
+          .showSuccessMessage('Venue deleted successfully!');
       return true;
     } catch (e) {
       // print('Failed to remove menu item $menuItemId: $e');
+      snackbarMessageController.showErrorMessage('Failed to delete venue: $e');
       return false;
     } finally {
       hideLoadingIndicator();

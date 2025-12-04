@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_header.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_form.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_toggle.dart';
@@ -23,6 +23,7 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final AuthController authController = Get.find<AuthController>();
+  late final SnackbarMessageController snackbarController;
 
   @override
   void dispose() {
@@ -30,6 +31,12 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    snackbarController = Get.find<SnackbarMessageController>();
   }
 
   Future<void> _handleEmailPasswordAuth(SignInController controller) async {
@@ -56,10 +63,10 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   @override
   Widget build(BuildContext context) {
     // Initialize the controller
-    final controller = Get.put(SignInController());
+  final controller = Get.put(SignInController());
 
-    // Setup listeners for messages and navigation
-    _setupListeners(controller, context);
+  // Setup listeners for messages and navigation
+  _setupListeners(controller, context);
 
     return SingleChildScrollView(
       child: SizedBox(
@@ -102,11 +109,12 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
 
   /// Setup all GetX listeners for messages and navigation
   void _setupListeners(SignInController controller, BuildContext context) {
+  // use snackbarController initialized in initState
     // Watch for success messages
     ever(controller.successMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showSuccess(context, message);
+          snackbarController.showSuccessMessage(message);
           controller.clearSuccessMessage();
         });
       }
@@ -116,7 +124,7 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     ever(controller.errorMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showError(context, message);
+          snackbarController.showErrorMessage(message);
           controller.clearErrorMessage();
         });
       }

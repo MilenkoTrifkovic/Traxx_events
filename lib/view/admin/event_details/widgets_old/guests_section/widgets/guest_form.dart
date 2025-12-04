@@ -11,7 +11,7 @@ import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/validation.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 
 /// A form widget for adding new guests to the event.
@@ -51,10 +51,12 @@ class _GuestFormState extends State<GuestForm> {
 
   final SetGuestsController setGuestsController =
       Get.find<SetGuestsController>();
+  late final SnackbarMessageController snackbarController;
 
   @override
   void initState() {
     super.initState();
+    snackbarController = Get.find<SnackbarMessageController>();
     // Initialize controllers
     emailController = TextEditingController();
     nameController = TextEditingController();
@@ -101,7 +103,7 @@ class _GuestFormState extends State<GuestForm> {
     }
     final companions = int.tryParse(companionsController.text);
     if (companions == null) {
-      SnackBarUtils.showError(context, 'Please enter a valid number');
+      snackbarController.showErrorMessage('Please enter a valid number');
       return;
     }
     try {
@@ -123,12 +125,12 @@ class _GuestFormState extends State<GuestForm> {
         );
       }
     } on EmailInUseException catch (e) {
-      SnackBarUtils.showError(context, e.message);
+      snackbarController.showErrorMessage(e.message);
     } on GuestLimitExceededException catch (e) {
-      SnackBarUtils.showError(context, e.message);
+      snackbarController.showErrorMessage(e.message);
     } catch (e) {
       final msg = e.toString().replaceFirst('Exception: ', '');
-      SnackBarUtils.showError(context, msg);
+      snackbarController.showErrorMessage(msg);
     }
   }
 

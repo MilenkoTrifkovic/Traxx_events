@@ -3,11 +3,12 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
+import 'package:traxx_wepapp/main.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
-import 'package:traxx_wepapp/utils/loader.dart';
 
 /// Controller for managing venue operations including creation, deletion, and form validation.
 class VenueScreenController extends GetxController {
@@ -15,6 +16,7 @@ class VenueScreenController extends GetxController {
   final ImageServices _imageServices = ImageServices();
   final StorageServices _storageServices = Get.find<StorageServices>();
   final AuthController _authController = Get.find<AuthController>();
+  final VenuesController venuesController = Get.find<VenuesController>();
 
   // Loading states
   final isLoading = false.obs;
@@ -143,8 +145,10 @@ class VenueScreenController extends GetxController {
 
       // Clear form
       clearForm();
+      snackbarMessageController
+          .showSuccessMessage('Venue "$name" created successfully!');
+      // _showSuccessMessage('Venue "$name" created successfully!');
 
-      _showSuccessMessage('Venue "$name" created successfully!');
       return venue.copyWith(venueID: venueId);
     } catch (e) {
       _showErrorMessage('Failed to create venue: $e');
@@ -271,6 +275,7 @@ class VenueScreenController extends GetxController {
             ? descriptionController.text
             : null,
       );
+      venuesController.addVenue(venue);
       return venue;
     }
     throw Exception('Form validation failed');

@@ -28,6 +28,9 @@ import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'firebase_options.dart';
 
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
 //TODO
 //after event is created, navigation to events doesn't work properly
 //  Get.lazyPut<EventListController>(() => EventListController(), fenix: true); should not be here
@@ -72,28 +75,30 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key});
+  
   @override
   Widget build(BuildContext context) {
     final snackbarController = Get.put(SnackbarMessageController());
 
     return MaterialApp.router(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       // builder: EasyLoading.init(),
       builder: (context, child) {
         // GLOBAL LISTENER
-        ever(snackbarController.message, (msg) {
-          if (msg == null) return;
+        // ever(snackbarController.message, (msg) {
+        //   if (msg == null) return;
 
-          if (msg.type == SnackBarType.success) {
-            SnackBarUtils.showSuccess(context, msg.message);
-          } else {
-            SnackBarUtils.showError(context, msg.message);
-          }
+        //   if (msg.type == SnackBarType.success) {
+        //     SnackBarUtils.showSuccess(context, msg.message);
+        //   } else {
+        //     SnackBarUtils.showError(context, msg.message);
+        //   }
 
-          snackbarController.clearMessage();
-        });
+        //   snackbarController.clearMessage();
+        // });
 
         return EasyLoading.init()(context, child);
       },

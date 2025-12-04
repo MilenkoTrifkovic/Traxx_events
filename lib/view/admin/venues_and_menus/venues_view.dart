@@ -85,12 +85,10 @@ class _VenuesViewState extends State<VenuesView> {
                     try {
                       showLoadingIndicator();
                       final createdVenue = await controller.submitForm();
-                      venuesController.addVenue(createdVenue);
-                      snackbarMessageController
-                          .showSuccessMessage('Venue created successfully.');
+                      // venuesController.addVenue(createdVenue);
                     } on Exception catch (e) {
-                      snackbarMessageController
-                          .showErrorMessage('Error creating venue');
+                      // snackbarMessageController
+                      //     .showErrorMessage('Error creating venue');
                     } finally {
                       hideLoadingIndicator();
                     }
