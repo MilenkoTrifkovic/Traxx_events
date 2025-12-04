@@ -3,7 +3,7 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 
 class AppText {
-  static Widget styledMetaSmall(BuildContext context, String text,
+  static Widget styledMetaSmall(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -27,7 +27,7 @@ class AppText {
     );
   }
 
-  static Widget styledHeadingMedium(BuildContext context, String text,
+  static Widget styledHeadingMedium(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -53,7 +53,7 @@ class AppText {
     );
   }
 
-  static Widget styledHeadingLarge(BuildContext context, String text,
+  static Widget styledHeadingLarge(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -78,7 +78,7 @@ class AppText {
     );
   }
 
-  static Widget styledHeadingSmall(BuildContext context, String text,
+  static Widget styledHeadingSmall(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -104,7 +104,7 @@ class AppText {
   }
 
   // Body text styles
-  static Widget styledBodyLarge(BuildContext context, String text,
+  static Widget styledBodyLarge(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -125,11 +125,11 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           height: Constants.bodyLineHeight,
-          color: color ?? Theme.of(context).colorScheme.onSurface),
+          color: color ?? AppColors.black),
     );
   }
 
-  static Widget styledBodyMedium(BuildContext context, String text,
+  static Widget styledBodyMedium(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -146,7 +146,7 @@ class AppText {
         fontWeight: weight,
         fontStyle: style,
         height: Constants.bodyLineHeight,
-        color: color ?? Theme.of(context).colorScheme.onSurface);
+        color: color ?? AppColors.black);
 
     return isSelectable
         ? SelectableText(
@@ -164,7 +164,7 @@ class AppText {
           );
   }
 
-  static Widget styledBodySmall(BuildContext context, String text,
+  static Widget styledBodySmall(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -185,12 +185,12 @@ class AppText {
           fontWeight: weight,
           fontStyle: style,
           height: Constants.bodyLineHeight,
-          color: color ?? Theme.of(context).colorScheme.onSurfaceVariant),
+          color: color ?? AppColors.black),
     );
   }
 
   // Label styles
-  static Widget styledLabelLarge(BuildContext context, String text,
+  static Widget styledLabelLarge(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -215,7 +215,7 @@ class AppText {
     );
   }
 
-  static Widget styledLabelMedium(BuildContext context, String text,
+  static Widget styledLabelMedium(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,
@@ -240,7 +240,7 @@ class AppText {
     );
   }
 
-  static Widget styledLabelSmall(BuildContext context, String text,
+  static Widget styledLabelSmall(BuildContext? context, String text,
       {Color? color,
       String family = Constants.font2,
       TextDecoration? decoration,

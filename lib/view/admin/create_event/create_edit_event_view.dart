@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/admin/create_event/sections/cover_image_upload.dart';
 import 'package:traxx_wepapp/view/admin/create_event/widgets/map_location_picker.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
@@ -51,6 +51,7 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
 
   /// Controller for handling event creation and persistence
   late final CreateEditEventController createEventController;
+  late final SnackbarMessageController snackbarController;
 
   /// Keys for accessing and validating individual form fields
   /// Used for field-specific validation and auto-scrolling to invalid fields
@@ -83,6 +84,7 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
   @override
   void initState() {
     hostController = Get.put(HostController());
+    snackbarController = Get.find<SnackbarMessageController>();
     isEdit = hostController.isEditingEvent.value;
     if (isEdit) {
       event = hostController.selectedEvent.value;
@@ -178,11 +180,11 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
       // pushAndRemoveAllRoute(AppRoute.eventDetails, context,
       //     extra: savedEvent, urlParam: savedEvent.id);
       if (!mounted) return;
-      SnackBarUtils.showSuccess(context, 'Event is created successfully!');
+      snackbarController.showSuccessMessage('Event is created successfully!');
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
-      SnackBarUtils.showError(context, message);
+      snackbarController.showErrorMessage(message);
     } finally {
       hideLoadingIndicator();
     }
@@ -210,11 +212,11 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
       if (!mounted) return;
       hostController.toggleEditingEvent(false);
       if (!mounted) return;
-      SnackBarUtils.showSuccess(context, 'Event is updated successfully!');
+      snackbarController.showSuccessMessage('Event is updated successfully!');
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
-      SnackBarUtils.showError(context, message);
+      snackbarController.showErrorMessage(message);
     } finally {
       hideLoadingIndicator();
     }

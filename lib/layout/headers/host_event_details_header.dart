@@ -7,7 +7,7 @@ import 'package:traxx_wepapp/layout/headers/widgets/header_back_button.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
@@ -16,6 +16,8 @@ class HostEventDetailsHeader extends StatelessWidget {
   HostEventDetailsHeader({super.key});
   final EventListController eventListController =
       Get.find<EventListController>();
+  final SnackbarMessageController snackbarController =
+      Get.find<SnackbarMessageController>();
   @override
   Widget build(BuildContext context) {
     bool idDesktop = ScreenSize.isDesktop(context);
@@ -81,13 +83,13 @@ class HostEventDetailsHeader extends StatelessWidget {
                             await eventListController
                                 .deleteEvent(); ///////////////////////////////////////////////////
                             if (!context.mounted) return;
-                            SnackBarUtils.showSuccess(
-                                context, 'Event deleted successfully');
+              snackbarController.showSuccessMessage(
+                'Event deleted successfully');
                             popRoute(context);
                           } on Exception catch (e) {
                             print('Error deleting event: $e');
-                            SnackBarUtils.showError(
-                                context, 'Event deletion failed. Try again');
+              snackbarController.showErrorMessage(
+                'Event deletion failed. Try again');
                           }
                         },
                       );

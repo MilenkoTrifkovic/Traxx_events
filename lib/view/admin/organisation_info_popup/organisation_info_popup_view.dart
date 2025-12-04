@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/organisation_left_section.dart';
@@ -27,10 +27,13 @@ class _OrganisationInfoPopupViewState extends State<OrganisationInfoPopupView> {
     // Get or create the controller instance - this ensures we get the same instance everywhere
     controller = Get.put(OrganisationInfoController(), permanent: true);
 
+    // Initialize snackbar controller once in initState
+    final snackbarController = Get.find<SnackbarMessageController>();
+
     // Watch for error messages and show snackbar
     ever(controller.errorMessage, (String? errorMessage) {
       if (errorMessage != null && errorMessage.isNotEmpty && mounted) {
-        SnackBarUtils.showError(context, errorMessage);
+        snackbarController.showErrorMessage(errorMessage);
         // Clear the error message after showing it
         controller.clearErrorMessage();
       }

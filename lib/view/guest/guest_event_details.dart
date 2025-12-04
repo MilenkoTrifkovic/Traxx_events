@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/controller/guest_controller.dart/guest_controller.d
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/common/event_details/widgets/cover_image.dart';
 import 'package:traxx_wepapp/view/common/event_details/widgets/event%20_info_section.dart';
 import 'package:traxx_wepapp/view/guest/respond_to_invite_button.dart';
@@ -25,9 +25,11 @@ class _GuestEventDetailsState extends State<GuestEventDetails> {
   late GuestController guestController;
   late String eventId;
   EventController eventController = Get.find<EventController>();
+  late final SnackbarMessageController snackbarController;
   @override
   void initState() {
     super.initState();
+    snackbarController = Get.find<SnackbarMessageController>();
     eventId = eventController.selectedEvent.value!.eventId!;
     _guestControllerPromise = Get.putAsync(
       //putAsync to trigger onInit() in Controllers mixin
@@ -39,7 +41,7 @@ class _GuestEventDetailsState extends State<GuestEventDetails> {
             guestController.errorMessage,
             (String message) {
               if (message.isNotEmpty) {
-                SnackBarUtils.showError(context, message);
+                snackbarController.showErrorMessage(message);
                 guestController.errorMessage.value = ''; // Reset
               }
             },

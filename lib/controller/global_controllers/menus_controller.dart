@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 
 class MenusController extends GetxController {
@@ -39,6 +40,22 @@ class MenusController extends GetxController {
     // Cache into the single observable list used throughout the app
     menuItems.assignAll(updated);
     return updated;
+  }
+  void sortMenus(SortType sortType) {
+    switch (sortType) {
+      case SortType.nameAZ:
+        filteredMenuItems.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case SortType.nameZA:
+        filteredMenuItems.sort((a, b) => b.name.compareTo(a.name));
+        break;
+      case SortType.dateNewest:
+        // TODO: Handle this case.
+        break;
+      case SortType.dateOldest:
+        // TODO: Handle this case.
+        break;
+    }
   }
 
   Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {

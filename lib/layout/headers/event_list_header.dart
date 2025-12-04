@@ -4,13 +4,9 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
 import 'package:traxx_wepapp/view/admin/create_event/create_event_popup_view.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
-import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
 class EventListHeader extends StatelessWidget {
   EventListHeader({super.key});

@@ -4,6 +4,7 @@ import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
+import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
 class FourthSection extends StatelessWidget {
   final Venue venue;
@@ -23,7 +24,14 @@ class FourthSection extends StatelessWidget {
         Padding(
             padding: AppPadding.right(context, paddingType: Sizes.xs),
             child: IconButton(
-              onPressed: onPressed,
+              onPressed: () {
+                Dialogs.showConfirmationDialog(
+                    context, 'Are you sure you want to delete this venue?', () {
+                  if (onPressed != null) {
+                    onPressed!();
+                  }
+                });
+              },
               icon: Icon(Icons.delete, color: AppColors.inputError),
             ))
       ],

@@ -26,7 +26,7 @@ class FirstSectionVenues extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.red,
+                color: AppColors.textMuted,
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -34,45 +34,47 @@ class FirstSectionVenues extends StatelessWidget {
             child: ClipRRect(
               borderRadius:
                   BorderRadius.circular(6), // 8 - 2 (border width) = 6
-              child: venue.venueID == null
-                  ? _buildPlaceholder(context)
-                  // ? Image.network(
-                  //     event.coverImageDownloadUrl!,
-                  //     width: 44, // 48 - 4 (border width on both sides)
-                  //     height: 44,
-                  //     fit: BoxFit.cover,
-                  //     errorBuilder: (context, error, stackTrace) =>
-                  //         _buildPlaceholder(context),
-                  // )
+              child: venue.photoUrl != null
+                  // ? _buildPlaceholder(context)
+                  ? Image.network(
+                      venue.photoUrl!,
+                      width: 44, // 48 - 4 (border width on both sides)
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildPlaceholder(context),
+                  )
                   : _buildPlaceholder(context),
             ),
           ),
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppText.styledBodyLarge(
-                  context,
-                  venue.name,
-                  weight: FontWeight.bold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // AppSpacing.horizontalXxs(context),
-                AppText.styledBodyMedium(
-                  context,
-                  color: AppColors.textMuted,
-                  'Placeholder',
-                  weight: AppFontWeight.semiBold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                //status
-                // AppText.styledBodySmall(
-                //     context, event.status.toLowerCase())
-              ],
+          Expanded(
+            child: Padding(
+              padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppText.styledBodyLarge(
+                    context,
+                    venue.name,
+                    weight: FontWeight.bold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // AppSpacing.horizontalXxs(context),
+                  AppText.styledBodyMedium(
+                    context,
+                    color: AppColors.textMuted,
+                    venue.description ?? '',
+                    weight: AppFontWeight.semiBold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  //status
+                  // AppText.styledBodySmall(
+                  //     context, event.status.toLowerCase())
+                ],
+              ),
             ),
           ),
         ],
