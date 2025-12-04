@@ -31,22 +31,33 @@ class AuthServices {
     required String password,
   }) async {
     try {
-      print('Services: Creating admin user via Firebase Auth only');
+      print('Services: Creating admin user');
 
-      // 1️⃣ Create the Auth user directly
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      final callable = FirebaseFunctions.instance.httpsCallable('signupAdmin');
+      final result = await callable.call({
+        'email': email,
+        'password': password,
+      });
+
+      print('Cloud function result: ${result.data}');
+
+      // Wait a bit for the user creation to propagate
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      return await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-
-      // 2️⃣ handleNewUser (Cloud Function) will run automatically
-      //    and create /users/{uid} with role="admin", organisationId=null.
-
-      // 3️⃣ Optionally re-fetch currentUser, but usually not needed
-      return userCredential;
+    } on FirebaseFunctionsException catch (e) {
+      // 👇 Add detailed logging here
+      print(
+          'signupAdmin failed: code=${e.code}, message=${e.message}, details=${e.details}');
+      throw _handleFunctionsException(e);
     } on FirebaseAuthException catch (e) {
+      print('Auth error after cloud function: ${e.code}, message=${e.message}');
       throw _handleAuthException(e);
     } catch (e) {
+      print('Unexpected error during account creation: $e');
       throw 'An unexpected error occurred during account creation: $e';
     }
   }
