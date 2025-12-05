@@ -106,76 +106,95 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     });
   }
 
-  Future<void> _removeOption(DemographicQuestionOption opt) async {
+  Future<void> _addOption(DemographicQuestionWithOptions item) async {
+    _setProcessing(true);
+    try {
+      // displayOrder: last + 1
+      final nextOrder =
+          item.options.isNotEmpty ? (item.options.last.displayOrder + 1) : 1;
+
+      final newOpt = await _controller.createOption(
+        questionId: item.question.questionId,
+        displayOrder: nextOrder,
+      );
+
+      if (!mounted) return;
+
+      // UI update is actually optional now because streamQuestions
+      // will push a new snapshot, but this makes it feel instant.
+      setState(() {
+        item.options.add(newOpt);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to add option: $e',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      _setProcessing(false);
+    }
+  }
+
+  Future<void> _removeOption(
+    DemographicQuestionWithOptions item,
+    DemographicQuestionOption opt,
+  ) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        bool isDeleting = false;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(
-                'Delete option?',
-                style: GoogleFonts.poppins(),
-              ),
-              content: Text(
-                'Do you want to delete "${opt.label}"?',
-                style: GoogleFonts.poppins(),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isDeleting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: Text('Cancel', style: GoogleFonts.poppins()),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                  ),
-                  onPressed: isDeleting
-                      ? null
-                      : () async {
-                          setState(() => isDeleting = true);
-                          try {
-                            await _controller.deleteOption(opt.id);
-                            Navigator.of(dialogContext).pop(true);
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Failed to delete option: $e',
-                                    style: GoogleFonts.poppins(),
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                            Navigator.of(dialogContext).pop(false);
-                          }
-                        },
-                  child: isDeleting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.red),
-                          ),
-                        )
-                      : Text('Delete', style: GoogleFonts.poppins()),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Delete option?',
+          style: GoogleFonts.poppins(),
+        ),
+        content: Text(
+          'Do you want to delete "${opt.label}"?',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Delete', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
     );
 
     if (confirmed != true) return;
+
+    _setProcessing(true);
+    try {
+      await _controller.deleteOption(opt.id);
+
+      if (!mounted) return;
+      setState(() {
+        item.options.removeWhere((o) => o.id == opt.id);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete option: $e',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      _setProcessing(false);
+    }
   }
 
   Future<void> _updateQuestionType(String questionId, String type) async {
@@ -334,6 +353,17 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                     children: [
                       _buildHeaderWithAddButton(context),
                       const SizedBox(height: 16),
+                      Center(
+                        child: Text(
+                          'Click on a question to edit',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       _buildQuestionsStream(),
                       const SizedBox(height: 40),
                     ],
@@ -538,7 +568,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                 index: index,
                 item: item,
                 isActive: item.question.id == _activeQuestionId,
-                onRemoveOption: (opt) => _removeOption(opt),
                 onTap: () => _setActiveQuestion(item.question.id),
                 onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
                   item.question.id,
@@ -550,9 +579,12 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                     _updateRequired(item.question.id, required),
                 onDelete: () => _confirmDeleteQuestion(item),
 
-                // 🔹 NEW: update option labels
+                // 🔹 Add / remove options
+                onRemoveOption: (opt) => _removeOption(item, opt),
+                onAddOption: () => _addOption(item),
+
+                // 🔹 Update option labels (debounced)
                 onOptionLabelChanged: (opt, newLabel) {
-                  // Optional: ignore if there are no real options in Firestore
                   if (opt.id.isEmpty) return;
                   _debouncedUpdateOption(opt.id, {'label': newLabel});
                 },
@@ -666,7 +698,8 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
   final VoidCallback onDelete;
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
-  // 🔹 NEW:
+  // NEW:
+  final VoidCallback? onAddOption;
   final void Function(DemographicQuestionOption opt, String newLabel)?
       onOptionLabelChanged;
 
@@ -680,7 +713,8 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
     required this.onRequiredChanged,
     required this.onDelete,
     required this.onRemoveOption,
-    this.onOptionLabelChanged, // NEW
+    this.onAddOption, // NEW
+    this.onOptionLabelChanged,
   });
 
   @override
@@ -785,6 +819,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
               isActive: isActive,
               onRemoveOption: onRemoveOption,
               onOptionLabelChanged: onOptionLabelChanged,
+              onAddOption: onAddOption,
             ),
 
             const SizedBox(height: 12),
@@ -919,14 +954,18 @@ class _QuestionBody extends StatelessWidget {
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
   final void Function(DemographicQuestionOption opt, String newLabel)?
       onOptionLabelChanged;
+  final VoidCallback? onAddOption;
 
-  const _QuestionBody({
+  _QuestionBody({
     required this.type,
     required this.options,
     required this.isActive,
     this.onRemoveOption,
     this.onOptionLabelChanged,
+    this.onAddOption,
   });
+
+  final double _optionIconColumnWidth = 32;
 
   @override
   Widget build(BuildContext context) {
@@ -938,7 +977,6 @@ class _QuestionBody extends StatelessWidget {
       case 'checkboxes':
         return _choiceList(isCheckbox: true);
       case 'dropdown':
-        // ✅ Only show the dropdown – no options listed below
         return _dropdownPreview();
       case 'multiple_choice':
       default:
@@ -975,13 +1013,15 @@ class _QuestionBody extends StatelessWidget {
   }
 
   /// Multiple choice / checkbox options list
+  /// Multiple choice / checkbox options list
+  /// Multiple choice / checkbox options list
+  /// Multiple choice / checkbox options list
   Widget _choiceList({required bool isCheckbox}) {
     final hasRealOptions = options.isNotEmpty;
 
-    final baseOptions = hasRealOptions
+    final list = hasRealOptions
         ? options
         : [
-            // Preview-only fallback when there are no real options
             DemographicQuestionOption(
               id: '',
               questionId: '',
@@ -997,70 +1037,108 @@ class _QuestionBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final opt in baseOptions)
+        for (final opt in list)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // --- ICON COLUMN (fixed width) ---
+                SizedBox(
+                  width: _optionIconColumnWidth,
+                  height: 24, // match row height for perfect centering
+                  child: Center(
+                    child: Icon(
+                      isCheckbox
+                          ? Icons.check_box_outline_blank
+                          : Icons.radio_button_unchecked,
+                      size: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+
+                // --- LABEL TEXT (perfectly centered vertically) ---
+                Expanded(
+                  child: SizedBox(
+                    height: 24,
+                    child: Center(
+                      child: TextFormField(
+                        initialValue: opt.label.trim(),
+                        readOnly:
+                            !isActive || !hasRealOptions || opt.id.isEmpty,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero, // FIXED alignment
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder:
+                              (isActive && hasRealOptions && opt.id.isNotEmpty)
+                                  ? const UnderlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: kAccent,
+                                        width: 2,
+                                      ),
+                                    )
+                                  : InputBorder.none,
+                        ),
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: kTextDark,
+                        ),
+                        onChanged: (value) {
+                          if (!isActive ||
+                              !hasRealOptions ||
+                              onOptionLabelChanged == null ||
+                              opt.id.isEmpty) return;
+
+                          onOptionLabelChanged!(opt, value.trim());
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+
+                // --- DELETE ---
+                if (isActive && hasRealOptions && onRemoveOption != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.close,
+                          size: 18, color: Colors.black54),
+                      onPressed: () => onRemoveOption!(opt),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+        // --- ADD OPTION ROW ---
+        if (isActive && onAddOption != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 32,
+            child: InkWell(
+              onTap: onAddOption,
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
-                    isCheckbox
-                        ? Icons.check_box_outline_blank
-                        : Icons.radio_button_unchecked,
-                    size: 18,
-                    color: Colors.grey.shade700,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      readOnly: !isActive,
-                      controller: TextEditingController(text: opt.label),
-                      textAlignVertical: TextAlignVertical.center,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 4),
-
-                        // ❌ No box / border in normal state
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-
-                        // ✅ Purple underline only while editing (focused)
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: kAccent,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: kTextDark,
-                      ),
-                      onChanged: (value) {
-                        if (!isActive ||
-                            !hasRealOptions ||
-                            onOptionLabelChanged == null ||
-                            opt.id.isEmpty) {
-                          return;
-                        }
-                        onOptionLabelChanged!(opt, value);
-                      },
+                  SizedBox(
+                    width: _optionIconColumnWidth,
+                    height: 22,
+                    child: Center(
+                      child: Icon(Icons.add, size: 16, color: kAccent),
                     ),
                   ),
-                  if (isActive && hasRealOptions && onRemoveOption != null) ...[
-                    const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: () => onRemoveOption!(opt),
-                      child: const Icon(
-                        Icons.close,
-                        size: 18,
-                        color: Colors.black87,
-                      ),
+                  Text(
+                    'Add option',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: kAccent,
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -1070,47 +1148,74 @@ class _QuestionBody extends StatelessWidget {
   }
 
   /// Dropdown preview – real clickable dropdown using the options
+  /// Dropdown preview – real clickable dropdown using the options
   Widget _dropdownPreview() {
     final labels = options.isNotEmpty
         ? options.map((o) => o.label).toList()
         : <String>['Option 1'];
 
-    return DropdownButtonFormField<String>(
-      isExpanded: true,
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: kBorder),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: kBorder),
+            ),
+          ),
+          hint: Text(
+            'Choose an option',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey,
+            ),
+          ),
+          items: [
+            for (final label in labels)
+              DropdownMenuItem<String>(
+                value: label,
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: kTextDark,
+                  ),
+                ),
+              ),
+          ],
+          // Preview only – selection isn't persisted here
+          onChanged: isActive ? (_) {} : null,
         ),
-      ),
-      hint: Text(
-        'Choose an option',
-        style: GoogleFonts.poppins(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey,
-        ),
-      ),
-      items: [
-        for (final label in labels)
-          DropdownMenuItem<String>(
-            value: label,
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: kTextDark,
+        if (isActive && onAddOption != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: TextButton.icon(
+              onPressed: onAddOption,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.add, size: 18, color: kAccent),
+              label: Text(
+                'Add option',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: kAccent,
+                ),
               ),
             ),
           ),
       ],
-      // Preview only – selection isn't persisted here
-      onChanged: isActive ? (_) {} : null,
     );
   }
 }

@@ -29,7 +29,7 @@ import 'package:timezone/data/latest.dart' as tzdata;
 import 'firebase_options.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
+    GlobalKey<ScaffoldMessengerState>();
 
 //TODO
 //after event is created, navigation to events doesn't work properly
@@ -64,12 +64,12 @@ Future<void> main() async {
   // 🔄 read userRole + organisationId from /users/{uid} if logged in
   await authController.loadUserProfile();
 
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   MyApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     final snackbarController = Get.put(SnackbarMessageController());

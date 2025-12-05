@@ -41,49 +41,235 @@ class _RestaurantInfoFormState extends State<RestaurantInfoForm> {
           ),
           const SizedBox(height: 32),
 
-          // ─────────────────────────────────────────────
-          // Toggle: New vs Existing
-          // ─────────────────────────────────────────────
-          Obx(
-            () {
-              final useExisting = controller.useExistingOrganisation.value;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Create new restaurant'),
-                    selected: !useExisting,
-                    onSelected: (selected) =>
-                        controller.toggleUseExisting(false),
-                  ),
-                  const SizedBox(width: 12),
-                  ChoiceChip(
-                    label: const Text('Use existing restaurant'),
-                    selected: useExisting,
-                    onSelected: (selected) =>
-                        controller.toggleUseExisting(true),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 32),
-
-          // ─────────────────────────────────────────────
-          // Either show NEW restaurant form OR EXISTING selector
-          // ─────────────────────────────────────────────
-          Obx(
-            () => controller.useExistingOrganisation.value
-                ? _ExistingRestaurantSelector(controller: controller)
-                : _NewRestaurantForm(controller: controller),
-          ),
+          // Only NEW restaurant form – existing restaurant logic removed
+          _NewRestaurantForm(controller: controller),
         ],
       ),
     );
   }
 }
 
-/// NEW: selector for existing restaurants
+/// Only "new restaurant" form remains
+class _NewRestaurantForm extends StatelessWidget {
+  final OrganisationInfoController controller;
+
+  const _NewRestaurantForm({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // 1. Brand Logo Upload
+        SizedBox(
+          width: 230,
+          height: 180,
+          child: Column(
+            children: [
+              Expanded(
+                child: Obx(
+                  () => Container(
+                    width: 230,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: controller.selectedImagePath.value == null
+                        ? InkWell(
+                            onTap: controller.selectLogo,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Center(
+                              child: Icon(
+                                Icons.photo_library_outlined,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          )
+                        : Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: kIsWeb
+                                    ? Image.network(
+                                        controller.selectedImagePath.value!,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return _fallbackLogoBox();
+                                        },
+                                      )
+                                    : Image.file(
+                                        File(
+                                          controller.selectedImagePath.value!,
+                                        ),
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return _fallbackLogoBox();
+                                        },
+                                      ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: InkWell(
+                                  onTap: controller.removeLogo,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.error(context),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 230,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: controller.selectLogo,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.white,
+                    side: BorderSide(color: AppColors.primaryAccent),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.file_upload_outlined,
+                    color: AppColors.primaryAccent,
+                    size: 24,
+                  ),
+                  label: AppText.styledBodyMedium(
+                    weight: AppFontWeight.semiBold,
+                    context,
+                    color: AppColors.primaryAccent,
+                    'Upload the brand logo',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 2. Company Name
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Company Name',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller.companyNameController,
+          validator: ValidationHelper.validateCompanyName,
+          decoration: const InputDecoration(
+            hintText: 'Enter your company name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 3. Phone Number
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Phone Number',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller.phoneController,
+          keyboardType: TextInputType.phone,
+          validator: ValidationHelper.validatePhoneNumber,
+          decoration: const InputDecoration(
+            hintText: 'Enter your phone number',
+            border: OutlineInputBorder(),
+            prefixText: '+1 ',
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 4. Website (Optional)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Row(
+            children: [
+              Text(
+                'Website',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '(Optional)',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller.websiteController,
+          keyboardType: TextInputType.url,
+          validator: ValidationHelper.validateOptionalWebsite,
+          decoration: const InputDecoration(
+            hintText: 'Enter your website URL',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fallbackLogoBox() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey[100],
+      ),
+      child: Center(
+        child: Icon(
+          Icons.image,
+          size: 50,
+          color: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+}
+
+/* /// NEW: selector for existing restaurants
 class _ExistingRestaurantSelector extends StatelessWidget {
   final OrganisationInfoController controller;
 
@@ -362,3 +548,4 @@ class _NewRestaurantForm extends StatelessWidget {
     );
   }
 }
+ */
