@@ -8,6 +8,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
@@ -18,6 +19,7 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
+import 'package:traxx_wepapp/features/admin/admin_user_management/view/admin_user_list_page.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
@@ -111,6 +113,7 @@ GoRouter buildRouter() {
       // ),
       GoRoute(
         redirect: (context, state) {
+          print('dasdadlaskdjkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkas');
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
           }
@@ -145,6 +148,7 @@ GoRouter buildRouter() {
             print('Redirecting to organisation info form');
             return AppRoute.hostOrganisationInfoForm.path;
           }
+          print('redirecting in host shell route passed');
           return null;
         },
         navigatorKey: hostNavigatorKey,
@@ -154,7 +158,6 @@ GoRouter buildRouter() {
           // if (currentUser == null || !currentUser.emailVerified) {
           if (currentUser == null) {
             // If user is not authenticated, redirect to welcome
-            print('User not authenticated, redirecting to welcome PostFrame');
             WidgetsBinding.instance.addPostFrameCallback((_) {
               pushAndRemoveAllRoute(AppRoute.welcome, context);
               // pushAndRemoveAllRoute(AppRoute.emailVerification, context);
@@ -168,6 +171,8 @@ GoRouter buildRouter() {
           Get.put(MenusController());
           Get.put(EventsController());
           Get.put(OrganisationController(authController.organisationId!));
+          Get.put(UsersAndRolesController());
+
           final location = state.matchedLocation;
           final isQuestionsPage =
               location.startsWith(AppRoute.hostQuestions.path) ||
@@ -209,6 +214,7 @@ GoRouter buildRouter() {
               //   onLogout: authController.logout,
               // );
             } catch (e) {
+              print('Exception in host shell route builder: $e');
               return Container(); //Temporary
               // Error Handling or redirection
             }
@@ -233,6 +239,14 @@ GoRouter buildRouter() {
               final venueId =
                   state.pathParameters[AppRoute.hostVenueDetails.placeholder]!;
               return VenuesView();
+            },
+          ),
+          GoRoute(
+            path: AppRoute.hostRoleSelection.path,
+            // builder: (context, state) => AdminUserListPage(),
+            builder: (context, state) {
+              print('dadaskdhasghdjkasbdjahsgdasjkd');
+              return AdminUserListPage();
             },
           ),
           /*  GoRoute(

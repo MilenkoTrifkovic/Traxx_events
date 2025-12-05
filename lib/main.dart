@@ -21,7 +21,7 @@ import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;

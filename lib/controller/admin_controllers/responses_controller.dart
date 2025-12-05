@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/mixins/selected_event_mixin.dart';
 import 'package:traxx_wepapp/models/guest.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu_old.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 
 class ResponsesController extends GetxController with SelectedEventMixin {

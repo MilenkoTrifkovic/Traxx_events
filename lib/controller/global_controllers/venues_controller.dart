@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/models/venue.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 
