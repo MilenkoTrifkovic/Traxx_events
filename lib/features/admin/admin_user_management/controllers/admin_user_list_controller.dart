@@ -18,6 +18,10 @@ class AdminUserListController extends GetxController {
 
   late final String organisationId;
 
+  AdminUserListController() {
+    organisationId = organisationController.organisationId;
+  }
+
   /// Validates an email address for the Add User form.
   /// Returns a string error message when invalid, or null when valid.
   String? validateEmail(String? value) {
@@ -80,6 +84,7 @@ class AdminUserListController extends GetxController {
 
     await usersController.updateUser(updatedUser);
   }
+
   void updateRoleAndEmail(UserModel user) {
     role.value = user.role;
     email.text = user.email;
@@ -89,7 +94,7 @@ class AdminUserListController extends GetxController {
   void onInit() {
     super.onInit();
     usersController.loadUsersWithRoles(); // load immediately
-    organisationId = organisationController.organisationId;
+    // organisationId = organisationController.organisationId;
   }
 
   @override
