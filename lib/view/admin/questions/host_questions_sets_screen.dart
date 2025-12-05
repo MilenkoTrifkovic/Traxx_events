@@ -110,18 +110,9 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                   // const SizedBox(height: 16),
 
                   Text(
-                    'Demographic Questions',
+                    'Create and manage question sets to gather important information from your event guests.',
                     style: GoogleFonts.poppins(
                       fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      color: _gfTextColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Question Sets',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: _gfTextColor,
                     ),

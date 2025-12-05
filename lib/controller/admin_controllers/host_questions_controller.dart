@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/host_questions.dart';
@@ -19,41 +21,94 @@ class HostQuestionsController {
   Stream<List<DemographicQuestionWithOptions>> streamQuestions({
     required String questionSetId,
   }) {
-    Query questionsQuery = _db
+    final questionsQuery = _db
         .collection('demographicQuestions')
         .where('isDisabled', isEqualTo: false)
         .where('questionSetId', isEqualTo: questionSetId)
         .orderBy('displayOrder');
 
-    return questionsQuery.snapshots().asyncMap((snapshot) async {
-      final questions =
-          snapshot.docs.map((doc) => DemographicQuestion.fromDoc(doc)).toList();
+    final optionsQuery = _db
+        .collection('demographicQuestionOptions')
+        .where('isDisabled', isEqualTo: false);
 
-      if (questions.isEmpty) return <DemographicQuestionWithOptions>[];
+    final controller = StreamController<List<DemographicQuestionWithOptions>>();
 
-      final List<DemographicQuestionWithOptions> result = [];
+    QuerySnapshot<Map<String, dynamic>>? latestQuestionsSnap;
+    QuerySnapshot<Map<String, dynamic>>? latestOptionsSnap;
 
+    void emitCombined() {
+      if (latestQuestionsSnap == null || latestOptionsSnap == null) return;
+
+      final questions = latestQuestionsSnap!.docs
+          .map((doc) => DemographicQuestion.fromDoc(doc))
+          .toList();
+
+      if (questions.isEmpty) {
+        controller.add(<DemographicQuestionWithOptions>[]);
+        return;
+      }
+
+      final allOptions = latestOptionsSnap!.docs
+          .map((doc) => DemographicQuestionOption.fromDoc(doc))
+          .toList();
+
+      // Group options by questionId
+      final Map<String, List<DemographicQuestionOption>> byQuestionId = {};
+      for (final opt in allOptions) {
+        final qId = opt.questionId;
+        byQuestionId.putIfAbsent(qId, () => []).add(opt);
+      }
+
+      final result = <DemographicQuestionWithOptions>[];
       for (final q in questions) {
-        final optsSnap = await _db
-            .collection('demographicQuestionOptions')
-            .where('questionId', isEqualTo: q.questionId)
-            .where('isDisabled', isEqualTo: false)
-            .orderBy('displayOrder')
-            .get();
-
-        final options = optsSnap.docs
-            .map((doc) => DemographicQuestionOption.fromDoc(doc))
-            .toList();
+        final opts = List<DemographicQuestionOption>.from(
+          byQuestionId[q.questionId] ?? const [],
+        )..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
         result.add(
           DemographicQuestionWithOptions(
             question: q,
-            options: options,
+            options: opts,
           ),
         );
       }
 
-      return result;
+      controller.add(result);
+    }
+
+    final questionsSub = questionsQuery.snapshots().listen((qsnap) {
+      latestQuestionsSnap = qsnap;
+      emitCombined();
+    });
+
+    final optionsSub = optionsQuery.snapshots().listen((osnap) {
+      latestOptionsSnap = osnap;
+      emitCombined();
+    });
+
+    controller.onCancel = () async {
+      await questionsSub.cancel();
+      await optionsSub.cancel();
+      await controller.close();
+    };
+
+    return controller.stream;
+  }
+
+  Future<void> updateOption({
+    required String optionDocId,
+    required Map<String, dynamic> data,
+  }) async {
+    if (_uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final docRef =
+        _db.collection('demographicQuestionOptions').doc(optionDocId);
+
+    await docRef.update({
+      ...data,
+      'modifiedDate': FieldValue.serverTimestamp(),
     });
   }
 
@@ -64,7 +119,45 @@ class HostQuestionsController {
     await _db.collection('demographicQuestionOptions').doc(optionId).delete();
   }
 
-  // CREATE question + options
+  /// 🔹 Create a new option for an existing question
+  Future<DemographicQuestionOption> createOption({
+    required String questionId,
+    required int displayOrder,
+  }) async {
+    if (_uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final docRef = _db.collection('demographicQuestionOptions').doc();
+    final now = FieldValue.serverTimestamp();
+
+    final label = 'Option $displayOrder';
+    final value = 'option_$displayOrder';
+
+    await docRef.set({
+      'questionId': questionId,
+      'label': label,
+      'value': value,
+      'optionType': 'choice',
+      'requiresFreeText': false,
+      'displayOrder': displayOrder,
+      'isDisabled': false,
+      'createdDate': now,
+      'modifiedDate': now,
+    });
+
+    return DemographicQuestionOption(
+      id: docRef.id,
+      questionId: questionId,
+      label: label,
+      value: value,
+      optionType: 'choice',
+      requiresFreeText: false,
+      isDisabled: false,
+      displayOrder: displayOrder,
+    );
+  }
+
   Future<void> createQuestionWithOptions({
     required String questionSetId,
     required String questionText,

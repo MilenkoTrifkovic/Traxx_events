@@ -32,36 +32,35 @@ class AuthServices {
   }) async {
     try {
       print('Services: Creating admin user');
-      // Call cloud function to create admin user
-      final result =
-          await FirebaseFunctions.instance.httpsCallable('signupAdmin').call({
+
+      final callable = FirebaseFunctions.instance.httpsCallable('signupAdmin');
+      final result = await callable.call({
         'email': email,
         'password': password,
       });
 
-      // Log the result for debugging (optional)
       print('Cloud function result: ${result.data}');
 
       // Wait a bit for the user creation to propagate
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // The cloud function should create the user, so we now sign them in
       return await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
     } on FirebaseFunctionsException catch (e) {
-      // If cloud function fails, don't try to sign in
+      // 👇 Add detailed logging here
+      print(
+          'signupAdmin failed: code=${e.code}, message=${e.message}, details=${e.details}');
       throw _handleFunctionsException(e);
     } on FirebaseAuthException catch (e) {
-      // If sign-in fails after cloud function succeeds, it might be because
-      // the user was created but with different credentials or timing issues
-      print('Auth error after cloud function: ${e.code}');
+      print('Auth error after cloud function: ${e.code}, message=${e.message}');
       throw _handleAuthException(e);
     } catch (e) {
+      print('Unexpected error during account creation: $e');
       throw 'An unexpected error occurred during account creation: $e';
     }
-  } // Send email verification
+  }
 
   Future<void> sendEmailVerification() async {
     await currentUser?.sendEmailVerification();

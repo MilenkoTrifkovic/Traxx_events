@@ -5,11 +5,12 @@ import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/enums/user_type.dart';
+import 'package:traxx_wepapp/utils/enums/user_role.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/view/admin/create_event/create_event_popup_view.dart';
 import 'package:traxx_wepapp/view/common/widgets/event_card.dart';
-import 'package:traxx_wepapp/view/common/widgets/empty_events_state.dart';
+import 'package:traxx_wepapp/widgets/empty_state.dart';
 
 /// A widget that displays a scrollable list of events using EventCard widgets.
 class ListOfEvents extends StatelessWidget {
@@ -31,9 +32,17 @@ class ListOfEvents extends StatelessWidget {
         return SizedBox(
           height: MediaQuery.of(context).size.height -
               200, // Give it most of the screen height
-          child: EmptyEventsState(
-            onCreateEvent: () {
-              pushRoute(AppRoute.hostCreateEvent, context);
+          child: EmptyState(
+            title: 'Welcome to Traxx',
+            description: 'Lets create your first event',
+            buttonText: 'Add First Event',
+            onButtonPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return CreateEventPopupView();
+                },
+              );
             },
           ),
         );

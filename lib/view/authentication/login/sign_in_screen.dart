@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_header.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_form.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_toggle.dart';
@@ -23,6 +23,7 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final AuthController authController = Get.find<AuthController>();
+  late final SnackbarMessageController snackbarController;
 
   @override
   void dispose() {
@@ -30,6 +31,12 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    snackbarController = Get.find<SnackbarMessageController>();
   }
 
   Future<void> _handleEmailPasswordAuth(SignInController controller) async {
@@ -56,10 +63,10 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   @override
   Widget build(BuildContext context) {
     // Initialize the controller
-    final controller = Get.put(SignInController());
+  final controller = Get.put(SignInController());
 
-    // Setup listeners for messages and navigation
-    _setupListeners(controller, context);
+  // Setup listeners for messages and navigation
+  _setupListeners(controller, context);
 
     return SingleChildScrollView(
       child: SizedBox(
@@ -101,12 +108,14 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   }
 
   /// Setup all GetX listeners for messages and navigation
+  /// Setup all GetX listeners for messages and navigation
   void _setupListeners(SignInController controller, BuildContext context) {
+  // use snackbarController initialized in initState
     // Watch for success messages
     ever(controller.successMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showSuccess(context, message);
+          snackbarController.showSuccessMessage(message);
           controller.clearSuccessMessage();
         });
       }
@@ -116,40 +125,43 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     ever(controller.errorMessage, (String? message) {
       if (message != null && message.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SnackBarUtils.showError(context, message);
+          snackbarController.showErrorMessage(message);
           controller.clearErrorMessage();
         });
       }
     });
 
-    // Watch for navigation to email verification
+    // 🔥 Go to email verification after signup / signin (if not verified)
     ever(controller.shouldNavigateToEmailVerification, (bool shouldNavigate) {
       if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
           print('UI: Navigating to email verification');
-          await authController.checkCompanyInfo();
           pushAndRemoveAllRoute(AppRoute.emailVerification, context);
           controller.clearNavigationFlags();
         });
       }
     });
 
-    // Watch for navigation to host events
-    ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
+    // 🔥 Go to organisation info after verified signin but no org
+    ever(controller.shouldNavigateToOrganisationInfo, (bool shouldNavigate) {
       if (shouldNavigate) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          print('UI: Navigating to host events');
-          await authController.checkCompanyInfo();
-          pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          print('UI: Navigating to organisation info form');
+          pushAndRemoveAllRoute(
+            AppRoute.hostOrganisationInfoForm,
+            context,
+          );
           controller.clearNavigationFlags();
         });
       }
     });
-    ever(controller.shouldNavigateToOrganisationInfo, (bool shouldNavigate) {
+
+    // 🔥 Go directly to host events when verified + has org
+    ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
       if (shouldNavigate) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          print('UI: Navigating to organisation info');
-          pushAndRemoveAllRoute(AppRoute.hostOrganisationInfoForm, context);
+          print('UI: Navigating to host events');
+          pushAndRemoveAllRoute(AppRoute.hostEvents, context);
           controller.clearNavigationFlags();
         });
       }

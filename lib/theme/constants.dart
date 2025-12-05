@@ -11,6 +11,7 @@ class Constants {
   static String lightLogo = 'assets/icons/light-logo.png';
   static String darkLogo = 'assets/icons/dark-logo.png';
   static String cartoonRestaurant = 'assets/photos/cartoon_restaurant.png';
+  static String emptyMenu = 'assets/photos/empty_menu.png';
 
   static const String googleMapsApiKey =
       'AIzaSyDt2ZfJjvYxeOHITwVOLG45EqJuQRy9j9o';

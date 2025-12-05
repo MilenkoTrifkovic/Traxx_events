@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/questions_section/guest_info_field_widget.dart';
 import 'package:traxx_wepapp/widgets/buttons/styled_back_button.dart';
 
@@ -25,10 +25,12 @@ class _SetQuestionsViewState extends State<SetQuestionsView> {
   final ScrollController _scrollController = ScrollController();
   final SetQuestionsController setQuestionsController =
       SetQuestionsController();
+  late final SnackbarMessageController snackbarController;
 
   @override
   void initState() {
     setQuestionsController.initializeFields();
+    snackbarController = Get.find<SnackbarMessageController>();
     super.initState();
   }
 
@@ -146,7 +148,7 @@ class _SetQuestionsViewState extends State<SetQuestionsView> {
                 if (success) {
                   popRoute(context);
                 } else {
-                  SnackBarUtils.showError(context,
+                  snackbarController.showErrorMessage(
                       "Some required fields are missing. Please complete all required fields.");
                 }
               },

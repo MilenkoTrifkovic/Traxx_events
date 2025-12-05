@@ -21,12 +21,15 @@ import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'firebase_options.dart';
+
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 //TODO
 //after event is created, navigation to events doesn't work properly
@@ -38,18 +41,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tzdata.initializeTimeZones();
   setPathUrlStrategy();
-  GoRouter.optionURLReflectsImperativeAPIs =
-      true; //makes sure url is updated on navigation
+  GoRouter.optionURLReflectsImperativeAPIs = true;
+
   await dotenv.load(fileName: "dotenv");
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // if (kDebugMode) {
-  //   FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-  //   FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-  //   FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-  // }
-  // Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
+
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<SharedPrefServices>(() => SharedPrefServices(), fenix: true);
   Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
@@ -58,42 +56,42 @@ Future<void> main() async {
       fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
-  // Get.lazyPut<VenuesController>(() => VenuesController(), fenix: true);
-  // Get.lazyPut<GuestController>(() => GuestController(), fenix: true);
 
-  Get.put<EventController>(EventController(),
-      permanent: true); //Holds selected event Event?
+  Get.put<EventController>(EventController(), permanent: true);
+
   final authController = Get.find<AuthController>();
 
-  // Only check company info if user is authenticated and verified
-  await authController.checkCompanyInfo();
+  // 🔄 read userRole + organisationId from /users/{uid} if logged in
+  await authController.loadUserProfile();
 
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     final snackbarController = Get.put(SnackbarMessageController());
 
     return MaterialApp.router(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       // builder: EasyLoading.init(),
       builder: (context, child) {
         // GLOBAL LISTENER
-        ever(snackbarController.message, (msg) {
-          if (msg == null) return;
+        // ever(snackbarController.message, (msg) {
+        //   if (msg == null) return;
 
-          if (msg.type == SnackBarType.success) {
-            SnackBarUtils.showSuccess(context, msg.message);
-          } else {
-            SnackBarUtils.showError(context, msg.message);
-          }
+        //   if (msg.type == SnackBarType.success) {
+        //     SnackBarUtils.showSuccess(context, msg.message);
+        //   } else {
+        //     SnackBarUtils.showError(context, msg.message);
+        //   }
 
-          snackbarController.clearMessage();
-        });
+        //   snackbarController.clearMessage();
+        // });
 
         return EasyLoading.init()(context, child);
       },

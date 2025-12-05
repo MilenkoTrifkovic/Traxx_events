@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart
 import 'package:traxx_wepapp/controller/admin_controllers/menu_controllers/menu_controllers_manager.dart';
 import 'package:traxx_wepapp/mixins/selected_event_mixin.dart';
 import 'package:traxx_wepapp/models/menu_old.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';

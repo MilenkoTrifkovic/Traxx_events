@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/auth_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 /// Controller for managing sign-in and sign-up functionality
 class SignInController extends GetxController {
@@ -17,15 +18,21 @@ class SignInController extends GetxController {
   var isPasswordVisible = false.obs;
   var isConfirmPasswordVisible = false.obs;
 
-  // Message observables for reactive UI
+  // Message observables
   var successMessage = RxnString();
   var errorMessage = RxnString();
 
-  // Form validation result observable
+  // Auth result
   var authResult = Rxn<UserCredential>();
+
+  // 🔥 Navigation flags
   var shouldNavigateToEmailVerification = false.obs;
   var shouldNavigateToOrganisationInfo = false.obs;
   var shouldNavigateToHostEvents = false.obs;
+
+  // ─────────────────────────────────────────────
+  // UI toggles
+  // ─────────────────────────────────────────────
 
   /// Toggle between sign-in and sign-up modes
   void toggleSignUpMode() {
@@ -42,12 +49,15 @@ class SignInController extends GetxController {
     isConfirmPasswordVisible.value = !isConfirmPasswordVisible.value;
   }
 
-  /// Handle email/password authentication
+  // ─────────────────────────────────────────────
+  // Main auth handler
+  // ─────────────────────────────────────────────
+
   Future<void> handleEmailPasswordAuth({
     required String email,
     required String password,
   }) async {
-    if (isLoading.value) return; // Prevent double submission
+    if (isLoading.value) return;
 
     try {
       isLoading.value = true;
@@ -56,41 +66,44 @@ class SignInController extends GetxController {
       UserCredential userCredential;
 
       if (isSignUpMode.value) {
-        print('Controller: Creating admin user');
-        // Call cloud function to create admin user
+        // ───────────── SIGN UP ─────────────
+        print('Controller: Creating admin user (signup)');
         userCredential = await _authServices.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
-        print('Controller: Creating admin user completed');
 
-        // Send email verification for new users
-        print('Controller: Sending email verification');
+        // 1️⃣ send verification email
         await _authServices.sendEmailVerification();
-        print('Controller: Email verification sent');
+
+        // 2️⃣ load profile (role=admin, organisationId=null)
+        await _authController.loadUserProfile();
+
+        authResult.value = userCredential;
+
+        // 3️⃣ tell UI to go to email verification page
+        shouldNavigateToEmailVerification.value = true;
       } else {
+        // ───────────── SIGN IN ─────────────
         print('Controller: Signing in user');
         userCredential = await _authServices.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
-        await _authController.checkCompanyInfo();
-        print('Controller: User signed in');
-      }
 
-      authResult.value = userCredential;
+        await _authController.loadUserProfile();
+        authResult.value = userCredential;
 
-      // Set navigation flags based on email verification status
-      final user = userCredential.user;
-      if (user != null && !user.emailVerified) {
-        print('Controller: Should navigate to email verification');
-        shouldNavigateToEmailVerification.value = true;
-      } else if (_authController.companyInfoExists == false) {
-        print('Controller: Should navigate to organisation info');
-        shouldNavigateToOrganisationInfo.value = true;
-      } else {
-        print('Controller: Should navigate to host events');
-        shouldNavigateToHostEvents.value = true;
+        final currentUser = userCredential.user;
+        final isVerified = currentUser?.emailVerified ?? false;
+
+        if (!isVerified) {
+          shouldNavigateToEmailVerification.value = true;
+        } else if (!_authController.companyInfoExists) {
+          shouldNavigateToOrganisationInfo.value = true;
+        } else {
+          shouldNavigateToHostEvents.value = true;
+        }
       }
     } catch (e) {
       print('Controller: Error occurred: $e');
@@ -100,65 +113,56 @@ class SignInController extends GetxController {
     }
   }
 
-  /// Checks if organisation info already exists for the current user
-  /// Returns true if organisation exists, false otherwise
-  // Future<bool> _checkIfOrganisationExists() async {
-  //   try {
-  //     print('Checking if organisation info already exists...');
+  // ─────────────────────────────────────────────
+  // Forgot password
+  // ─────────────────────────────────────────────
 
-  //     final exists = await _cloudFunctionsService.checkOrganisationInfo();
-
-  //     print('Organisation exists: $exists');
-  //     return exists;
-  //   } catch (e) {
-  //     print('Error checking organisation existence: $e');
-  //     rethrow;
-  //   }
-  // }
-
-  /// Handle forgot password
   Future<void> handleForgotPassword(String email) async {
-    if (email.trim().isEmpty) {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) {
       _showErrorMessage('Please enter your email address first');
       return;
     }
 
     try {
-      await _authServices.sendPasswordResetEmail(email.trim());
+      await _authServices.sendPasswordResetEmail(trimmed);
       _showSuccessMessage('Password reset email sent! Check your inbox.');
     } catch (e) {
       _showErrorMessage(e.toString());
     }
   }
 
-  /// Reset navigation flags
+  // ─────────────────────────────────────────────
+  // Navigation flags helpers
+  // ─────────────────────────────────────────────
+
   void _resetNavigationFlags() {
-    shouldNavigateToEmailVerification.value = false;
     shouldNavigateToHostEvents.value = false;
+    shouldNavigateToEmailVerification.value = false;
+    shouldNavigateToOrganisationInfo.value = false;
   }
 
-  /// Clear navigation flags after navigation
   void clearNavigationFlags() {
     _resetNavigationFlags();
     authResult.value = null;
   }
 
-  /// Show success message
+  // ─────────────────────────────────────────────
+  // Message helpers
+  // ─────────────────────────────────────────────
+
   void _showSuccessMessage(String message) {
     successMessage.value = message;
   }
 
-  /// Show error message
   void _showErrorMessage(String message) {
     errorMessage.value = message;
   }
 
-  /// Clear success message
   void clearSuccessMessage() {
     successMessage.value = null;
   }
 
-  /// Clear error message
   void clearErrorMessage() {
     errorMessage.value = null;
   }

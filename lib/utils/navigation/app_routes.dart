@@ -9,6 +9,8 @@ enum AppRoute {
   host('/host'),
   hostOrganisationInfoForm('/host-organisation-info-form'),
   hostEvents('/host-events'),
+  hostRoleSelection('/host-role-selection'),
+  // hostRoletest('/hosdasdasdas'),
   hostVenues('/host-venues'),
   hostMenus('/host-menus'),
   hostVenueDetails('/host-venue-details/:eventId', 'eventId'),

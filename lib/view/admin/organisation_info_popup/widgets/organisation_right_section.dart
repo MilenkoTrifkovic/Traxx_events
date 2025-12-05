@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
+import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/content/step_content.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/layout/right_section_container.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/navigation/navigation_buttons.dart';
@@ -26,6 +29,9 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
     _scrollController.dispose();
     super.dispose();
   }
+
+  final SnackbarMessageController snackbarMessageController =
+      Get.find<SnackbarMessageController>();
 
   void _validateAndProceed() {
     final controller = Get.find<OrganisationInfoController>();
@@ -91,7 +97,7 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
     );
   }
 
-  void _handleFinish() async {
+  /*  void _handleFinish() async {
     final controller = Get.find<OrganisationInfoController>();
 
     try {
@@ -125,6 +131,34 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
 
       // TODO: Show error message to user
       // Example: Get.snackbar('Error', 'Failed to save organisation: $e');
+    }
+  } */
+
+  void _handleFinish() async {
+    final controller = Get.find<OrganisationInfoController>();
+    final authController = Get.find<AuthController>();
+
+    try {
+      showLoadingIndicator(status: 'Saving company info...');
+      print('🏁 Saving organisation through cloud function...');
+
+      // Save organisation through cloud function (or attach to existing)
+      await controller.saveOrganisation();
+
+      // 🔄 refresh user profile so router sees new org + role
+      await authController.loadUserProfile();
+
+      hideLoadingIndicator();
+
+      // Now navigate – router will see companyInfoExists == true
+      pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+    } catch (e) {
+      hideLoadingIndicator();
+      print('❌ Error saving organisation: $e');
+      /* SnackBarUtils.showError(
+        context,
+        'Failed to save organisation: $e',
+      ); */
     }
   }
 }
