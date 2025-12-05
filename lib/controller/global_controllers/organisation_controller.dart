@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 
 class OrganisationController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();

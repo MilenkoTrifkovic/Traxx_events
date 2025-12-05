@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/controller/global_controllers/events_controller.dar
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/venue.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 
 class AdminEventDetailsController {
   /// Loads selected menu items from availableMenuItems based on event.selectedMenus

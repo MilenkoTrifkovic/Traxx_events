@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 
 class EventsController extends GetxController {
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();

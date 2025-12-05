@@ -7,7 +7,7 @@ import 'package:traxx_wepapp/exeptions/exeptions.dart';
 import 'package:traxx_wepapp/models/guest.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/xlsl_parser.dart';
 
 class SetGuestsController {

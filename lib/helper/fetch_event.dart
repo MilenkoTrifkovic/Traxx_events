@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 
 /// Helper class for fetching and processing events
