@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/models/user_model.dart';
-import 'package:traxx_wepapp/utils/enums/user_role.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 class AdminUserListController extends GetxController {
   final usersController = Get.find<UsersAndRolesController>();

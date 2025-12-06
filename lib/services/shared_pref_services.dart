@@ -1,5 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:traxx_wepapp/utils/enums/user_role.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 /// Service class for managing shared preferences
 /// Currently handles saving and retrieving user role.

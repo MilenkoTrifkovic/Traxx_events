@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:traxx_wepapp/utils/enums/user_role.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 /// Represents a user's role within an organisation.
 ///
