@@ -21,7 +21,7 @@ import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -29,7 +29,7 @@ import 'package:timezone/data/latest.dart' as tzdata;
 import 'firebase_options.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
+    GlobalKey<ScaffoldMessengerState>();
 
 //TODO
 //after event is created, navigation to events doesn't work properly
@@ -64,12 +64,12 @@ Future<void> main() async {
   // 🔄 read userRole + organisationId from /users/{uid} if logged in
   await authController.loadUserProfile();
 
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   MyApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     final snackbarController = Get.put(SnackbarMessageController());

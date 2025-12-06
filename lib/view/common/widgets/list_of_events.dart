@@ -5,7 +5,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/enums/user_type.dart';
+import 'package:traxx_wepapp/utils/enums/user_role.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/create_event/create_event_popup_view.dart';

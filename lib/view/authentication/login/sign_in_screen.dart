@@ -131,19 +131,40 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
       }
     });
 
-    // ✅ NEW: after login/signup success → always go to host events
-    ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
+    // 🔥 Go to email verification after signup / signin (if not verified)
+    ever(controller.shouldNavigateToEmailVerification, (bool shouldNavigate) {
       if (shouldNavigate) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          print('UI: Navigating to host events (login/signup success)');
-          pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+          print('UI: Navigating to email verification');
+          pushAndRemoveAllRoute(AppRoute.emailVerification, context);
           controller.clearNavigationFlags();
         });
       }
     });
 
-    // We no longer listen for:
-    // - shouldNavigateToEmailVerification
-    // - shouldNavigateToOrganisationInfo
+    // 🔥 Go to organisation info after verified signin but no org
+    ever(controller.shouldNavigateToOrganisationInfo, (bool shouldNavigate) {
+      if (shouldNavigate) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          print('UI: Navigating to organisation info form');
+          pushAndRemoveAllRoute(
+            AppRoute.hostOrganisationInfoForm,
+            context,
+          );
+          controller.clearNavigationFlags();
+        });
+      }
+    });
+
+    // 🔥 Go directly to host events when verified + has org
+    ever(controller.shouldNavigateToHostEvents, (bool shouldNavigate) {
+      if (shouldNavigate) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          print('UI: Navigating to host events');
+          pushAndRemoveAllRoute(AppRoute.hostEvents, context);
+          controller.clearNavigationFlags();
+        });
+      }
+    });
   }
 }

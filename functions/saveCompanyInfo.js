@@ -9,13 +9,14 @@ const db = getFirestore();
 
 export const saveCompanyInfo = onCall(async (request) => {
   try {
+    // 1️⃣ Auth check
     if (!request.auth || !request.auth.uid) {
       throw new HttpsError("unauthenticated", "You must be signed in.");
     }
 
     const userId = request.auth.uid;
 
-    // Check if user already has an active admin role
+    // 2️⃣ Enforce: one organisation per user (admin role)
     const existingAdminRole = await db
       .collection("roles")
       .where("userId", "==", userId)
@@ -36,14 +37,18 @@ export const saveCompanyInfo = onCall(async (request) => {
       );
     }
 
-    // Validate request
+    // 3️⃣ Validate incoming payload
     validateCompanyInfo(request.data);
 
-    const organisationId = uuidv4();
-    const roleId = uuidv4();
+    // 4️⃣ Generate UUIDs *without hyphens*
+    // e.g. "8a21b09dec5f4734865cd7d194f0af6f"
+    const organisationId = uuidv4().replace(/-/g, "");
+    const roleId = uuidv4().replace(/-/g, "");
+
+    const now = FieldValue.serverTimestamp();
 
     const organisationData = {
-      organisationId,
+      organisationId, // no hyphens
       name: request.data.name,
       phone: request.data.phone.toString(),
       website: request.data.website || null,
@@ -57,26 +62,42 @@ export const saveCompanyInfo = onCall(async (request) => {
       timezone: request.data.timezone,
       logo: request.data.logo || null,
       isDisabled: false,
-      createdAt: FieldValue.serverTimestamp(),
-      modifiedAt: FieldValue.serverTimestamp(),
+      createdAt: now,
+      modifiedAt: now,
     };
 
     const roleData = {
-      roleId,
+      roleId,        // no hyphens
       userId,
       organisationId,
       role: "admin",
       isDisabled: false,
-      createdAt: FieldValue.serverTimestamp(),
-      modifiedAt: FieldValue.serverTimestamp(),
+      createdAt: now,
+      modifiedAt: now,
     };
 
     const result = await db.runTransaction(async (transaction) => {
-      const organisationRef = db.collection("organisations").doc();
+      // 5️⃣ Use hyphen-less organisationId as Firestore document ID
+      const organisationRef = db
+        .collection("organisations")
+        .doc(organisationId);
       transaction.set(organisationRef, organisationData);
 
-      const roleRef = db.collection("roles").doc();
+      // Use hyphen-less roleId as Firestore document ID
+      const roleRef = db.collection("roles").doc(roleId);
       transaction.set(roleRef, roleData);
+
+      // 6️⃣ Update users/{userId} with organisationId + role
+      const userRef = db.collection("users").doc(userId);
+      transaction.set(
+        userRef,
+        {
+          organisationId, // 👈 hyphen-less UUID string
+          role: "admin",
+          modifiedAt: now,
+        },
+        { merge: true }
+      );
 
       return {
         organisationDocId: organisationRef.id,
@@ -93,9 +114,11 @@ export const saveCompanyInfo = onCall(async (request) => {
     return {
       success: true,
       message: "Company information and admin role created successfully",
-      roleDocumentId: result.roleDocId,
+      organisationDocumentId: result.organisationDocId, // == organisationId (no hyphens)
+      roleDocumentId: result.roleDocId,                 // == roleId (no hyphens)
       organisationId,
       roleId,
+      role: "admin",
     };
   } catch (error) {
     logger.error("Error saving company info:", error);

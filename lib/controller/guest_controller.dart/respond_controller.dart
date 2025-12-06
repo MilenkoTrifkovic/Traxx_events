@@ -4,7 +4,7 @@ import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/guest.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu_old.dart';
-import 'package:traxx_wepapp/services/firestore_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';

@@ -1,4 +1,5 @@
 String usersCol = 'users';
+String rolesCol = 'roles';
 String preferencesCol = 'preferences';
 String locationsCol = 'locations';
 String organisationCol = 'organisations';
