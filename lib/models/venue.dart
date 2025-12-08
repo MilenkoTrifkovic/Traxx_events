@@ -19,6 +19,13 @@ class Venue {
 
   /// Optional URL to the venue's photo
   final String? photoPath;
+
+    // Address fields - Required as a complete map
+  final String street; // address.street
+  final String city; // address.city
+  final String zip; // address.zip
+  final String state; // address.state
+  final String country; // address.country
   
   /// Optional in-memory download URL for the venue's photo.
   ///
@@ -36,6 +43,9 @@ class Venue {
   final bool isDisabled;
 
   /// Creates a new Venue instance
+   String get fullAddress {
+    return '$street, $city, $state, $zip, $country';
+  }
   Venue({
     this.venueID,
     required this.organisationId,
@@ -46,6 +56,11 @@ class Venue {
     this.createdAt,
     this.modifiedAt,
     this.isDisabled = false,
+    required this.street,
+    required this.city,
+    required this.zip,
+    required this.state,
+    required this.country,
   });
 
   /// Creates a Venue from a Firestore document snapshot
@@ -62,6 +77,11 @@ class Venue {
       modifiedAt:
           (data['modifiedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isDisabled: data['isDisabled'] ?? false,
+      street: data['address']?['street'] ?? '',
+      city: data['address']?['city'] ?? '',
+      zip: data['address']?['zip'] ?? '',
+      state: data['address']?['state'] ?? '',
+      country: data['address']?['country'] ?? '',
     );
   }
 
@@ -80,6 +100,11 @@ class Venue {
           ? DateTime.parse(json['modifiedAt'])
           : DateTime.now(),
       isDisabled: json['isDisabled'] ?? false,
+      street: json['address']?['street'] ?? '',
+      city: json['address']?['city'] ?? '',
+      zip: json['address']?['zip'] ?? '',
+      state: json['address']?['state'] ?? '',
+      country: json['address']?['country'] ?? '',
     );
   }
 
@@ -96,6 +121,13 @@ class Venue {
           : FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
+      'address': {
+        'street': street,
+        'city': city,
+        'zip': zip,
+        'state': state,
+        'country': country,
+      },
     };
   }
 
@@ -111,6 +143,13 @@ class Venue {
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
+      'address': {
+        'street': street,
+        'city': city,
+        'zip': zip,
+        'state': state,
+        'country': country,
+      },
     };
   }
 
@@ -124,6 +163,13 @@ class Venue {
       'photoPath': photoPath,
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
+      'address': {
+        'street': street,
+        'city': city,
+        'zip': zip,
+        'state': state,
+        'country': country,
+      },
     };
   }
 
@@ -138,6 +184,13 @@ class Venue {
       'createdAt': createdAt?.toIso8601String(),
       'modifiedAt': modifiedAt?.toIso8601String(),
       'isDisabled': isDisabled,
+      'address': {
+        'street': street,
+        'city': city,
+        'zip': zip,
+        'state': state,
+        'country': country,
+      },  
     };
   }
 
@@ -152,6 +205,11 @@ class Venue {
     DateTime? createdAt,
     DateTime? modifiedAt,
     bool? isDisabled,
+    String? street,
+    String? city,
+    String? zip,
+    String? state,
+    String? country,
   }) {
     return Venue(
       venueID: venueID ?? this.venueID,
@@ -163,6 +221,11 @@ class Venue {
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,
+      street: street ?? this.street,
+      city: city ?? this.city,
+      zip: zip ?? this.zip,
+      state: state ?? this.state,
+      country: country ?? this.country,
     );
   }
 
@@ -176,7 +239,7 @@ class Venue {
   String toString() {
     return 'Venue{venueID: $venueID, organisationId: $organisationId, name: $name, description: $description, '
     'photoPath: $photoPath, photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
-        'isDisabled: $isDisabled}';
+        'isDisabled: $isDisabled, street: $street, city: $city, zip: $zip, state: $state, country: $country}';
   }
 
   /// Checks if two venues are equal
@@ -193,7 +256,12 @@ class Venue {
     other.photoUrl == photoUrl &&
         other.createdAt == createdAt &&
         other.modifiedAt == modifiedAt &&
-        other.isDisabled == isDisabled;
+        other.isDisabled == isDisabled &&
+        other.street == street &&
+        other.city == city &&
+        other.zip == zip &&
+        other.state == state &&
+        other.country == country;
   }
 
   /// Returns the hash code for this venue
@@ -207,6 +275,11 @@ class Venue {
     (photoUrl?.hashCode ?? 0) ^
         (createdAt?.hashCode ?? 0) ^
         (modifiedAt?.hashCode ?? 0) ^
-        isDisabled.hashCode;
+        isDisabled.hashCode ^
+        street.hashCode ^
+        city.hashCode ^
+        zip.hashCode ^
+        state.hashCode ^
+        country.hashCode;
   }
 }

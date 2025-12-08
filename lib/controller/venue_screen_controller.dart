@@ -26,10 +26,20 @@ class VenueScreenController extends GetxController {
   // Form controllers
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
+  final streetController = TextEditingController();
+  final cityController = TextEditingController();
+  final zipController = TextEditingController();
+  var selectedCountry = 'United States'.obs;
+  var selectedState = 'California'.obs; // default state
 
   // Form validation
   final nameError = RxnString();
   final descriptionError = RxnString();
+  final streetError = RxnString();
+  final cityError = RxnString();
+  final zipError = RxnString();
+  final stateError = RxnString();
+  final countryError = RxnString();
   final formKey = GlobalKey<FormState>();
 
   // Image handling
@@ -47,6 +57,9 @@ class VenueScreenController extends GetxController {
   void onClose() {
     nameController.dispose();
     descriptionController.dispose();
+    streetController.dispose();
+    cityController.dispose();
+    zipController.dispose();
     super.onClose();
   }
 
@@ -106,6 +119,13 @@ class VenueScreenController extends GetxController {
       if (name.trim().isEmpty) {
         throw Exception('Venue name is required');
       }
+      if (streetController.text.trim().isEmpty ||
+          cityController.text.trim().isEmpty ||
+          zipController.text.trim().isEmpty ||
+          selectedState.value.trim().isEmpty ||
+          selectedCountry.value.trim().isEmpty) {
+        throw Exception('Complete address is required');
+      }
 
       final organisationId = _authController.organisationId;
       if (organisationId == null) {
@@ -134,6 +154,11 @@ class VenueScreenController extends GetxController {
             description?.trim().isEmpty == true ? null : description?.trim(),
         photoPath: photoPath,
         isDisabled: false,
+        street: streetController.text.trim(),
+        city: cityController.text.trim(),
+        zip: zipController.text.trim(),
+        state: selectedState.value.trim(),
+        country: selectedCountry.value.trim(),
       );
 
       // Save to Firestore using the create method which handles server timestamps
@@ -220,6 +245,41 @@ class VenueScreenController extends GetxController {
   String? validateDescription(String? value) {
     if (value != null && value.trim().isNotEmpty && value.trim().length > 500) {
       return 'Description must be less than 500 characters';
+    }
+    return null;
+  }
+
+  String? validateStreet(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Street is required';
+    }
+    return null;
+  }
+
+  String? validateCity(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'City is required';
+    }
+    return null;
+  }
+
+  String? validateZip(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Zip code is required';
+    }
+    return null;
+  }
+
+  String? validateState(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'State is required';
+    }
+    return null;
+  }
+
+  String? validateCountry(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Country is required';
     }
     return null;
   }
