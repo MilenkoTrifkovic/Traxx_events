@@ -6,7 +6,7 @@ import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
-import 'package:traxx_wepapp/utils/enums/user_role.dart';
+import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 class AuthController extends GetxController {
   late final FirestoreServices _firestoreServices;

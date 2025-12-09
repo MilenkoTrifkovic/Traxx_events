@@ -1,8 +1,9 @@
+import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
@@ -23,6 +24,9 @@ class FirestoreServices {
   /// Reference to events collection in Firestore
   late final CollectionReference<Map<String, dynamic>> eventsRef;
 
+  /// Reference to events collection in Firestore
+  late final CollectionReference<Map<String, dynamic>> guestsRef;
+
   /// Reference to locations collection in Firestore
   late final CollectionReference<Map<String, dynamic>> locationsRef;
 
@@ -39,6 +43,7 @@ class FirestoreServices {
     usersRef = _db.collection(usersCol);
     eventsRef = _db.collection(eventsCol);
     locationsRef = _db.collection(locationsCol);
+    guestsRef = _db.collection(guestsCol);
     organisationsRef =
         _db.collection(organisationCol).withConverter<Organisation>(
               fromFirestore: (snap, _) => Organisation.fromFirestore(snap),
@@ -292,21 +297,34 @@ class FirestoreServices {
   }
 
   ///Fetches all guests for a specific event.
-  Future<List<Guest>> fetchGuests(String eventId) async {
+  Future<List<Guest_old>> fetchGuestsOld(String eventId) async {
     final colRef = eventsRef.doc(eventId).collection('guests');
     final snapshot = await retryFirestore(() => colRef.get());
-    final guests =
-        snapshot.docs.map((e) => Guest.fromFirestore(e.data(), e.id)).toList();
+    final guests = snapshot.docs
+        .map((e) => Guest_old.fromFirestore(e.data(), e.id))
+        .toList();
     return guests;
   }
 
-  Future<Guest> fetchGuestById(String guestId, String eventId) async {
+  Future<List<GuestModel>> fetchGuests(String eventId) async {
+    // final colRef = eventsRef.doc(eventId).collection('guests');
+    final snapshot = await retryFirestore(() => guestsRef
+        .where('eventId', isEqualTo: eventId)
+        .where('isDisabled', isEqualTo: false)
+        .get());
+    final guests = snapshot.docs
+        .map((e) => GuestModel.fromFirestore(e.data(), e.id))
+        .toList();
+    return guests;
+  }
+
+  Future<Guest_old> fetchGuestById(String guestId, String eventId) async {
     //Implement retry
     final snapshot =
         await eventsRef.doc(eventId).collection('guests').doc(guestId).get();
     if (snapshot.exists) {
       final data = snapshot.data();
-      final Guest guest = Guest.fromFirestore(data!, snapshot.id);
+      final Guest_old guest = Guest_old.fromFirestore(data!, snapshot.id);
       return guest;
     }
     throw Exception('');
@@ -331,7 +349,7 @@ class FirestoreServices {
   ///
   /// Parameters:
   /// - [eventId]: The ID of the event to which the guest will be added
-  /// - [guest]: The [Guest] object containing the guest's information
+  /// - [guest]: The [Guest_old] object containing the guest's information
   ///
   /// Returns a [Future<String>] containing the newly created guest document ID.
   ///
@@ -340,7 +358,110 @@ class FirestoreServices {
   /// guests without overwriting unspecified fields.
   ///
   /// Throws an exception if the save operation fails.
-  Future<String> saveGuest(String eventId, Guest guest) async {
+  Future<GuestModel> saveGuest(GuestModel guest) async {
+    try {
+      final userFieldId = (guest.guestId != null && guest.guestId!.isNotEmpty)
+          ? guest.guestId!
+          : const Uuid().v4();
+
+      final toSave = guest.copyWith(guestId: userFieldId);
+      final docRef = guestsRef.doc();
+      await docRef.set(toSave.toFirestoreCreate());
+      print('Guest Saved Successfully');
+      return guest.copyWith(guestId: docRef.id);
+    } catch (e) {
+      print('Failed to save guest: $e');
+      rethrow;
+    }
+  }
+  /// Deletes a guest from Firestore by guest ID.
+/// 
+/// This method searches for a guest by their guestId field and deletes the document.
+/// 
+/// @param guestId The ID of the guest to delete
+/// @throws Exception if guest is not found
+/// @throws Exception if Firestore operation fails
+Future<void> deleteGuest(String guestId) async {
+  try {
+    // Search for the document where the 'guestId' field matches the provided ID
+    final querySnapshot = await guestsRef
+        .where('guestId', isEqualTo: guestId)
+        .limit(1)  // We only expect one document with this guestId
+        .get();
+
+    // Check if guest exists
+    if (querySnapshot.docs.isEmpty) {
+      throw Exception('Guest with ID $guestId not found');
+    }
+
+    // Get the document reference from the query result
+    final docRef = querySnapshot.docs.first.reference;
+    
+    // Delete the document from Firestore
+    await docRef.delete();
+    
+    print('Guest with ID $guestId deleted successfully');
+  } catch (e) {
+    print('Failed to delete guest with ID $guestId: $e');
+    rethrow;  // Re-throw the exception for handling in the calling code
+  }
+}
+/// Updates an existing guest in Firestore.
+///
+/// This method finds a guest by guestId, updates the provided fields,
+/// and preserves the original createdAt timestamp while updating modifiedAt.
+///
+/// @param updatedGuest The GuestModel object with updated values
+/// @throws Exception if guest is not found
+/// @throws Exception if Firestore operation fails
+/// @returns The updated GuestModel
+Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
+  try {
+    // Validate that guestId is provided
+    if (updatedGuest.guestId == null || updatedGuest.guestId!.isEmpty) {
+      throw Exception('Guest ID is required for update');
+    }
+
+    // Search for the document with the matching guestId field
+    final querySnapshot = await guestsRef
+        .where('guestId', isEqualTo: updatedGuest.guestId)
+        .limit(1)
+        .get();
+
+    // Check if guest exists
+    if (querySnapshot.docs.isEmpty) {
+      throw Exception('Guest with ID ${updatedGuest.guestId} not found');
+    }
+
+    // Get the document reference and existing data
+    final docRef = querySnapshot.docs.first.reference;
+    final existingData = querySnapshot.docs.first.data();
+
+    // Get the original createdAt timestamp from existing data
+    final originalCreatedAt = existingData['createdAt'];
+
+    // Prepare update data using toFirestoreUpdate()
+    final updateData = updatedGuest.toFirestoreUpdate();
+    
+    // Ensure createdAt is not overwritten - preserve original value
+    if (originalCreatedAt != null) {
+      updateData['createdAt'] = originalCreatedAt;
+    }
+
+    // Update the document in Firestore
+    await docRef.update(updateData);
+
+    print('Guest with ID ${updatedGuest.guestId} updated successfully');
+    
+    // Return the updated guest model
+    return updatedGuest;
+  } catch (e) {
+    print('Failed to update guest with ID ${updatedGuest.guestId}: $e');
+    rethrow;
+  }
+}
+
+  Future<String> saveGuestOld(String eventId, Guest_old guest) async {
     try {
       final docRef = eventsRef.doc(eventId).collection('guests').doc();
       await docRef.set(guest.toFirestore(), SetOptions(merge: true));
@@ -352,7 +473,7 @@ class FirestoreServices {
     }
   }
 
-  Future<void> saveGuestList(String eventId, List<Guest> guests) async {
+  Future<void> saveGuestList(String eventId, List<Guest_old> guests) async {
     final colRef = eventsRef.doc(eventId).collection('guests');
     final batch = _db.batch();
     for (var guest in guests) {
@@ -365,7 +486,7 @@ class FirestoreServices {
   ///
   /// Parameters:
   /// - [eventId]: The ID of the event containing the guest
-  /// - [guest]: The [Guest] object with updated information. Must contain valid [id] field
+  /// - [guest]: The [Guest_old] object with updated information. Must contain valid [id] field
   ///
   /// Returns a [Future<void>] that completes when the update is successful.
   ///
@@ -373,7 +494,7 @@ class FirestoreServices {
   /// Uses [SetOptions(merge: true)] to safely update only the specified fields.
   ///
   /// Throws an exception if the update operation fails.
-  Future<void> updateGuest(String eventId, Guest guest) async {
+  Future<void> updateGuestOld(String eventId, Guest_old guest) async {
     if (guest.id.isEmpty) {
       throw Exception('Guest ID cannot be empty for update operation');
     }
@@ -392,7 +513,7 @@ class FirestoreServices {
   ///
   /// Parameters:
   /// - [eventId]: The ID of the event from which the guest will be removed
-  /// - [guest]: The [Guest] object to be deleted. Must contain valid [id] field
+  /// - [guest]: The [Guest_old] object to be deleted. Must contain valid [id] field
   ///
   /// Returns a [Future<void>] that completes when the deletion is successful.
   ///
@@ -401,7 +522,7 @@ class FirestoreServices {
   /// consider the operation successful.
   ///
   /// Throws an exception if the delete operation fails for other reasons.
-  Future<void> deleteGuest(String eventId, Guest guest) async {
+  Future<void> deleteGuestOld(String eventId, Guest_old guest) async {
     try {
       final docRef = eventsRef.doc(eventId).collection('guests').doc(guest.id);
       await docRef.delete();
@@ -428,7 +549,7 @@ class FirestoreServices {
     }
   }
 
-  Future<void> inviteGuest(String eventId, Guest guest) async {
+  Future<void> inviteGuest(String eventId, Guest_old guest) async {
     try {
       final querySnapshot =
           await usersRef.where('email', isEqualTo: guest.email).limit(1).get();

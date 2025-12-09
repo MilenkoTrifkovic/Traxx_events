@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/exeptions/exeptions.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
@@ -18,7 +18,7 @@ class SetGuestsController {
   final EventListController _eventListController =
       Get.find<EventListController>();
 
-  List<Guest> guests = [];
+  List<Guest_old> guests = [];
   RxInt guestLimit = 0.obs;
   RxInt currentGuestCount = 0.obs;
 
@@ -29,7 +29,7 @@ class SetGuestsController {
       if (eventId == null) {
         throw Exception('Cannot load guests: No event selected.');
       }
-      final fetchedGuests = await _firestoreServices.fetchGuests(eventId);
+      final fetchedGuests = await _firestoreServices.fetchGuestsOld(eventId);
       guests.addAll(fetchedGuests);
       _sortGuestList();
       _addGuestsToGuestCount(fetchedGuests);
@@ -39,7 +39,7 @@ class SetGuestsController {
     }
   }
 
-  void _addGuestsToGuestCount(List<Guest> guestsList) {
+  void _addGuestsToGuestCount(List<Guest_old> guestsList) {
     for (var g in guestsList) {
       currentGuestCount += (1 + g.companions);
     }
@@ -57,11 +57,11 @@ class SetGuestsController {
       throw GuestLimitExceededException();
     }
     final eventId = _eventListController.selectedEvent.value!.eventId!;
-    Guest guest = Guest();
+    Guest_old guest = Guest_old();
     guest.email = email;
     guest.name = name;
     guest.companions = companions;
-    String guestId = await _firestoreServices.saveGuest(eventId, guest);
+    String guestId = await _firestoreServices.saveGuestOld(eventId, guest);
     guest.id = guestId;
     int index = _findGuestIndex(guest);
     guests.insert(index, guest);
@@ -72,15 +72,15 @@ class SetGuestsController {
 
   //Removes all existing guests and adds new guests from CSV or XLSX file
   Future<void> addGuestFromCsvXlsX(PlatformFile file) async {
-    List<Guest> guests = [];
+    List<Guest_old> guests = [];
     int totalGuests = 0;
     final eventId = _eventListController.selectedEvent.value!.eventId!;
     FileParser fileParser =
         file.extension == 'csv' ? CsvParser() : XlsXParser();
     try {
-      List<Guest> parsedGuests = fileParser.parseFile(file);
+      List<Guest_old> parsedGuests = fileParser.parseFile(file);
       for (var guest in parsedGuests) {
-        guests.add(Guest(
+        guests.add(Guest_old(
             email: guest.email,
             name: guest.name,
             companions: guest.companions));
@@ -113,7 +113,7 @@ class SetGuestsController {
     return newState > guestLimit.value;
   }
 
-  int _findGuestIndex(Guest guest) {
+  int _findGuestIndex(Guest_old guest) {
     if (guests.isEmpty) return 0;
 
     for (int i = 0; i < guests.length; i++) {
@@ -126,21 +126,21 @@ class SetGuestsController {
   }
 
   //remove guest
-  Future<Guest> removeGuest(int index) async {
+  Future<Guest_old> removeGuest(int index) async {
     final eventId = _eventListController.selectedEvent.value!.eventId!;
-    Guest removedItem = guests.removeAt(index);
-    await _firestoreServices.deleteGuest(eventId, removedItem);
+    Guest_old removedItem = guests.removeAt(index);
+    await _firestoreServices.deleteGuestOld(eventId, removedItem);
     currentGuestCount -= (1 + removedItem.companions);
     return removedItem;
   }
 
   //Implemented error handling with reactive variable
-  Future<void> inviteGuest(Guest guest) async {
+  Future<void> inviteGuest(Guest_old guest) async {
     final eventId = _eventListController.selectedEvent.value!.eventId!;
     try {
       await _firestoreServices.inviteGuest(eventId, guest);
       guest.invited = true;
-      _firestoreServices.updateGuest(eventId, guest);
+      _firestoreServices.updateGuestOld(eventId, guest);
     } on Exception catch (e) {
       print('Failed to invite guest: $e');
       rethrow;

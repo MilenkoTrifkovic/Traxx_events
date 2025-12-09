@@ -222,7 +222,6 @@ GoRouter buildRouter() {
             path: AppRoute.hostRoleSelection.path,
             // builder: (context, state) => AdminUserListPage(),
             builder: (context, state) {
-              print('dadaskdhasghdjkasbdjahsgdasjkd');
               return AdminUserListPage();
             },
           ),

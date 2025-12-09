@@ -1,14 +1,14 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/extensions/string_extensions.dart';
 import 'package:traxx_wepapp/mixins/selected_event_mixin.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 
 class ResponsesController extends GetxController with SelectedEventMixin {
-  final List<Guest> guests;
+  final List<Guest_old> guests;
   final List<MenuItemOld> menus;
   final List<GuestResponse> guestResponses;
   late final RxList<GuestResponse> filteredGuestResponses;
@@ -31,9 +31,9 @@ class ResponsesController extends GetxController with SelectedEventMixin {
     return responses;
   }
 
-  static Future<List<Guest>> _loadEventGuests(String eventId) async {
+  static Future<List<Guest_old>> _loadEventGuests(String eventId) async {
     FirestoreServices firestoreServices = Get.find<FirestoreServices>();
-    final guests = await firestoreServices.fetchGuests(eventId);
+    final guests = await firestoreServices.fetchGuestsOld(eventId);
     return guests;
   }
 

@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/guests_controllers/set_guests_controller.dart';
 import 'package:traxx_wepapp/helper/app_decoration.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -19,7 +19,7 @@ import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 /// Supports smooth animation for insertion and removal from the list.
 /// supports tween animations for added item
 class GuestListItem extends StatefulWidget {
-  final Guest item;
+  final Guest_old item;
   final Animation<double> animation;
   final void Function(int index) onPressed;
   final int index;

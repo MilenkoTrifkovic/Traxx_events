@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/panel_body.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/panel_header.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/menu_panel_body.dart';
@@ -21,6 +25,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void initState() {
     super.initState();
+    Get.put(AdminGuestListController());
     controller = AdminEventDetailsController();
     controller.loadEvent(widget.eventId).then((_) {
       setState(() {
@@ -32,6 +37,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void dispose() {
     controller.dispose();
+    Get.delete<AdminGuestListController>();
     super.dispose();
   }
 
@@ -111,34 +117,16 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
               backgroundColor: AppColors.white,
               isExpanded: _expandedPanels[1],
               headerBuilder: (context, isExpanded) {
-                return InkWell(
+                return GuestPanelHeader(
+                  isExpanded: isExpanded,
                   onTap: () {
                     setState(() {
                       _expandedPanels[1] = !_expandedPanels[1];
                     });
                   },
-                  hoverColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                  splashColor: Colors.transparent,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 16, horizontal: 16),
-                    child: Row(
-                      children: [
-                        AppText.styledHeadingMedium(
-                          context,
-                          'Guest List',
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ),
-                  ),
                 );
               },
-              body: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text('Guest list panel content goes here.'),
-              ),
+              body: GuestPanelBody(),
             ),
           ],
         ),
