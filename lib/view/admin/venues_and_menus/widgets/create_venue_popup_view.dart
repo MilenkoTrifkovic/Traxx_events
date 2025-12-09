@@ -21,8 +21,9 @@ import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 class CreateVenuePopupView extends StatelessWidget {
   final VenueScreenController controller;
   final VenuesController venuesController;
+  final bool isEditMode;
   const CreateVenuePopupView(
-      {super.key, required this.controller, required this.venuesController});
+      {super.key, required this.controller, required this.venuesController, this.isEditMode = false});
   // final VenueScreenController controller = VenueScreenController();
   // final VenuesController venuesController = Get.find<VenuesController>();
   @override
@@ -39,8 +40,10 @@ class CreateVenuePopupView extends StatelessWidget {
           children: [
             DialogStepHeader(
                 icon: Icons.home_work_outlined,
-                title: 'Create Venue',
-                description: 'Let\'s create a new venue.'),
+                title: isEditMode ? 'Edit Venue' : 'Create Venue',
+                description: isEditMode
+                    ? 'Update the venue details.'
+                    : 'Let\'s create a new venue.'),
             _buildVenueForm(context)
           ],
         ),
@@ -174,7 +177,7 @@ class CreateVenuePopupView extends StatelessWidget {
               children: [
                 Expanded(
                   child: AppPrimaryButton(
-                    text: 'Create Venue',
+                    text: isEditMode ? 'Update Venue' : 'Create Venue',
                     onPressed: () {
                       if (controller.validateForm()) {
                         popRoute(context, true);

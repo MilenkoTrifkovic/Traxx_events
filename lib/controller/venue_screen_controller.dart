@@ -29,8 +29,13 @@ class VenueScreenController extends GetxController {
   final streetController = TextEditingController();
   final cityController = TextEditingController();
   final zipController = TextEditingController();
-  var selectedCountry = 'United States'.obs;
-  var selectedState = 'California'.obs; // default state
+
+  var selectedCountry = Rxn<String>();
+  var selectedState = Rxn<String>();
+
+  String? venueId;
+  // var selectedCountry = 'United States'.obs;
+  // var selectedState = 'California'.obs; // default state
 
   // Form validation
   final nameError = RxnString();
@@ -78,29 +83,42 @@ class VenueScreenController extends GetxController {
     snackbarMessageController.showErrorMessage(text);
   }
 
-  /// Fetches all venues for the current organisation
-  // Future<void> fetchVenues() async {
-  //   try {
-  //     isLoading.value = true;
-  //     final organisationId = _authController.organisationId;
-  //     if (organisationId == null) {
-  //       throw Exception('Organisation ID not found');
-  //     }
+  void updateClassFields(Venue venue) {
+    nameController.text = venue.name;
+    descriptionController.text = venue.description ?? '';
+    streetController.text = venue.street ?? '';
+    cityController.text = venue.city ?? '';
+    zipController.text = venue.zip ?? '';
+    selectedState.value = venue.state;
+    selectedCountry.value = venue.country;
+    venueId = venue.venueID;
+  }
 
-  //     final venuesList = await _firestoreServices.getVenues(organisationId);
-  //     venues.assignAll(venuesList);
-  //   } catch (e) {
-  //     Get.snackbar(
-  //       'Error',
-  //       'Failed to fetch venues: $e',
-  //       snackPosition: SnackPosition.BOTTOM,
-  //       backgroundColor: Colors.red.withOpacity(0.8),
-  //       colorText: Colors.white,
-  //     );
-  //   } finally {
-  //     isLoading.value = false;
-  //   }
-  // }
+  void clearClassFields() {
+    nameController.clear();
+    descriptionController.clear();
+    streetController.clear();
+    cityController.clear();
+    zipController.clear();
+    selectedState.value = null;
+    selectedCountry.value = null;
+    venueId = null;
+  }
+
+  Future<void> updateVenue() async {
+    if (validateForm()) {
+      final venue = await createVenue();
+      final updatedVenue = await _firestoreServices.updateVenue(venue);
+      print('Venue updated with ID: ${updatedVenue.venueID}');
+
+      clearForm();
+      snackbarMessageController
+          .showSuccessMessage('Venue "${venue.name}" created successfully!');
+
+      await venuesController.updateVenue(updatedVenue);
+    }
+    throw Exception('Form validation failed');
+  }
 
   /// Creates a new venue with all required and optional parameters
   ///
@@ -110,20 +128,17 @@ class VenueScreenController extends GetxController {
   /// Optional parameters:
   /// - description: Optional venue description
   /// - image: Optional venue photo (XFile)
-  Future<Venue> createVenue({
-    required String name,
-    String? description,
-  }) async {
+  Future<Venue> createVenue() async {
     try {
       // Validate required fields
-      if (name.trim().isEmpty) {
+      if (nameController.text.trim().isEmpty) {
         throw Exception('Venue name is required');
       }
       if (streetController.text.trim().isEmpty ||
           cityController.text.trim().isEmpty ||
           zipController.text.trim().isEmpty ||
-          selectedState.value.trim().isEmpty ||
-          selectedCountry.value.trim().isEmpty) {
+          selectedState.value!.trim().isEmpty ||
+          selectedCountry.value!.trim().isEmpty) {
         throw Exception('Complete address is required');
       }
 
@@ -149,32 +164,20 @@ class VenueScreenController extends GetxController {
       // Create venue object
       final venue = Venue(
         organisationId: organisationId,
-        name: name.trim(),
-        description:
-            description?.trim().isEmpty == true ? null : description?.trim(),
+        name: nameController.text.trim(),
+        description: descriptionController.text.trim().isEmpty
+            ? null
+            : descriptionController.text.trim(),
         photoPath: photoPath,
         isDisabled: false,
         street: streetController.text.trim(),
         city: cityController.text.trim(),
         zip: zipController.text.trim(),
-        state: selectedState.value.trim(),
-        country: selectedCountry.value.trim(),
+        state: selectedState.value!.trim(),
+        country: selectedCountry.value!.trim(),
+        venueID: venueId
       );
-
-      // Save to Firestore using the create method which handles server timestamps
-      final venueId = await _firestoreServices.createVenue(venue);
-      print('Venue created with ID: $venueId');
-
-      // Refresh venues list
-      // await fetchVenues();
-
-      // Clear form
-      clearForm();
-      snackbarMessageController
-          .showSuccessMessage('Venue "$name" created successfully!');
-      // _showSuccessMessage('Venue "$name" created successfully!');
-
-      return venue.copyWith(venueID: venueId);
+      return venue;
     } catch (e) {
       _showErrorMessage('Failed to create venue: $e');
       throw Exception('Failed to create venue');
@@ -182,29 +185,6 @@ class VenueScreenController extends GetxController {
       isCreatingVenue.value = false;
     }
   }
-
-  /// Deletes a venue by setting isDisabled to true (soft delete)
-  ///
-  /// Parameters:
-  /// - venueID: The ID of the venue to delete
-  // Future<void> deleteVenue(String venueID) async {
-  //   try {
-  //     showLoadingIndicator();
-  //     isDeletingVenue.value = true;
-
-  //     await _firestoreServices.deleteVenue(venueID);
-
-  //     // Remove from local list
-  //     // venues.removeWhere((venue) => venue.venueID == venueID);
-
-  //     _showSuccessMessage('Venue deleted successfully!');
-  //   } catch (e) {
-  //     _showErrorMessage('Failed to delete venue: $e');
-  //   } finally {
-  //     isDeletingVenue.value = false;
-  //     hideLoadingIndicator();
-  //   }
-  // }
 
   /// Picks an image from the device gallery
   Future<void> pickImage() async {
@@ -329,41 +309,19 @@ class VenueScreenController extends GetxController {
   /// Submits the form and creates the venue
   Future<Venue> submitForm() async {
     if (validateForm()) {
-      final venue = await createVenue(
-        name: nameController.text,
-        description: descriptionController.text.isNotEmpty
-            ? descriptionController.text
-            : null,
-      );
-      venuesController.addVenue(venue);
-      return venue;
+      final venue = await createVenue();
+      final venueId = await _firestoreServices.createVenue(venue);
+      print('Venue created with ID: $venueId');
+
+      clearForm();
+      snackbarMessageController
+          .showSuccessMessage('Venue "${venue.name}" created successfully!');
+
+      final newVenue = venue.copyWith(venueID: venueId);
+
+      venuesController.addVenue(newVenue);
+      return newVenue;
     }
     throw Exception('Form validation failed');
   }
-
-  /// Shows a confirmation dialog before deleting a venue
-  // Future<void> confirmDeleteVenue(Venue venue) async {
-  //   final result = await Get.dialog<bool>(
-  //     AlertDialog(
-  //       title: const Text('Delete Venue'),
-  //       content: Text(
-  //           'Are you sure you want to delete "${venue.name}"?\n\nThis action cannot be undone.'),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Get.back(result: false),
-  //           child: const Text('Cancel'),
-  //         ),
-  //         TextButton(
-  //           onPressed: () => Get.back(result: true),
-  //           style: TextButton.styleFrom(foregroundColor: Colors.red),
-  //           child: const Text('Delete'),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-
-  //   if (result == true && venue.venueID != null) {
-  //     await deleteVenue(venue.venueID!);
-  //   }
-  // }
 }

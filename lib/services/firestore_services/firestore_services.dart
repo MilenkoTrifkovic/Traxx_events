@@ -374,92 +374,94 @@ class FirestoreServices {
       rethrow;
     }
   }
+
   /// Deletes a guest from Firestore by guest ID.
-/// 
-/// This method searches for a guest by their guestId field and deletes the document.
-/// 
-/// @param guestId The ID of the guest to delete
-/// @throws Exception if guest is not found
-/// @throws Exception if Firestore operation fails
-Future<void> deleteGuest(String guestId) async {
-  try {
-    // Search for the document where the 'guestId' field matches the provided ID
-    final querySnapshot = await guestsRef
-        .where('guestId', isEqualTo: guestId)
-        .limit(1)  // We only expect one document with this guestId
-        .get();
+  ///
+  /// This method searches for a guest by their guestId field and deletes the document.
+  ///
+  /// @param guestId The ID of the guest to delete
+  /// @throws Exception if guest is not found
+  /// @throws Exception if Firestore operation fails
+  Future<void> deleteGuest(String guestId) async {
+    try {
+      // Search for the document where the 'guestId' field matches the provided ID
+      final querySnapshot = await guestsRef
+          .where('guestId', isEqualTo: guestId)
+          .limit(1) // We only expect one document with this guestId
+          .get();
 
-    // Check if guest exists
-    if (querySnapshot.docs.isEmpty) {
-      throw Exception('Guest with ID $guestId not found');
+      // Check if guest exists
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Guest with ID $guestId not found');
+      }
+
+      // Get the document reference from the query result
+      final docRef = querySnapshot.docs.first.reference;
+
+      // Delete the document from Firestore
+      await docRef.delete();
+
+      print('Guest with ID $guestId deleted successfully');
+    } catch (e) {
+      print('Failed to delete guest with ID $guestId: $e');
+      rethrow; // Re-throw the exception for handling in the calling code
     }
-
-    // Get the document reference from the query result
-    final docRef = querySnapshot.docs.first.reference;
-    
-    // Delete the document from Firestore
-    await docRef.delete();
-    
-    print('Guest with ID $guestId deleted successfully');
-  } catch (e) {
-    print('Failed to delete guest with ID $guestId: $e');
-    rethrow;  // Re-throw the exception for handling in the calling code
   }
-}
-/// Updates an existing guest in Firestore.
-///
-/// This method finds a guest by guestId, updates the provided fields,
-/// and preserves the original createdAt timestamp while updating modifiedAt.
-///
-/// @param updatedGuest The GuestModel object with updated values
-/// @throws Exception if guest is not found
-/// @throws Exception if Firestore operation fails
-/// @returns The updated GuestModel
-Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
-  try {
-    // Validate that guestId is provided
-    if (updatedGuest.guestId == null || updatedGuest.guestId!.isEmpty) {
-      throw Exception('Guest ID is required for update');
+
+  /// Updates an existing guest in Firestore.
+  ///
+  /// This method finds a guest by guestId, updates the provided fields,
+  /// and preserves the original createdAt timestamp while updating modifiedAt.
+  ///
+  /// @param updatedGuest The GuestModel object with updated values
+  /// @throws Exception if guest is not found
+  /// @throws Exception if Firestore operation fails
+  /// @returns The updated GuestModel
+  Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
+    try {
+      // Validate that guestId is provided
+      if (updatedGuest.guestId == null || updatedGuest.guestId!.isEmpty) {
+        throw Exception('Guest ID is required for update');
+      }
+
+      // Search for the document with the matching guestId field
+      final querySnapshot = await guestsRef
+          .where('guestId', isEqualTo: updatedGuest.guestId)
+          .limit(1)
+          .get();
+
+      // Check if guest exists
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Guest with ID ${updatedGuest.guestId} not found');
+      }
+
+      // Get the document reference and existing data
+      final docRef = querySnapshot.docs.first.reference;
+      final existingData = querySnapshot.docs.first.data();
+
+      // Get the original createdAt timestamp from existing data
+      final originalCreatedAt = existingData['createdAt'];
+
+      // Prepare update data using toFirestoreUpdate()
+      final updateData = updatedGuest.toFirestoreUpdate();
+
+      // Ensure createdAt is not overwritten - preserve original value
+      if (originalCreatedAt != null) {
+        updateData['createdAt'] = originalCreatedAt;
+      }
+
+      // Update the document in Firestore
+      await docRef.update(updateData);
+
+      print('Guest with ID ${updatedGuest.guestId} updated successfully');
+
+      // Return the updated guest model
+      return updatedGuest;
+    } catch (e) {
+      print('Failed to update guest with ID ${updatedGuest.guestId}: $e');
+      rethrow;
     }
-
-    // Search for the document with the matching guestId field
-    final querySnapshot = await guestsRef
-        .where('guestId', isEqualTo: updatedGuest.guestId)
-        .limit(1)
-        .get();
-
-    // Check if guest exists
-    if (querySnapshot.docs.isEmpty) {
-      throw Exception('Guest with ID ${updatedGuest.guestId} not found');
-    }
-
-    // Get the document reference and existing data
-    final docRef = querySnapshot.docs.first.reference;
-    final existingData = querySnapshot.docs.first.data();
-
-    // Get the original createdAt timestamp from existing data
-    final originalCreatedAt = existingData['createdAt'];
-
-    // Prepare update data using toFirestoreUpdate()
-    final updateData = updatedGuest.toFirestoreUpdate();
-    
-    // Ensure createdAt is not overwritten - preserve original value
-    if (originalCreatedAt != null) {
-      updateData['createdAt'] = originalCreatedAt;
-    }
-
-    // Update the document in Firestore
-    await docRef.update(updateData);
-
-    print('Guest with ID ${updatedGuest.guestId} updated successfully');
-    
-    // Return the updated guest model
-    return updatedGuest;
-  } catch (e) {
-    print('Failed to update guest with ID ${updatedGuest.guestId}: $e');
-    rethrow;
   }
-}
 
   Future<String> saveGuestOld(String eventId, Guest_old guest) async {
     try {
@@ -756,19 +758,61 @@ Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
 
   /// Updates an existing venue in Firestore.
   ///
-  /// Parameters:
-  /// - [venue]: The venue object with updated data
+  /// Finds the venue by venueID and updates it with the provided data.
+  /// Preserves the original createdAt timestamp and updates modifiedAt.
   ///
-  /// Throws [FirebaseException] if the update operation fails.
-  /// Throws [Exception] if venue ID is null.
-  Future<void> updateVenue(Venue venue) async {
-    if (venue.venueID == null) {
-      throw Exception('Cannot update venue: venue ID is null');
-    }
-
+  /// @param venue The updated Venue object with venueID
+  /// @throws FirebaseException if Firestore operation fails
+  /// @throws Exception if venueID is missing
+  /// @returns The updated Venue
+  Future<Venue> updateVenue(Venue venue) async {
     try {
-      await venuesRef.doc(venue.venueID).update(venue.toFirestoreUpdate());
-      print('Venue updated successfully: ${venue.venueID}');
+      // Validate that venueID is provided
+      if (venue.venueID == null || venue.venueID!.isEmpty) {
+        throw Exception('venueID is required for update');
+      }
+
+      // Build the update data map using toFirestoreUpdate()
+      final Map<String, dynamic> updateData = venue.toFirestoreUpdate();
+
+      // Ensure organisationId is present (security rules requirement)
+      updateData['organisationId'] = venue.organisationId;
+
+      // Find the document by venueID field
+      final querySnapshot = await _db
+          .collection(venuesCol)
+          .where('venueID', isEqualTo: venue.venueID)
+          .limit(1)
+          .get();
+
+      // Check if venue exists
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Venue with ID ${venue.venueID} not found');
+      }
+
+      // Get the document reference
+      final docRef = querySnapshot.docs.first.reference;
+
+      // Get existing data to preserve createdAt
+      final existingData = querySnapshot.docs.first.data();
+      final originalCreatedAt = existingData['createdAt'];
+
+      // Ensure createdAt is not overwritten (preserve original)
+      if (originalCreatedAt != null) {
+        updateData['createdAt'] = originalCreatedAt;
+      } else {
+        // If createdAt doesn't exist in old document, add it from the venue object
+        updateData['createdAt'] =
+            venue.createdAt ?? FieldValue.serverTimestamp();
+      }
+
+      // Perform the update
+      await docRef.update(updateData);
+
+      print('Venue with ID ${venue.venueID} updated successfully');
+
+      // Return the venue with updated timestamps if needed
+      return venue;
     } on FirebaseException catch (e) {
       print('Firestore error updating venue: ${e.message}');
       rethrow;
@@ -777,6 +821,30 @@ Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
       rethrow;
     }
   }
+
+  /// Updates an existing venue in Firestore.
+  ///
+  /// Parameters:
+  /// - [venue]: The venue object with updated data
+  ///
+  /// Throws [FirebaseException] if the update operation fails.
+  /// Throws [Exception] if venue ID is null.
+  // Future<void> updateVenue(Venue venue) async {
+  //   if (venue.venueID == null) {
+  //     throw Exception('Cannot update venue: venue ID is null');
+  //   }
+
+  //   try {
+  //     await venuesRef.doc(venue.venueID).update(venue.toFirestoreUpdate());
+  //     print('Venue updated successfully: ${venue.venueID}');
+  //   } on FirebaseException catch (e) {
+  //     print('Firestore error updating venue: ${e.message}');
+  //     rethrow;
+  //   } catch (e) {
+  //     print('Unknown error updating venue: $e');
+  //     rethrow;
+  //   }
+  // }
 
   /// Soft deletes a venue by setting isDisabled to true.
   ///

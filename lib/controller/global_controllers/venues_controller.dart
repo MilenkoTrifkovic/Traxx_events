@@ -26,37 +26,6 @@ class VenuesController extends GetxController {
     loadVenues();
   }
 
-  // /// Returns cached menu items for a venue if available, otherwise fetches from Firestore, caches, and returns them.
-  // Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
-  //   // Check cache first
-  //   if (menusByVenue.containsKey(venueId)) {
-  //     return menusByVenue[venueId]!;
-  //   }
-  //   // Fetch from Firestore
-  //   final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
-
-  //   menusByVenue[venueId] = menuList;
-  //   return menuList;
-  // }
-  // Future<List<MenuItem>> getEventMenusByVenueId(String venueId) async {
-  //   if (menusByVenue.containsKey(venueId)) {
-  //     return menusByVenue[venueId]!;
-  //   }
-  //   final menuList = await _firestoreServices.getMenuItemsByVenueId(venueId);
-  //   final updated = await _withImageUrls(menuList);
-  //   menusByVenue[venueId] = updated;
-  //   return updated;
-  // }
-
-  // Future<List<MenuItem>> _withImageUrls(List<MenuItem> menuList) async {
-  //   return Future.wait(menuList.map((item) async {
-  //     if (item.imageUrl != null || item.imagePath == null) return item;
-  //     final url = await _storageServices.loadImageURL(item.imagePath);
-  //     if (url == null) return item;
-  //     return item.copyWith(imageUrl: url);
-  //   }));
-  // }
-
   Future<List<Venue>> _withPhotoUrls(List<Venue> venueList) async {
     return Future.wait(venueList.map((v) async {
       // if photoUrl already set or no photoPath available, skip
@@ -143,4 +112,51 @@ class VenuesController extends GetxController {
       hideLoadingIndicator();
     }
   }
+
+  Future<Venue> updateVenue(Venue updatedVenue) async {
+    try {
+      // Find the index of the existing venue
+      final index =
+          venues.indexWhere((venue) => venue.venueID == updatedVenue.venueID);
+
+      // Check if venue exists
+      if (index == -1) {
+        throw Exception(
+            'Venue with ID ${updatedVenue.venueID} not found in local list');
+      }
+
+      // Get the existing venue to preserve any fields if needed
+      final existingVenue = venues[index];
+
+      // If updatedVenue has a photoPath but no photoUrl, try to load it
+      Venue venueToUpdate = updatedVenue;
+      if (updatedVenue.photoPath != null && updatedVenue.photoUrl == null) {
+        print(
+            '1 entered photo path loading for venue ID: ${updatedVenue.venueID}');
+        final url =
+            await _storageServices.loadImageURL(updatedVenue.photoPath!);
+        if (url != null) {
+          venueToUpdate = updatedVenue.copyWith(photoUrl: url);
+        }
+      } else if (updatedVenue.photoPath == null &&
+          existingVenue.photoPath != null) {
+        print(
+            '2 entered photo path loading for venue ID: ${updatedVenue.venueID}');
+        // If new venue doesn't have photoPath but old one did, clear the photoUrl
+        venueToUpdate = updatedVenue.copyWith(photoUrl: null);
+      }
+
+      // Update the venue in the observable list
+      venues[index] = venueToUpdate;
+
+      // Optional: Force UI update by reassigning the list
+      // venues.value = List.from(venues);
+
+      return venueToUpdate;
+    } catch (e) {
+      print('Failed to update venue in local list: $e');
+      rethrow;
+    }
+  }
+
 }

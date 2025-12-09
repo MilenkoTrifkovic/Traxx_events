@@ -9,10 +9,12 @@ import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 class FourthSection extends StatelessWidget {
   final Venue venue;
   final VoidCallback? onPressed;
+  final VoidCallback? onEdit;
   const FourthSection({
     super.key,
     required this.venue,
     required this.onPressed,
+    required this.onEdit,
   });
 
   @override
@@ -23,16 +25,27 @@ class FourthSection extends StatelessWidget {
       children: [
         Padding(
             padding: AppPadding.right(context, paddingType: Sizes.xs),
-            child: IconButton(
-              onPressed: () {
-                Dialogs.showConfirmationDialog(
-                    context, 'Are you sure you want to delete this venue?', () {
-                  if (onPressed != null) {
-                    onPressed!();
-                  }
-                });
-              },
-              icon: Icon(Icons.delete, color: AppColors.inputError),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () {
+                    onEdit!();
+                  },
+                  icon: Icon(Icons.edit, color: AppColors.primary),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Dialogs.showConfirmationDialog(
+                        context, 'Are you sure you want to delete this user?',
+                        () {
+                      if (onPressed != null) {
+                        onPressed!();
+                      }
+                    });
+                  },
+                  icon: Icon(Icons.delete, color: AppColors.inputError),
+                ),
+              ],
             ))
       ],
     );

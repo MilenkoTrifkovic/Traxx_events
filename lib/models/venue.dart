@@ -20,13 +20,13 @@ class Venue {
   /// Optional URL to the venue's photo
   final String? photoPath;
 
-    // Address fields - Required as a complete map
+  // Address fields - Required as a complete map
   final String street; // address.street
   final String city; // address.city
   final String zip; // address.zip
   final String state; // address.state
   final String country; // address.country
-  
+
   /// Optional in-memory download URL for the venue's photo.
   ///
   /// This field is NOT written to Firestore and is used only at runtime
@@ -43,9 +43,10 @@ class Venue {
   final bool isDisabled;
 
   /// Creates a new Venue instance
-   String get fullAddress {
+  String get fullAddress {
     return '$street, $city, $state, $zip, $country';
   }
+
   Venue({
     this.venueID,
     required this.organisationId,
@@ -68,7 +69,8 @@ class Venue {
     final data = doc.data() as Map<String, dynamic>;
 
     return Venue(
-      venueID: doc.id,
+      // venueID: doc.id,
+      venueID: data['venueID'],
       organisationId: data['organisationId'] ?? '',
       name: data['name'] ?? '',
       description: data['description'],
@@ -160,7 +162,7 @@ class Venue {
       'organisationId': organisationId,
       'name': name,
       'description': description,
-      'photoPath': photoPath,
+      if (photoPath != null) 'photoPath': photoPath,
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
       'address': {
@@ -190,7 +192,7 @@ class Venue {
         'zip': zip,
         'state': state,
         'country': country,
-      },  
+      },
     };
   }
 
@@ -238,7 +240,7 @@ class Venue {
   @override
   String toString() {
     return 'Venue{venueID: $venueID, organisationId: $organisationId, name: $name, description: $description, '
-    'photoPath: $photoPath, photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
+        'photoPath: $photoPath, photoUrl: $photoUrl, createdAt: $createdAt, modifiedAt: $modifiedAt, '
         'isDisabled: $isDisabled, street: $street, city: $city, zip: $zip, state: $state, country: $country}';
   }
 
@@ -253,7 +255,7 @@ class Venue {
         other.name == name &&
         other.description == description &&
         other.photoPath == photoPath &&
-    other.photoUrl == photoUrl &&
+        other.photoUrl == photoUrl &&
         other.createdAt == createdAt &&
         other.modifiedAt == modifiedAt &&
         other.isDisabled == isDisabled &&
@@ -271,8 +273,8 @@ class Venue {
         organisationId.hashCode ^
         name.hashCode ^
         description.hashCode ^
-    (photoPath?.hashCode ?? 0) ^
-    (photoUrl?.hashCode ?? 0) ^
+        (photoPath?.hashCode ?? 0) ^
+        (photoUrl?.hashCode ?? 0) ^
         (createdAt?.hashCode ?? 0) ^
         (modifiedAt?.hashCode ?? 0) ^
         isDisabled.hashCode ^
