@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
 import 'package:traxx_wepapp/models/question_set.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/panel_body.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/panel_header.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -31,6 +35,10 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void initState() {
     super.initState();
+
+    // Guest logic (from Milenko)
+    Get.put(AdminGuestListController());
+
     controller = AdminEventDetailsController();
     controller.loadEvent(widget.eventId).then((_) {
       if (mounted) {
@@ -44,6 +52,10 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void dispose() {
     controller.dispose();
+
+    // Clean up guest controller (from Milenko)
+    Get.delete<AdminGuestListController>();
+
     super.dispose();
   }
 
@@ -53,13 +65,15 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Use Obx so the UI will rebuild when controller.event (or other reactive fields) change.
+    // Reactive rebuild based on controller.event etc.
     return Obx(() {
       final evt = controller.event.value;
       if (evt == null) {
         return const Center(
-          child: Text('Event not found.',
-              style: TextStyle(fontSize: 16, color: Color(0xFF374151))),
+          child: Text(
+            'Event not found.',
+            style: TextStyle(fontSize: 16, color: Color(0xFF374151)),
+          ),
         );
       }
 
@@ -104,26 +118,33 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
                   ),
                 ),
 
-                // 2. Guest List Panel
+                // 2. Guest List Panel (real guest logic integrated)
                 ExpansionPanel(
                   backgroundColor: AppColors.white,
                   isExpanded: _expandedPanels[1],
                   headerBuilder: (context, isExpanded) {
-                    return _buildPanelHeader(context, 'Guest List', 1);
+                    return GuestPanelHeader(
+                      isExpanded: isExpanded,
+                      onTap: () {
+                        setState(() {
+                          _expandedPanels[1] = !_expandedPanels[1];
+                        });
+                      },
+                    );
                   },
-                  body: const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('Guest list panel content goes here.'),
-                  ),
+                  body: GuestPanelBody(),
                 ),
 
-                // 3. Demographic Questions Panel (NEW)
+                // 3. Demographic Questions Panel
                 ExpansionPanel(
                   backgroundColor: AppColors.white,
                   isExpanded: _expandedPanels[2],
                   headerBuilder: (context, isExpanded) {
                     return _buildPanelHeader(
-                        context, 'Demographic Questions', 2);
+                      context,
+                      'Demographic Questions',
+                      2,
+                    );
                   },
                   body: DemographicQuestionsPanelBody(
                     controller: controller,

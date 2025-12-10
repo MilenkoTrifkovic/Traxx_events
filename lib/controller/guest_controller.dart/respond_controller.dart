@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/extensions/guest_response_extensions.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/models/guest_response.dart';
 import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
@@ -59,7 +59,7 @@ class RespondController extends GetxController {
   static Future<int> _initializeComplaignonsLimit(String eventId) async {
     FirestoreServices firestoreServices = Get.find<FirestoreServices>();
     try {
-      final Guest guest = await firestoreServices.fetchGuestById(
+      final Guest_old guest = await firestoreServices.fetchGuestById(
           'GtVe8orzBte68w3YkMKX', eventId);
       final compaignonsLimit = guest.companions;
       return compaignonsLimit;

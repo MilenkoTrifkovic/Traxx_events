@@ -6,9 +6,12 @@ import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dar
 import 'package:traxx_wepapp/controller/venue_screen_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/utils/data/us_data.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
@@ -18,8 +21,9 @@ import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 class CreateVenuePopupView extends StatelessWidget {
   final VenueScreenController controller;
   final VenuesController venuesController;
+  final bool isEditMode;
   const CreateVenuePopupView(
-      {super.key, required this.controller, required this.venuesController});
+      {super.key, required this.controller, required this.venuesController, this.isEditMode = false});
   // final VenueScreenController controller = VenueScreenController();
   // final VenuesController venuesController = Get.find<VenuesController>();
   @override
@@ -36,8 +40,10 @@ class CreateVenuePopupView extends StatelessWidget {
           children: [
             DialogStepHeader(
                 icon: Icons.home_work_outlined,
-                title: 'Create Venue',
-                description: 'Let\'s create a new venue.'),
+                title: isEditMode ? 'Edit Venue' : 'Create Venue',
+                description: isEditMode
+                    ? 'Update the venue details.'
+                    : 'Let\'s create a new venue.'),
             _buildVenueForm(context)
           ],
         ),
@@ -73,6 +79,95 @@ class CreateVenuePopupView extends StatelessWidget {
               validator: controller.validateDescription,
               // maxLength: 500,
             ),
+            // Address Field
+            Column(
+              children: [
+                SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppTextInputField(
+                        label: 'Street Address *',
+                        controller: controller.streetController,
+                        hintText: 'Enter your street address...',
+                        validator: ValidationHelper.validateAddress,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // City Field
+                AppTextInputField(
+                  label: 'City',
+                  controller: controller.cityController,
+                  hintText: 'Enter city',
+                  validator: ValidationHelper.validateCity,
+                ),
+
+                // Country Dropdown
+                Obx(() => AppDropdownMenu<String>(
+                      label: 'Country',
+                      value: controller.selectedCountry.value,
+                      hintText: 'Select country',
+                      validator: (value) =>
+                          ValidationHelper.validateDropdownSelection(
+                              value, 'country'),
+                      items: USData.countries.map((String country) {
+                        return DropdownMenuItem<String>(
+                          value: country,
+                          child: Text(country),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          controller.selectedCountry.value = newValue;
+                        }
+                      },
+                    )),
+
+                // State and Zip Row
+                Row(
+                  children: [
+                    // State Dropdown
+                    Expanded(
+                      child: Obx(() => AppDropdownMenu<String>(
+                            label: 'State',
+                            value: controller.selectedState.value,
+                            hintText: 'Select state',
+                            validator: (value) =>
+                                ValidationHelper.validateDropdownSelection(
+                                    value, 'state'),
+                            items: USData.states.map((String state) {
+                              return DropdownMenuItem<String>(
+                                value: state,
+                                child: Text(state),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              if (newValue != null) {
+                                controller.selectedState.value = newValue;
+                              }
+                            },
+                          )),
+                    ),
+                    const SizedBox(width: 16),
+                    // Zip Field
+                    Expanded(
+                      child: AppTextInputField(
+                        label: 'Zip Code',
+                        controller: controller.zipController,
+                        hintText: 'Enter zip code',
+                        validator: ValidationHelper.validateZipCode,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                
+              ],
+            ),
+
 
             // Image Upload Section
             _buildImageUploadSection(context),
@@ -82,7 +177,7 @@ class CreateVenuePopupView extends StatelessWidget {
               children: [
                 Expanded(
                   child: AppPrimaryButton(
-                    text: 'Create Venue',
+                    text: isEditMode ? 'Update Venue' : 'Create Venue',
                     onPressed: () {
                       if (controller.validateForm()) {
                         popRoute(context, true);

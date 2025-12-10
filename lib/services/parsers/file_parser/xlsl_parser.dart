@@ -1,6 +1,6 @@
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.dart';
 
 /// XlsXParser is responsible for parsing XLSX files containing guest data.
@@ -24,7 +24,7 @@ import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.d
 /// ```
 class XlsXParser implements FileParser {
   @override
-  List<Guest> parseFile(PlatformFile filePath) {
+  List<Guest_old> parseFile(PlatformFile filePath) {
     if (filePath.bytes == null || filePath.bytes!.isEmpty) {
       throw FormatException('The provided XLSX file is empty or corrupted.');
     }
@@ -59,7 +59,7 @@ class XlsXParser implements FileParser {
       throw FormatException('No valid data rows found in the XLSX file.');
     }
     return filteredList.map((row) {
-      return Guest(
+      return Guest_old(
         name: row[0].trim(),
         email: row[1].trim(),
         companions: int.parse(row[2].trim()),

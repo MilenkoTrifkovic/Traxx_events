@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/models/venue.dart';
+import 'package:traxx_wepapp/models/guest_model.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
-class FourthSection extends StatelessWidget {
-  final Venue venue;
+class FourthSectionGuest extends StatelessWidget {
+  final GuestModel guest;
   final VoidCallback? onPressed;
-  final VoidCallback? onEdit;
-  const FourthSection({
+final VoidCallback? onEdit;
+  const FourthSectionGuest({
     super.key,
-    required this.venue,
+    required this.guest,
     required this.onPressed,
-    required this.onEdit,
+    this.onEdit,
   });
 
   @override
@@ -49,5 +49,17 @@ class FourthSection extends StatelessWidget {
             ))
       ],
     );
+    // return Row(
+    //   crossAxisAlignment: CrossAxisAlignment.start,
+    //   mainAxisAlignment: MainAxisAlignment.end,
+    //   children: [
+    //     Padding(
+    //         padding: AppPadding.right(context, paddingType: Sizes.xs),
+    //         child: IconButton(
+    //           onPressed: onPressed,
+    //           icon: Icon(Icons.delete, color: AppColors.inputError),
+    //         ))
+    //   ],
+    // );
   }
 }
