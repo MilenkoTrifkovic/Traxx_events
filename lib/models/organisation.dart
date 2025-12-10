@@ -55,15 +55,15 @@ class Organisation {
         'zip': zip,
         'country': country,
       },
-      'createdAt': createdAt?.toIso8601String(),
-      'modifiedDate': modifiedDate?.toIso8601String(),
-      // 'isDisabled': isDisabled,
-      // 'createdAt': createdAt != null
-      //     ? Timestamp.fromDate(createdAt!)
-      //     : FieldValue.serverTimestamp(),
-      // 'modifiedDate': modifiedDate != null
-      //     ? Timestamp.fromDate(modifiedDate!)
-      //     : FieldValue.serverTimestamp(),
+      // 'createdAt': createdAt?.toIso8601String(),
+      // 'modifiedDate': modifiedDate?.toIso8601String(),
+      'isDisabled': isDisabled,
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : FieldValue.serverTimestamp(),
+      'modifiedDate': modifiedDate != null
+          ? Timestamp.fromDate(modifiedDate!)
+          : FieldValue.serverTimestamp(),
     };
   }
 

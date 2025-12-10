@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -753,5 +754,217 @@ class FirestoreServices {
     return querySnapshot.docs
         .map((doc) => MenuItem.fromFirestore(doc.data(), doc.id))
         .toList();
+  }
+
+  /// Save event using event.eventId as the Firestore document ID.
+  /// If event.eventId is null, a UUIDv4 will be assigned and used as doc id.
+  // Future<void> saveEvent(Event event) async {
+  //   try {
+  //     final uuid = Uuid();
+  //     final id = event.eventId ?? uuid.v4();
+  //     final e = event.copyWith(eventId: id);
+  //     // Use doc(id).set so that eventsRef.doc(id) will exist later
+  //     await eventsRef.doc(id).set(e.toJson());
+  //     print('Event saved with document id: $id');
+  //   } on FirebaseException catch (e) {
+  //     print('Firestore error saving event: ${e.message}');
+  //     rethrow;
+  //   } catch (e) {
+  //     print('Unknown error saving event: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // /// Update event by using the document id == event.eventId.
+  // /// Throws if event.eventId is null or doc does not exist.
+  // Future<void> updateEvent(Event event) async {
+  //   if (event.eventId == null || event.eventId!.isEmpty) {
+  //     throw Exception('eventId missing on event');
+  //   }
+
+  //   final docRef = eventsRef.doc(event.eventId);
+  //   final snapshot = await docRef.get();
+  //   if (!snapshot.exists) {
+  //     throw Exception('No event found with id: ${event.eventId}');
+  //   }
+  //   try {
+  //     await docRef.update(event.toJson());
+  //   } on FirebaseException catch (e) {
+  //     print('Firestore error updating event: ${e.message}');
+  //     rethrow;
+  //   } catch (e) {
+  //     print('Unknown error updating event: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // /// Get event document by document id (eventId).
+  // Future<Event> getEventById(String eventId) async {
+  //   try {
+  //     final docRef = eventsRef.doc(eventId);
+  //     final snapshot = await docRef.get();
+  //     if (!snapshot.exists) {
+  //       throw Exception('Event not found for id: $eventId');
+  //     }
+  //     return Event.fromFirestore(snapshot);
+  //   } on FirebaseException catch (e) {
+  //     print('Firestore error: ${e.message}');
+  //     rethrow;
+  //   } catch (e) {
+  //     print('Unknown error: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  /// Update only the given fields on the event document (atomic).
+  Future<void> updateEventFields(
+      String eventId, Map<String, dynamic> fields) async {
+    final docRef = eventsRef.doc(eventId);
+    final snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      throw Exception('No event found with id: $eventId');
+    }
+    fields['updatedAt'] = FieldValue.serverTimestamp();
+    await docRef.update(fields);
+  }
+
+  // --------------------------
+  // Responses (audit/history) helper
+  // --------------------------
+
+  /// Write an audit/response doc under events/{eventId}/responses.
+  /// Call this whenever the user chooses a menu, adds / removes items, or selects demographic set.
+  Future<void> writeResponseAudit(
+      String eventId, Map<String, dynamic> payload) async {
+    if (eventId.isEmpty) return;
+    final actor = FirebaseAuth.instance.currentUser?.uid;
+    payload['actorUserId'] = actor;
+    payload['createdAt'] = FieldValue.serverTimestamp();
+    final ref = eventsRef.doc(eventId).collection('responses').doc();
+    await ref.set(payload);
+  }
+
+  // --------------------------
+  // Existing methods kept (menus, guests, guestResponses, etc.)
+  // Adjusted only where they touched eventsRef.doc(eventId)
+  // --------------------------
+
+  // Future<void> saveSetQuestions(
+  //     List<EventQuestions> list, String eventId) async {
+  //   final data = list.map((e) => e.toJson()).toList();
+  //   try {
+  //     await eventsRef
+  //         .doc(eventId)
+  //         .collection('guestQuestions')
+  //         .doc('config')
+  //         .set({
+  //       "guestQuestions": data,
+  //     });
+  //     print('Guest questions saved successfully.');
+  //   } catch (e) {
+  //     print('Failed to save guest questions: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // Future<List<EventQuestions>> fetchAllSetQuestions(String eventId) async {
+  //   try {
+  //     final snapshot = await eventsRef
+  //         .doc(eventId)
+  //         .collection('guestQuestions')
+  //         .doc('config')
+  //         .get();
+  //     final data = snapshot.data();
+  //     if (data != null && data.containsKey('guestQuestions')) {
+  //       final List<dynamic> fieldsData = data['guestQuestions'];
+  //       return fieldsData.map((field) {
+  //         return EventQuestions(
+  //           fieldName: field['fieldName'],
+  //           groupId: field['groupId'],
+  //           inputType: InputType.values.firstWhere(
+  //             (e) => e.toString() == 'InputType.${field['inputType']}',
+  //           ),
+  //         );
+  //       }).toList();
+  //     } else {
+  //       return [];
+  //     }
+  //   } catch (e) {
+  //     print('Failed to fetch guest fields: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // // keep the rest of your methods unmodified (getMenus, saveGuest, etc.)
+  // // but ensure they use eventsRef.doc(eventId) consistently
+
+  // // Example: batch helper (keeps same semantics)
+  // void addUpdateEventFieldsToBatch(
+  //     WriteBatch batch, Map<String, dynamic> fields, String eventId) {
+  //   final docRef = eventsRef.doc(eventId);
+  //   batch.update(docRef, fields);
+  // }
+
+  // // Also keep getAllEvents and others but they will work as before
+  // Future<List<Event>> getAllEvents(String organisationId) async {
+  //   try {
+  //     final snapshot = await eventsRef
+  //         .where('organisationId', isEqualTo: organisationId)
+  //         .get();
+  //     return snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
+  //   } catch (e) {
+  //     print('Error getAllEvents: $e');
+  //     rethrow;
+  //   }
+  // }
+
+  // Example of write wrapper used by UI if you prefer centralized update
+  Future<void> chooseMenuForEvent(String eventId, String menuId) async {
+    await updateEventFields(eventId, {
+      'selectedMenuId': menuId,
+      'selectedMenuItemIds': <String>[],
+    });
+    await writeResponseAudit(eventId, {
+      'type': 'menu_selection',
+      'selectedMenuId': menuId,
+      'selectedMenuItemIds': <String>[]
+    });
+  }
+
+  Future<void> addMenuItemToEvent(String eventId, String menuItemId,
+      {String? menuId}) async {
+    await eventsRef.doc(eventId).update({
+      'selectedMenuItemIds': FieldValue.arrayUnion([menuItemId]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await writeResponseAudit(eventId, {
+      'type': 'menu_item_added',
+      'menuItemId': menuItemId,
+      if (menuId != null) 'menuId': menuId,
+    });
+  }
+
+  Future<void> removeMenuItemFromEvent(String eventId, String menuItemId,
+      {String? menuId}) async {
+    await eventsRef.doc(eventId).update({
+      'selectedMenuItemIds': FieldValue.arrayRemove([menuItemId]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await writeResponseAudit(eventId, {
+      'type': 'menu_item_removed',
+      'menuItemId': menuItemId,
+      if (menuId != null) 'menuId': menuId,
+    });
+  }
+
+  Future<void> chooseDemographicSetForEvent(
+      String eventId, String questionSetId) async {
+    await updateEventFields(eventId, {
+      'selectedDemographicQuestionSetId': questionSetId,
+    });
+    await writeResponseAudit(eventId, {
+      'type': 'demographic_selection',
+      'questionSetId': questionSetId,
+    });
   }
 }

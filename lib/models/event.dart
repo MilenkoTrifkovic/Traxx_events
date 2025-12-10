@@ -27,7 +27,8 @@ class Event {
   final EventStatus status;
   List<MenuCategory> selectableCategories;
   List<String>? selectedMenus;
-
+  final String? selectedMenuId; // single chosen menu set
+  final List<String> selectedMenuItemIds;
   // Optional fields
   final XFile? coverImage;
   String? coverImageUrl;
@@ -37,6 +38,7 @@ class Event {
   final String? plannerEmail;
   final String? specialNotes;
   final bool hideHostInfo;
+  final String? selectedDemographicQuestionSetId;
 
   Event({
     this.isDisabled,
@@ -65,6 +67,9 @@ class Event {
     this.hideHostInfo = false,
     this.selectableCategories = const [],
     this.selectedMenus,
+    this.selectedMenuId,
+    this.selectedMenuItemIds = const [],
+    this.selectedDemographicQuestionSetId,
   });
 
   /// Creates an Event instance from a Firestore document
@@ -129,6 +134,13 @@ class Event {
               ?.map((e) => e as String)
               .toList() ??
           [],
+      selectedMenuId: data['selectedMenuId'] as String?,
+      selectedMenuItemIds: (data['selectedMenuItemIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      selectedDemographicQuestionSetId:
+          data['selectedDemographicQuestionSetId'] as String?,
     );
   }
 
@@ -245,7 +257,10 @@ class Event {
       'updatedAt': Timestamp.now(),
       'selectableCategories': selectableCategories.map((e) => e.name).toList(),
       'selectedMenus': selectedMenus ?? [],
+      'selectedMenuId': selectedMenuId,
+      'selectedMenuItemIds': selectedMenuItemIds,
       'isDisabled': isDisabled ?? false,
+      'selectedDemographicQuestionSetId': selectedDemographicQuestionSetId,
     };
   }
 
@@ -275,8 +290,12 @@ class Event {
     String? plannerEmail,
     String? specialNotes,
     bool? hideHostInfo,
+    String? selectedMenuId,
+    List<String>? selectedMenus,
+    List<String>? selectedMenuItemIds,
     List<MenuCategory>? selectableCategories,
     bool? isDisabled,
+    String? selectedDemographicQuestionSetId,
   }) {
     return Event(
       eventId: eventId ?? this.eventId,
@@ -304,7 +323,12 @@ class Event {
       specialNotes: specialNotes ?? this.specialNotes,
       hideHostInfo: hideHostInfo ?? this.hideHostInfo,
       selectableCategories: selectableCategories ?? this.selectableCategories,
+      selectedMenus: selectedMenus ?? this.selectedMenus,
+      selectedMenuId: selectedMenuId ?? this.selectedMenuId,
+      selectedMenuItemIds: selectedMenuItemIds ?? this.selectedMenuItemIds,
       isDisabled: isDisabled ?? this.isDisabled,
+      selectedDemographicQuestionSetId: selectedDemographicQuestionSetId ??
+          this.selectedDemographicQuestionSetId,
     );
   }
 
@@ -334,6 +358,10 @@ Event {
   hideHostInfo: $hideHostInfo
   downloadURL: $coverImageDownloadUrl
   selectableCategories: $selectableCategories
+  selectedMenus: $selectedMenus ,
+      selectedMenuId: $selectedMenuId,
+      selectedMenuItemIds:
+          $selectedMenuItemIds,
   isDisabled: $isDisabled
 }''';
   }
