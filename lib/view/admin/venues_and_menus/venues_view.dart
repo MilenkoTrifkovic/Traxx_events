@@ -122,6 +122,34 @@ class _VenuesViewState extends State<VenuesView> {
                 // pushAndRemoveAllRoute(AppRoute.hostVenueDetails, context,
                 //     urlParam: venue.venueID);
               },
+              onEdit: () {
+                controller.updateClassFields(venue);
+                showDialog(
+                context: context,
+                builder: (context) {
+                  return CreateVenuePopupView(
+                    controller: controller,
+                    venuesController: venuesController,
+                    isEditMode: true,
+                  );
+                },
+              ).then(
+                (value) async {
+                  if (value != null && value is bool && value) {
+                    try {
+                      showLoadingIndicator();
+                      final createdVenue = await controller.updateVenue();
+                      // venuesController.addVenue(createdVenue);
+                    } on Exception catch (e) {
+                      // snackbarMessageController
+                      //     .showErrorMessage('Error creating venue');
+                    } finally {
+                      hideLoadingIndicator();
+                    }
+                  } else {}
+                },
+              );
+              },
             ),
           );
         },

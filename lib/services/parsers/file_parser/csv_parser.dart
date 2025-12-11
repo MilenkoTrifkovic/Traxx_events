@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
-import 'package:traxx_wepapp/models/guest.dart';
+import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.dart';
 
 /// CsvParser is responsible for parsing CSV files containing guest data.
@@ -23,7 +23,7 @@ import 'package:traxx_wepapp/services/parsers/file_parser/file_parser_abstract.d
 /// - Leading/trailing whitespace is trimmed.
 class CsvParser implements FileParser {
   @override
-  List<Guest> parseFile(PlatformFile file) {
+  List<Guest_old> parseFile(PlatformFile file) {
     List<String> filteredList = [];
     final content = utf8.decode(file.bytes!);
     final List<String> lines = LineSplitter.split(content).toList();
@@ -41,7 +41,7 @@ class CsvParser implements FileParser {
     }
     return filteredList.map((row) {
       final elements = row.split(',');
-      return Guest(
+      return Guest_old(
         name: elements[0].trim(),
         email: elements[1].trim(),
         companions: int.parse(elements[2].trim()),

@@ -57,4 +57,20 @@ class SnackbarMessageController extends GetxController {
       ),
     );
   }
+
+  /// Shows an informational message (neutral color)
+  void showInfoMessage(String text) {
+    rootScaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: AppText.styledBodyMedium(null, text,
+            color: AppColors.white, weight: AppFontWeight.semiBold),
+        backgroundColor: AppColors.primaryAccent,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
 }

@@ -19,7 +19,6 @@ import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
 class AdminUserManagementHeader extends StatelessWidget {
   AdminUserManagementHeader({super.key});
   final AdminUserListController controller = AdminUserListController();
-  final MenusController menusController = Get.find<MenusController>();
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
   @override
@@ -49,24 +48,21 @@ class AdminUserManagementHeader extends StatelessWidget {
                         controller: controller,
                       );
                     },
-                  ).then(
-                    (value) async {
-                      if (value != null && value is bool && value) {
-                        try {
-                          showLoadingIndicator();
-                          await controller.submitForm();
-                        } on Exception catch (e) {
-                          snackbarMessageController
-                              .showErrorMessage('Error creating user');
-                        } finally {
-                          hideLoadingIndicator();
-                        }
-                      } else {}
-                    },
-                  );
-                  // Handle add event action
-                }),
-            // AppSpacing.horizontalXs(context),
+                  ).then((value) async {
+                    if (value != null && value is bool && value) {
+                      try {
+                        showLoadingIndicator();
+                        await controller.submitForm();
+                      } on Exception {
+                        snackbarMessageController
+                            .showErrorMessage('Error creating user');
+                      } finally {
+                        hideLoadingIndicator();
+                      }
+                    }
+                  });
+                  // AppSpacing.horizontalXs(context),
+                })
           ],
         )
       ],

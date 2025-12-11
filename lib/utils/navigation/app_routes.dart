@@ -5,42 +5,39 @@ enum AppRoute {
   signup('/signup'),
   emailVerification('/email-verification'),
 
+
   // Host routes
   host('/host'),
   hostOrganisationInfoForm('/host-organisation-info-form'),
   hostEvents('/host-events'),
   hostRoleSelection('/host-role-selection'),
-  // hostRoletest('/hosdasdasdas'),
   hostVenues('/host-venues'),
   hostMenus('/host-menus'),
+
+  /// 🔹 NEW: host menu set details
+  hostMenuDetails('/host-menus/:menuId', 'menuId'),
+
   hostVenueDetails('/host-venue-details/:eventId', 'eventId'),
-  // NEW: question sets list page
   hostQuestionSets('/host-question-sets'),
+  hostSettings('/host-settings'),
 
   // NEW: questions for a specific set (HostQuestionsScreen)
   hostQuestionSetQuestions('/host-question-sets/:setId', 'setId'),
   hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
-
   adminEventDetails('/host-event-details/:eventId', 'eventId'),
 
+  // Guest / event routes ...
   guestEvents('/guest-events'),
-  // guestEventDetails('/guest-event-details/:value'),
   guestEventDetails('/guest-event-details/:eventId', 'eventId'),
   guestEventRespond('/guest-event-details/:eventId/respond', 'eventId'),
-
   eventDetails('/event-details/:eventId', 'eventId'),
   eventQuestions('/event-questions'),
   eventResponses('/event-responses/:eventId/responses', 'eventId'),
-  // eventMenus('/event-menus'),
   eventMenus('/guest-event-details/:eventId/event-menus', 'eventId'),
   eventGuests('/event-guests'),
 
-  // Guest routes
-
-  // Planner routes
-
-  // Other routes
+  // Other
   aboutView('/about'),
   contactView('/contact');
 
@@ -54,7 +51,7 @@ enum AppRoute {
   }
 
   final String path;
-  final String? placeholder; // placeholder je sada opcionalan
+  final String? placeholder;
 
   const AppRoute(this.path, [this.placeholder]);
 }

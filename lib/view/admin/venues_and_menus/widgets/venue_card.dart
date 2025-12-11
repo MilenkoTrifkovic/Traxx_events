@@ -18,12 +18,14 @@ class VenueCard extends StatelessWidget {
   /// Callback function when the card is tapped
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
 
   const VenueCard({
     super.key,
     required this.venue,
     this.onTap,
     this.onDelete,
+    this.onEdit,
   });
 
   @override
@@ -55,7 +57,9 @@ class VenueCard extends StatelessWidget {
             // if (ScreenSize.isDesktop(context))
             //   Expanded(child: ThirdSection(event: event)),
             if (ScreenSize.isDesktop(context))
-              Expanded(child: FourthSection(venue: venue, onPressed: onDelete)),
+              Expanded(
+                  child: FourthSection(
+                      venue: venue, onPressed: onDelete, onEdit: onEdit)),
           ],
         ),
       ),

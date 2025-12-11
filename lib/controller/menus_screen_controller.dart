@@ -4,23 +4,24 @@ import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 // loader not required in this controller
 
-/// Controller for managing venue operations including creation, deletion, and form validation.
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MenusScreenController extends GetxController {
-  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final ImageServices _imageServices = ImageServices();
   final StorageServices _storageServices = Get.find<StorageServices>();
   final AuthController _authController = Get.find<AuthController>();
 
   // Loading states
   final isLoading = false.obs;
-  final isCreatingMenuItem = false.obs;
-  final isDeletingMenuItem = false.obs;
+  final isCreatingMenu = false.obs;
+  final isDeletingMenu = false.obs;
 
   // Form controllers
   final nameController = TextEditingController();
@@ -31,19 +32,15 @@ class MenusScreenController extends GetxController {
   final descriptionError = RxnString();
   final formKey = GlobalKey<FormState>();
 
-  // Category selection for menu item
-  final selectedCategory = Rx<MenuCategory?>(MenuCategory.other);
+  // ❌ no category for menus
 
   // Image handling
   final selectedImage = Rxn<XFile>();
   final imageError = RxnString();
 
-  // Use global snackbar message controller
+  // Global snackbar message controller
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
-
-  // Venues list - commented out for separate controller
-  // final venues = <Venue>[].obs;
 
   @override
   void onClose() {
@@ -52,62 +49,39 @@ class MenusScreenController extends GetxController {
     super.onClose();
   }
 
-  /// Clears the current global snackbar message
   void clearMessage() {
     snackbarMessageController.clearMessage();
   }
 
-  /// Shows a success message globally
   void _showSuccessMessage(String text) {
     snackbarMessageController.showSuccessMessage(text);
   }
 
-  /// Shows an error message globally
   void _showErrorMessage(String text) {
     snackbarMessageController.showErrorMessage(text);
   }
 
-  /// Fetches all venues for the current organisation
-  // Future<void> fetchVenues() async {
-  //   try {
-  //     isLoading.value = true;
-  //     final organisationId = _authController.organisationId;
-  //     if (organisationId == null) {
-  //       throw Exception('Organisation ID not found');
-  //     }
-
-  //     final venuesList = await _firestoreServices.getVenues(organisationId);
-  //     venues.assignAll(venuesList);
-  //   } catch (e) {
-  //     Get.snackbar(
-  //       'Error',
-  //       'Failed to fetch venues: $e',
-  //       snackPosition: SnackPosition.BOTTOM,
-  //       backgroundColor: Colors.red.withOpacity(0.8),
-  //       colorText: Colors.white,
-  //     );
-  //   } finally {
-  //     isLoading.value = false;
-  //   }
-  // }
-
-  /// Creates a new menu item with required parameters
+  /// Creates a new **Menu** (menu set) in the `menus` collection.
   ///
-  /// Required:
-  /// - name
-  /// - category
-  /// Optional:
-  /// - description
-  /// - image
-  Future<MenuItem> createMenuItem({
+  /// Firestore doc structure:
+  /// menus/{menuId} {
+  ///   menuId,
+  ///   organisationId,
+  ///   name,
+  ///   description,
+  ///   coverImagePath,
+  ///   imageUrl,
+  ///   isDisabled,
+  ///   createdAt,
+  ///   updatedAt
+  /// }
+  Future<MenuModel> createMenu({
     required String name,
-    required MenuCategory category,
     String? description,
   }) async {
     try {
-      // Validate required fields
       if (name.trim().isEmpty) {
-        throw Exception('Menu item name is required');
+        throw Exception('Menu name is required');
       }
 
       final organisationId = _authController.organisationId;
@@ -115,78 +89,93 @@ class MenusScreenController extends GetxController {
         throw Exception('Organisation ID not found');
       }
 
-      isCreatingMenuItem.value = true;
+      isCreatingMenu.value = true;
 
-      // Upload image if selected
-      String? photoPath;
+      // 1) Upload image if selected
+      String? coverImagePath;
       if (selectedImage.value != null) {
         try {
-          photoPath = await _storageServices.uploadImage(selectedImage.value!);
-          print('Image uploaded successfully: $photoPath');
+          coverImagePath =
+              await _storageServices.uploadImage(selectedImage.value!);
+          debugPrint('Menu cover uploaded: $coverImagePath');
         } catch (e) {
-          print('Failed to upload image: $e');
-          // Continue without image - image upload is optional
+          debugPrint('Failed to upload menu cover: $e');
         }
       }
 
-      // Create menu item object
-      final menuItem = MenuItem(
-        organisationId: organisationId,
-        name: name.trim(),
-        category: category,
-        description:
-            description?.trim().isEmpty == true ? null : description?.trim(),
-        imagePath: photoPath,
-        isDisabled: false,
-      );
+      // 2) Prepare doc ref in `menus` collection
+      final menusRef = FirebaseFirestore.instance.collection('menus').doc();
+      final menuId = menusRef.id;
 
-      // Save to Firestore
-      print('Creating menu item: ${menuItem.imagePath}');
-      final created = await _firestoreServices.createMenuItem(menuItem);
-      print('Creating menu item: ${created.imagePath}');
+      // 3) Write initial data (with server timestamps)
+      await menusRef.set({
+        'menuId': menuId,
+        'organisationId': organisationId,
+        'name': name.trim(),
+        'description':
+            (description?.trim().isEmpty ?? true) ? null : description!.trim(),
+        'coverImagePath': coverImagePath ?? '',
+        'imageUrl': null,
+        'isDisabled': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-      // Attempt to load a public URL for the uploaded image (if any)
-      final imageUrl = created.imagePath == null
-          ? null
-          : await _storageServices.loadImageURL(created.imagePath);
-      print('Loaded image URL: $imageUrl');
+      // 4) Read back to get real timestamps
+      final snap = await menusRef.get();
+      final data = snap.data() ?? {};
 
-      // copyWith returns a new MenuItem instance; it does NOT mutate `created`.
-      // Assign the returned copy to a variable and persist the change if needed.
-      var result = created;
-      if (imageUrl != null) {
-        result = created.copyWith(imageUrl: imageUrl);
-        // Persist the imageUrl back to Firestore so future reads include it
+      // 5) Build MenuModel used by UI
+      var createdMenu = MenuModel.fromFirestore(data, menuId);
+
+      // 6) If we want a public URL for the cover, update the doc once more
+      if (createdMenu.coverImagePath != null &&
+          createdMenu.coverImagePath!.isNotEmpty) {
         try {
-          await _firestoreServices.updateMenuItem(result);
+          final imageUrl =
+              await _storageServices.loadImageURL(createdMenu.coverImagePath!);
+          if (imageUrl != null && imageUrl.isNotEmpty) {
+            await menusRef.update({
+              'imageUrl': imageUrl,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+
+            createdMenu = MenuModel(
+              id: createdMenu.id,
+              organisationId: createdMenu.organisationId,
+              name: createdMenu.name,
+              description: createdMenu.description,
+              coverImagePath: createdMenu.coverImagePath,
+              imageUrl: imageUrl,
+              isDisabled: createdMenu.isDisabled,
+              createdAt: createdMenu.createdAt,
+              updatedAt: createdMenu.updatedAt,
+            );
+          }
         } catch (e) {
-          print('Failed to update menu item with imageUrl: $e');
+          debugPrint('Failed to resolve menu image URL: $e');
         }
       }
 
-      print('Menu item created with imageUrl: ${result.imageUrl}');
-
-      // Clear form
       clearForm();
+      _showSuccessMessage('Menu "${createdMenu.name}" created.');
 
-  _showSuccessMessage('Menu item "${result.name}" created successfully!');
-  return result;
+      return createdMenu;
     } catch (e) {
-      _showErrorMessage('Failed to create menu item: $e');
-      throw Exception('Failed to create menu item');
+      _showErrorMessage('Failed to create menu: $e');
+      throw Exception('Failed to create menu');
     } finally {
-      isCreatingMenuItem.value = false;
+      isCreatingMenu.value = false;
     }
   }
 
-  /// Picks an image from the device gallery
   Future<void> pickImage() async {
     try {
       final image = await _imageServices.pickImage(ImageSource.gallery);
       if (image != null) {
         selectedImage.value = image;
         imageError.value = null;
-        print('Image selected: ${image.path}');
+        debugPrint('Image selected: ${image.path}');
       }
     } catch (e) {
       imageError.value = 'Failed to pick image: $e';
@@ -194,27 +183,24 @@ class MenusScreenController extends GetxController {
     }
   }
 
-  /// Removes the selected image
   void removeImage() {
     selectedImage.value = null;
     imageError.value = null;
   }
 
-  /// Validates the menu item name
   String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Menu item name is required';
+      return 'Menu name is required';
     }
     if (value.trim().length < 2) {
-      return 'Menu item name must be at least 2 characters';
+      return 'Menu name must be at least 2 characters';
     }
     if (value.trim().length > 100) {
-      return 'Menu item name must be less than 100 characters';
+      return 'Menu name must be less than 100 characters';
     }
     return null;
   }
 
-  /// Validates the venue description (optional)
   String? validateDescription(String? value) {
     if (value != null && value.trim().isNotEmpty && value.trim().length > 500) {
       return 'Description must be less than 500 characters';
@@ -222,17 +208,14 @@ class MenusScreenController extends GetxController {
     return null;
   }
 
-  /// Validates the entire form
   bool validateForm() {
     if (!formKey.currentState!.validate()) {
       return false;
     }
 
-    // Clear any previous errors
     nameError.value = null;
     descriptionError.value = null;
 
-    // Additional validation if needed
     final nameValidation = validateName(nameController.text);
     if (nameValidation != null) {
       nameError.value = nameValidation;
@@ -249,7 +232,6 @@ class MenusScreenController extends GetxController {
     return true;
   }
 
-  /// Clears the form and resets all fields
   void clearForm() {
     nameController.clear();
     descriptionController.clear();
@@ -258,25 +240,23 @@ class MenusScreenController extends GetxController {
     descriptionError.value = null;
     imageError.value = null;
 
-    // Reset form validation state
     if (formKey.currentState != null) {
       formKey.currentState!.reset();
     }
   }
 
-  /// Submits the form and creates the menu item
-  Future<MenuItem> submitForm() async {
-    if (validateForm()) {
-      final category = selectedCategory.value ?? MenuCategory.other;
-      final item = await createMenuItem(
-        name: nameController.text,
-        category: category,
-        description: descriptionController.text.isNotEmpty
-            ? descriptionController.text
-            : null,
-      );
-      return item;
+  /// Called by UI after popup closes with "true"
+  Future<MenuModel> submitForm() async {
+    if (!validateForm()) {
+      throw Exception('Form validation failed');
     }
-    throw Exception('Form validation failed');
+
+    final menu = await createMenu(
+      name: nameController.text,
+      description: descriptionController.text.isNotEmpty
+          ? descriptionController.text
+          : null,
+    );
+    return menu;
   }
 }

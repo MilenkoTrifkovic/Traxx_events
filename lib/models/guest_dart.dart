@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
-class Guest {
+class Guest_old {
   String id;
   String email;
   String name;
@@ -9,7 +9,7 @@ class Guest {
   DateTime? createdAt;
   bool invited;
 
-  Guest({
+  Guest_old({
     String? id,
     this.email = '',
     this.name = '',
@@ -25,8 +25,8 @@ class Guest {
   }
 
   // Create Guest from Firestore document
-  factory Guest.fromFirestore(Map<String, dynamic> data, String id) {
-    return Guest(
+  factory Guest_old.fromFirestore(Map<String, dynamic> data, String id) {
+    return Guest_old(
       id: id,
       email: data['email'] as String? ?? '',
       name: data['name'] as String? ?? '',
@@ -57,12 +57,12 @@ class Guest {
   Map<String, dynamic> toJson() => toFirestore();
 
   // CopyWith method for immutability
-  Guest copyWith({
+  Guest_old copyWith({
     String? email,
     String? name,
     int? companions,
   }) {
-    return Guest(
+    return Guest_old(
       id: id, // Keep the same ID
       email: email ?? this.email,
       name: name ?? this.name,

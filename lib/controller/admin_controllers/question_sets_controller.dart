@@ -27,7 +27,10 @@ class QuestionSetsController {
         .orderBy('createdDate', descending: true);
 
     return query.snapshots().map(
-          (snap) => snap.docs.map((d) => QuestionSet.fromDoc(d)).toList(),
+          (snap) => snap.docs
+              .map((d) => QuestionSet.fromDoc(
+                  d)) // fromDoc now handles any snapshot type
+              .toList(),
         );
   }
 

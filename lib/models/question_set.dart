@@ -24,19 +24,35 @@ class QuestionSet {
     required this.modifiedDate,
   });
 
-  factory QuestionSet.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  /// Safely parse a DocumentSnapshot into a QuestionSet.
+  /// Provides defensive defaults for any missing fields used by UI.
+  factory QuestionSet.fromDoc(DocumentSnapshot<Object?> doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
+
+    final id = doc.id;
+    final questionSetId = (data['questionSetId'] as String?)?.trim() ?? id;
+    final title = (data['title'] as String?)?.trim() ?? '(Untitled set)';
+    final celebrationType = (data['celebrationType'] as String?)?.trim() ?? '';
+    final description = (data['description'] as String?)?.trim() ?? '';
+    final userId = (data['userId'] as String?)?.trim() ?? '';
+    final isDisabled = data['isDisabled'] as bool? ?? false;
+    final createdDate = (data['createdDate'] is Timestamp)
+        ? (data['createdDate'] as Timestamp).toDate()
+        : null;
+    final modifiedDate = (data['modifiedDate'] is Timestamp)
+        ? (data['modifiedDate'] as Timestamp).toDate()
+        : null;
 
     return QuestionSet(
-      id: doc.id,
-      questionSetId: data['questionSetId'] as String? ?? doc.id, // 👈 NEW
-      title: data['title'] as String? ?? '',
-      celebrationType: data['celebrationType'] as String? ?? '',
-      description: data['description'] as String? ?? '', // 👈 NEW
-      userId: data['userId'] as String? ?? '',
-      isDisabled: data['isDisabled'] as bool? ?? false,
-      createdDate: (data['createdDate'] as Timestamp?)?.toDate(),
-      modifiedDate: (data['modifiedDate'] as Timestamp?)?.toDate(),
+      id: id,
+      questionSetId: questionSetId,
+      title: title,
+      celebrationType: celebrationType,
+      description: description,
+      userId: userId,
+      isDisabled: isDisabled,
+      createdDate: createdDate,
+      modifiedDate: modifiedDate,
     );
   }
 
@@ -48,8 +64,10 @@ class QuestionSet {
       'description': description,
       'userId': userId,
       'isDisabled': isDisabled,
-      'createdDate': createdDate,
-      'modifiedDate': modifiedDate,
-    };
+      'createdDate':
+          createdDate != null ? Timestamp.fromDate(createdDate!) : null,
+      'modifiedDate':
+          modifiedDate != null ? Timestamp.fromDate(modifiedDate!) : null,
+    }..removeWhere((k, v) => v == null);
   }
 }

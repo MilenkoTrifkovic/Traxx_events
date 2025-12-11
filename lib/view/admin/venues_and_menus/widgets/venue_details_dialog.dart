@@ -70,6 +70,39 @@ class VenueDetailsDialog extends StatelessWidget {
                 AppText.styledHeadingMedium(context, venue.name,
                     weight: AppFontWeight.bold, color: AppColors.black),
                 AppSpacing.horizontalXs(context),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 16),
+                    AppSpacing.horizontalXs(context),
+                    Expanded(
+                      child: Padding(
+                        padding: AppPadding.only(context,
+                            paddingType: Sizes.xs, right: true),
+                        child: AppText.styledBodyMedium(
+                          context,
+                          venue.fullAddress,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.description, size: 16),
+                    AppSpacing.horizontalXs(context),
+                    if (venue.description != null && venue.description!.isNotEmpty)
+                    Flexible(
+                      child: Padding(
+                        padding: AppPadding.only(context,
+                            paddingType: Sizes.xs, right: true),
+                        child: AppText.styledBodyMedium(
+                          context,
+                          venue.description!,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 // Chip(
                 //   label: AppText.styledBodyMedium(
                 //       context, _prettyCategory(venue.name.capitalize),
@@ -82,14 +115,7 @@ class VenueDetailsDialog extends StatelessWidget {
           AppSpacing.verticalXs(context),
 
           // Description
-          if (venue.description != null && venue.description!.isNotEmpty)
-            Padding(
-              padding: AppPadding.only  (context, paddingType: Sizes.xs, bottom: true, left: true, right: true),
-              child: AppText.styledBodyMedium(
-                context,
-                venue.description!,
-              ),
-            ),
+          
         ],
       ),
     );

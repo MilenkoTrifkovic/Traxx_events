@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 enum MenuCategory {
-  appetizer(Icons.fastfood),
-  entree(Icons.restaurant),
-  dessert(Icons.cake),
-  // drink(Icons.local_drink),
-  other(Icons.more_horiz);
+  appetizer(Icons.fastfood, true),
+  entree(Icons.restaurant, false),
+  dessert(Icons.cake, true),
+  drink(Icons.local_drink, true),
+  other(Icons.more_horiz, false);
 
   final IconData icon;
-  const MenuCategory(this.icon);
+  final bool isVeg;
+
+  const MenuCategory(this.icon, this.isVeg);
 }
