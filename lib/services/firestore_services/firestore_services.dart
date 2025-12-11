@@ -99,6 +99,73 @@ class FirestoreServices {
     }
   }
 
+  /// Updates an existing organisation in Firestore.
+  ///
+  /// Validates that [organisation.organisationId] is provided, tries a direct
+  /// document lookup first (using the organisationId as the doc id), falls
+  /// back to querying by the 'organisationId' field, preserves the original
+  /// createdAt timestamp if present, and updates the document with the
+  /// provided organisation data.
+  Future<Organisation> updateOrganisation(Organisation organisation) async {
+    try {
+      if (organisation.organisationId == null ||
+          organisation.organisationId!.isEmpty) {
+        throw Exception('organisationId is required for update');
+      }
+
+      // Try direct doc lookup by organisationId (doc id)
+      final docRef = organisationsRef.doc(organisation.organisationId);
+      final docSnap = await docRef.get();
+      if (docSnap.exists) {
+        final existing = docSnap.data();
+        final updateData = organisation.toJson();
+
+        // Preserve createdAt if present on existing document
+        if (existing?.createdAt != null) {
+          // updateData['createdAt'] = existing!.createdAt?.toIso8601String();
+          updateData['createdAt'] = existing!.createdAt;
+        }
+
+        // Set modifiedDate to current server timestamp
+        updateData['modifiedDate'] = FieldValue.serverTimestamp();
+
+        await docRef.update(updateData);
+        return organisation;
+      }
+
+      // Fallback: legacy documents where organisationId is stored as a field
+      final querySnapshot = await organisationsRef
+          .where('organisationId', isEqualTo: organisation.organisationId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Organisation not found');
+      }
+
+      final ref = querySnapshot.docs.first.reference;
+      final existing = querySnapshot.docs.first.data();
+      final updateData = organisation.toJson();
+      if (existing.createdAt != null) {
+        // updateData['createdAt'] = existing.createdAt?.toIso8601String();
+        updateData['createdAt'] = existing!.createdAt;
+      }
+
+      // Set modifiedDate to current server timestamp
+      updateData['modifiedDate'] = FieldValue.serverTimestamp();
+      // updateData['modifiedDate'] = DateTime.now().toIso8601String();
+
+      await ref.update(updateData);
+      return organisation;
+    } on FirebaseException catch (e) {
+      print('Firestore error updating organisation: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Unknown error updating organisation: $e');
+      rethrow;
+    }
+  }
+
   /// Saves a new event to Firestore.
   ///
   /// Throws [FirebaseException] if the save operation fails.

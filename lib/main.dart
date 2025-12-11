@@ -80,19 +80,6 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       // builder: EasyLoading.init(),
       builder: (context, child) {
-        // GLOBAL LISTENER
-        // ever(snackbarController.message, (msg) {
-        //   if (msg == null) return;
-
-        //   if (msg.type == SnackBarType.success) {
-        //     SnackBarUtils.showSuccess(context, msg.message);
-        //   } else {
-        //     SnackBarUtils.showError(context, msg.message);
-        //   }
-
-        //   snackbarController.clearMessage();
-        // });
-
         return EasyLoading.init()(context, child);
       },
       theme: AppTheme.light,
