@@ -12,3 +12,12 @@ enum SortType {
   /// Sort by event name (Z to A)
   nameZA,
 }
+
+enum MenuItemsSortType {
+  nameAZ,
+  nameZA,
+  priceLowHigh,
+  priceHighLow,
+  dateNewest,
+  dateOldest,
+}

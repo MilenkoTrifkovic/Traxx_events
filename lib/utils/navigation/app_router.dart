@@ -10,23 +10,24 @@ import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
+import 'package:traxx_wepapp/controller/menus_list_controller.dart';
+import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/utils/enums/user_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
+import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/view/admin_user_list_page.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
 import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
-import 'package:traxx_wepapp/view/admin/event_details/host_event_details_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/guests_section/set_guests._view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/menu_section/set_menus_view.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/questions_section/set_questions_view.dart';
@@ -37,7 +38,6 @@ import 'package:traxx_wepapp/view/admin/event_details/widgets_old/responses_sect
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/organisation_info_popup_view.dart';
 import 'package:traxx_wepapp/view/admin/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
-import 'package:traxx_wepapp/widgets/app_scaffold.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 import 'package:traxx_wepapp/widgets/event_loader.dart';
 
@@ -146,7 +146,8 @@ GoRouter buildRouter() {
           final eventListController = Get.find<EventListController>();
           final authController = Get.find<AuthController>();
           Get.put(VenuesController());
-          Get.put(MenusController());
+          Get.put(MenusListController());
+          Get.put(MenusScreenController());
           Get.put(EventsController());
           Get.put(OrganisationController(authController.organisationId!));
           Get.put(UsersAndRolesController());
@@ -208,8 +209,16 @@ GoRouter buildRouter() {
             builder: (context, state) => MenusView(),
           ),
           GoRoute(
+            path: AppRoute.hostMenuDetails.path,
+            builder: (context, state) {
+              final menuId =
+                  state.pathParameters[AppRoute.hostMenuDetails.placeholder]!;
+              return MenuSetDetailsView(menuId: menuId);
+            },
+          ),
+          GoRoute(
             path: AppRoute.hostVenues.path,
-            builder: (context, state) => VenuesView(),
+            builder: (context, state) => const VenuesView(),
           ),
           GoRoute(
             path: AppRoute.hostVenueDetails.path,

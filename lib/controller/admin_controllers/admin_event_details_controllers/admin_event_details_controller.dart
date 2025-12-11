@@ -1,142 +1,488 @@
-import 'dart:math';
+// imports (adjust as needed)
+import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
+import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
+import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 
+// --------- AdminEventDetailsController (updated) ----------
 class AdminEventDetailsController {
-  /// Loads selected menu items from availableMenuItems based on event.selectedMenus
-
+  final EventsController _eventsController = Get.find<EventsController>();
+  final VenuesController _venuesController = Get.find<VenuesController>();
   final OrganisationController _organisationController =
       Get.find<OrganisationController>();
-  final EventsController _eventsController = Get.find<EventsController>();
-  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
-  final VenuesController _venuesController = Get.find<VenuesController>();
-  final MenusController _menusController = Get.find<MenusController>();
 
-  Event? event;
+  // Make event reactive so UI can rebuild on changes
+  final Rxn<Event> event = Rxn<Event>();
   Venue? venue;
   Organisation? organisation;
-  List<MenuItem> availableMenuItems = [];
-  Rx<List<MenuItem>> selectedMenusEvent = Rx<List<MenuItem>>([]);
-  Rx<List<MenuItem>> selectedMenusLocally = Rx<List<MenuItem>>([]);
-  Rx<List<MenuItem>> availableMenus = Rx<List<MenuItem>>([]);
 
-  Future<void> loadEvent(String eventId) async {
-    event = await _eventsController.fetchEventById(eventId);
-    if (event != null) {
-      await _loadVenue(event!.venueId);
-      await _loadOrganisation(event!.organisationId);
-      await _assignAvailableMenuItems();
-      await _assignAvailableMenus();
-      _loadSelectedMenuItems();
+  final availableMenus = <MenuModel>[].obs;
+  final selectedMenu = Rxn<MenuModel>();
+  final menuItems = <MenuItem>[].obs;
+  final selectedMenuItemIds = <String>[].obs;
+  final availableQuestionSets = <QuestionSet>[].obs;
+
+  final isLoading = true.obs;
+  final isMenusLoading = true.obs;
+  final isItemsLoading = true.obs;
+
+  final selectedDemographicSetId = RxnString();
+
+  late String _eventDocId;
+
+  final FirestoreServices firestore = FirestoreServices();
+
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+      _eventSubscription;
+
+  AdminEventDetailsController();
+
+  /// Dispose: cancel subscription
+  void dispose() {
+    _eventSubscription?.cancel();
+  }
+
+  /// Public wrapper so UI can open the demographic picker
+  void openDemographicPicker() {
+    _showDemographicPicker();
+  }
+
+  void _showDemographicPicker() {
+    Get.dialog(
+      DemographicSetPickerDialog(
+        sets: availableQuestionSets.toList(),
+        onSelected: (selected) async {
+          await chooseDemographicSet(selected.questionSetId);
+        },
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _writeResponseAudit(Map<String, dynamic> payload) async {
+    if (_eventDocId.isEmpty) return;
+    final ref = FirebaseFirestore.instance
+        .collection('events')
+        .doc(_eventDocId)
+        .collection('responses')
+        .doc();
+    payload['createdAt'] = FieldValue.serverTimestamp();
+    payload['actorUserId'] = FirebaseAuth.instance.currentUser?.uid;
+    await ref.set(payload);
+  }
+
+  /// Load event and related data (venue, org, menus, demographic sets).
+  /// Also attaches a realtime listener to the event document so UI stays in sync.
+  Future<void> loadEvent(String publicEventId) async {
+    isLoading.value = true;
+    try {
+      // 1) Find the Firestore document by eventId field
+      final snap = await firestore.eventsRef
+          .where('eventId', isEqualTo: publicEventId)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        debugPrint('No event document found for eventId: $publicEventId');
+        event.value = null;
+        return;
+      }
+
+      final doc = snap.docs.first;
+
+      // Firestore document ID (xAZOC...)
+      _eventDocId = doc.id;
+
+      // initial load into event (non-listener path)
+      event.value = Event.fromFirestore(doc);
+
+      // 2) Load related static-ish data (venue, org, menus, demographic sets)
+      await _loadVenue(event.value!.venueId);
+      await _loadOrganisation(event.value!.organisationId);
+      await _loadAvailableMenus();
+      await _loadAvailableDemographicQuestionSets();
+
+      // 3) set selected menu & items locally from event (optimistic)
+      final selMenuId = _getEventSelectedMenuId();
+      if (selMenuId != null && selMenuId.isNotEmpty) {
+        await _setSelectedMenuById(selMenuId, persist: false);
+      } else {
+        selectedMenu.value = null;
+        menuItems.clear();
+        selectedMenuItemIds.clear();
+      }
+
+      final selItemIds = _getEventSelectedItemIds();
+      if (selItemIds != null) {
+        selectedMenuItemIds.assignAll(List<String>.from(selItemIds));
+      }
+
+      // 4) set demographic selection locally
+      selectedDemographicSetId.value =
+          event.value?.selectedDemographicQuestionSetId;
+
+      // 5) Attach realtime listener to the event document so UI receives live updates
+      _eventSubscription?.cancel();
+      _eventSubscription = firestore.eventsRef
+          .doc(_eventDocId)
+          .snapshots()
+          .listen((docSnap) async {
+        if (!docSnap.exists) return;
+
+        // update event model
+        event.value = Event.fromFirestore(docSnap);
+
+        // update reactive fields derived from event
+        selectedDemographicSetId.value =
+            event.value?.selectedDemographicQuestionSetId;
+
+        // selected menu id & selected items should come from event doc
+        final remoteMenuId = _getEventSelectedMenuId();
+        if (remoteMenuId != null && remoteMenuId.isNotEmpty) {
+          // load menu & items for this menu if different from current
+          if (selectedMenu.value?.id != remoteMenuId) {
+            await _setSelectedMenuById(remoteMenuId, persist: false);
+          }
+        } else {
+          // if remote clears selected menu
+          selectedMenu.value = null;
+          menuItems.clear();
+        }
+
+        // sync selected menu item ids
+        selectedMenuItemIds.assignAll(event.value?.selectedMenuItemIds ?? []);
+        selectedMenuItemIds.refresh();
+      }, onError: (e) {
+        debugPrint('Event subscription error: $e');
+      });
+    } catch (e, st) {
+      debugPrint('loadEvent error: $e\n$st');
+    } finally {
+      isLoading.value = false;
     }
   }
 
-  /// Removes a menu item from selectedMenuItems and event.selectedMenus
-  void removeMenuItemFromSelection(MenuItem item) {
-    // selectedMenusFirestore.value = selectedMenusFirestore.value
-    //     .where((i) => i.menuItemId != item.menuItemId)
-    //     .toList();
-    selectedMenusLocally.value = selectedMenusLocally.value
-        .where((i) => i.menuItemId != item.menuItemId)
-        .toList();
-    event?.selectedMenus?.remove(
-        item.menuItemId); //////////////////////////////////////////////////
-    print('Removed:${item.menuItemId} ${event?.selectedMenus}');
-  }
+  Future<void> _loadAvailableDemographicQuestionSets() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestionSets')
+          .where('userId', isEqualTo: uid)
+          .where('isDisabled', isEqualTo: false)
+          .get();
 
-  /// Adds a menu item to event.selectedMenus and selectedMenuItems
-  void addMenuItemToSelection(MenuItem item) {
-    if (event == null || item.menuItemId == null) return;
-    event!.selectedMenus ??= <String>[];
-    if (!event!.selectedMenus!.contains(item.menuItemId!)) {
-      event!.selectedMenus!.add(item.menuItemId!);
-      // selectedMenusFirestore.value = [...selectedMenusFirestore.value, item];
-      selectedMenusLocally.value = [...selectedMenusLocally.value, item];
+      final list = snap.docs.map((d) => QuestionSet.fromDoc(d)).toList();
+      availableQuestionSets.assignAll(list);
+    } catch (e) {
+      debugPrint("Error loading demographic sets: $e");
+      availableQuestionSets.clear();
     }
-    print('Added:${item.menuItemId} ${event!.selectedMenus}');
   }
 
   Future<void> _loadVenue(String venueId) async {
-    venue = await _venuesController.fetchVenueById(venueId);
+    try {
+      venue = await _venuesController.fetchVenueById(venueId);
+    } catch (e) {
+      debugPrint('Error loading venue: $e');
+      venue = null;
+    }
   }
 
   Future<void> _loadOrganisation(String organisationId) async {
-    organisation = _organisationController.getOrganisation();
-  }
-
-  /// Loads and assigns available menu items for the event's venue
-  Future<void> _assignAvailableMenuItems() async {
-    if (event?.venueId == null) return;
     try {
-      availableMenuItems = await _menusController
-          .getMenuItemsByOrganisationId(event!.organisationId);
+      organisation = _organisationController.getOrganisation();
     } catch (e) {
-      availableMenuItems = [];
+      debugPrint('Error loading organisation: $e');
+      organisation = null;
     }
   }
 
-  Future<void> _assignAvailableMenus() async {
-    if (event?.venueId == null) return;
+  String? _getEventSelectedMenuId() {
+    final e = event.value;
+    if (e == null) return null;
+    if (e.selectedMenuId != null && e.selectedMenuId!.isNotEmpty) {
+      return e.selectedMenuId;
+    }
+    final list = e.selectedMenus;
+    if (list != null && list.isNotEmpty) {
+      return list.first;
+    }
+    return null;
+  }
+
+  List<String>? _getEventSelectedItemIds() {
+    final e = event.value;
+    return e?.selectedMenuItemIds;
+  }
+
+  Future<void> _loadAvailableMenus() async {
+    isMenusLoading.value = true;
     try {
-      availableMenus.value = await _menusController
-          .getMenuItemsByOrganisationId(event!.organisationId);
-    } catch (e) {
-      availableMenus.value = [];
-    }
-  }
-
-  void _loadSelectedMenuItems() {
-    selectedMenusEvent.value = availableMenuItems
-        .where((item) => event!.selectedMenus!.contains(item.menuItemId))
-        .toList();
-    selectedMenusLocally.value = selectedMenusEvent.value;
-  }
-
-  /// Persists the currently loaded event to Firestore and updates
-  /// the global events list in [EventsController].
-  Future<void> updateEvent() async {
-    if (event == null) {
-      throw Exception('Cannot update event: no event loaded');
-    }
-
-    if (event!.eventId == null) {
-      throw Exception('Cannot update event: eventId is null');
-    }
-
-    try {
-      await _firestoreServices.updateEvent(event!);
-      print('Event updated in Firestore: ${event!.toString()}');
-
-      final index = _eventsController.events
-          .indexWhere((e) => e.eventId == event!.eventId);
-      if (index != -1) {
-        _eventsController.events[index] = event!;
+      Query<Map<String, dynamic>> q =
+          FirebaseFirestore.instance.collection('menus');
+      if (organisation?.organisationId != null &&
+          organisation!.organisationId!.isNotEmpty) {
+        q = q.where('organisationId', isEqualTo: organisation!.organisationId);
       }
-      _loadSelectedMenuItems();
-
-      print('Admin event details updated successfully: ${event!.eventId}');
+      final snap = await q.orderBy('createdAt', descending: true).get();
+      final list = snap.docs
+          .map((d) => MenuModel.fromFirestore(d.data(), d.id))
+          .toList();
+      availableMenus.assignAll(list);
     } catch (e) {
-      print('Error updating event from admin details: $e');
-      rethrow;
+      debugPrint('Error loading menus: $e');
+      availableMenus.clear();
+    } finally {
+      isMenusLoading.value = false;
     }
   }
 
-  void syncSelectedMenusLists() {
-    selectedMenusLocally.value = List<MenuItem>.from(selectedMenusEvent.value);
-    event?.selectedMenus =
-        selectedMenusEvent.value.map((item) => item.menuItemId!).toList();
+  Future<void> _setSelectedMenuById(String menuId,
+      {bool persist = true}) async {
+    if (menuId.isEmpty) {
+      selectedMenu.value = null;
+      menuItems.clear();
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('menus')
+          .doc(menuId)
+          .get();
+      if (!doc.exists) {
+        selectedMenu.value = null;
+        menuItems.clear();
+        return;
+      }
+      final menu = MenuModel.fromFirestore(doc.data()!, doc.id);
+      selectedMenu.value = menu;
+      await _loadMenuItems(menu.id);
+
+      if (persist) {
+        await _persistSelectedMenu(menu.id);
+      }
+    } catch (e) {
+      debugPrint('Error setting selected menu: $e');
+    }
   }
 
-  void dispose() {
-    // Dispose resources if needed
+  Future<void> _loadMenuItems(String menuId) async {
+    isItemsLoading.value = true;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('menu_items')
+          .where('menuId', isEqualTo: menuId)
+          .orderBy('category')
+          .orderBy('createdAt', descending: false)
+          .get();
+      final list =
+          snap.docs.map((d) => MenuItem.fromFirestore(d.data(), d.id)).toList();
+      menuItems.assignAll(list);
+    } catch (e) {
+      debugPrint('Error loading menu items: $e');
+      menuItems.clear();
+    } finally {
+      isItemsLoading.value = false;
+    }
+  }
+
+  Future<void> _persistSelectedMenu(String menuId) async {
+    if (event.value == null) return;
+    try {
+      await firestore.chooseMenuForEvent(_eventDocId, menuId);
+      // The chooseMenuForEvent already writes audit; but also update local
+      selectedMenuItemIds.clear();
+      selectedMenuItemIds.refresh();
+    } catch (e) {
+      debugPrint('Error persisting selected menu: $e');
+    }
+  }
+
+  /// Called by UI when user chooses a menu from the list
+  Future<void> chooseMenu(MenuModel menu) async {
+    if (_eventDocId.isEmpty || menu.id == null) return;
+    try {
+      // optimistic local update
+      selectedMenu.value = menu;
+      menuItems.clear();
+      selectedMenuItemIds.clear();
+      // persist to firestore (this will be reflected back by the snapshot listener)
+      await firestore.chooseMenuForEvent(_eventDocId, menu.id!);
+      // load items for UI
+      await _loadMenuItems(menu.id!);
+    } catch (e) {
+      debugPrint('Error choosing menu: $e');
+      // optionally rollback optimistic change if needed
+    }
+  }
+
+  /// Add a menu item to the event (persist + audit)
+  Future<void> addItemToEvent(MenuItem item) async {
+    if (_eventDocId.isEmpty || item.menuItemId == null) return;
+    try {
+      // optimistic UI update
+      if (!selectedMenuItemIds.contains(item.menuItemId!)) {
+        selectedMenuItemIds.add(item.menuItemId!);
+        selectedMenuItemIds.refresh();
+      }
+      await firestore.addMenuItemToEvent(_eventDocId, item.menuItemId!,
+          menuId: selectedMenu.value?.id);
+      // snapshot listener will keep authoritative state in sync
+    } catch (e) {
+      debugPrint('Error adding item to event: $e');
+      // on failure, remove optimistic update
+      selectedMenuItemIds.removeWhere((id) => id == item.menuItemId);
+      selectedMenuItemIds.refresh();
+    }
+  }
+
+  /// Remove item from event (persist + audit)
+  Future<void> removeItemFromEvent(MenuItem item) async {
+    if (_eventDocId.isEmpty || item.menuItemId == null) return;
+    try {
+      // optimistic UI update
+      selectedMenuItemIds.removeWhere((id) => id == item.menuItemId);
+      selectedMenuItemIds.refresh();
+      await firestore.removeMenuItemFromEvent(_eventDocId, item.menuItemId!,
+          menuId: selectedMenu.value?.id);
+    } catch (e) {
+      debugPrint('Error removing item from event: $e');
+      // optionally restore optimistic removal on failure by re-adding the id
+      if (!selectedMenuItemIds.contains(item.menuItemId!)) {
+        selectedMenuItemIds.add(item.menuItemId!);
+        selectedMenuItemIds.refresh();
+      }
+    }
+  }
+
+  /// Choose demographic set (simple choose)
+  Future<void> chooseDemographicSet(String questionSetId) async {
+    if (_eventDocId.isEmpty || questionSetId.isEmpty) return;
+
+    try {
+      // optimistic update (so UI responds instantly)
+      selectedDemographicSetId.value = questionSetId;
+      if (event.value != null) {
+        event.value = event.value!.copyWith(
+          selectedDemographicQuestionSetId: questionSetId,
+        );
+      }
+
+      // persist (this also writes audit inside the FirestoreService)
+      await firestore.chooseDemographicSetForEvent(_eventDocId, questionSetId);
+    } catch (e) {
+      debugPrint('Error choosing demographic set: $e');
+      // rollback optimistic update if needed
+      selectedDemographicSetId.value =
+          event.value?.selectedDemographicQuestionSetId;
+    }
+  }
+
+  /// Show a confirm dialog. Returns true if user confirmed.
+  Future<bool> _confirmDialog(BuildContext context,
+      {required String title, required String message}) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Yes')),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  /// Toggle selection for demographic question set.
+  /// If already selected, ask confirm to unselect.
+  Future<void> toggleDemographicSet(
+      BuildContext context, String questionSetId) async {
+    // If the event doc id isn't set, bail out
+    if (_eventDocId.isEmpty) {
+      debugPrint('toggleDemographicSet: _eventDocId is empty; cannot proceed');
+      return;
+    }
+
+    final currentlySelected = selectedDemographicSetId.value;
+
+    // If tapped on the already selected set → ask confirmation to unselect
+    if (currentlySelected != null && currentlySelected == questionSetId) {
+      final confirmed = await _confirmDialog(
+        context,
+        title: 'Remove selection?',
+        message: 'Do you want to remove the selected demographic question set?',
+      );
+      if (!confirmed) return;
+
+      try {
+        // Remove the selection field from Firestore
+        await firestore.updateEventFields(_eventDocId, {
+          'selectedDemographicQuestionSetId': FieldValue.delete(),
+        });
+
+        await firestore.writeResponseAudit(_eventDocId, {
+          'type': 'demographic_unselected',
+          'questionSetId': questionSetId,
+        });
+
+        // Update reactive model + local Event instance
+        selectedDemographicSetId.value = null;
+        if (event.value != null) {
+          event.value =
+              event.value!.copyWith(selectedDemographicQuestionSetId: null);
+        }
+      } catch (e, st) {
+        debugPrint('Error unselecting demographic set: $e\n$st');
+      }
+
+      return;
+    }
+
+    // Otherwise: select the new set (optimistic + persist)
+    try {
+      selectedDemographicSetId.value = questionSetId;
+      if (event.value != null) {
+        event.value = event.value!
+            .copyWith(selectedDemographicQuestionSetId: questionSetId);
+      }
+      await firestore.chooseDemographicSetForEvent(_eventDocId, questionSetId);
+    } catch (e, st) {
+      debugPrint('Error choosing demographic set: $e\n$st');
+      // rollback
+      selectedDemographicSetId.value =
+          event.value?.selectedDemographicQuestionSetId;
+    }
+  }
+
+  /// Remove menu item with confirmation
+  Future<void> confirmAndRemoveMenuItem(
+      BuildContext context, MenuItem item) async {
+    final ok = await _confirmDialog(
+      context,
+      title: 'Remove menu item?',
+      message: 'Remove "${item.name}" from this event?',
+    );
+    if (!ok) return;
+    await removeItemFromEvent(item);
   }
 }

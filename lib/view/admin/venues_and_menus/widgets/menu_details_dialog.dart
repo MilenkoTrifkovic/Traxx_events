@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
@@ -33,13 +34,12 @@ class MenuDetailsDialog extends StatelessWidget {
                   _noImagePlaceholder(context),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;
-                return SizedBox(
-                  child: Center(
-                    child: CircularProgressIndicator(
-                        value: progress.expectedTotalBytes != null
-                            ? progress.cumulativeBytesLoaded /
-                                (progress.expectedTotalBytes ?? 1)
-                            : null),
+                return Center(
+                  child: CircularProgressIndicator(
+                    value: progress.expectedTotalBytes != null
+                        ? progress.cumulativeBytesLoaded /
+                            (progress.expectedTotalBytes ?? 1)
+                        : null,
                   ),
                 );
               },
@@ -56,24 +56,30 @@ class MenuDetailsDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Image or placeholder
           imageSection(),
-
           AppSpacing.verticalXs(context),
 
-          // Category
+          // Name + Category chip
           Padding(
             padding: AppPadding.horizontal(context, paddingType: Sizes.xs),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                AppText.styledHeadingMedium(context, menu.name,
-                    weight: AppFontWeight.bold, color: AppColors.black),
-                AppSpacing.horizontalXs(context),
+                Flexible(
+                  child: AppText.styledHeadingMedium(
+                    context,
+                    menu.name,
+                    weight: AppFontWeight.bold,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Chip(
                   label: AppText.styledBodyMedium(
-                      context, _prettyCategory(menu.category.name.capitalize),
-                      weight: AppFontWeight.semiBold),
+                    context,
+                    _prettyCategory(menu.category),
+                    weight: AppFontWeight.semiBold,
+                  ),
                 ),
               ],
             ),
@@ -84,7 +90,13 @@ class MenuDetailsDialog extends StatelessWidget {
           // Description
           if (menu.description != null && menu.description!.isNotEmpty)
             Padding(
-              padding: AppPadding.only  (context, paddingType: Sizes.xs, bottom: true, left: true, right: true),
+              padding: AppPadding.only(
+                context,
+                paddingType: Sizes.xs,
+                bottom: true,
+                left: true,
+                right: true,
+              ),
               child: AppText.styledBodyMedium(
                 context,
                 menu.description!,
@@ -95,24 +107,10 @@ class MenuDetailsDialog extends StatelessWidget {
     );
   }
 
-  String _prettyCategory(dynamic category) {
-    try {
-      final name = (category as Object).toString();
-      // if enum has `name` property (MenuCategory), use it
-      if (category is Enum) {
-        final enumName = (category as dynamic).name as String?;
-        if (enumName != null && enumName.isNotEmpty)
-          return _capitalize(enumName);
-      }
-      return _capitalize(name);
-    } catch (_) {
-      return category.toString();
-    }
-  }
-
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
+  String _prettyCategory(MenuCategory category) {
+    final raw = category.name; // enum name
+    if (raw.isEmpty) return 'Other';
+    return raw[0].toUpperCase() + raw.substring(1);
   }
 
   Widget _noImagePlaceholder(BuildContext context) {
@@ -127,11 +125,16 @@ class MenuDetailsDialog extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.image_not_supported,
-                  size: 48, color: Theme.of(context).hintColor),
+              Icon(
+                Icons.image_not_supported,
+                size: 48,
+                color: Theme.of(context).hintColor,
+              ),
               const SizedBox(height: 8),
-              Text('No image available',
-                  style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                'No image available',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
           ),
         ),

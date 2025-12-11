@@ -22,29 +22,95 @@ import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 class CreateMenuPopupView extends StatelessWidget {
   final MenusScreenController controller;
   const CreateMenuPopupView({super.key, required this.controller});
-  // final VenueScreenController controller = VenueScreenController();
-  // final VenuesController venuesController = Get.find<VenuesController>();
+
   @override
   Widget build(BuildContext context) {
     return AppDialog(
-        content: SingleChildScrollView(
-      child: Padding(
-        padding: AppPadding.symmetric(
-          context,
-          horizontalPadding: Sizes.xxxl, // 64px on desktop
-          verticalPadding: Sizes.xl, // 48px on desktop
-        ),
-        child: Column(
-          children: [
-            DialogStepHeader(
-                icon: Icons.restaurant_menu_outlined,
-                title: 'Create Menu Item',
-                description: 'Let\'s create a new menu item.'),
-            _buildMenuForm(context)
-          ],
+      content: SingleChildScrollView(
+        child: Container(
+          width: 520,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryAccent,
+                      AppColors.primaryAccent.withOpacity(0.85),
+                    ],
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.restaurant_menu_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Create Menu Set',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Give this menu set a name and optional description & cover photo.',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Body
+              Padding(
+                padding: AppPadding.symmetric(
+                  context,
+                  horizontalPadding: Sizes.xxxl,
+                  verticalPadding: Sizes.xl,
+                ),
+                child: _buildMenuForm(context),
+              ),
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _buildMenuForm(BuildContext context) {
@@ -57,64 +123,51 @@ class CreateMenuPopupView extends StatelessWidget {
           children: [
             AppSpacing.verticalLg(context),
 
-            // Menu Name Field
+            // Menu Set Name
             AppTextInputField(
-              label: 'Menu Item Name *',
+              label: 'Menu Set Name *',
               controller: controller.nameController,
-              hintText: 'Enter menu item name',
+              hintText: 'Enter menu set name (e.g. Wedding Dinner Menu)',
               validator: controller.validateName,
-              // maxLength: 100,
             ),
 
-            // Category dropdown
-            Obx(() {
-              // return DropdownButtonFormField<MenuCategory>(
-              return AppDropdownMenu<MenuCategory>(
-                value: controller.selectedCategory.value ?? MenuCategory.other,
-                label: "Category *",
-                // decoration: const InputDecoration(labelText: 'Category *'),
-                items: MenuCategory.values
-                    .map((c) => DropdownMenuItem(
-                          value: c,
-                          child: AppText.styledBodyLarge(
-                              context, c.name.capitalize!,
-                              weight: AppFontWeight.semiBold),
-                        ))
-                    .toList(),
-                onChanged: (v) => controller.selectedCategory.value = v,
-                validator: (v) => v == null ? 'Category is required' : null,
-              );
-            }),
+            AppSpacing.verticalMd(context),
 
-            // Description Field
+            // Description
             AppTextInputField(
               label: 'Description (Optional)',
               controller: controller.descriptionController,
-              hintText: 'Enter venue description',
+              hintText: 'Describe when or how this menu set will be used',
               maxLines: 3,
               validator: controller.validateDescription,
-              // maxLength: 500,
             ),
 
-            // Image Upload Section
+            AppSpacing.verticalMd(context),
+
+            // Image upload
             _buildImageUploadSection(context),
 
-            // Action Buttons
+            const SizedBox(height: 24),
+
+            // Create button
             Row(
               children: [
                 Expanded(
-                  child: Obx(() => AppPrimaryButton(
-                        text: controller.isCreatingMenuItem.value
-                            ? 'Creating...'
-                            : 'Create Menu Item',
-                        isLoading: controller.isCreatingMenuItem.value,
-                        onPressed: controller.isCreatingMenuItem.value
-                            ? null
-                            : () async {
-                                if (!controller.validateForm()) return;
-                                popRoute(context, true);
-                              },
-                      )),
+                  child: Obx(
+                    () => AppPrimaryButton(
+                      text: controller.isCreatingMenu.value
+                          ? 'Creating...'
+                          : 'Create Menu Set',
+                      isLoading: controller.isCreatingMenu.value,
+                      onPressed: controller.isCreatingMenu.value
+                          ? null
+                          : () {
+                              if (!controller.validateForm()) return;
+                              // let the calling page actually call submitForm()
+                              popRoute(context, true);
+                            },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -133,17 +186,16 @@ class CreateMenuPopupView extends StatelessWidget {
             return _buildSelectedImage(context);
           } else {
             return AppSecondaryButton(
-                width: double.infinity,
-                icon: Icons.file_upload,
-                iconColor: AppColors.primaryAccent,
-                textColor: AppColors.primaryAccent,
-                text: 'Upload Menu Photo',
-                onPressed: controller.pickImage);
+              width: double.infinity,
+              icon: Icons.file_upload,
+              iconColor: AppColors.primaryAccent,
+              textColor: AppColors.primaryAccent,
+              text: 'Upload Menu Set Cover Photo (Optional)',
+              onPressed: controller.pickImage,
+            );
           }
         }),
         AppSpacing.verticalSm(context),
-
-        // Image error display
         Obx(() {
           if (controller.imageError.value != null) {
             return Padding(
@@ -153,6 +205,7 @@ class CreateMenuPopupView extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.red,
                   fontSize: 12,
+                  fontFamily: 'Poppins',
                 ),
               ),
             );
@@ -163,49 +216,33 @@ class CreateMenuPopupView extends StatelessWidget {
     );
   }
 
-  /// Builds the selected image preview
   Widget _buildSelectedImage(BuildContext context) {
     return Container(
       width: double.infinity,
       height: 200,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8.0),
+        borderRadius: BorderRadius.circular(12.0),
         border: Border.all(color: AppColors.borderHover),
       ),
       child: Stack(
         children: [
-          //     // Image preview
           ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
+            borderRadius: BorderRadius.circular(12.0),
             child: FutureBuilder<Uint8List>(
               future: controller.selectedImage.value!.readAsBytes(),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 360,
-                    ),
-                    child: Image.memory(
-                      snapshot.data!,
-                      width: 360,
-                      fit: BoxFit.cover,
-                    ),
+                  return Image.memory(
+                    snapshot.data!,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
                   );
                 } else {
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 360,
-                    ),
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
               },
             ),
           ),
-
-          // Remove button
           Positioned(
             top: 8,
             right: 8,

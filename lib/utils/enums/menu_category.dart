@@ -4,7 +4,7 @@ enum MenuCategory {
   appetizer(Icons.fastfood),
   entree(Icons.restaurant),
   dessert(Icons.cake),
-  // drink(Icons.local_drink),
+  drink(Icons.local_drink),
   other(Icons.more_horiz);
 
   final IconData icon;
