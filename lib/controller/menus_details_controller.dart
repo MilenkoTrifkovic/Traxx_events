@@ -191,6 +191,7 @@ class MenuSetDetailsController extends GetxController {
   Future<void> createItem({
     required String name,
     required MenuCategory category,
+    required FoodType foodType, // NEW
     String? description,
     double? price,
     String? imageUrl,
@@ -209,6 +210,7 @@ class MenuSetDetailsController extends GetxController {
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        foodType: foodType, // NEW
       );
 
       await ref.set(item.toFirestoreCreate());

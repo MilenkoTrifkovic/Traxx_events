@@ -690,6 +690,8 @@ class MenuSetDetailsView extends StatelessWidget {
             flex: 4,
             child: Row(
               children: [
+                _foodTypeBadge(item.foodType), // NEW
+                const SizedBox(width: 8),
                 thumb(),
                 const SizedBox(width: 14),
                 Expanded(
@@ -810,6 +812,36 @@ class MenuSetDetailsView extends StatelessWidget {
     );
   }
 
+  Widget _foodTypeBadge(FoodType? type) {
+    if (type == null) return const SizedBox(width: 0, height: 0);
+
+    final bool isVeg = type == FoodType.veg;
+    final Color borderColor = isVeg ? Colors.green : Colors.redAccent;
+    final Color fillColor = borderColor;
+
+    return Tooltip(
+      message: isVeg ? 'Veg' : 'Non-veg',
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Center(
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: fillColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   String _prettyCategory(MenuCategory category) {
     final raw = category.name;
     if (raw.isEmpty) return 'Other';
@@ -840,6 +872,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   MenuCategory _category = MenuCategory.other;
   bool _isSaving = false;
   bool _isUploadingImage = false;
+  FoodType _foodType = FoodType.veg;
 
   @override
   void initState() {
@@ -850,7 +883,10 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
         TextEditingController(text: widget.existing?.price?.toString() ?? '');
     _imageUrlC =
         TextEditingController(text: widget.existing?.imageUrl ?? ''); // ← NEW
-    if (widget.existing != null) _category = widget.existing!.category;
+    if (widget.existing != null) {
+      _category = widget.existing!.category;
+      _foodType = widget.existing!.foodType ?? FoodType.veg; // NEW
+    }
   }
 
   @override
@@ -945,6 +981,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
           description: desc,
           price: price,
           imageUrl: imageUrl, // ← NEW
+          foodType: _foodType,
         );
       } else {
         final updated = widget.existing!.copyWith(
@@ -954,6 +991,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
           price: price,
           imageUrl: imageUrl, // ← NEW
           updatedAt: DateTime.now(),
+          foodType: _foodType,
         );
         await widget.controller.updateItem(updated);
       }
@@ -1001,6 +1039,24 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                   if (v != null) setState(() => _category = v);
                 },
                 decoration: const InputDecoration(labelText: 'Category'),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<FoodType>(
+                value: _foodType,
+                decoration: const InputDecoration(labelText: 'Food type'),
+                items: const [
+                  DropdownMenuItem(
+                    value: FoodType.veg,
+                    child: Text('Veg'),
+                  ),
+                  DropdownMenuItem(
+                    value: FoodType.nonVeg,
+                    child: Text('Non-veg'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _foodType = v);
+                },
               ),
               const SizedBox(height: 8),
               TextFormField(

@@ -56,19 +56,11 @@ class MenuModel {
     // Some older documents may use 'title' instead of 'name'
     final nameField = data['name'] ?? data['title'] ?? '';
 
-    DateTime? parseTimestamp(dynamic ts) {
-      if (ts == null) return null;
-      if (ts is Timestamp) return ts.toDate();
-      if (ts is DateTime) return ts;
-      // if stored as ISO string
-      if (ts is String) {
-        try {
-          return DateTime.parse(ts);
-        } catch (_) {
-          return null;
-        }
-      }
-      return null;
+    DateTime? parseTimestamp(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      throw ArgumentError('Unsupported timestamp value: $value');
     }
 
     return MenuModel(

@@ -90,43 +90,55 @@ class GuestModel {
     Gender? parseGender(dynamic genderData) {
       if (genderData == null) return null;
 
-      if (genderData is Gender) {
-        return genderData;
-      } else if (genderData is String) {
-        // Try to find matching enum by name
+      if (genderData is Gender) return genderData;
+
+      if (genderData is String && genderData.isNotEmpty) {
+        final lower = genderData.toLowerCase();
+        // Try match by enum name
         try {
-          return Gender.values.firstWhere(
-            (g) => g.name.toLowerCase() == genderData.toLowerCase(),
-            orElse: () => Gender.values.firstWhere(
-              (g) =>
-                  g.toString().split('.').last.toLowerCase() ==
-                  genderData.toLowerCase(),
-              orElse: () => Gender.preferNotToSay,
-            ),
-          );
-        } catch (e) {
+          return Gender.values.firstWhere((g) => g.name.toLowerCase() == lower,
+              orElse: () {
+            // fallback mapping for common variants
+            if (lower == 'm' || lower == 'male') return Gender.male;
+            if (lower == 'f' || lower == 'female') return Gender.female;
+            if (lower.contains('prefer') || lower.contains('not')) {
+              return Gender.preferNotToSay;
+            }
+            return Gender.preferNotToSay;
+          });
+        } catch (_) {
           return null;
         }
       }
       return null;
     }
 
+    DateTime? parseTimestamp(dynamic t) {
+      if (t == null) return null;
+      if (t is Timestamp) return t.toDate();
+      if (t is DateTime) return t;
+      return null;
+    }
+
+    // Prefer doc id (id param) if provided, otherwise fall back to guestId field in document
+    final resolvedGuestId = (id != null && id.isNotEmpty)
+        ? id
+        : (data['guestId'] as String?)?.isNotEmpty == true
+            ? data['guestId'] as String?
+            : null;
+
     return GuestModel(
-      guestId: data['guestId'] as String?,
-      name: data['name'] as String,
-      email: data['email'] as String,
-      eventId: data['eventId'] as String,
+      guestId: resolvedGuestId,
+      name: data['name'] as String? ?? '',
+      email: data['email'] as String? ?? '',
+      eventId: data['eventId'] as String? ?? '',
       address: data['address'] as String?,
       city: data['city'] as String?,
       state: data['state'] as String?,
       country: data['country'] as String?,
       gender: parseGender(data['gender']),
-      createdAt: (data['createdAt'] is Timestamp)
-          ? (data['createdAt'] as Timestamp).toDate()
-          : null,
-      modifiedAt: (data['modifiedAt'] is Timestamp)
-          ? (data['modifiedAt'] as Timestamp).toDate()
-          : null,
+      createdAt: parseTimestamp(data['createdAt']),
+      modifiedAt: parseTimestamp(data['modifiedAt']),
       isDisabled: data['isDisabled'] as bool? ?? false,
     );
   }

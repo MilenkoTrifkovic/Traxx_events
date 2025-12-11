@@ -16,11 +16,24 @@ import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
-class AddGuestPopup extends StatelessWidget {
+class AddGuestPopup extends StatefulWidget {
   final AdminGuestListController controller;
   final bool isEditMode;
-  const AddGuestPopup(
-      {super.key, required this.controller, this.isEditMode = false});
+  const AddGuestPopup({
+    super.key,
+    required this.controller,
+    this.isEditMode = false,
+  });
+
+  @override
+  State<AddGuestPopup> createState() => _AddGuestPopupState();
+}
+
+class _AddGuestPopupState extends State<AddGuestPopup> {
+  bool _isSubmitting = false;
+
+  AdminGuestListController get controller => widget.controller;
+  bool get isEditMode => widget.isEditMode;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +54,7 @@ class AddGuestPopup extends StatelessWidget {
                     ? 'Update the guest\'s information.'
                     : 'Fill in the guest information below.',
               ),
-              _buildGuestForm(context)
+              _buildGuestForm(context),
             ],
           ),
         ),
@@ -50,6 +63,10 @@ class AddGuestPopup extends StatelessWidget {
   }
 
   Widget _buildGuestForm(BuildContext context) {
+    final primaryLabel = _isSubmitting
+        ? (isEditMode ? 'Updating...' : 'Adding...')
+        : (isEditMode ? 'Update Guest' : 'Add Guest');
+
     return SizedBox(
       width: double.infinity,
       child: Form(
@@ -57,11 +74,7 @@ class AddGuestPopup extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // AppSpacing.verticalLg(context),
-
-            // Required fields section
-
-            // Name Field (Required)
+            // Name (required)
             AppTextInputField(
               label: 'Full Name *',
               controller: controller.name,
@@ -73,9 +86,8 @@ class AddGuestPopup extends StatelessWidget {
                 return null;
               },
             ),
-            // AppSpacing.verticalMd(context),
 
-            // Email Field (Required)
+            // Email (required)
             AppTextInputField(
               label: 'Email Address *',
               controller: controller.email,
@@ -83,41 +95,27 @@ class AddGuestPopup extends StatelessWidget {
               keyboardType: TextInputType.emailAddress,
               validator: ValidationHelper.validateEmail,
             ),
-            // AppSpacing.verticalLg(context),
 
-            // Optional fields section
-            // AppText.styledBodyLarge(
-            //   context,
-            //   'Optional Information',
-            //   weight: AppFontWeight.semiBold,
-            // ),
-            // AppSpacing.verticalMd(context),
-
-            // Address Field (Optional)
+            // Address (optional)
             AppTextInputField(
               label: 'Address (Optional)',
               controller: controller.address,
               hintText: 'Enter street address',
             ),
-            // AppSpacing.verticalMd(context),
 
-            // City Field (Optional)
+            // City (optional)
             AppTextInputField(
               label: 'City (Optional)',
               controller: controller.city,
               hintText: 'Enter city',
             ),
-            // AppSpacing.verticalMd(context),
 
-            // Country Dropdown (Optional)
+            // Country dropdown
             Obx(() {
               return AppDropdownMenu<String>(
                 label: 'Country',
                 value: controller.selectedCountry.value,
                 hintText: 'Select country',
-                // validator: (value) =>
-                //     ValidationHelper.validateDropdownSelection(
-                // value, 'country'),
                 items: USData.countries.map((String country) {
                   return DropdownMenuItem<String>(
                     value: country,
@@ -131,13 +129,12 @@ class AddGuestPopup extends StatelessWidget {
                 },
               );
             }),
+
+            // State dropdown
             Obx(() => AppDropdownMenu<String>(
                   label: 'State',
                   value: controller.selectedState.value,
                   hintText: 'Select state',
-                  // validator: (value) =>
-                  //     ValidationHelper.validateDropdownSelection(
-                  //         value, 'state'),
                   items: USData.states.map((String state) {
                     return DropdownMenuItem<String>(
                       value: state,
@@ -150,7 +147,8 @@ class AddGuestPopup extends StatelessWidget {
                     }
                   },
                 )),
-            // Gender Dropdown (Optional)
+
+            // Gender dropdown
             Obx(() {
               return AppDropdownMenu<Gender>(
                 value: controller.selectedGender.value,
@@ -166,46 +164,40 @@ class AddGuestPopup extends StatelessWidget {
                         ))
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) {
-                    controller.selectedGender.value = value;
-                  }
+                  controller.selectedGender.value = value;
                 },
               );
             }),
-            // AppSpacing.verticalLg(context),
 
-            // Action Buttons
             AppSpacing.verticalSm(context),
+
+            // Buttons row
+            // Replace the existing Row(...) that contains Cancel/Primary buttons with this:
             Row(
               children: [
-                if (isEditMode) ...[
-                  Expanded(
-                    child: AppSecondaryButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      text: 'Cancel',
-                    ),
+                // Cancel button: always visible (for both add & edit modes),
+                // disabled while submitting.
+                Expanded(
+                  child: AppSecondaryButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            // Close dialog and signal "no change"
+                            Navigator.of(context).pop(false);
+                          },
+                    text: 'Cancel',
                   ),
-                ],
-                if (isEditMode) AppSpacing.horizontalMd(context),
+                ),
+
+                // spacing between buttons
+                AppSpacing.horizontalMd(context),
+
+                // Primary button (Add / Update). Disabled while submitting.
                 Expanded(
                   child: AppPrimaryButton(
-                    text: isEditMode ? 'Update Guest' : 'Add Guest',
-                    onPressed: () async {
-                      if (!controller.validateForm()) return;
-
-                      try {
-                        if (isEditMode) {
-                          await controller.updateGuest();
-                        } else {
-                          await controller.submitForm();
-                        }
-                        if (context.mounted) {
-                          Navigator.of(context).pop(true);
-                        }
-                      } catch (e) {
-                        // Error handling is done in controller
-                      }
-                    },
+                    onPressed:
+                        _isSubmitting ? null : () => _onPrimaryPressed(context),
+                    text: primaryLabel,
                   ),
                 ),
               ],
@@ -216,11 +208,63 @@ class AddGuestPopup extends StatelessWidget {
     );
   }
 
+  Future<void> _onPrimaryPressed(BuildContext context) async {
+    // Prevent double taps
+    if (_isSubmitting) return;
+
+    // Validate first
+    if (!controller.validateForm()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix validation errors')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    bool success = false;
+
+    try {
+      if (isEditMode) {
+        success = await controller.updateGuest();
+      } else {
+        success = await controller.submitForm();
+      }
+    } catch (e, st) {
+      debugPrint('AddGuestPopup submit error: $e\n$st');
+      success = false;
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+
+    if (!mounted) return;
+
+    if (success) {
+      // Clear form in controller (caller also commonly clears, but keep it here)
+      controller.clearForm();
+
+      // Close dialog and show success
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isEditMode ? 'Guest updated' : 'Guest added')),
+      );
+    } else {
+      // Keep dialog open and show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isEditMode
+              ? 'Failed to update guest — try again'
+              : 'Failed to add guest — try again'),
+        ),
+      );
+    }
+  }
+
   String _formatGenderName(String genderName) {
-    // Convert snake_case or camelCase to Title Case
     return genderName
         .split(RegExp(r'(?=[A-Z])|_'))
-        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .map((word) => word.isEmpty
+            ? word
+            : word[0].toUpperCase() + word.substring(1).toLowerCase())
         .join(' ');
   }
 }

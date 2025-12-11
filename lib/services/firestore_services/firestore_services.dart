@@ -109,8 +109,18 @@ class FirestoreServices {
       // Assign a new UUID v4 to eventId if not provided
       final uuid = Uuid();
       final eventWithId = event.copyWith(eventId: event.eventId ?? uuid.v4());
-      await eventsRef.add(eventWithId.toJson());
-      //Add event id to user document
+
+      // Convert to map and remove nulls (but do NOT rely on client-side timestamps)
+      final data = Map<String, dynamic>.from(eventWithId.toJson() ?? {});
+      data.removeWhere((k, v) => v == null);
+
+      // Ensure server-side timestamps for createdAt and updatedAt
+      data['createdAt'] = FieldValue.serverTimestamp();
+      data['updatedAt'] = FieldValue.serverTimestamp();
+
+      await eventsRef.add(data);
+
+      // Add event id to user document, etc. (if you need to store doc id back into Event, set it here)
     } on FirebaseException catch (e) {
       print('Firestore error: ${e.message}');
       rethrow; // still rethrow but now logged
@@ -366,10 +376,15 @@ class FirestoreServices {
           : const Uuid().v4();
 
       final toSave = guest.copyWith(guestId: userFieldId);
-      final docRef = guestsRef.doc();
+
+      // Use userFieldId as Firestore document ID also
+      final docRef = guestsRef.doc(userFieldId);
+
       await docRef.set(toSave.toFirestoreCreate());
+
       print('Guest Saved Successfully');
-      return guest.copyWith(guestId: docRef.id);
+
+      return toSave; // already contains guestId = userFieldId
     } catch (e) {
       print('Failed to save guest: $e');
       rethrow;

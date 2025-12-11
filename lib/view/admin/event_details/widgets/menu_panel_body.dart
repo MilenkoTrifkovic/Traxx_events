@@ -157,7 +157,7 @@ class MenuPanelBody extends StatelessWidget {
                       onSelected: (selected) async {
                         // Avoid re-calling API if already selected
                         if (!selected || isSel) return;
-                        await mainController.chooseMenu(m);
+                        await mainController.selectMenu(m.id);
                       },
                     ),
                   );
@@ -270,6 +270,11 @@ class MenuPanelBody extends StatelessWidget {
                     final item = menuItems[index];
                     final isSelected =
                         selectedItemIds.contains(item.menuItemId);
+                    final menuId = mainController.selectedMenu.value!.id;
+                    final newItemIds = [
+                      ...mainController.selectedMenuItemIds,
+                      item.menuItemId!
+                    ];
 
                     return Card(
                       shape: RoundedRectangleBorder(
@@ -309,13 +314,28 @@ class MenuPanelBody extends StatelessWidget {
                             ),
                           ),
                           onPressed: () async {
+                            final menuId =
+                                mainController.selectedMenu.value!.id;
+
                             if (isSelected) {
                               final ok =
                                   await _confirmRemoveItem(context, item.name);
                               if (!ok) return;
-                              await mainController.removeItemFromEvent(item);
+
+                              final newList = mainController.selectedMenuItemIds
+                                  .where((id) => id != item.menuItemId)
+                                  .toList();
+
+                              await mainController.applyMenuSelection(
+                                  menuId, newList);
                             } else {
-                              await mainController.addItemToEvent(item);
+                              final newList = [
+                                ...mainController.selectedMenuItemIds,
+                                item.menuItemId!
+                              ];
+
+                              await mainController.applyMenuSelection(
+                                  menuId, newList);
                             }
                           },
                           child: Text(isSelected ? 'Remove' : 'Add'),

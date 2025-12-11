@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
+enum FoodType { veg, nonVeg }
+
 class MenuItem {
   final String? menuItemId; // Firestore doc id
   final String? menuId; // Links to menus/{menuId}
@@ -20,6 +22,7 @@ class MenuItem {
   final DateTime? updatedAt;
 
   final bool isDisabled;
+  final FoodType? foodType;
 
   MenuItem({
     this.menuItemId,
@@ -34,6 +37,7 @@ class MenuItem {
     this.createdAt,
     this.updatedAt,
     this.isDisabled = false,
+    this.foodType,
   });
 
   Map<String, dynamic> toFirestoreCreate() {
@@ -50,6 +54,9 @@ class MenuItem {
       'isDisabled': isDisabled,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'foodType': foodType == null
+          ? null
+          : (foodType == FoodType.veg ? 'veg' : 'non_veg'),
     };
   }
 
@@ -66,17 +73,28 @@ class MenuItem {
       'price': price,
       'isDisabled': isDisabled,
       'updatedAt': FieldValue.serverTimestamp(),
+      'foodType': foodType == null
+          ? null
+          : (foodType == FoodType.veg ? 'veg' : 'non_veg'),
     };
   }
 
   factory MenuItem.fromFirestore(Map<String, dynamic> data, [String? id]) {
+    final ft = data['foodType'] as String?;
+    FoodType? parsedFoodType;
+    if (ft == 'veg') {
+      parsedFoodType = FoodType.veg;
+    } else if (ft == 'non_veg') {
+      parsedFoodType = FoodType.nonVeg;
+    }
+    final String categoryString = data['category'] ?? 'other';
     return MenuItem(
       menuItemId: id ?? data['menuItemId'] as String?,
       menuId: data['menuId'] as String?,
       organisationId: data['organisationId'] as String?,
       name: data['name'] as String? ?? '',
       category: MenuCategory.values.firstWhere(
-        (e) => e.name == data['category'],
+        (e) => e.name == categoryString,
         orElse: () => MenuCategory.other,
       ),
       description: data['description'] as String?,
@@ -90,6 +108,7 @@ class MenuItem {
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,
       isDisabled: data['isDisabled'] as bool? ?? false,
+      foodType: parsedFoodType,
     );
   }
 
@@ -106,6 +125,7 @@ class MenuItem {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDisabled,
+    FoodType? foodType,
   }) {
     return MenuItem(
       menuItemId: menuItemId ?? this.menuItemId,
@@ -120,6 +140,7 @@ class MenuItem {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDisabled: isDisabled ?? this.isDisabled,
+      foodType: foodType ?? this.foodType,
     );
   }
 }
