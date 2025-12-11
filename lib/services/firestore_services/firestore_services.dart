@@ -369,7 +369,8 @@ class FirestoreServices {
       final docRef = guestsRef.doc();
       await docRef.set(toSave.toFirestoreCreate());
       print('Guest Saved Successfully');
-      return guest.copyWith(guestId: docRef.id);
+      // return guest.copyWith(guestId: docRef.id);
+      return guest.copyWith(guestId: userFieldId);
     } catch (e) {
       print('Failed to save guest: $e');
       rethrow;
