@@ -12,6 +12,7 @@ import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_contr
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
+import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -293,6 +294,10 @@ GoRouter buildRouter() {
                 eventId: eventId,
               );
             },
+          ),
+          GoRoute(
+            path: AppRoute.hostSettings.path,
+            builder: (context, state) => SettingsPage(),
           ),
           // GoRoute(
           //   path: AppRoute.eventDetails.path,

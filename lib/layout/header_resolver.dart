@@ -4,6 +4,7 @@ import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/admin_
 import 'package:traxx_wepapp/layout/headers/event_list_header.dart';
 import 'package:traxx_wepapp/layout/headers/host_event_details_header.dart';
 import 'package:traxx_wepapp/layout/headers/menus_management_header.dart';
+import 'package:traxx_wepapp/layout/headers/settings_header.dart';
 import 'package:traxx_wepapp/layout/headers/venues_management_header.dart';
 import 'package:traxx_wepapp/layout/headers/questions_management_header.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -35,6 +36,9 @@ Widget getPageHeader(GoRouterState state) {
   }
   if (state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
+  }
+  if (state.matchedLocation == AppRoute.hostSettings.path) {
+    return AppBarCustom(content: SettingsHeader());
   }
 
   return const SizedBox.shrink();

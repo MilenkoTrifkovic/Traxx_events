@@ -16,6 +16,7 @@ class Organisation {
 
   final String timezone; // Required
   final String? logo; // Optional logo URL/path
+  final String? photoUrl; // Local-only photo preview URL (not persisted)
 
   // Database fields
   final DateTime? createdAt;
@@ -34,6 +35,7 @@ class Organisation {
     required this.country,
     required this.timezone,
     this.logo,
+    this.photoUrl,
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
@@ -79,7 +81,7 @@ class Organisation {
       website: data['website'] as String?,
       timezone: data['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
-      logo: data['logo'] as String?,
+      logo: (data['logo'] as String?)?.trim(),
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -152,6 +154,7 @@ class Organisation {
     String? country,
     String? timezone,
     String? logo,
+    String? photoUrl,
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
@@ -168,14 +171,51 @@ class Organisation {
       country: country ?? this.country,
       timezone: timezone ?? this.timezone,
       logo: logo ?? this.logo,
+      photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,
     );
   }
 
+  /// Checks whether this organisation is equivalent to [other] for the
+  /// purposes of detecting meaningful changes from the UI.
+  ///
+  /// Compares the fields that the settings form edits. Ignores timestamps,
+  /// flags and the document id.
+  bool isSameAs(Organisation other) {
+    String _n(String? s) => (s ?? '').trim();
+
+    return _n(name) == _n(other.name) &&
+        _n(phone) == _n(other.phone) &&
+        _n(website) == _n(other.website) &&
+        _n(street) == _n(other.street) &&
+        _n(city) == _n(other.city) &&
+        _n(state) == _n(other.state) &&
+        _n(zip) == _n(other.zip) &&
+        _n(country) == _n(other.country) &&
+        _n(timezone) == _n(other.timezone);
+  }
+
+  /// Returns a list of field names that differ between this and [other].
+  /// Useful for diagnostics or targeted updates.
+  List<String> changedFields(Organisation other) {
+    final List<String> changes = [];
+    String _n(String? s) => (s ?? '').trim();
+    if (_n(name) != _n(other.name)) changes.add('name');
+    if (_n(phone) != _n(other.phone)) changes.add('phone');
+    if (_n(website) != _n(other.website)) changes.add('website');
+    if (_n(street) != _n(other.street)) changes.add('street');
+    if (_n(city) != _n(other.city)) changes.add('city');
+    if (_n(zip) != _n(other.zip)) changes.add('zip');
+    if (_n(state) != _n(other.state)) changes.add('state');
+    if (_n(country) != _n(other.country)) changes.add('country');
+    if (_n(timezone) != _n(other.timezone)) changes.add('timezone');
+    return changes;
+  }
+
   @override
   String toString() {
-    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, logo: $logo, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
+    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, logo: $logo, photoUrl: $photoUrl, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
   }
 }

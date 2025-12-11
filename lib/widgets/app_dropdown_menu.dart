@@ -152,7 +152,8 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
             child: DropdownButtonFormField<T>(
               initialValue: widget.value,
               items: widget.items,
-              onChanged: widget.onChanged,
+              // Respect the enabled flag: when disabled, onChanged must be null
+              onChanged: widget.enabled == false ? null : widget.onChanged,
               validator: widget.validator,
               focusNode: _focusNode,
               autofocus: widget.autofocus,

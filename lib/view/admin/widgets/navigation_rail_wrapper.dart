@@ -45,6 +45,9 @@ class NavigationRailWrapper extends StatelessWidget {
     } else if (location.startsWith(AppRoute.hostRoleSelection.path)) {
       // Users / Role selection tab
       selectedIndex = 4;
+    } else if (location.startsWith(AppRoute.hostSettings.path)) {
+      // Settings tab
+      selectedIndex = 5;
     } else {
       selectedIndex = 0;
     }
@@ -88,7 +91,7 @@ class NavigationRailWrapper extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) async {
               // Map indices to routes:
-              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions, 4 -> Users, 5 -> Logout
+              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions, 4 -> Users, 5 -> Settings, 6 -> Logout
               if (index == 0) {
                 pushAndRemoveAllRoute(AppRoute.hostEvents, context);
               } else if (index == 1) {
@@ -102,6 +105,9 @@ class NavigationRailWrapper extends StatelessWidget {
                 // Navigate to the Users / Role selection page
                 pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
               } else if (index == 5) {
+                // Navigate to Settings
+                pushAndRemoveAllRoute(AppRoute.hostSettings, context);
+              } else if (index == 6) {
                 try {
                   await authController.logout();
                   if (context.mounted) {
@@ -181,6 +187,18 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings),
+                label: AppText.styledBodyMedium(
+                  context,
+                  'Settings',
+                  color: selectedIndex == 5
+                      ? AppColors.primaryOld(context)
+                      : AppColors.onPrimaryContainer(context),
+                  weight: selectedIndex == 5 ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              NavigationRailDestination(
                 icon: Icon(
                   Icons.logout_outlined,
                   color: AppColors.white,
@@ -189,11 +207,10 @@ class NavigationRailWrapper extends StatelessWidget {
                 label: AppText.styledBodyMedium(
                   context,
                   'Logout',
-                  color: selectedIndex == 5
+                  color: selectedIndex == 6
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
-                  weight:
-                      selectedIndex == 5 ? FontWeight.bold : FontWeight.normal,
+                  weight: selectedIndex == 6 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],

@@ -5,6 +5,7 @@ enum AppRoute {
   signup('/signup'),
   emailVerification('/email-verification'),
 
+
   // Host routes
   host('/host'),
   hostOrganisationInfoForm('/host-organisation-info-form'),
@@ -18,6 +19,9 @@ enum AppRoute {
 
   hostVenueDetails('/host-venue-details/:eventId', 'eventId'),
   hostQuestionSets('/host-question-sets'),
+  hostSettings('/host-settings'),
+
+  // NEW: questions for a specific set (HostQuestionsScreen)
   hostQuestionSetQuestions('/host-question-sets/:setId', 'setId'),
   hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
