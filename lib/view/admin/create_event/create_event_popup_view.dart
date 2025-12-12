@@ -10,9 +10,11 @@ import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/form_step_model.dart';
 import 'package:traxx_wepapp/utils/enums/date_time_input_type.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
+import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
 import 'package:traxx_wepapp/widgets/app_date_time_input_field.dart';
@@ -89,7 +91,23 @@ class _CreateEventPopupViewState extends State<CreateEventPopupView> {
           verticalPadding: Sizes.xl, // 48px on desktop
         ),
         child: MultiStepFormWidget(
-          onSubmit: () => controller.submitEvent(),
+          onSubmit: () async {
+            try {
+              final Event savedEvent = await controller.submitEvent();
+              // Navigate to event details and remove other routes so the
+              // details page becomes the focused route.
+              if (savedEvent.eventId != null && mounted) {
+                pushAndRemoveAllRoute(
+                  AppRoute.eventDetails,
+                  context,
+                  urlParam: savedEvent.eventId!,
+                );
+              }
+            } catch (e) {
+              // submitEvent already shows snackbar; optionally log
+              print('Navigation after save failed: $e');
+            }
+          },
           steps: [
             // Step 1: Event Name, Event Type, Date, RSVP Date, Start Time, End Time
             FormStepModel(

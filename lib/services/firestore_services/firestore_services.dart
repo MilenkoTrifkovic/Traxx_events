@@ -171,23 +171,25 @@ class FirestoreServices {
   ///
   /// Throws [FirebaseException] if the save operation fails.
   /// TODO: Add user authentication check and link event to user.
-  Future<void> saveEvent(Event event) async {
+  Future<Event> saveEvent(Event event) async {
     try {
       // Assign a new UUID v4 to eventId if not provided
       final uuid = Uuid();
-      final eventWithId = event.copyWith(eventId: event.eventId ?? uuid.v4());
+      final id = event.eventId ?? uuid.v4();
+      final eventWithId = event.copyWith(eventId: id);
 
       // Convert to map and remove nulls (but do NOT rely on client-side timestamps)
-      final data = Map<String, dynamic>.from(eventWithId.toJson() ?? {});
+  final data = Map<String, dynamic>.from(eventWithId.toJson());
       data.removeWhere((k, v) => v == null);
 
       // Ensure server-side timestamps for createdAt and updatedAt
       data['createdAt'] = FieldValue.serverTimestamp();
       data['updatedAt'] = FieldValue.serverTimestamp();
 
-      await eventsRef.add(data);
+      // Persist using the eventId as document id so callers can rely on it
+      await eventsRef.doc(id).set(data);
 
-      // Add event id to user document, etc. (if you need to store doc id back into Event, set it here)
+      return eventWithId;
     } on FirebaseException catch (e) {
       print('Firestore error: ${e.message}');
       rethrow; // still rethrow but now logged
@@ -989,9 +991,9 @@ class FirestoreServices {
     final uuid = Uuid();
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
-    final result = await menuItemsRef.add(item.toFirestoreCreate());
+  await menuItemsRef.add(item.toFirestoreCreate());
 
-    return item;
+  return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {

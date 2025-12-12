@@ -11,6 +11,7 @@ import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 
 /// Controller for managing create event form state and validation
 class CreateEventController extends GetxController {
@@ -51,6 +52,9 @@ class CreateEventController extends GetxController {
 
   // Snackbar message state
   final Rx<SnackBarMessage?> snackBarMessage = Rx<SnackBarMessage?>(null);
+
+  // Global snackbar helper
+  final SnackbarMessageController snackbar = Get.find<SnackbarMessageController>();
 
   // Navigation state
   final RxBool shouldPop = false.obs;
@@ -328,19 +332,21 @@ class CreateEventController extends GetxController {
   }
 
   /// Submit the event to Firebase
-  Future<void> submitEvent() async {
+  /// Returns the saved Event (with eventId populated).
+  Future<Event> submitEvent() async {
     try {
       isLoading.value = true;
 
       // Create event instance
-      final event = createEventInstance();
+      var event = createEventInstance();
 
       // Upload cover image if selected
       if (selectedCoverImage.value != null) {
         try {
           final imagePath =
               await _storageServices.uploadImage(selectedCoverImage.value!);
-          event.coverImageUrl = imagePath;
+          // create a new event instance with coverImageUrl set
+          event = event.copyWith(coverImageUrl: imagePath);
         } catch (e) {
           // If image upload fails, continue without image
           print('Failed to upload cover image: $e');
@@ -348,16 +354,18 @@ class CreateEventController extends GetxController {
         }
       }
 
-      // Save to Firebase
-      await _firestoreServices.saveEvent(event);
+      // Save to Firebase and get saved event (with eventId)
+      final savedEvent = await _firestoreServices.saveEvent(event);
 
-      // Success feedback
-      showSuccess('Event created successfully!');
+  // Success feedback (global snackbar)
+  snackbar.showSuccessMessage('Event created successfully!');
 
       // Signal UI to navigate back
-      eventListController.addCreatedEventToList(event);
-      await _storageServices.loadImage(event);
+      eventListController.addCreatedEventToList(savedEvent);
+      await _storageServices.loadImage(savedEvent);
       shouldPop.value = true;
+
+      return savedEvent;
     } catch (e) {
       // Error feedback
       showError('Failed to create event: ${e.toString()}');

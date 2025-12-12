@@ -25,10 +25,10 @@ class EventListScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-            ],
-          ),
+          // Row(
+          //   children: [
+          //   ],
+          // ),
           // List of event cards
           Obx(() => Container(
               decoration: BoxDecoration(
