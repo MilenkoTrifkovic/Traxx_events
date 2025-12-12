@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/features/settings/controllers/settings_screen_controller.dart';
-import 'package:traxx_wepapp/theme/app_font_weight.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
@@ -34,7 +32,8 @@ class ChangePasswordSection extends StatelessWidget {
               hintText: 'Enter current password',
               obscureText: true,
               enabled: true,
-              validator: (v) => ValidationHelper.validateRequired(v, 'Current password'),
+              validator: (v) =>
+                  ValidationHelper.validateRequired(v, 'Current password'),
             ),
             AppTextInputField(
               label: 'New password',
@@ -50,7 +49,8 @@ class ChangePasswordSection extends StatelessWidget {
               hintText: 'Re-enter new password',
               obscureText: true,
               enabled: true,
-              validator: (v) => ValidationHelper.validateConfirmPassword(v, controller.newPasswordController.text),
+              validator: (v) => ValidationHelper.validateConfirmPassword(
+                  v, controller.newPasswordController.text),
             ),
             const SizedBox(height: 8),
             AppPrimaryButton(
@@ -61,7 +61,8 @@ class ChangePasswordSection extends StatelessWidget {
                 if (form.validate()) {
                   controller.changePassword();
                 } else {
-                  controller.snackbar.showErrorMessage('Please fix validation errors');
+                  controller.snackbar
+                      .showErrorMessage('Please fix validation errors');
                 }
               },
             ),

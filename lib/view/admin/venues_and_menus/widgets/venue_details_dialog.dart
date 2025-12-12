@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/models/venue.dart';
@@ -90,17 +89,18 @@ class VenueDetailsDialog extends StatelessWidget {
                   children: [
                     const Icon(Icons.description, size: 16),
                     AppSpacing.horizontalXs(context),
-                    if (venue.description != null && venue.description!.isNotEmpty)
-                    Flexible(
-                      child: Padding(
-                        padding: AppPadding.only(context,
-                            paddingType: Sizes.xs, right: true),
-                        child: AppText.styledBodyMedium(
-                          context,
-                          venue.description!,
+                    if (venue.description != null &&
+                        venue.description!.isNotEmpty)
+                      Flexible(
+                        child: Padding(
+                          padding: AppPadding.only(context,
+                              paddingType: Sizes.xs, right: true),
+                          child: AppText.styledBodyMedium(
+                            context,
+                            venue.description!,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 // Chip(
@@ -115,7 +115,6 @@ class VenueDetailsDialog extends StatelessWidget {
           AppSpacing.verticalXs(context),
 
           // Description
-          
         ],
       ),
     );

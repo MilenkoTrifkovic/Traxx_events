@@ -4,7 +4,6 @@ import 'package:map_location_picker/map_location_picker.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
-import 'package:traxx_wepapp/utils/static_data.dart';
 
 class EventFormState {
   /// Creates a new empty EventFormState instance

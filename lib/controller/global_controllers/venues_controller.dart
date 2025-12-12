@@ -1,8 +1,6 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
-import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -158,5 +156,4 @@ class VenuesController extends GetxController {
       rethrow;
     }
   }
-
 }

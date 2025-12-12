@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
@@ -19,21 +17,17 @@ class VenueDetailsController {
   final AuthController _authController;
   final VenuesController _venuesController;
 
-  // Loading states
   final isLoading = false.obs;
   final isCreatingVenue = false.obs;
   final isDeletingVenue = false.obs;
 
-  // Form controllers
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
 
-  // Form validation
   final nameError = RxnString();
   final descriptionError = RxnString();
   final formKey = GlobalKey<FormState>();
 
-  // Image handling
   final selectedImage = Rxn<XFile>();
   final imageError = RxnString();
 
@@ -142,9 +136,6 @@ class VenueDetailsController {
     }
     isCreatingMenuItem.value = true;
     try {
-      final menuItem = await _buildMenuItem();
-      final result = await _firestoreServices.createMenuItem(menuItem);
-
       snackbarMessageController.showSuccessMessage('Menu item created!');
     } catch (e) {
       snackbarMessageController
@@ -154,23 +145,23 @@ class VenueDetailsController {
     }
   }
 
-  Future<MenuItem> _buildMenuItem() async {
-    String? imagePath;
-    if (selectedImage.value != null) {
-      imagePath = await _storageServices.uploadImage(selectedImage.value!);
-    }
-    final menuItem = MenuItem(
-      organisationId: venue!.venueID,
-      name: menuNameController.text.trim(),
-      category: selectedCategory.value!,
-      description: menuDescriptionController.text.trim().isEmpty
-          ? null
-          : menuDescriptionController.text.trim(),
-      imagePath: imagePath,
-    );
-    clearMenuForm();
-    return menuItem;
-  }
+  // Future<MenuItem> _buildMenuItem() async {
+  //   String? imagePath;
+  //   if (selectedImage.value != null) {
+  //     imagePath = await _storageServices.uploadImage(selectedImage.value!);
+  //   }
+  //   final menuItem = MenuItem(
+  //     organisationId: venue!.venueID,
+  //     name: menuNameController.text.trim(),
+  //     category: selectedCategory.value!,
+  //     description: menuDescriptionController.text.trim().isEmpty
+  //         ? null
+  //         : menuDescriptionController.text.trim(),
+  //     imagePath: imagePath,
+  //   );
+  //   clearMenuForm();
+  //   return menuItem;
+  // }
 
   void dispose() {
     nameController.dispose();

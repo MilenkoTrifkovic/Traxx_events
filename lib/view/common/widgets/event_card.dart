@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/view/common/widgets/event_card_sections/first_section.dart';
 import 'package:traxx_wepapp/view/common/widgets/event_card_sections/second_section.dart';
 import 'package:traxx_wepapp/view/common/widgets/event_card_sections/third_section.dart';

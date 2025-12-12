@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/first_section_user_card.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/fourth_section_user_card.dart';
-import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/user_model.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 
-/// A card widget that displays user information in a consistent format.
-///
-/// Features:
-/// - Shows user email and role
 class UserCard extends StatelessWidget {
   /// The user data to display in the card
   final UserModel user;

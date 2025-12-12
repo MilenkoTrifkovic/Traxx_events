@@ -7,17 +7,11 @@ import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
-import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/create_venue_popup_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_details_dialog.dart';
 import 'package:traxx_wepapp/widgets/empty_state.dart';
 
-/// A screen that displays the venue management interface.
-///
-/// This screen includes:
-/// - Venue list display
 class VenuesView extends StatefulWidget {
   const VenuesView({super.key});
 
@@ -125,30 +119,30 @@ class _VenuesViewState extends State<VenuesView> {
               onEdit: () {
                 controller.updateClassFields(venue);
                 showDialog(
-                context: context,
-                builder: (context) {
-                  return CreateVenuePopupView(
-                    controller: controller,
-                    venuesController: venuesController,
-                    isEditMode: true,
-                  );
-                },
-              ).then(
-                (value) async {
-                  if (value != null && value is bool && value) {
-                    try {
-                      showLoadingIndicator();
-                      final createdVenue = await controller.updateVenue();
-                      // venuesController.addVenue(createdVenue);
-                    } on Exception catch (e) {
-                      // snackbarMessageController
-                      //     .showErrorMessage('Error creating venue');
-                    } finally {
-                      hideLoadingIndicator();
-                    }
-                  } else {}
-                },
-              );
+                  context: context,
+                  builder: (context) {
+                    return CreateVenuePopupView(
+                      controller: controller,
+                      venuesController: venuesController,
+                      isEditMode: true,
+                    );
+                  },
+                ).then(
+                  (value) async {
+                    if (value != null && value is bool && value) {
+                      try {
+                        showLoadingIndicator();
+                        final createdVenue = await controller.updateVenue();
+                        // venuesController.addVenue(createdVenue);
+                      } on Exception catch (e) {
+                        // snackbarMessageController
+                        //     .showErrorMessage('Error creating venue');
+                      } finally {
+                        hideLoadingIndicator();
+                      }
+                    } else {}
+                  },
+                );
               },
             ),
           );

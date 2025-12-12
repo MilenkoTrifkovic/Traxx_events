@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/auth_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
-import 'package:traxx_wepapp/utils/enums/user_type.dart';
 
 /// Controller for managing sign-in and sign-up functionality
 class SignInController extends GetxController {

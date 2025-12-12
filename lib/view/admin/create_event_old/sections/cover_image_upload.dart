@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/create_edit_event_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
-import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 

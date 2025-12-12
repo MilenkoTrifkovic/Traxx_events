@@ -8,14 +8,8 @@ import 'package:traxx_wepapp/widgets/date_time_picker.dart';
 import 'package:traxx_wepapp/view/admin/create_event/widgets/timezone_chooser.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
-import 'package:traxx_wepapp/widgets/section_devider.dart';
 
-/// A widget that displays the required fields for event creation.
-/// This includes essential information such as event name, address,
-/// capacity, date/time, and other mandatory fields.
 class RequiredFields extends StatelessWidget {
-  /// Map of form field keys used for form validation and field references.
-  /// Keys include: 'eventName', 'address', 'capacity', etc.
   final Map<String, GlobalKey<FormFieldState>> fieldKeys;
 
   const RequiredFields({
@@ -52,10 +46,6 @@ class RequiredFields extends StatelessWidget {
           },
         ),
         AppSpacing.verticalXs(context),
-
-        /// Event address/location input field
-        /// Required field for specifying where the event will take place
-        /// Supports multi-line input for detailed location information
         TextFormField(
           key: fieldKeys['address'],
           controller: formState.addressController,
@@ -72,10 +62,6 @@ class RequiredFields extends StatelessWidget {
           },
         ),
         AppSpacing.verticalXs(context),
-
-        /// Event capacity input field
-        /// Numeric input field that only accepts digits
-        /// Used to specify the maximum number of attendees allowed
         TextFormField(
           key: fieldKeys['capacity'],
           keyboardType: TextInputType.number,
@@ -98,10 +84,6 @@ class RequiredFields extends StatelessWidget {
           },
         ),
         AppSpacing.verticalXs(context),
-
-        /// Event type selection dropdown
-        /// Searchable dropdown menu for selecting the type of event
-        /// Uses predefined event types from StaticData
         DropdownSearch<String>(
           validator: (value) {
             if (value == null || value.isEmpty) {

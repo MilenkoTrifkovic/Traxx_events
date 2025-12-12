@@ -4,13 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/create_edit_event_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
-import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
-/// Widget for handling event cover image upload.
-/// Shows an upload button initially, then displays the selected image
-/// with the ability to change it by tapping.
 class CoverImageUpload extends StatefulWidget {
   const CoverImageUpload({super.key});
 
@@ -81,13 +77,6 @@ class _CoverImageUploadState extends State<CoverImageUpload> {
                 text: 'Upload Cover Image',
                 icon: Icons.file_upload_outlined,
               )
-            // ? StyledTextButton(
-            //     onPressed: () async {
-            //       coverImage = await _createEventController.loadCoverImage();
-            //       setState(() {});
-            //     },
-            //     text: 'Upload Cover Image',
-            //   )
             : GestureDetector(
                 onTap: () async {
                   coverImage = await _createEventController.loadCoverImage();

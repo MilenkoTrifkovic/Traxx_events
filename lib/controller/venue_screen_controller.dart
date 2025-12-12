@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
-import 'package:traxx_wepapp/main.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
@@ -120,14 +119,6 @@ class VenueScreenController extends GetxController {
     throw Exception('Form validation failed');
   }
 
-  /// Creates a new venue with all required and optional parameters
-  ///
-  /// Required parameters:
-  /// - name: The venue name
-  ///
-  /// Optional parameters:
-  /// - description: Optional venue description
-  /// - image: Optional venue photo (XFile)
   Future<Venue> createVenue() async {
     try {
       // Validate required fields
@@ -163,20 +154,19 @@ class VenueScreenController extends GetxController {
 
       // Create venue object
       final venue = Venue(
-        organisationId: organisationId,
-        name: nameController.text.trim(),
-        description: descriptionController.text.trim().isEmpty
-            ? null
-            : descriptionController.text.trim(),
-        photoPath: photoPath,
-        isDisabled: false,
-        street: streetController.text.trim(),
-        city: cityController.text.trim(),
-        zip: zipController.text.trim(),
-        state: selectedState.value!.trim(),
-        country: selectedCountry.value!.trim(),
-        venueID: venueId
-      );
+          organisationId: organisationId,
+          name: nameController.text.trim(),
+          description: descriptionController.text.trim().isEmpty
+              ? null
+              : descriptionController.text.trim(),
+          photoPath: photoPath,
+          isDisabled: false,
+          street: streetController.text.trim(),
+          city: cityController.text.trim(),
+          zip: zipController.text.trim(),
+          state: selectedState.value!.trim(),
+          country: selectedCountry.value!.trim(),
+          venueID: venueId);
       return venue;
     } catch (e) {
       _showErrorMessage('Failed to create venue: $e');

@@ -3,6 +3,19 @@ import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 enum FoodType { veg, nonVeg }
 
+extension FoodTypeExt on FoodType {
+  String label() {
+    switch (this) {
+      case FoodType.veg:
+        return 'Veg';
+      case FoodType.nonVeg:
+        return 'Non-Veg';
+      default:
+        return '';
+    }
+  }
+}
+
 class MenuItem {
   final String? menuItemId; // Firestore doc id
   final String? menuId; // Links to menus/{menuId}

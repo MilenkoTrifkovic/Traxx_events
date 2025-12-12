@@ -6,7 +6,6 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/content/step_content.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/layout/right_section_container.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/navigation/navigation_buttons.dart';

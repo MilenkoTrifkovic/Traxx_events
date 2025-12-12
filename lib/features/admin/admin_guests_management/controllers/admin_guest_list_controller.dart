@@ -1,20 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_instance/src/extension_instance.dart';
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 import 'package:get/get_state_manager/src/simple/get_controllers.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
-import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
-import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
-import 'package:traxx_wepapp/utils/loader.dart';
 
 class AdminGuestListController extends GetxController {
   final formKey = GlobalKey<FormState>();
 
-  // Form fields
   final name = TextEditingController();
   final email = TextEditingController();
   final address = TextEditingController();
@@ -30,11 +23,6 @@ class AdminGuestListController extends GetxController {
   final isInitialized = false.obs;
 
   late String eventId;
-
-  @override
-  void onInit() {
-    super.onInit();
-  }
 
   void setEventId(String id) {
     eventId = id;

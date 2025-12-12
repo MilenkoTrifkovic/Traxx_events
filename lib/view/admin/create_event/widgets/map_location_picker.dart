@@ -1,23 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:map_location_picker/map_location_picker.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 
-/// A widget that provides an interactive map interface for selecting event locations.
-///
-/// This widget integrates with Google Maps to allow users to:
-/// - Search for locations using the Google Places API
-/// - Pick locations directly from the map
-/// - View  the formatted address
-///
-/// The selected location data is stored in the [EventFormState] and validated
-/// through the provided form field keys.
 class LocationPickerScreen extends StatefulWidget {
-  /// Form field keys for validation and state management.
-  /// Expected keys include 'location' for the address field.
   final Map<String, GlobalKey<FormFieldState>> fieldKeys;
 
   const LocationPickerScreen({super.key, required this.fieldKeys});
@@ -26,14 +14,10 @@ class LocationPickerScreen extends StatefulWidget {
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
 }
 
-/// The state management class for the LocationPickerScreen widget.
-/// Handles the map interaction, address formatting, and form state updates.
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
   /// Reference to the global event form state
   late final EventFormState formState;
 
-  /// Controller for the formatted address text field
-  /// This displays and allows editing of the selected location's address
   late final TextEditingController formattedAdressController =
       TextEditingController();
 
@@ -58,13 +42,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
-  /// Builds the location picker interface with a formatted address display
-  /// and an interactive map component.
-  ///
-  /// The interface includes:
-  /// - A formatted address text field showing the selected location
-  /// - A map view for visual location selection
-  /// - Location search functionality
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -109,10 +86,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               ],
             ),
           ),
-
-          /// Interactive map preview section
-          /// Tapping this opens the full map location picker with search capabilities
-          /// The map uses the Google Maps API for location selection and geocoding
           GestureDetector(
             onTap: () => _openLocationPicker(
               MapLocationPickerConfig(
@@ -216,17 +189,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
-  /// Opens the full-screen map location picker with search functionality.
-  ///
-  /// Parameters:
-  /// - [config]: Configuration for the map location picker including initial position,
-  ///   styling, and callback handlers
-  ///
-  /// The method handles:
-  /// - Opening the map in a new screen
-  /// - Updating the selected location when user confirms
-  /// - Updating the formatted address display
-  /// - Handling navigation back to the form
   Future<void> _openLocationPicker(MapLocationPickerConfig config) async {
     await Navigator.push(
       context,
@@ -262,14 +224,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
-  /// Custom dark theme style for Google Maps
-  /// Provides a dark mode appearance with custom colors for:
-  /// - Map geometry and features
-  /// - Roads and transit
-  /// - Labels and text
-  /// - Water bodies
-  ///
-  /// This style is applied when the app is in dark mode
   final String _darkMapStyle = '''
 [
   {

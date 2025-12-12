@@ -9,6 +9,5 @@ enum MenuCategory {
 
   final IconData icon;
   final bool isVeg;
-
   const MenuCategory(this.icon, this.isVeg);
 }
