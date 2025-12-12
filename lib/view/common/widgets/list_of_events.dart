@@ -61,6 +61,7 @@ class ListOfEvents extends StatelessWidget {
             child: EventCard(
               event: event,
               onTap: () {
+                print(  'Event tapped: ${event.name} (ID: ${event.eventId})${event.toString()}');
                 controller.selectedEvent.value = event;
                 eventController.setSelectedEvent(event);
                 if (authController.userRole.value == UserRole.admin) {

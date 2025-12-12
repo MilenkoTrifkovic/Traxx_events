@@ -1,5 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/features/settings/controllers/settings_screen_controller.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/app_font_weight.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
@@ -12,6 +17,8 @@ class ChangePasswordSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final email = FirebaseAuth.instance.currentUser?.email;
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 300),
       padding: const EdgeInsets.all(0),
@@ -20,12 +27,11 @@ class ChangePasswordSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            //  AppText.styledBodyLarge(
-            //   context,
-            //   'Change password',
-            //   weight: AppFontWeight.semiBold
-            // ),
-            // const SizedBox(height: 8),
+            if (email != null)
+              AppText.styledBodyMedium(context, email,
+                  weight: AppFontWeight.regular,
+                  color: AppColors.primaryAccent),
+            AppSpacing.verticalXxxs(context),
             AppTextInputField(
               label: 'Current password',
               controller: controller.currentPasswordController,

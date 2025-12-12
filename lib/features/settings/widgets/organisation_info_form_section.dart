@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'dart:math' as math;
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/features/settings/controllers/settings_screen_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
@@ -15,8 +16,9 @@ import 'package:traxx_wepapp/utils/data/us_data.dart';
 class OrganisationInfoFormSection extends StatelessWidget {
   final SettingsScreenController controller;
   final OrganisationController organisationController;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  const OrganisationInfoFormSection({
+  OrganisationInfoFormSection({
     super.key,
     required this.controller,
     required this.organisationController,
@@ -25,14 +27,17 @@ class OrganisationInfoFormSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-  final isDesktop = ScreenSize.isDesktop(context);
-  double columnWidth = (constraints.maxWidth - 24) / 2;
+      final isDesktop = ScreenSize.isDesktop(context);
+      // double columnWidth = (constraints.maxWidth - 24) / 2;
+      //     columnWidth = math.min(columnWidth, 360);
+      //bug fix
+      double columnWidth = math.max(0, (constraints.maxWidth - 24) / 2);
       columnWidth = math.min(columnWidth, 360);
 
-  Widget wrapChild(Widget child) => SizedBox(
-    width: isDesktop ? math.min(columnWidth, 360) : double.infinity,
-    child: child,
-      );
+      Widget wrapChild(Widget child) => SizedBox(
+            width: isDesktop ? math.min(columnWidth, 360) : double.infinity,
+            child: child,
+          );
 
       final fields = [
         wrapChild(Obx(() => AppTextInputField(
@@ -40,36 +45,42 @@ class OrganisationInfoFormSection extends StatelessWidget {
               controller: controller.companyNameController,
               hintText: 'Company name',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateCompanyName(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Phone',
               controller: controller.phoneController,
               hintText: 'Phone number',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validatePhoneNumber(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Address',
               controller: controller.addressController,
               hintText: 'Street address',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateAddress(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Website',
               controller: controller.websiteController,
               hintText: 'Website (optional)',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateOptionalWebsite(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'City',
               controller: controller.cityController,
               hintText: 'City',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateCity(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Zip Code',
               controller: controller.zipController,
               hintText: 'Zip code',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateZipCode(v),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Timezone',
@@ -85,6 +96,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedTimezone.value = v;
               },
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'timezone'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Country',
@@ -100,6 +113,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedCountry.value = v;
               },
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'country'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'State',
@@ -115,72 +130,35 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedState.value = v;
               },
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'state'),
             ))),
       ];
 
-      return Column(
-        // crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (isDesktop)
-            Wrap(spacing: 24, runSpacing: 0, children: fields)
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: fields
-                  .map((w) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: w,
-                      ))
-                  .toList(),
-            ),
+      return Form(
+        key: _formKey,
+        child: Column(
+          // crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (isDesktop)
+              Wrap(spacing: 24, runSpacing: 0, children: fields)
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: fields
+                    .map((w) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: w,
+                        ))
+                    .toList(),
+              ),
 
-          AppSpacing.verticalSm(context),
-          // Actions: align the buttons' right edge with the form fields above.
-          // On phones keep full-width behavior; on larger layouts constrain the
-          // actions container to the same content width as the two-column form.
-          if (!isDesktop)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Obx(() {
-                  if (controller.isEditing.value) {
-                    return AppSecondaryButton(
-                      text: 'Cancel',
-                      onPressed: () {
-                        controller.cancelEditing();
-                      },
-                    );
-                  }
-                  return AppSecondaryButton(
-                    text: 'Edit',
-                    onPressed: () {
-                      controller.startEditing();
-                    },
-                  );
-                }),
-                const SizedBox(width: 12),
-                Obx(() {
-                  final isLoading = organisationController.isLoading.value;
-                  return AppPrimaryButton(
-                    text: 'Save Change',
-                    isLoading: isLoading,
-                    onPressed: (!controller.isEditing.value || isLoading)
-                        ? null
-                        : () async {
-                            await controller.updateOrganisation();
-                          },
-                  );
-                }),
-              ],
-            )
-          else
-            // For non-phone layouts, limit the width of the actions container to
-            // the combined width of two form columns plus the spacing between them
-            // so the buttons line up with the form fields above.
-            Container(
-              width: math.min(columnWidth * 2 + 24, constraints.maxWidth),
-              alignment: Alignment.centerRight,
-              child: Row(
+            AppSpacing.verticalSm(context),
+            // Actions: align the buttons' right edge with the form fields above.
+            // On phones keep full-width behavior; on larger layouts constrain the
+            // actions container to the same content width as the two-column form.
+            if (!isDesktop)
+              Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Obx(() {
@@ -208,14 +186,68 @@ class OrganisationInfoFormSection extends StatelessWidget {
                       onPressed: (!controller.isEditing.value || isLoading)
                           ? null
                           : () async {
+                              final valid =
+                                  _formKey.currentState?.validate() ?? false;
+                              if (!valid) return;
                               await controller.updateOrganisation();
                             },
                     );
                   }),
                 ],
+              )
+            else
+              // For non-phone layouts, limit the width of the actions container to
+              // the combined width of two form columns plus the spacing between them
+              // so the buttons line up with the form fields above.
+              Container(
+                // width: math.min(columnWidth * 2 + 24, constraints.maxWidth),
+                // bug fix
+                width: math.max(
+                  0,
+                  math.min(columnWidth * 2 + 24, constraints.maxWidth),
+                ),
+
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Obx(() {
+                      if (controller.isEditing.value) {
+                        return AppSecondaryButton(
+                          text: 'Cancel',
+                          onPressed: () {
+                            controller.cancelEditing();
+                          },
+                        );
+                      }
+                      return AppSecondaryButton(
+                        text: 'Edit',
+                        onPressed: () {
+                          controller.startEditing();
+                        },
+                      );
+                    }),
+                    const SizedBox(width: 12),
+                    Obx(() {
+                      final isLoading = organisationController.isLoading.value;
+                      return AppPrimaryButton(
+                        text: 'Save Change',
+                        isLoading: isLoading,
+                        onPressed: (!controller.isEditing.value || isLoading)
+                            ? null
+                            : () async {
+                                final valid =
+                                    _formKey.currentState?.validate() ?? false;
+                                if (!valid) return;
+                                await controller.updateOrganisation();
+                              },
+                      );
+                    }),
+                  ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       );
     });
   }
