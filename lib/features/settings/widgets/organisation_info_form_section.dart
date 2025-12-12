@@ -27,14 +27,17 @@ class OrganisationInfoFormSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-  final isDesktop = ScreenSize.isDesktop(context);
-  double columnWidth = (constraints.maxWidth - 24) / 2;
+      final isDesktop = ScreenSize.isDesktop(context);
+      // double columnWidth = (constraints.maxWidth - 24) / 2;
+      //     columnWidth = math.min(columnWidth, 360);
+      //bug fix
+      double columnWidth = math.max(0, (constraints.maxWidth - 24) / 2);
       columnWidth = math.min(columnWidth, 360);
 
-  Widget wrapChild(Widget child) => SizedBox(
-    width: isDesktop ? math.min(columnWidth, 360) : double.infinity,
-    child: child,
-      );
+      Widget wrapChild(Widget child) => SizedBox(
+            width: isDesktop ? math.min(columnWidth, 360) : double.infinity,
+            child: child,
+          );
 
       final fields = [
         wrapChild(Obx(() => AppTextInputField(
@@ -93,7 +96,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedTimezone.value = v;
               },
-              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'timezone'),
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'timezone'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Country',
@@ -109,7 +113,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedCountry.value = v;
               },
-              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'country'),
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'country'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'State',
@@ -125,77 +130,35 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedState.value = v;
               },
-              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'state'),
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'state'),
             ))),
       ];
 
       return Form(
         key: _formKey,
         child: Column(
-        // crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (isDesktop)
-            Wrap(spacing: 24, runSpacing: 0, children: fields)
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: fields
-                  .map((w) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: w,
-                      ))
-                  .toList(),
-            ),
+          // crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (isDesktop)
+              Wrap(spacing: 24, runSpacing: 0, children: fields)
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: fields
+                    .map((w) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: w,
+                        ))
+                    .toList(),
+              ),
 
-          AppSpacing.verticalSm(context),
-          // Actions: align the buttons' right edge with the form fields above.
-          // On phones keep full-width behavior; on larger layouts constrain the
-          // actions container to the same content width as the two-column form.
-          if (!isDesktop)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Obx(() {
-                  if (controller.isEditing.value) {
-                    return AppSecondaryButton(
-                      text: 'Cancel',
-                      onPressed: () {
-                        controller.cancelEditing();
-                      },
-                    );
-                  }
-                  return AppSecondaryButton(
-                    text: 'Edit',
-                    onPressed: () {
-                      controller.startEditing();
-                    },
-                  );
-                }),
-                const SizedBox(width: 12),
-                Obx(() {
-                  final isLoading = organisationController.isLoading.value;
-                    return AppPrimaryButton(
-                      text: 'Save Change',
-                      isLoading: isLoading,
-                      onPressed: (!controller.isEditing.value || isLoading)
-                          ? null
-                          : () async {
-                              final valid = _formKey.currentState?.validate() ?? false;
-                              if (!valid) return;
-                              await controller.updateOrganisation();
-                            },
-                    );
-                }),
-              ],
-            )
-          else
-            // For non-phone layouts, limit the width of the actions container to
-            // the combined width of two form columns plus the spacing between them
-            // so the buttons line up with the form fields above.
-            Container(
-              width: math.min(columnWidth * 2 + 24, constraints.maxWidth),
-              alignment: Alignment.centerRight,
-              child: Row(
+            AppSpacing.verticalSm(context),
+            // Actions: align the buttons' right edge with the form fields above.
+            // On phones keep full-width behavior; on larger layouts constrain the
+            // actions container to the same content width as the two-column form.
+            if (!isDesktop)
+              Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Obx(() {
@@ -223,17 +186,68 @@ class OrganisationInfoFormSection extends StatelessWidget {
                       onPressed: (!controller.isEditing.value || isLoading)
                           ? null
                           : () async {
-                              final valid = _formKey.currentState?.validate() ?? false;
+                              final valid =
+                                  _formKey.currentState?.validate() ?? false;
                               if (!valid) return;
                               await controller.updateOrganisation();
                             },
                     );
                   }),
                 ],
+              )
+            else
+              // For non-phone layouts, limit the width of the actions container to
+              // the combined width of two form columns plus the spacing between them
+              // so the buttons line up with the form fields above.
+              Container(
+                // width: math.min(columnWidth * 2 + 24, constraints.maxWidth),
+                // bug fix
+                width: math.max(
+                  0,
+                  math.min(columnWidth * 2 + 24, constraints.maxWidth),
+                ),
+
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Obx(() {
+                      if (controller.isEditing.value) {
+                        return AppSecondaryButton(
+                          text: 'Cancel',
+                          onPressed: () {
+                            controller.cancelEditing();
+                          },
+                        );
+                      }
+                      return AppSecondaryButton(
+                        text: 'Edit',
+                        onPressed: () {
+                          controller.startEditing();
+                        },
+                      );
+                    }),
+                    const SizedBox(width: 12),
+                    Obx(() {
+                      final isLoading = organisationController.isLoading.value;
+                      return AppPrimaryButton(
+                        text: 'Save Change',
+                        isLoading: isLoading,
+                        onPressed: (!controller.isEditing.value || isLoading)
+                            ? null
+                            : () async {
+                                final valid =
+                                    _formKey.currentState?.validate() ?? false;
+                                if (!valid) return;
+                                await controller.updateOrganisation();
+                              },
+                      );
+                    }),
+                  ],
+                ),
               ),
-            ),
-        ],
-      ),
+          ],
+        ),
       );
     });
   }
