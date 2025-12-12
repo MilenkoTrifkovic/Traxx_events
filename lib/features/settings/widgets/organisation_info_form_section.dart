@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'dart:math' as math;
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
+import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/features/settings/controllers/settings_screen_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
@@ -15,8 +16,9 @@ import 'package:traxx_wepapp/utils/data/us_data.dart';
 class OrganisationInfoFormSection extends StatelessWidget {
   final SettingsScreenController controller;
   final OrganisationController organisationController;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  const OrganisationInfoFormSection({
+  OrganisationInfoFormSection({
     super.key,
     required this.controller,
     required this.organisationController,
@@ -40,36 +42,42 @@ class OrganisationInfoFormSection extends StatelessWidget {
               controller: controller.companyNameController,
               hintText: 'Company name',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateCompanyName(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Phone',
               controller: controller.phoneController,
               hintText: 'Phone number',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validatePhoneNumber(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Address',
               controller: controller.addressController,
               hintText: 'Street address',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateAddress(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Website',
               controller: controller.websiteController,
               hintText: 'Website (optional)',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateOptionalWebsite(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'City',
               controller: controller.cityController,
               hintText: 'City',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateCity(v),
             ))),
         wrapChild(Obx(() => AppTextInputField(
               label: 'Zip Code',
               controller: controller.zipController,
               hintText: 'Zip code',
               enabled: controller.isEditing.value,
+              validator: (v) => ValidationHelper.validateZipCode(v),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Timezone',
@@ -85,6 +93,7 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedTimezone.value = v;
               },
+              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'timezone'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Country',
@@ -100,6 +109,7 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedCountry.value = v;
               },
+              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'country'),
             ))),
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'State',
@@ -115,10 +125,13 @@ class OrganisationInfoFormSection extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) controller.selectedState.value = v;
               },
+              validator: (v) => ValidationHelper.validateDropdownSelection(v, 'state'),
             ))),
       ];
 
-      return Column(
+      return Form(
+        key: _formKey,
+        child: Column(
         // crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isDesktop)
@@ -161,15 +174,17 @@ class OrganisationInfoFormSection extends StatelessWidget {
                 const SizedBox(width: 12),
                 Obx(() {
                   final isLoading = organisationController.isLoading.value;
-                  return AppPrimaryButton(
-                    text: 'Save Change',
-                    isLoading: isLoading,
-                    onPressed: (!controller.isEditing.value || isLoading)
-                        ? null
-                        : () async {
-                            await controller.updateOrganisation();
-                          },
-                  );
+                    return AppPrimaryButton(
+                      text: 'Save Change',
+                      isLoading: isLoading,
+                      onPressed: (!controller.isEditing.value || isLoading)
+                          ? null
+                          : () async {
+                              final valid = _formKey.currentState?.validate() ?? false;
+                              if (!valid) return;
+                              await controller.updateOrganisation();
+                            },
+                    );
                 }),
               ],
             )
@@ -208,6 +223,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
                       onPressed: (!controller.isEditing.value || isLoading)
                           ? null
                           : () async {
+                              final valid = _formKey.currentState?.validate() ?? false;
+                              if (!valid) return;
                               await controller.updateOrganisation();
                             },
                     );
@@ -216,6 +233,7 @@ class OrganisationInfoFormSection extends StatelessWidget {
               ),
             ),
         ],
+      ),
       );
     });
   }

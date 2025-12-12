@@ -67,8 +67,8 @@ class ChangePasswordSection extends StatelessWidget {
                 if (form.validate()) {
                   controller.changePassword();
                 } else {
-                  controller.snackbar
-                      .showErrorMessage('Please fix validation errors');
+                  // controller.snackbar
+                  //     .showErrorMessage('Please fix validation errors');
                 }
               },
             ),
