@@ -4,7 +4,6 @@ import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card_sections/first_section_venues.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card_sections/fourth_section_venues.dart';
-import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
 /// A card widget that displays event information in a consistent format.
 ///

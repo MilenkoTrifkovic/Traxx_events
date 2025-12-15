@@ -86,7 +86,7 @@ class _VenuesViewState extends State<VenuesView> {
                       showLoadingIndicator();
                       final createdVenue = await controller.submitForm();
                       // venuesController.addVenue(createdVenue);
-                    } on Exception catch (e) {
+                    } on Exception {
                       // snackbarMessageController
                       //     .showErrorMessage('Error creating venue');
                     } finally {
@@ -140,7 +140,7 @@ class _VenuesViewState extends State<VenuesView> {
                       showLoadingIndicator();
                       final createdVenue = await controller.updateVenue();
                       // venuesController.addVenue(createdVenue);
-                    } on Exception catch (e) {
+                    } on Exception {
                       // snackbarMessageController
                       //     .showErrorMessage('Error creating venue');
                     } finally {

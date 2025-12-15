@@ -260,9 +260,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
       final dateStr =
           "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr = evt.startTime != null
-          ? "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}"
-          : '—';
+      final timeStr = "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}";
 
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -461,8 +459,8 @@ class DemographicQuestionsPanelBody extends StatelessWidget {
                     title: Text(set.title,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text(
-                        set.description?.isNotEmpty == true
-                            ? set.description!
+                        set.description.isNotEmpty == true
+                            ? set.description
                             : 'No description',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
@@ -764,7 +762,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _serviceType,
+              initialValue: _serviceType,
               decoration: const InputDecoration(
                 labelText: 'Service type',
               ),
@@ -865,7 +863,7 @@ class MenuSelectionCard extends StatelessWidget {
       final double total = selectedItems.map((i) {
         final p = i.price;
         if (p == null) return 0.0;
-        if (p is num) return p.toDouble();
+        return p.toDouble();
         return double.tryParse(p.toString()) ?? 0.0;
       }).fold(0.0, (a, b) => a + b);
 
@@ -983,7 +981,7 @@ class MenuSelectionCard extends StatelessWidget {
 
   Widget _SelectedDishRow(MenuItem item) {
     // helpers similar to dialog — safe handling of enums or strings
-    String _foodTypeLabel() {
+    String foodTypeLabel() {
       final dynamic ft = item.foodType;
       if (ft == null) return '';
       var raw = ft;
@@ -995,7 +993,7 @@ class MenuSelectionCard extends StatelessWidget {
       return raw[0].toUpperCase() + raw.substring(1);
     }
 
-    String _categoryLabel() {
+    String categoryLabel() {
       final dynamic c = item.category;
       if (c == null) return '';
       var raw = c;
@@ -1008,26 +1006,25 @@ class MenuSelectionCard extends StatelessWidget {
           .join(' ');
     }
 
-    bool _isVeg() {
-      final f = _foodTypeLabel();
-      if (f.isNotEmpty)
+    bool isVeg0() {
+      final f = foodTypeLabel();
+      if (f.isNotEmpty) {
         return f.toLowerCase().contains('veg') &&
             !f.toLowerCase().startsWith('non');
-      final cat = _categoryLabel();
+      }
+      final cat = categoryLabel();
       return cat.toLowerCase().contains('veg');
     }
 
-    final bool isVeg = _isVeg();
-    final String ftLabel = _foodTypeLabel();
-    final String catLabel = _categoryLabel();
+    final bool isVeg = isVeg0();
+    final String ftLabel = foodTypeLabel();
+    final String catLabel = categoryLabel();
     final NumberFormat currency =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final price = item.price;
     final double p = (price == null)
         ? 0.0
-        : price is num
-            ? price.toDouble()
-            : double.tryParse(price.toString()) ?? 0.0;
+        : price.toDouble();
 
     return Container(
       margin: const EdgeInsets.only(top: 6),
@@ -1179,7 +1176,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     try {
       final p = item.price;
       if (p == null) return 0.0;
-      if (p is num) return p.toDouble();
+      return p.toDouble();
       return double.tryParse(p.toString()) ?? 0.0;
     } catch (_) {
       return 0.0;
@@ -1200,8 +1197,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
 
     // Standardize outputs
     if (raw == 'veg') return 'Veg';
-    if (raw == 'nonVeg' || raw == 'non_veg' || raw == 'nonveg')
+    if (raw == 'nonVeg' || raw == 'non_veg' || raw == 'nonveg') {
       return 'Non-Veg';
+    }
 
     // Fallback
     return raw.isNotEmpty ? raw[0].toUpperCase() + raw.substring(1) : '';
@@ -1214,8 +1212,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   //   if (c == null) return '';
 
   String _categoryLabel(MenuItem item) {
-    final c = item.category; // MenuCategory?
-    if (c == null) return '';
+    final c = item.category;
 
     // Convert enum to readable string
     String raw = c.toString().split('.').last.replaceAll('_', ' ').trim();
@@ -1993,7 +1990,7 @@ class GuestListSection extends StatelessWidget {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(Colors.grey.shade50),
+                headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
                 dividerThickness: 1,
                 columns: const [
                   DataColumn(label: Text('Name')),

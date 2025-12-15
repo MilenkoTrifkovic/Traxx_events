@@ -184,33 +184,33 @@ class Organisation {
   /// Compares the fields that the settings form edits. Ignores timestamps,
   /// flags and the document id.
   bool isSameAs(Organisation other) {
-    String _n(String? s) => (s ?? '').trim();
+    String n(String? s) => (s ?? '').trim();
 
-    return _n(name) == _n(other.name) &&
-        _n(phone) == _n(other.phone) &&
-        _n(website) == _n(other.website) &&
-        _n(street) == _n(other.street) &&
-        _n(city) == _n(other.city) &&
-        _n(state) == _n(other.state) &&
-        _n(zip) == _n(other.zip) &&
-        _n(country) == _n(other.country) &&
-        _n(timezone) == _n(other.timezone);
+    return n(name) == n(other.name) &&
+        n(phone) == n(other.phone) &&
+        n(website) == n(other.website) &&
+        n(street) == n(other.street) &&
+        n(city) == n(other.city) &&
+        n(state) == n(other.state) &&
+        n(zip) == n(other.zip) &&
+        n(country) == n(other.country) &&
+        n(timezone) == n(other.timezone);
   }
 
   /// Returns a list of field names that differ between this and [other].
   /// Useful for diagnostics or targeted updates.
   List<String> changedFields(Organisation other) {
     final List<String> changes = [];
-    String _n(String? s) => (s ?? '').trim();
-    if (_n(name) != _n(other.name)) changes.add('name');
-    if (_n(phone) != _n(other.phone)) changes.add('phone');
-    if (_n(website) != _n(other.website)) changes.add('website');
-    if (_n(street) != _n(other.street)) changes.add('street');
-    if (_n(city) != _n(other.city)) changes.add('city');
-    if (_n(zip) != _n(other.zip)) changes.add('zip');
-    if (_n(state) != _n(other.state)) changes.add('state');
-    if (_n(country) != _n(other.country)) changes.add('country');
-    if (_n(timezone) != _n(other.timezone)) changes.add('timezone');
+    String n(String? s) => (s ?? '').trim();
+    if (n(name) != n(other.name)) changes.add('name');
+    if (n(phone) != n(other.phone)) changes.add('phone');
+    if (n(website) != n(other.website)) changes.add('website');
+    if (n(street) != n(other.street)) changes.add('street');
+    if (n(city) != n(other.city)) changes.add('city');
+    if (n(zip) != n(other.zip)) changes.add('zip');
+    if (n(state) != n(other.state)) changes.add('state');
+    if (n(country) != n(other.country)) changes.add('country');
+    if (n(timezone) != n(other.timezone)) changes.add('timezone');
     return changes;
   }
 

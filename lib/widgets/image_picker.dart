@@ -75,7 +75,7 @@ class ReusablePhotoPicker extends StatelessWidget {
                       Container(
                         width: width,
                         height: height,
-                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         child: imgProv != null
                             ? Image(
                                 image: imgProv,

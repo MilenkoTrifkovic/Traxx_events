@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';

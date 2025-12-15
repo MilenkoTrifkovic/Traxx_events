@@ -425,7 +425,7 @@ class Event {
     // Parse timestamps (defensive: check existence)
     DateTime parseTimestamp(dynamic value) {
       if (value == null) return DateTime.now();
-      if (value is Timestamp) return (value as Timestamp).toDate();
+      if (value is Timestamp) return (value).toDate();
       if (value is DateTime) return value;
       throw ArgumentError('Unsupported timestamp value: $value');
     }
@@ -528,8 +528,8 @@ class Event {
     // Parse capacity safely
     int parsedCapacity = 0;
     try {
-      parsedCapacity = state.capacityController?.text.trim().isNotEmpty == true
-          ? int.parse(state.capacityController!.text.trim())
+      parsedCapacity = state.capacityController.text.trim().isNotEmpty == true
+          ? int.parse(state.capacityController.text.trim())
           : 0;
     } catch (_) {
       parsedCapacity = 0;
@@ -580,8 +580,8 @@ class Event {
       organisationId: organisationId,
       venueId: venueId,
       serviceType: parsedServiceType,
-      name: state.nameController?.text.trim() ?? '',
-      address: state.addressController?.text.trim() ?? '',
+      name: state.nameController.text.trim() ?? '',
+      address: state.addressController.text.trim() ?? '',
       capacity: parsedCapacity,
       date: DateTime(date.year, date.month, date.day),
       startTime: state.startTime!,
@@ -592,17 +592,17 @@ class Event {
       location: state.selectedLocation,
       status: EventStatus.draft,
       coverImage: state.coverImage,
-      description: state.descriptionController?.text.trim().isNotEmpty == true
-          ? state.descriptionController!.text.trim()
+      description: state.descriptionController.text.trim().isNotEmpty == true
+          ? state.descriptionController.text.trim()
           : null,
-      dressCode: state.dressCodeController?.text.trim().isNotEmpty == true
-          ? state.dressCodeController!.text.trim()
+      dressCode: state.dressCodeController.text.trim().isNotEmpty == true
+          ? state.dressCodeController.text.trim()
           : null,
-      plannerEmail: state.plannerEmailController?.text.trim().isNotEmpty == true
-          ? state.plannerEmailController!.text.trim()
+      plannerEmail: state.plannerEmailController.text.trim().isNotEmpty == true
+          ? state.plannerEmailController.text.trim()
           : null,
-      specialNotes: state.specialNotesController?.text.trim().isNotEmpty == true
-          ? state.specialNotesController!.text.trim()
+      specialNotes: state.specialNotesController.text.trim().isNotEmpty == true
+          ? state.specialNotesController.text.trim()
           : null,
       hideHostInfo: state.hideHostInfo ?? false,
       selectableCategories:

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:map_location_picker/map_location_picker.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/utils/constantsOld.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';

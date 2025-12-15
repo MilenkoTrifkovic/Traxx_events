@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 class ConstantsOld {
   static String lightLogo = 'assets/icons/light-logo.png';

@@ -149,7 +149,7 @@ class FirestoreServices {
       final updateData = organisation.toJson();
       if (existing.createdAt != null) {
         // updateData['createdAt'] = existing.createdAt?.toIso8601String();
-        updateData['createdAt'] = existing!.createdAt;
+        updateData['createdAt'] = existing.createdAt;
       }
 
       // Set modifiedDate to current server timestamp
@@ -1007,8 +1007,9 @@ class FirestoreServices {
   }
 
   Future<void> updateMenuItem(MenuItem menuItem) async {
-    if (menuItem.menuItemId == null)
+    if (menuItem.menuItemId == null) {
       throw Exception('menuItemId required for update');
+    }
     await menuItemsRef
         .doc(menuItem.menuItemId)
         .update(menuItem.toFirestoreUpdate());

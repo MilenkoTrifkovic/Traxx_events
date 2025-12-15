@@ -4,12 +4,7 @@ import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/four
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/second_section_guest.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
-import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/menu_card_sections/first_section_menus.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/menu_card_sections/fourth_section_venues.dart';
-import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/venue_card_sections/first_section_venues.dart';
 
 /// A card widget that displays event information in a consistent format.
 ///

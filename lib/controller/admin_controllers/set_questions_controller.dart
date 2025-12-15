@@ -1,5 +1,4 @@
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';

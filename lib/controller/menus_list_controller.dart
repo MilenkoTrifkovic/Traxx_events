@@ -2,9 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 
 class MenusListController extends GetxController {

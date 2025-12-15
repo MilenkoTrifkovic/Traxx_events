@@ -31,10 +31,6 @@ class AdminGuestListController extends GetxController {
 
   late String eventId;
 
-  @override
-  void onInit() {
-    super.onInit();
-  }
 
   void setEventId(String id) {
     eventId = id;

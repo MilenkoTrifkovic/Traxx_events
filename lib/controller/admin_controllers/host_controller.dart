@@ -22,7 +22,7 @@ class HostController {
       isLoading.value = true;
       selectedEvent.value = event;
       return;
-    } on FirebaseException catch (e) {
+    } on FirebaseException {
       errorMessage.value = 'Error loading event';
     } catch (e) {
       errorMessage.value = 'Unexpected error';

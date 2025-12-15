@@ -847,7 +847,7 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
                   Switch(
                     value: q.isRequired,
                     onChanged: onRequiredChanged,
-                    activeColor: kAccent,
+                    activeThumbColor: kAccent,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
@@ -913,7 +913,7 @@ class _QuestionTypeDropdown extends StatelessWidget {
     final value = normalizeType(currentType);
 
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
         isDense: true,
@@ -956,7 +956,7 @@ class _QuestionBody extends StatelessWidget {
       onOptionLabelChanged;
   final VoidCallback? onAddOption;
 
-  _QuestionBody({
+  const _QuestionBody({
     required this.type,
     required this.options,
     required this.isActive,
@@ -1091,7 +1091,9 @@ class _QuestionBody extends StatelessWidget {
                           if (!isActive ||
                               !hasRealOptions ||
                               onOptionLabelChanged == null ||
-                              opt.id.isEmpty) return;
+                              opt.id.isEmpty) {
+                            return;
+                          }
 
                           onOptionLabelChanged!(opt, value.trim());
                         },

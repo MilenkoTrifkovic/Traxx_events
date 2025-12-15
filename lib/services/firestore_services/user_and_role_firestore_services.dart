@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/user_model.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
 import 'package:uuid/uuid.dart';
