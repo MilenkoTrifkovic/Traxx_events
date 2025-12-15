@@ -1,6 +1,9 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/models/event.dart';
+import 'package:traxx_wepapp/models/guest_model.dart';
 import '../models/organisation.dart';
 import '../models/organisation_check_response.dart';
 
@@ -91,6 +94,52 @@ class CloudFunctionsService extends GetxService {
       }
     } catch (e) {
       print('Error calling checkOrganisationInfo cloud function: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> sendInvitationsForEvent(
+    Event event, {
+    required List<GuestModel> guests,
+  }) async {
+    if (event.eventId == null || event.eventId!.isEmpty) {
+      throw ArgumentError('event.eventId is required');
+    }
+    if (guests.isEmpty) {
+      throw ArgumentError('guests must not be empty');
+    }
+
+    final invitations = guests
+        .where((g) => (g.email ?? '').trim().isNotEmpty)
+        .map((g) => {
+              'guestEmail': g.email!.trim(),
+              'guestId': g.guestId,
+            })
+        .toList();
+
+    if (invitations.isEmpty) {
+      throw ArgumentError('No guest email addresses found');
+    }
+
+    try {
+      final callable = _functions.httpsCallable('sendInvitations');
+
+      final result = await callable.call(<String, dynamic>{
+        'eventId': event.eventId,
+        'organisationId': event.organisationId,
+        'invitations': invitations,
+        'demographicQuestionSetId': event.selectedDemographicQuestionSetId,
+      });
+
+      final data = result.data;
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      } else {
+        return {'data': data};
+      }
+    } on FirebaseFunctionsException {
+      rethrow;
+    } catch (e) {
       rethrow;
     }
   }

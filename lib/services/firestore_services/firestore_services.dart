@@ -177,7 +177,7 @@ class FirestoreServices {
       final eventWithId = event.copyWith(eventId: id);
 
       // Convert to map and remove nulls (but do NOT rely on client-side timestamps)
-  final data = Map<String, dynamic>.from(eventWithId.toJson());
+      final data = Map<String, dynamic>.from(eventWithId.toJson());
       data.removeWhere((k, v) => v == null);
 
       // Ensure server-side timestamps for createdAt and updatedAt
@@ -813,9 +813,9 @@ class FirestoreServices {
     final uuid = Uuid();
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
-  await menuItemsRef.add(item.toFirestoreCreate());
+    await menuItemsRef.add(item.toFirestoreCreate());
 
-  return item;
+    return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {

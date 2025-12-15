@@ -19,6 +19,7 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -106,6 +107,23 @@ GoRouter buildRouter() {
         },
         path: AppRoute.hostOrganisationInfoForm.path,
         builder: (context, state) => const OrganisationInfoPopupView(),
+      ),
+
+      GoRoute(
+        path: '/demographics',
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'];
+
+          if (invitationId == null || invitationId.isEmpty) {
+            return Scaffold(
+              body: Center(
+                child: Text('Invalid invitation link'),
+              ),
+            );
+          }
+
+          return DemographicResponsePage(invitationId: invitationId);
+        },
       ),
 
       //HOST SHELL ROUTE
