@@ -189,12 +189,12 @@ GoRouter buildRouter() {
                   location.startsWith(AppRoute.hostQuestions.path) ||
                   location.startsWith(AppRoute.hostQuestionSetQuestions.path);
 
-              const Color _gfBackground = Color(0xFFF4F0FB);
+              const Color gfBackground = Color(0xFFF4F0FB);
 
               return NavigationRailWrapper(
                 child: ContentWrapper(
                   contentColor: isQuestionsPage
-                      ? _gfBackground // Color(0xFFF4F0FB)
+                      ? gfBackground // Color(0xFFF4F0FB)
                       : const Color.fromARGB(255, 247, 247, 247),
                   header: getPageHeader(state),
                   child: child,
@@ -367,7 +367,7 @@ GoRouter buildRouter() {
                   location.startsWith(AppRoute.hostQuestions.path) ||
                   location.startsWith(AppRoute.hostQuestionSetQuestions.path);
 
-              const Color _gfBackground = Color(0xFFF4F0FB);
+              const Color gfBackground = Color(0xFFF4F0FB);
 
               if (isQuestionsPage) {
                 // ✅ QUESTION PAGES:
@@ -388,7 +388,7 @@ GoRouter buildRouter() {
                       // content area with lavender background + limited-width body
                       Expanded(
                         child: ContentWrapper(
-                          contentColor: _gfBackground,
+                          contentColor: gfBackground,
                           // no header here – body only
                           child: child,
                         ),

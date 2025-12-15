@@ -80,9 +80,8 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
       final dateStr =
           "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr = evt.startTime != null
-          ? "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}"
-          : '—';
+      final timeStr =
+          "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}";
 
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -281,8 +280,8 @@ class DemographicQuestionsPanelBody extends StatelessWidget {
                     title: Text(set.title,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text(
-                        set.description?.isNotEmpty == true
-                            ? set.description!
+                        set.description.isNotEmpty == true
+                            ? set.description
                             : 'No description',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
@@ -584,7 +583,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _serviceType,
+              initialValue: _serviceType,
               decoration: const InputDecoration(
                 labelText: 'Service type',
               ),
@@ -685,7 +684,7 @@ class MenuSelectionCard extends StatelessWidget {
       final double total = selectedItems.map((i) {
         final p = i.price;
         if (p == null) return 0.0;
-        if (p is num) return p.toDouble();
+        return p.toDouble();
         return double.tryParse(p.toString()) ?? 0.0;
       }).fold(0.0, (a, b) => a + b);
 
@@ -2355,7 +2354,7 @@ class GuestListSection extends StatelessWidget {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(Colors.grey.shade50),
+                headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
                 dividerThickness: 1,
                 columns: const [
                   DataColumn(label: Text('Name')),

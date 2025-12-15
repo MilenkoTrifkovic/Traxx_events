@@ -24,4 +24,18 @@ class ImageServices {
       return null;
     }
   }
+
+  /// Picks multiple images from the gallery.
+  ///
+  /// Returns a list of [XFile] if successful, empty list if picking was cancelled or failed.
+  /// Errors are caught and logged, returning empty list instead of throwing.
+  Future<List<XFile>> pickMultipleImages() async {
+    try {
+      final images = await _picker.pickMultiImage();
+      return images;
+    } catch (e) {
+      print('Error picking multiple images: $e');
+      return [];
+    }
+  }
 }

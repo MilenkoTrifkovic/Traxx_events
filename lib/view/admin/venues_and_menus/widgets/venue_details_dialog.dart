@@ -8,46 +8,141 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
-class VenueDetailsDialog extends StatelessWidget {
+class VenueDetailsDialog extends StatefulWidget {
   final Venue venue;
 
   const VenueDetailsDialog({super.key, required this.venue});
 
   @override
-  Widget build(BuildContext context) {
-    // final theme = Theme.of(context);
+  State<VenueDetailsDialog> createState() => _VenueDetailsDialogState();
+}
 
+class _VenueDetailsDialogState extends State<VenueDetailsDialog> {
+  late int _currentImageIndex;
+  late List<String> _imageUrls;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentImageIndex = 0;
+
+    // Get all available image URLs
+    _imageUrls = [];
+    if (widget.venue.photoUrls != null && widget.venue.photoUrls!.isNotEmpty) {
+      _imageUrls = widget.venue.photoUrls!;
+    } else if (widget.venue.photoUrl != null &&
+        widget.venue.photoUrl!.isNotEmpty) {
+      _imageUrls = [widget.venue.photoUrl!];
+    }
+  }
+
+  void _nextImage() {
+    if (_imageUrls.isNotEmpty) {
+      setState(() {
+        _currentImageIndex = (_currentImageIndex + 1) % _imageUrls.length;
+      });
+    }
+  }
+
+  void _previousImage() {
+    if (_imageUrls.isNotEmpty) {
+      setState(() {
+        _currentImageIndex =
+            (_currentImageIndex - 1 + _imageUrls.length) % _imageUrls.length;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     Widget imageSection() {
-      final url = venue.photoUrl;
-      if (url != null && url.isNotEmpty) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8.0),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Image.network(
-              url,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  _noImagePlaceholder(context),
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return SizedBox(
-                  child: Center(
-                    child: CircularProgressIndicator(
-                        value: progress.expectedTotalBytes != null
-                            ? progress.cumulativeBytesLoaded /
-                                (progress.expectedTotalBytes ?? 1)
-                            : null),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+      if (_imageUrls.isEmpty) {
+        return _noImagePlaceholder(context);
       }
 
-      return _noImagePlaceholder(context);
+      final currentUrl = _imageUrls[_currentImageIndex];
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8.0),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            children: [
+              Image.network(
+                currentUrl,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _noImagePlaceholder(context),
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return SizedBox(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                          value: progress.expectedTotalBytes != null
+                              ? progress.cumulativeBytesLoaded /
+                                  (progress.expectedTotalBytes ?? 1)
+                              : null),
+                    ),
+                  );
+                },
+              ),
+              // Navigation arrows (only show if multiple images)
+              if (_imageUrls.length > 1) ...[
+                // Previous button
+                Positioned(
+                  left: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      onPressed: _previousImage,
+                      icon: const Icon(Icons.arrow_back_ios),
+                      color: Colors.white,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+                // Next button
+                Positioned(
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      onPressed: _nextImage,
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      color: Colors.white,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+                // Image counter
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: AppText.styledBodySmall(
+                      context,
+                      '${_currentImageIndex + 1} / ${_imageUrls.length}',
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
     }
 
     return AppDialog(
@@ -66,7 +161,7 @@ class VenueDetailsDialog extends StatelessWidget {
             child: Wrap(
               alignment: WrapAlignment.spaceBetween,
               children: [
-                AppText.styledHeadingMedium(context, venue.name,
+                AppText.styledHeadingMedium(context, widget.venue.name,
                     weight: AppFontWeight.bold, color: AppColors.black),
                 AppSpacing.horizontalXs(context),
                 Row(
@@ -79,7 +174,7 @@ class VenueDetailsDialog extends StatelessWidget {
                             paddingType: Sizes.xs, right: true),
                         child: AppText.styledBodyMedium(
                           context,
-                          venue.fullAddress,
+                          widget.venue.fullAddress,
                         ),
                       ),
                     ),
@@ -89,15 +184,15 @@ class VenueDetailsDialog extends StatelessWidget {
                   children: [
                     const Icon(Icons.description, size: 16),
                     AppSpacing.horizontalXs(context),
-                    if (venue.description != null &&
-                        venue.description!.isNotEmpty)
+                    if (widget.venue.description != null &&
+                        widget.venue.description!.isNotEmpty)
                       Flexible(
                         child: Padding(
                           padding: AppPadding.only(context,
                               paddingType: Sizes.xs, right: true),
                           child: AppText.styledBodyMedium(
                             context,
-                            venue.description!,
+                            widget.venue.description!,
                           ),
                         ),
                       ),
@@ -120,33 +215,12 @@ class VenueDetailsDialog extends StatelessWidget {
     );
   }
 
-  String _prettyCategory(dynamic category) {
-    try {
-      final name = (category as Object).toString();
-      // if enum has `name` property (MenuCategory), use it
-      if (category is Enum) {
-        final enumName = (category as dynamic).name as String?;
-        if (enumName != null && enumName.isNotEmpty) {
-          return _capitalize(enumName);
-        }
-      }
-      return _capitalize(name);
-    } catch (_) {
-      return category.toString();
-    }
-  }
-
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
-  }
-
   Widget _noImagePlaceholder(BuildContext context) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceVariant,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8.0),
         ),
         child: Center(

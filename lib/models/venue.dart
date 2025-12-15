@@ -17,8 +17,11 @@ class Venue {
   /// Optional description of the venue
   final String? description;
 
-  /// Optional URL to the venue's photo
+  /// Optional URL to the venue's photo (primary/first photo)
   final String? photoPath;
+
+  /// Optional list of multiple photo paths
+  final List<String>? photoPaths;
 
   // Address fields - Required as a complete map
   final String street; // address.street
@@ -32,6 +35,11 @@ class Venue {
   /// This field is NOT written to Firestore and is used only at runtime
   /// (for example, when a download URL has been resolved from a storage path).
   final String? photoUrl;
+
+  /// Optional in-memory download URLs for multiple photos.
+  ///
+  /// This field is NOT written to Firestore and is used only at runtime
+  final List<String>? photoUrls;
 
   /// Timestamp when the venue was created (optional - uses server timestamp when null)
   final DateTime? createdAt;
@@ -53,7 +61,9 @@ class Venue {
     required this.name,
     this.description,
     this.photoPath,
+    this.photoPaths,
     this.photoUrl,
+    this.photoUrls,
     this.createdAt,
     this.modifiedAt,
     this.isDisabled = false,
@@ -75,6 +85,9 @@ class Venue {
       name: data['name'] ?? '',
       description: data['description'],
       photoPath: data['photoPath'],
+      photoPaths: data['photoPaths'] != null
+          ? List<String>.from(data['photoPaths'])
+          : null,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       modifiedAt:
           (data['modifiedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -118,6 +131,7 @@ class Venue {
       'name': name,
       'description': description,
       'photoPath': photoPath,
+      if (photoPaths != null) 'photoPaths': photoPaths,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -142,6 +156,7 @@ class Venue {
       'name': name,
       'description': description,
       'photoPath': photoPath,
+      if (photoPaths != null) 'photoPaths': photoPaths,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
@@ -163,6 +178,7 @@ class Venue {
       'name': name,
       'description': description,
       if (photoPath != null) 'photoPath': photoPath,
+      if (photoPaths != null) 'photoPaths': photoPaths,
       'modifiedAt': FieldValue.serverTimestamp(),
       'isDisabled': isDisabled,
       'address': {
@@ -203,7 +219,9 @@ class Venue {
     String? name,
     String? description,
     String? photoPath,
+    List<String>? photoPaths,
     String? photoUrl,
+    List<String>? photoUrls,
     DateTime? createdAt,
     DateTime? modifiedAt,
     bool? isDisabled,
@@ -219,7 +237,9 @@ class Venue {
       name: name ?? this.name,
       description: description ?? this.description,
       photoPath: photoPath ?? this.photoPath,
+      photoPaths: photoPaths ?? this.photoPaths,
       photoUrl: photoUrl ?? this.photoUrl,
+      photoUrls: photoUrls ?? this.photoUrls,
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,

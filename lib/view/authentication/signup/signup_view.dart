@@ -1,20 +1,14 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/forms/signup_form/signup_form_controllers.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:traxx_wepapp/view/authentication/signup/widgets/admin_info_section.dart';
 import 'package:traxx_wepapp/view/authentication/signup/widgets/organisation_address.dart';
 import 'package:traxx_wepapp/view/authentication/signup/widgets/organisation_info.dart';
-import 'package:traxx_wepapp/widgets/app_scaffold.dart';
 
 class SignupView extends StatefulWidget {
   const SignupView({super.key});

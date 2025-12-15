@@ -23,7 +23,7 @@ class _AddQuestionDialogState extends State<AddQuestionDialog> {
   final _questionTextCtrl = TextEditingController();
   String _questionType = 'multiple_choice'; // 'short_answer', 'paragraph', etc.
   bool _isRequired = false;
-  bool _lastOptionFreeText = false;
+  final bool _lastOptionFreeText = false;
   bool _showTypeList = false;
   String? _questionError;
 
@@ -345,7 +345,7 @@ class _AddQuestionDialogState extends State<AddQuestionDialog> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: _questionType,
+                                initialValue: _questionType,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -441,7 +441,7 @@ class _AddQuestionDialogState extends State<AddQuestionDialog> {
                                 value: _isRequired,
                                 onChanged: (v) =>
                                     setState(() => _isRequired = v),
-                                activeColor: _gfPurple,
+                                activeThumbColor: _gfPurple,
                               ),
                             ),
                           ],

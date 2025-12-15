@@ -212,7 +212,7 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
 
                             // Celebration type dropdown – same darker border
                             DropdownButtonFormField<String>(
-                              value: _celebrationType,
+                              initialValue: _celebrationType,
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),

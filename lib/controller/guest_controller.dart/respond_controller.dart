@@ -63,7 +63,7 @@ class RespondController extends GetxController {
           'GtVe8orzBte68w3YkMKX', eventId);
       final compaignonsLimit = guest.companions;
       return compaignonsLimit;
-    } on Exception catch (e) {
+    } on Exception {
       print('Compaingons limit initialization failed!');
       // errorMessage.value = 'Error';
       throw Exception('');

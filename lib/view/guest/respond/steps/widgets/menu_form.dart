@@ -88,7 +88,7 @@ class GuestMenuForm extends StatelessWidget {
                     borderColor: hasError
                         ? AppColors.error(context)
                         : AppColors.onBackground(context),
-                    serviceType: event.serviceType!,
+                    serviceType: event.serviceType,
                     showCategoryModal: () => showCategoryModal(
                       context,
                       category,

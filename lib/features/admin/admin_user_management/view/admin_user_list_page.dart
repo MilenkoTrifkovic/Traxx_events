@@ -79,7 +79,7 @@ class AdminUserListPage extends StatelessWidget {
                         showLoadingIndicator();
                         await controller.updateUser(
                             userId: list[index].userId!);
-                      } on Exception catch (e) {
+                      } on Exception {
                       } finally {
                         hideLoadingIndicator();
                       }
