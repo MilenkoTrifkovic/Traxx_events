@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/add_guest_popup.dart'
     show AddGuestPopup;
 import 'package:traxx_wepapp/models/event.dart';
@@ -260,7 +261,8 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
       final dateStr =
           "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr = "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}";
+      final timeStr =
+          "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}";
 
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -300,6 +302,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
             const SizedBox(height: 24),
 
             /// Guest list section (keep Milenko’s logic, but inside a card)
+            /// Guest list section class returned to Original Folder from line 1905-2080
             GuestListSection(),
           ],
         ),
@@ -1022,9 +1025,7 @@ class MenuSelectionCard extends StatelessWidget {
     final NumberFormat currency =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final price = item.price;
-    final double p = (price == null)
-        ? 0.0
-        : price.toDouble();
+    final double p = (price == null) ? 0.0 : price.toDouble();
 
     return Container(
       margin: const EdgeInsets.only(top: 6),
@@ -1896,182 +1897,5 @@ class DemographicSelectionCard extends StatelessWidget {
         ),
       );
     });
-  }
-}
-
-class GuestListSection extends StatelessWidget {
-  const GuestListSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final AdminGuestListController controller =
-        Get.find<AdminGuestListController>();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row: title + Add Guest button at top-right
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Guest list',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-
-              // Add Guest button
-              AppPrimaryButton(
-                onPressed: () {
-                  controller.clearForm();
-                  showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (ctx) => AddGuestPopup(controller: controller),
-                  ).then((added) {
-                    if (added == true) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Guest added')),
-                      );
-                      controller.clearForm();
-                    } else {
-                      controller.clearForm();
-                    }
-                  });
-                },
-                text: '+ Add Guest',
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Body: loading / empty / table
-          Obx(() {
-            if (!controller.isInitialized.value) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24.0),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            final list = controller.filteredGuests;
-            if (list.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24.0),
-                child: AppText.styledBodyMedium(
-                  context,
-                  'No guests yet. Click "Add Guest" to create one.',
-                  color: AppColors.textMuted,
-                ),
-              );
-            }
-
-            // Render DataTable
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
-                dividerThickness: 1,
-                columns: const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('City')),
-                  DataColumn(label: Text('Country')),
-                  DataColumn(label: Text('Gender')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: list.map((guest) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(guest.name)),
-                      DataCell(Text(guest.email ?? '—')),
-                      DataCell(Text(guest.city ?? '—')),
-                      DataCell(Text(guest.country ?? '—')),
-                      DataCell(Text(guest.gender == null
-                          ? '—'
-                          : (guest.gender == Gender.male
-                              ? 'Male'
-                              : guest.gender == Gender.female
-                                  ? 'Female'
-                                  : guest.gender == Gender.preferNotToSay
-                                      ? 'Prefer not to say'
-                                      : guest.gender!.name))),
-                      DataCell(Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, size: 18),
-                            tooltip: 'Edit',
-                            onPressed: () {
-                              controller.updateAllFields(guest);
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AddGuestPopup(
-                                    controller: controller, isEditMode: true),
-                              ).then((_) => controller.clearForm());
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.delete,
-                                size: 18, color: Colors.redAccent),
-                            tooltip: 'Delete',
-                            onPressed: () async {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Delete guest?'),
-                                  content: Text('Delete "${guest.name}"?'),
-                                  actions: [
-                                    TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(false),
-                                        child: const Text('Cancel')),
-                                    ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.of(ctx).pop(true),
-                                      child: const Text('Delete'),
-                                    )
-                                  ],
-                                ),
-                              );
-                              if (ok == true && guest.guestId != null) {
-                                await controller.deleteGuest(guest.guestId!);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('Guest deleted')));
-                              }
-                            },
-                          ),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
-              ),
-            );
-          }),
-        ],
-      ),
-    );
   }
 }
