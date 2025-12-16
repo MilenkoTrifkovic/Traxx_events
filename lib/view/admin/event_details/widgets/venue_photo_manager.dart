@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/venue_photo_manager_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 
 /// A widget that manages venue selection and photo management for events.
@@ -34,10 +34,14 @@ class _VenuePhotoManagerState extends State<VenuePhotoManager> {
   int _currentPhotoIndex = 0;
   bool _isProcessing = false;
 
+  VenuePhotoManagerController photoManagerController =
+      VenuePhotoManagerController();
+
   @override
   void initState() {
     super.initState();
     _selectedVenueId = widget.initialVenueId;
+    photoManagerController.loadVenueById(widget.initialVenueId!);
   }
 
   void _onVenueChanged(String? newVenueId) {
@@ -45,50 +49,36 @@ class _VenuePhotoManagerState extends State<VenuePhotoManager> {
       _selectedVenueId = newVenueId;
       _currentPhotoIndex = 0;
     });
+    if (newVenueId != null) {
+      photoManagerController.loadVenueById(newVenueId);
+    }
     widget.onVenueSelected(newVenueId);
   }
 
   Future<void> _addPhotos() async {
     if (_isProcessing || _selectedVenueId == null) return;
 
-    final ImagePicker picker = ImagePicker();
-    final List<XFile> images = await picker.pickMultiImage();
-
-    if (images.isEmpty) return;
-
     setState(() {
       _isProcessing = true;
     });
 
     try {
-      final venuesController = Get.find<VenuesController>();
-      final venue = venuesController.venues.firstWhereOrNull(
-        (v) => v.venueID == _selectedVenueId,
-      );
+      // Use controller to handle image picking, uploading, and venue update
+      final photosAdded =
+          await photoManagerController.addPhotosToVenue(_selectedVenueId!);
 
-      if (venue == null) {
-        throw Exception('Venue not found');
+      if (photosAdded == 0) {
+        // User cancelled or no images selected
+        return;
       }
 
-      // Get current photo paths
-      final currentPhotoPaths = List<String>.from(venue.photoPaths ?? []);
-
-      // Add new photo paths (these are local file paths that will be uploaded)
-      final newPaths = images.map((xfile) => xfile.path).toList();
-      currentPhotoPaths.addAll(newPaths);
-
-      // Update venue with new photo paths
-      final updatedVenue = venue.copyWith(photoPaths: currentPhotoPaths);
-      print('Venue ready for update is ${updatedVenue.toString()}');
-      await venuesController.updateVenue(updatedVenue);
-
-      // Reload venue to get updated photoUrls (after upload)
-      await venuesController.fetchVenueById(_selectedVenueId!);
+      // Force reload to ensure UI updates
+      photoManagerController.loadVenueById(_selectedVenueId!);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${images.length} photo(s) added successfully'),
+            content: Text('$photosAdded photo(s) added successfully'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -116,45 +106,41 @@ class _VenuePhotoManagerState extends State<VenuePhotoManager> {
   Future<void> _removeCurrentPhoto(String photoUrl) async {
     if (_isProcessing) return; // Prevent multiple simultaneous operations
 
-    final venuesController = Get.find<VenuesController>();
-    final venue = venuesController.venues.firstWhereOrNull(
-      (v) => v.venueID == _selectedVenueId,
-    );
-
+    final venue = photoManagerController.currentVenue.value;
     if (venue == null) return;
 
-    // Find the index of the current photo in photoUrls
-    final photoUrls = venue.photoUrls ?? [];
-    final photoIndex = photoUrls.indexOf(photoUrl);
+    // Find the photo path from the map using the URL
+    final photoPathToUrlMap = venue.photoPathToUrlMap;
+    if (photoPathToUrlMap == null || photoPathToUrlMap.isEmpty) return;
 
-    if (photoIndex == -1) return; // Photo not found
+    // Find the path that corresponds to this URL
+    final photoPathToRemove = photoPathToUrlMap.entries
+        .firstWhere((entry) => entry.value == photoUrl,
+            orElse: () => const MapEntry('', ''))
+        .key;
 
-    // Make sure we have photoPaths and the index is valid
-    final photoPaths = venue.photoPaths ?? [];
-    if (photoIndex >= photoPaths.length) return;
+    if (photoPathToRemove.isEmpty) return; // Photo not found in map
 
     setState(() {
       _isProcessing = true;
     });
 
     try {
-      // Remove from venue's photoPaths at the same index
-      final updatedPhotoPaths = List<String>.from(photoPaths);
-      updatedPhotoPaths.removeAt(photoIndex);
-
-      // Update venue in Firestore immediately
-      final updatedVenue = venue.copyWith(photoPaths: updatedPhotoPaths);
-      print('Venue ready for update is ${updatedVenue.toString()}');
-      await venuesController.updateVenue(updatedVenue);
+      // Use controller to remove photo from venue
+      await photoManagerController.removePhotoFromVenue(
+        venue.venueID!,
+        photoPathToRemove,
+      );
 
       // Reload venue to get updated photoUrls
-      await venuesController.fetchVenueById(_selectedVenueId!);
+      photoManagerController.loadVenueById(_selectedVenueId!);
 
       // Adjust photo index if needed
-      if (_currentPhotoIndex > 0 &&
-          _currentPhotoIndex >= (updatedPhotoPaths.length)) {
+      final newPhotoCount =
+          photoManagerController.currentVenue.value?.photoUrls.length ?? 0;
+      if (_currentPhotoIndex > 0 && _currentPhotoIndex >= newPhotoCount) {
         setState(() {
-          _currentPhotoIndex = updatedPhotoPaths.length - 1;
+          _currentPhotoIndex = newPhotoCount - 1;
         });
       }
 
@@ -212,102 +198,101 @@ class _VenuePhotoManagerState extends State<VenuePhotoManager> {
         }),
         const SizedBox(height: 20),
         // Venue Photos Section
-        if (_selectedVenueId != null)
-          _buildVenuePhotosSection(venuesController),
+        if (_selectedVenueId != null) _buildVenuePhotosSection(),
       ],
     );
   }
 
-  Widget _buildVenuePhotosSection(VenuesController venuesController) {
-    final venue = venuesController.venues.firstWhereOrNull(
-      (v) => v.venueID == _selectedVenueId,
-    );
+  Widget _buildVenuePhotosSection() {
+    return Obx(() {
+      final venue = photoManagerController.currentVenue.value;
 
-    if (venue == null) {
-      return const SizedBox.shrink();
-    }
+      if (venue == null) {
+        return const SizedBox.shrink();
+      }
 
-    // Get current photos from venue (reactive)
-    final currentPhotoUrls = venue.photoUrls ?? [];
-    final displayPhotos = currentPhotoUrls;
+      // Get current photos from venue (reactive)
+      // photoUrls is a getter that returns a list from the map
+      final displayPhotos = venue.photoUrls;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Warning message
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade50,
-            border: Border.all(color: Colors.orange.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.warning_amber,
-                  color: Colors.orange.shade700, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Warning: Changes to venue photos will affect ALL events at this venue',
-                  style: TextStyle(
-                    color: Colors.orange.shade900,
-                    fontSize: 13,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Warning message
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              border: Border.all(color: Colors.orange.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber,
+                    color: Colors.orange.shade700, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Warning: Changes to venue photos will affect ALL events at this venue',
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 13,
+                    ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Venue Photos',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _addPhotos,
+                icon: const Icon(Icons.add_photo_alternate, size: 18),
+                label: const Text('Add Photos'),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Venue Photos',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            ElevatedButton.icon(
-              onPressed: _addPhotos,
-              icon: const Icon(Icons.add_photo_alternate, size: 18),
-              label: const Text('Add Photos'),
-              style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          const SizedBox(height: 12),
+          // Photo carousel
+          if (displayPhotos.isEmpty)
+            Container(
+              height: 200,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Photo carousel
-        if (displayPhotos.isEmpty)
-          Container(
-            height: 200,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.photo_library_outlined,
-                    size: 48, color: Colors.grey.shade400),
-                const SizedBox(height: 8),
-                Text(
-                  'No photos yet',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          )
-        else
-          _buildPhotoCarousel(displayPhotos),
-      ],
-    );
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.photo_library_outlined,
+                      size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No photos yet',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
+          else
+            _buildPhotoCarousel(displayPhotos),
+        ],
+      );
+    });
   }
 
   Widget _buildPhotoCarousel(List<String> photoUrls) {

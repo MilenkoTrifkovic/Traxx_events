@@ -27,9 +27,10 @@ class _VenueDetailsDialogState extends State<VenueDetailsDialog> {
     _currentImageIndex = 0;
 
     // Get all available image URLs
+    // photoUrls is now a getter that returns a list from the map
     _imageUrls = [];
-    if (widget.venue.photoUrls != null && widget.venue.photoUrls!.isNotEmpty) {
-      _imageUrls = widget.venue.photoUrls!;
+    if (widget.venue.photoUrls.isNotEmpty) {
+      _imageUrls = widget.venue.photoUrls;
     } else if (widget.venue.photoUrl != null &&
         widget.venue.photoUrl!.isNotEmpty) {
       _imageUrls = [widget.venue.photoUrl!];
