@@ -1,11 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// ✅ Same palette used in HostQuestionsScreen
+const Color kAccent = Color(0xFF6C4BFF);
+const Color kAccentLight = Color(0xFFA18CFF);
+const Color kBorder = Color(0xFFE5E5E5);
+const Color kTextDark = Color(0xFF1A1A1A);
+const Color kTextBody = Color(0xFF333333);
+const Color kGfPurple = Color(0xFF673AB7);
+const Color _gfBackground = Color(0xFFF4F0FB);
+const Color _gfPurple = Color(0xFF673AB7);
 
 class DemographicResponsePage extends StatefulWidget {
   final String invitationId;
 
   /// When true, shows an input to paste invitationId + Load (for sidebar demo).
   final bool showInvitationInput;
+
+  /// When true, this widget is embedded inside another wrapper; do not return Scaffold.
   final bool embedded;
 
   const DemographicResponsePage({
@@ -27,6 +40,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   bool _submitting = false;
 
   String _activeInvitationId = '';
+  String? _activeQuestionId;
 
   Map<String, dynamic>? _invitation;
   Map<String, dynamic>? _questionSet;
@@ -45,7 +59,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
     final initial = widget.invitationId.trim();
     if (initial.isEmpty) {
-      // Sidebar demo: open page first, paste invitationId, then load.
       _loading = false;
       _invitation = null;
       _activeInvitationId = '';
@@ -66,6 +79,11 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     super.dispose();
   }
 
+  void _setActiveQuestion(String id) {
+    if (_activeQuestionId == id) return;
+    setState(() => _activeQuestionId = id);
+  }
+
   Future<void> _loadForInvitation(String invitationId) async {
     setState(() {
       _loading = true;
@@ -74,9 +92,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       _questions.clear();
       _answers.clear();
       _activeInvitationId = invitationId.trim();
+      _activeQuestionId = null;
     });
 
-    // cleanup controllers for previous load
     for (final c in _freeTextCtrls.values) c.dispose();
     for (final c in _textCtrls.values) c.dispose();
     _freeTextCtrls.clear();
@@ -93,11 +111,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
       _invitation = invDoc.data();
 
-      // Token validation:
-      // - If token exists in URL, it must match.
-      // - If token is NOT in URL (sidebar demo), we allow it.
+      // Token validation (web)
       final uri = Uri.base;
-      final tokenFromLink = uri.queryParameters['token']; // may be null
+      final tokenFromLink = uri.queryParameters['token'];
       final tokenInInvite = _invitation?['token'];
 
       if (tokenFromLink != null &&
@@ -133,7 +149,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           return;
         }
 
-        // Try doc(eventId) first; fallback to where('eventId' == eventId)
         final byDoc = await _db.collection('events').doc(eventId).get();
         Map<String, dynamic>? eventData;
         if (byDoc.exists) {
@@ -160,7 +175,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         return;
       }
 
-      // Fetch question set (for title/description)
+      // Fetch question set
       final qsDoc = await _db
           .collection('demographicQuestionSets')
           .doc(questionSetId)
@@ -180,6 +195,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           .get();
 
       if (qSnap.docs.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _questions.clear();
           _loading = false;
@@ -217,7 +233,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         }
       }
 
-      // Build question list + init answers
       _questions.clear();
       for (final doc in questionDocs) {
         final data = doc.data();
@@ -249,7 +264,10 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       }
 
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _activeQuestionId = _questions.isNotEmpty ? _questions.first.id : null;
+      });
     } catch (_) {
       _setInvalid();
     }
@@ -263,6 +281,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       _questionSet = null;
       _questions.clear();
       _answers.clear();
+      _activeQuestionId = null;
     });
   }
 
@@ -332,7 +351,17 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     final missing = _questions.where((q) => q.isRequired && !_isAnswered(q));
     if (missing.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please answer all required questions')),
+        SnackBar(
+          backgroundColor: Colors.black87,
+          content: Text(
+            'Please answer all required questions',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -366,7 +395,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // This will fail with your current rules (invitations write=false), so keep it optional.
+      // optional (may fail based on rules)
       try {
         await _db.collection('invitations').doc(_activeInvitationId).update({
           'used': true,
@@ -376,19 +405,21 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
       if (!mounted) return;
 
-      _invitationIdCtrl.clear();
       await showDialog<void>(
         context: context,
-        useRootNavigator: false, // ✅ important in ShellRoute
+        useRootNavigator: false,
         barrierDismissible: false,
         builder: (dialogCtx) => AlertDialog(
-          title: const Text('Thanks'),
-          content: const Text('Your responses are submitted'),
+          title: Text('Thanks',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          content: Text('Your responses are submitted',
+              style: GoogleFonts.poppins()),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogCtx).pop(), // ✅ pop dialog correctly
-              child: const Text('OK'),
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text('OK',
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600, color: kGfPurple)),
             ),
           ],
         ),
@@ -397,7 +428,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       if (!mounted) return;
 
       if (widget.showInvitationInput) {
-        // Dispose old controllers to avoid leaks
         for (final c in _freeTextCtrls.values) c.dispose();
         for (final c in _textCtrls.values) c.dispose();
         _freeTextCtrls.clear();
@@ -410,13 +440,23 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           _questions.clear();
           _answers.clear();
           _loading = false;
+          _activeQuestionId = null;
         });
         _invitationIdCtrl.clear();
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Submit failed: $e')),
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            'Submit failed: $e',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -429,111 +469,391 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         (_questionSet?['title'] ?? 'Demographic Questions').toString();
     final description = (_questionSet?['description'] ?? '').toString();
 
-    final pageBody = Padding(
-      padding: const EdgeInsets.all(16),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ✅ In host-demo mode: paste invitationId + load
-            if (widget.showInvitationInput) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _invitationIdCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Paste invitationId',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final id = _invitationIdCtrl.text.trim();
-                        if (id.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Please paste invitationId')),
-                          );
-                          return;
-                        }
-                        _loadForInvitation(id);
-                      },
-                      child: const Text('Load'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
+    final content = DefaultTextStyle(
+      style: GoogleFonts.poppins(),
+      child: Stack(
+        children: [
+          const Positioned.fill(child: ColoredBox(color: _gfBackground)),
+          Align(
+            alignment: Alignment.topCenter,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.showInvitationInput) ...[
+                        _InvitationLoaderCard(
+                          controller: _invitationIdCtrl,
+                          loading: _loading || _submitting,
+                          onLoad: () {
+                            final id = _invitationIdCtrl.text.trim();
+                            if (id.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: Colors.black87,
+                                  content: Text(
+                                    'Please paste invitationId',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            _loadForInvitation(id);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
-            if (_loading) ...[
-              const SizedBox(height: 40),
-              const Center(child: CircularProgressIndicator()),
-            ] else if (_invitation == null && _activeInvitationId.isEmpty) ...[
-              // ✅ first time open from sidebar
-              const SizedBox(height: 20),
-              const Text('Paste an invitationId above and click Load.'),
-            ] else if (_invitation == null) ...[
-              const SizedBox(height: 20),
-              const Text('Invalid or expired invitation'),
-            ] else ...[
-              if (description.trim().isNotEmpty) ...[
-                Text(description,
-                    style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 12),
-              ],
-              if (_questions.isEmpty)
-                const Text('No questions in this set')
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _questions.length,
-                  itemBuilder: (_, idx) {
-                    final q = _questions[idx];
-                    return _QuestionCard(
-                      question: q,
-                      answer: _answers[q.id],
-                      textController: _textCtrls[q.id],
-                      freeTextCtrls: _freeTextCtrls,
-                      onAnswerChanged: (value) {
-                        setState(() => _answers[q.id] = value);
-                      },
-                    );
-                  },
+                      _HeaderWithAction(
+                        title: title,
+                        description: description,
+                        actionLabel: 'Finish',
+                        actionEnabled: !_loading &&
+                            !_submitting &&
+                            _invitation != null &&
+                            _questions.isNotEmpty,
+                        onAction: _submit,
+                      ),
+
+                      const SizedBox(height: 16),
+                      Center(
+                        child: Text(
+                          'Click on a question to answer',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // ✅ IMPORTANT: NO Expanded here (fixes grey screen)
+                      _buildBodyList(),
+
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Finish'),
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+          if (_submitting)
+            Positioned.fill(
+              child: Container(
+                color: _gfBackground.withOpacity(0.35),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: _gfPurple,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
 
-    // ✅ If embedded inside ContentWrapper: DO NOT return Scaffold
-    if (widget.embedded) return pageBody;
+    if (widget.embedded) return content;
 
-    // ✅ For public /demographics route: return Scaffold
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: pageBody,
+      backgroundColor: _gfBackground,
+      body: content,
+    );
+  }
+
+  Widget _buildBodyList() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 80),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: kGfPurple,
+          ),
+        ),
+      );
+    }
+
+    if (_invitation == null && _activeInvitationId.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: _InfoCard(
+          icon: Icons.info_outline_rounded,
+          iconColor: kGfPurple,
+          title: 'Waiting for invitation',
+          message: 'Paste an invitationId above and click Load.',
+        ),
+      );
+    }
+
+    if (_invitation == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: _InfoCard(
+          icon: Icons.error_outline_rounded,
+          iconColor: Colors.red.shade600,
+          title: 'Invalid or expired invitation',
+          message: 'Please check your link and try again.',
+        ),
+      );
+    }
+
+    if (_questions.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: _InfoCard(
+          icon: Icons.help_outline_rounded,
+          iconColor: kGfPurple,
+          title: 'No questions in this set',
+          message: 'There are no demographic questions to answer.',
+        ),
+      );
+    }
+
+    // ✅ shrinkWrap list (like HostQuestionsScreen) — no flex, no overflow error
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: _questions.length,
+      itemBuilder: (_, idx) {
+        final q = _questions[idx];
+        final isActive = q.id == _activeQuestionId;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _GuestGoogleFormsQuestionCard(
+            question: q,
+            isActive: isActive,
+            answer: _answers[q.id],
+            textController: _textCtrls[q.id],
+            freeTextCtrls: _freeTextCtrls,
+            onTap: () => _setActiveQuestion(q.id),
+            onAnswerChanged: (value) => setState(() => _answers[q.id] = value),
+          ),
+        );
+      },
     );
   }
 }
+
+// -----------------------------------------------------------------------------
+// Header + Finish button (same look as HostQuestionsScreen)
+// -----------------------------------------------------------------------------
+
+class _HeaderWithAction extends StatelessWidget {
+  final String title;
+  final String description;
+  final String actionLabel;
+  final bool actionEnabled;
+  final VoidCallback onAction;
+
+  const _HeaderWithAction({
+    required this.title,
+    required this.description,
+    required this.actionLabel,
+    required this.actionEnabled,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTitle = title.trim().isEmpty ? 'Untitled form' : title.trim();
+    final safeDesc = description.trim();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Card(
+            color: Colors.white,
+            elevation: 3,
+            shadowColor: Colors.black.withOpacity(0.08),
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: kBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: kGfPurple,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(12)),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        safeTitle,
+                        style: GoogleFonts.poppins(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w600,
+                          color: kTextDark,
+                        ),
+                      ),
+                      if (safeDesc.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          safeDesc,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: kTextDark,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        SizedBox(
+          height: 44,
+          child: ElevatedButton(
+            onPressed: actionEnabled ? onAction : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kGfPurple,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            child: Text(actionLabel),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Invitation loader (host-demo)
+// -----------------------------------------------------------------------------
+
+class _InvitationLoaderCard extends StatelessWidget {
+  final TextEditingController controller;
+  final bool loading;
+  final VoidCallback onLoad;
+
+  const _InvitationLoaderCard({
+    required this.controller,
+    required this.loading,
+    required this.onLoad,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.08),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: kBorder),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 6,
+            decoration: const BoxDecoration(
+              color: kGfPurple,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      labelText: 'Paste invitationId',
+                      labelStyle: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: kBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: kBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: kAccent, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: loading ? null : onLoad,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kGfPurple,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      textStyle: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: const Text('Load'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Models
+// -----------------------------------------------------------------------------
 
 class _GuestQuestion {
   final String id;
@@ -571,36 +891,177 @@ class _GuestOption {
   });
 }
 
-class _QuestionCard extends StatelessWidget {
+// -----------------------------------------------------------------------------
+// Info card (empty/error states)
+// -----------------------------------------------------------------------------
+
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String message;
+
+  const _InfoCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 46, color: iconColor),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: kTextDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: kTextBody,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Question card (same style as HostQuestionsScreen card)
+// -----------------------------------------------------------------------------
+
+class _GuestGoogleFormsQuestionCard extends StatelessWidget {
   final _GuestQuestion question;
+  final bool isActive;
   final dynamic answer;
 
   final TextEditingController? textController;
   final Map<String, TextEditingController> freeTextCtrls;
 
+  final VoidCallback onTap;
   final ValueChanged<dynamic> onAnswerChanged;
 
-  const _QuestionCard({
+  const _GuestGoogleFormsQuestionCard({
     required this.question,
+    required this.isActive,
     required this.answer,
     required this.textController,
     required this.freeTextCtrls,
+    required this.onTap,
     required this.onAnswerChanged,
   });
 
+  String _typeLabel(String t) {
+    switch (t) {
+      case 'short_answer':
+        return 'Short answer';
+      case 'paragraph':
+        return 'Paragraph';
+      case 'checkboxes':
+        return 'Checkboxes';
+      case 'dropdown':
+        return 'Dropdown';
+      case 'multiple_choice':
+      default:
+        return 'Multiple choice';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = question.isRequired ? '${question.text} *' : question.text;
+    final titleText =
+        question.isRequired ? '${question.text} *' : question.text;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isActive ? kAccent : kBorder,
+            width: isActive ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
+              offset: const Offset(0, 4),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
+            Center(
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                size: 20,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    titleText,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: kTextDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  width: 200,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey.shade100,
+                    ),
+                    child: Text(
+                      _typeLabel(question.type),
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: kTextBody,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             _buildInput(context),
           ],
         ),
@@ -614,9 +1075,32 @@ class _QuestionCard extends StatelessWidget {
       case 'paragraph':
         return TextField(
           controller: textController,
+          enabled: isActive,
           maxLines: question.type == 'paragraph' ? 4 : 1,
           onChanged: (v) => onAnswerChanged(v),
-          decoration: const InputDecoration(border: OutlineInputBorder()),
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: kTextDark,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kAccent, width: 2),
+            ),
+          ),
         );
 
       case 'dropdown':
@@ -628,31 +1112,72 @@ class _QuestionCard extends StatelessWidget {
           children: [
             DropdownButtonFormField<String>(
               value: selected,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
+              isExpanded: true,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kAccent, width: 2),
+                ),
+              ),
+              hint: Text(
+                'Choose an option',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey,
+                ),
+              ),
               items: [
                 for (final opt in question.options)
-                  DropdownMenuItem(value: opt.value, child: Text(opt.label)),
+                  DropdownMenuItem(
+                    value: opt.value,
+                    child: Text(
+                      opt.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
+                    ),
+                  ),
               ],
-              onChanged: (v) {
-                if (v == null) {
-                  onAnswerChanged(null);
-                  return;
-                }
-                final opt = question.options.firstWhere((o) => o.value == v);
-                if (opt.requiresFreeText) {
-                  final ctrlKey = '${question.id}__${opt.value}';
-                  freeTextCtrls.putIfAbsent(
-                      ctrlKey, () => TextEditingController());
-                  onAnswerChanged({
-                    'value': opt.value,
-                    'label': opt.label,
-                    'requiresFreeText': true,
-                    'freeText': freeTextCtrls[ctrlKey]!.text,
-                  });
-                } else {
-                  onAnswerChanged(opt.value);
-                }
-              },
+              onChanged: !isActive
+                  ? null
+                  : (v) {
+                      if (v == null) {
+                        onAnswerChanged(null);
+                        return;
+                      }
+                      final opt =
+                          question.options.firstWhere((o) => o.value == v);
+                      if (opt.requiresFreeText) {
+                        final ctrlKey = '${question.id}__${opt.value}';
+                        freeTextCtrls.putIfAbsent(
+                            ctrlKey, () => TextEditingController());
+                        onAnswerChanged({
+                          'value': opt.value,
+                          'label': opt.label,
+                          'requiresFreeText': true,
+                          'freeText': freeTextCtrls[ctrlKey]!.text,
+                        });
+                      } else {
+                        onAnswerChanged(opt.value);
+                      }
+                    },
             ),
             const SizedBox(height: 8),
             _maybeFreeTextForSingleChoice(),
@@ -663,6 +1188,7 @@ class _QuestionCard extends StatelessWidget {
         final selected = (answer as List?)?.cast<Map<String, dynamic>>() ??
             <Map<String, dynamic>>[];
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (final opt in question.options) _checkboxRow(opt, selected),
           ],
@@ -670,36 +1196,65 @@ class _QuestionCard extends StatelessWidget {
 
       case 'multiple_choice':
       default:
-        final selected =
-            (answer is Map) ? (answer['value'] as String?) : answer as String?;
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final opt in question.options)
-              RadioListTile<String>(
-                value: opt.value,
-                groupValue: selected,
-                title: Text(opt.label),
-                onChanged: (v) {
-                  if (v == null) return;
-                  if (opt.requiresFreeText) {
-                    final ctrlKey = '${question.id}__${opt.value}';
-                    freeTextCtrls.putIfAbsent(
-                        ctrlKey, () => TextEditingController());
-                    onAnswerChanged({
-                      'value': opt.value,
-                      'label': opt.label,
-                      'requiresFreeText': true,
-                      'freeText': freeTextCtrls[ctrlKey]!.text,
-                    });
-                  } else {
-                    onAnswerChanged(opt.value);
-                  }
-                },
-              ),
+            for (final opt in question.options) _radioRow(opt),
             _maybeFreeTextForSingleChoice(),
           ],
         );
     }
+  }
+
+  Widget _radioRow(_GuestOption opt) {
+    final selected =
+        (answer is Map) ? (answer['value'] as String?) : answer as String?;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Radio<String>(
+              value: opt.value,
+              groupValue: selected,
+              onChanged: !isActive
+                  ? null
+                  : (v) {
+                      if (v == null) return;
+                      if (opt.requiresFreeText) {
+                        final ctrlKey = '${question.id}__${opt.value}';
+                        freeTextCtrls.putIfAbsent(
+                            ctrlKey, () => TextEditingController());
+                        onAnswerChanged({
+                          'value': opt.value,
+                          'label': opt.label,
+                          'requiresFreeText': true,
+                          'freeText': freeTextCtrls[ctrlKey]!.text,
+                        });
+                      } else {
+                        onAnswerChanged(opt.value);
+                      }
+                    },
+              activeColor: kAccent,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              opt.label,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: kTextDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _checkboxRow(_GuestOption opt, List<Map<String, dynamic>> selected) {
@@ -710,38 +1265,72 @@ class _QuestionCard extends StatelessWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CheckboxListTile(
-          value: isChecked,
-          title: Text(opt.label),
-          onChanged: (v) {
-            final next = List<Map<String, dynamic>>.from(selected);
-
-            if (v == true) {
-              if (opt.requiresFreeText) {
-                next.add({
-                  'value': opt.value,
-                  'label': opt.label,
-                  'requiresFreeText': true,
-                  'freeText': freeTextCtrls[ctrlKey]!.text,
-                });
-              } else {
-                next.add({'value': opt.value, 'label': opt.label});
-              }
-            } else {
-              next.removeWhere((x) => x['value'] == opt.value);
-            }
-            onAnswerChanged(next);
-          },
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 32,
+                child: Checkbox(
+                  value: isChecked,
+                  onChanged: !isActive
+                      ? null
+                      : (v) {
+                          final next =
+                              List<Map<String, dynamic>>.from(selected);
+                          if (v == true) {
+                            if (opt.requiresFreeText) {
+                              next.add({
+                                'value': opt.value,
+                                'label': opt.label,
+                                'requiresFreeText': true,
+                                'freeText': freeTextCtrls[ctrlKey]!.text,
+                              });
+                            } else {
+                              next.add(
+                                  {'value': opt.value, 'label': opt.label});
+                            }
+                          } else {
+                            next.removeWhere((x) => x['value'] == opt.value);
+                          }
+                          onAnswerChanged(next);
+                        },
+                  activeColor: kAccent,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  opt.label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: kTextDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         if (opt.requiresFreeText && isChecked)
           Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            padding: const EdgeInsets.only(left: 32, bottom: 10),
             child: TextField(
               controller: freeTextCtrls[ctrlKey],
-              decoration: const InputDecoration(
+              enabled: isActive,
+              decoration: InputDecoration(
                 labelText: 'Please specify',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kAccent, width: 2),
+                ),
               ),
               onChanged: (txt) {
                 final next = List<Map<String, dynamic>>.from(selected);
@@ -750,7 +1339,7 @@ class _QuestionCard extends StatelessWidget {
                   next[idx] = {
                     ...next[idx],
                     'requiresFreeText': true,
-                    'freeText': txt,
+                    'freeText': txt
                   };
                   onAnswerChanged(next);
                 }
@@ -776,18 +1365,23 @@ class _QuestionCard extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+      padding: const EdgeInsets.only(left: 32, bottom: 8),
       child: TextField(
         controller: freeTextCtrls[ctrlKey],
-        decoration: const InputDecoration(
+        enabled: isActive,
+        decoration: InputDecoration(
           labelText: 'Please specify',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kAccent, width: 2),
+          ),
         ),
         onChanged: (txt) {
-          onAnswerChanged({
-            ...a,
-            'freeText': txt,
-          });
+          onAnswerChanged({...a, 'freeText': txt});
         },
       ),
     );
