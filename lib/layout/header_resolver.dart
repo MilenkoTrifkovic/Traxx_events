@@ -20,16 +20,13 @@ Widget getPageHeader(GoRouterState state) {
     return AppBarCustom(content: HostEventDetailsHeader());
   }
   if (state.matchedLocation == AppRoute.hostVenues.path) {
-    return AppBarCustom(
-        content: VenuesManagementHeader());
+    return AppBarCustom(content: VenuesManagementHeader());
   }
   if (state.matchedLocation == AppRoute.hostMenus.path) {
-    return AppBarCustom(
-        content: MenusManagementHeader());
+    return AppBarCustom(content: MenusManagementHeader());
   }
   if (state.matchedLocation == AppRoute.hostRoleSelection.path) {
-    return AppBarCustom(
-        content: AdminUserManagementHeader());
+    return AppBarCustom(content: AdminUserManagementHeader());
   }
   if (state.matchedLocation == AppRoute.hostQuestionSets.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
@@ -37,6 +34,19 @@ Widget getPageHeader(GoRouterState state) {
   if (state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }
+  if (state.matchedLocation == AppRoute.hostDemographics.path) {
+    return AppBarCustom(
+      content: Row(
+        children: const [
+          Text(
+            'Guest Demographic Responses',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
   if (state.matchedLocation == AppRoute.hostSettings.path) {
     return AppBarCustom(content: SettingsHeader());
   }

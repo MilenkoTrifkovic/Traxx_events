@@ -110,15 +110,13 @@ GoRouter buildRouter() {
       ),
 
       GoRoute(
-        path: '/demographics',
+        path: AppRoute.demographics.path,
         builder: (context, state) {
           final invitationId = state.uri.queryParameters['invitationId'];
 
           if (invitationId == null || invitationId.isEmpty) {
-            return Scaffold(
-              body: Center(
-                child: Text('Invalid invitation link'),
-              ),
+            return const Scaffold(
+              body: Center(child: Text('Invalid invitation link')),
             );
           }
 
@@ -202,7 +200,7 @@ GoRouter buildRouter() {
               );
             } catch (e) {
               print('Exception in host shell route builder: $e');
-              return Container(); //Temporary
+              return Center(child: Text('Error: $e'));
               // Error Handling or redirection
             }
           });
@@ -341,6 +339,18 @@ GoRouter buildRouter() {
                 eventController: eventController,
                 eventId: eventId,
                 builder: (context, event) => ResponsesView(),
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.hostDemographics.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              return DemographicResponsePage(
+                invitationId: invitationId,
+                showInvitationInput: true,
+                embedded: true, // ✅ NEW
               );
             },
           ),

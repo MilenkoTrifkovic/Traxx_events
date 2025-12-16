@@ -39,14 +39,13 @@ class NavigationRailWrapper extends StatelessWidget {
       selectedIndex = 2;
     } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path)) {
-      // both question sets and question detail pages are “Questions” tab
       selectedIndex = 3;
+    } else if (location.startsWith(AppRoute.hostDemographics.path)) {
+      selectedIndex = 4; // ✅ NEW
     } else if (location.startsWith(AppRoute.hostRoleSelection.path)) {
-      // Users / Role selection tab
-      selectedIndex = 4;
+      selectedIndex = 5; // shifted
     } else if (location.startsWith(AppRoute.hostSettings.path)) {
-      // Settings tab
-      selectedIndex = 5;
+      selectedIndex = 6; // shifted
     } else {
       selectedIndex = 0;
     }
@@ -91,6 +90,8 @@ class NavigationRailWrapper extends StatelessWidget {
             onDestinationSelected: (index) async {
               // Map indices to routes:
               // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions, 4 -> Users, 5 -> Settings, 6 -> Logout
+              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions,
+// 4 -> Demographic Responses (dev), 5 -> Users, 6 -> Settings, 7 -> Logout
               if (index == 0) {
                 pushAndRemoveAllRoute(AppRoute.hostEvents, context);
               } else if (index == 1) {
@@ -98,25 +99,22 @@ class NavigationRailWrapper extends StatelessWidget {
               } else if (index == 2) {
                 pushAndRemoveAllRoute(AppRoute.hostMenus, context);
               } else if (index == 3) {
-                // Always go to the Question Sets page for the Questions tab
                 pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
               } else if (index == 4) {
-                // Navigate to the Users / Role selection page
-                pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
+                // ✅ NEW: go to your dev page that can show DemographicResponsePage
+                pushAndRemoveAllRoute(AppRoute.hostDemographics, context);
               } else if (index == 5) {
-                // Navigate to Settings
-                pushAndRemoveAllRoute(AppRoute.hostSettings, context);
+                pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
               } else if (index == 6) {
+                pushAndRemoveAllRoute(AppRoute.hostSettings, context);
+              } else if (index == 7) {
                 try {
                   await authController.logout();
-                  if (context.mounted) {
+                  if (context.mounted)
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
-                  }
                 } catch (e) {
-                  print('Logout error: $e');
-                  if (context.mounted) {
+                  if (context.mounted)
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
-                  }
                 }
               }
             },
@@ -174,15 +172,29 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
+                icon: const Icon(Icons.assignment_outlined),
+                selectedIcon: const Icon(Icons.assignment),
+                label: AppText.styledBodyMedium(
+                  context,
+                  'Responses',
+                  color: selectedIndex == 4
+                      ? AppColors.primaryOld(context)
+                      : AppColors.onPrimaryContainer(context),
+                  weight:
+                      selectedIndex == 4 ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              NavigationRailDestination(
                 icon: const Icon(Icons.group_outlined),
                 selectedIcon: const Icon(Icons.group),
                 label: AppText.styledBodyMedium(
                   context,
                   'Users',
-                  color: selectedIndex == 4
+                  color: selectedIndex == 5
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
-                  weight: selectedIndex == 4 ? FontWeight.bold : FontWeight.normal,
+                  weight:
+                      selectedIndex == 5 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               NavigationRailDestination(
@@ -191,10 +203,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 label: AppText.styledBodyMedium(
                   context,
                   'Settings',
-                  color: selectedIndex == 5
+                  color: selectedIndex == 6
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
-                  weight: selectedIndex == 5 ? FontWeight.bold : FontWeight.normal,
+                  weight:
+                      selectedIndex == 6 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               NavigationRailDestination(
@@ -206,10 +219,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 label: AppText.styledBodyMedium(
                   context,
                   'Logout',
-                  color: selectedIndex == 6
+                  color: selectedIndex == 7
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
-                  weight: selectedIndex == 6 ? FontWeight.bold : FontWeight.normal,
+                  weight:
+                      selectedIndex == 7 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],

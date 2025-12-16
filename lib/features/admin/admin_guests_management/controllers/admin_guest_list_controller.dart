@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_xlsx_parser.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
+import 'package:uuid/uuid.dart';
 
 class AdminGuestListController extends GetxController {
   final formKey = GlobalKey<FormState>();
@@ -41,9 +42,16 @@ class AdminGuestListController extends GetxController {
 
   late String eventId;
 
+  final _uuid = const Uuid();
+
   void setEventId(String id) {
     eventId = id;
     _listenToGuestChanges();
+  }
+
+  String _newToken() {
+    // creates a long token similar to your screenshot (64-ish chars)
+    return (_uuid.v4() + _uuid.v4()).replaceAll('-', '');
   }
 
   // ---------------------------
@@ -66,6 +74,62 @@ class AdminGuestListController extends GetxController {
       currentPage.value = 0;
       _updatePagination();
       isInitialized.value = true;
+    });
+  }
+
+  Future<Map<String, dynamic>> _getEventData(String eventId) async {
+    final byDoc = await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .get();
+    if (byDoc.exists) return byDoc.data()!;
+
+    final q = await FirebaseFirestore.instance
+        .collection('events')
+        .where('eventId', isEqualTo: eventId)
+        .limit(1)
+        .get();
+
+    if (q.docs.isEmpty) throw Exception('Event not found for eventId=$eventId');
+    return q.docs.first.data();
+  }
+
+  Future<void> _createInvitationForGuest({
+    required String guestId,
+    required String guestEmail,
+  }) async {
+    final eventData = await _getEventData(eventId);
+
+    final orgId = (eventData['organisationId'] ?? '').toString();
+    final setId =
+        (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
+
+    if (orgId.isEmpty) throw Exception('Event.organisationId missing');
+    if (setId.isEmpty)
+      throw Exception('Event.selectedDemographicQuestionSetId missing');
+
+    final invRef = FirebaseFirestore.instance.collection('invitations').doc();
+    final invId = invRef.id;
+
+    final expiresAt =
+        Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
+
+    await invRef.set({
+      'invitationId': invId,
+      'eventId': eventId,
+      'organisationId': orgId,
+      'guestId': guestId,
+      'guestEmail': guestEmail,
+      'demographicQuestionSetId': setId,
+      'token': _newToken(),
+      'expiresAt': expiresAt,
+      'used': false,
+
+      // match your screenshot fields
+      'sent': false,
+      'sendError': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'sentAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -322,6 +386,18 @@ class AdminGuestListController extends GetxController {
   /// Invite a single guest by setting isInvited to true
   Future<bool> inviteGuest(String guestId) async {
     try {
+      final guestDoc = await FirebaseFirestore.instance
+          .collection('guests')
+          .doc(guestId)
+          .get();
+      if (!guestDoc.exists) throw Exception('Guest not found');
+
+      final data = guestDoc.data()!;
+      final email = (data['email'] ?? '').toString().trim();
+      if (email.isEmpty) throw Exception('Guest email missing');
+
+      await _createInvitationForGuest(guestId: guestId, guestEmail: email);
+
       await FirebaseFirestore.instance
           .collection('guests')
           .doc(guestId)
@@ -329,10 +405,10 @@ class AdminGuestListController extends GetxController {
         'isInvited': true,
         'modifiedAt': FieldValue.serverTimestamp(),
       });
-      debugPrint('inviteGuest: invited guest id=$guestId');
+
       return true;
-    } catch (e, st) {
-      debugPrint('inviteGuest error: $e\n$st');
+    } catch (e) {
+      debugPrint('inviteGuest error: $e');
       return false;
     }
   }
@@ -340,30 +416,81 @@ class AdminGuestListController extends GetxController {
   /// Invite all guests for the current event
   Future<int> inviteAllGuests() async {
     try {
-      final batch = FirebaseFirestore.instance.batch();
-      int count = 0;
-
-      // Get all guests for this event that are not disabled and not yet invited
-      final snapshot = await FirebaseFirestore.instance
+      final snap = await FirebaseFirestore.instance
           .collection('guests')
           .where('eventId', isEqualTo: eventId)
           .where('isDisabled', isEqualTo: false)
           .where('isInvited', isEqualTo: false)
           .get();
 
-      for (final doc in snapshot.docs) {
-        batch.update(doc.reference, {
-          'isInvited': true,
-          'modifiedAt': FieldValue.serverTimestamp(),
-        });
-        count++;
+      if (snap.docs.isEmpty) return 0;
+
+      int invited = 0;
+
+      // 2 writes per guest (invitation + guest update) so keep under 450 guests per batch
+      const int maxGuestsPerBatch = 200;
+
+      for (int i = 0; i < snap.docs.length; i += maxGuestsPerBatch) {
+        final chunk = snap.docs.sublist(
+          i,
+          (i + maxGuestsPerBatch > snap.docs.length)
+              ? snap.docs.length
+              : i + maxGuestsPerBatch,
+        );
+
+        final batch = FirebaseFirestore.instance.batch();
+
+        // Pre-fetch event data once per batch
+        final eventData = await _getEventData(eventId);
+        final orgId = (eventData['organisationId'] ?? '').toString();
+        final setId =
+            (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
+        if (orgId.isEmpty || setId.isEmpty) {
+          throw Exception(
+              'Event missing organisationId or selectedDemographicQuestionSetId');
+        }
+
+        for (final d in chunk) {
+          final g = d.data();
+          final guestId = d.id;
+          final email = (g['email'] ?? '').toString().trim();
+          if (email.isEmpty) continue;
+
+          final invRef =
+              FirebaseFirestore.instance.collection('invitations').doc();
+          final invId = invRef.id;
+
+          batch.set(invRef, {
+            'invitationId': invId,
+            'eventId': eventId,
+            'organisationId': orgId,
+            'guestId': guestId,
+            'guestEmail': email,
+            'demographicQuestionSetId': setId,
+            'token': (_uuid.v4() + _uuid.v4()).replaceAll('-', ''),
+            'expiresAt': Timestamp.fromDate(
+                DateTime.now().add(const Duration(days: 14))),
+            'used': false,
+            'sent': false,
+            'sendError': null,
+            'createdAt': FieldValue.serverTimestamp(),
+            'sentAt': FieldValue.serverTimestamp(),
+          });
+
+          batch.update(d.reference, {
+            'isInvited': true,
+            'modifiedAt': FieldValue.serverTimestamp(),
+          });
+
+          invited++;
+        }
+
+        await batch.commit();
       }
 
-      await batch.commit();
-      debugPrint('inviteAllGuests: invited $count guests');
-      return count;
-    } catch (e, st) {
-      debugPrint('inviteAllGuests error: $e\n$st');
+      return invited;
+    } catch (e) {
+      debugPrint('inviteAllGuests error: $e');
       return 0;
     }
   }
