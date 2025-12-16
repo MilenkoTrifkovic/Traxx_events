@@ -20,6 +20,7 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
+import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
 
@@ -673,8 +674,8 @@ class MenuSelectionCard extends StatelessWidget {
       final selectedMenu = controller.selectedMenu.value;
       final selectedItemIds = controller.selectedMenuItemIds.toList();
       final allItems = controller.menuItems.toList();
-      final NumberFormat currency =
-          NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+      // final NumberFormat currency =
+      //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
       // compute selected items & total
       final selectedItems = allItems
@@ -799,7 +800,7 @@ class MenuSelectionCard extends StatelessWidget {
                         Text('Total',
                             style: GoogleFonts.poppins(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
-                        Text(currency.format(total),
+                        Text(AppCurrency.format(total),
                             style: GoogleFonts.poppins(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
                       ],
@@ -845,8 +846,8 @@ class MenuSelectionCard extends StatelessWidget {
     final String catLabel = _categoryLabel(item);
     final bool isVeg = ftLabel.toLowerCase() == 'veg' ||
         _isVegByCategory(item); // fallback to category
-    final NumberFormat currency =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    // final NumberFormat currency =
+    //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final price = item.price;
     final double p = (price == null)
         ? 0.0
@@ -902,7 +903,7 @@ class MenuSelectionCard extends StatelessWidget {
               ])
             ]),
           ),
-          Text(currency.format(p),
+          Text(AppCurrency.format(p),
               style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         ],
       ),
@@ -994,8 +995,8 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   final Set<String> _selectedItemIds = {};
   bool _loadingItems = false;
   bool _saving = false;
-  final NumberFormat _currency =
-      NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  // final NumberFormat _currency =
+  //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
   // new controllers for scrolling
   final ScrollController _leftScrollController = ScrollController();
@@ -1430,7 +1431,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                           ]),
                                                     ),
                                                     Text(
-                                                        _currency.format(
+                                                        AppCurrency.format(
                                                             _priceOf(item)),
                                                         style:
                                                             GoogleFonts.poppins(
@@ -1649,7 +1650,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                                   .shade700)),
                                                 ]),
                                           ),
-                                          Text(_currency.format(price),
+                                          Text(AppCurrency.format(price),
                                               style: GoogleFonts.poppins(
                                                   fontWeight: FontWeight.w700)),
                                           IconButton(
@@ -1751,7 +1752,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                           color: Colors.white70,
                                           fontWeight: FontWeight.w600)),
                                   const SizedBox(width: 10),
-                                  Text(_currency.format(_selectedTotal),
+                                  Text(AppCurrency.format(_selectedTotal),
                                       style: GoogleFonts.poppins(
                                           fontSize: 15,
                                           color: Colors.white,

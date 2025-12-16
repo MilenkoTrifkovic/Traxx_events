@@ -37,7 +37,6 @@
     }
   ],
   "hosting": {
-    "site": "traxx-e1232",
     "public": "build/web",
     "ignore": [
       "firebase.json",
