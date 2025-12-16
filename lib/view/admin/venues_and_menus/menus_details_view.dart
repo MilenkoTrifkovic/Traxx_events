@@ -347,7 +347,7 @@ class MenuSetDetailsView extends StatelessWidget {
                 flex: 2,
                 child: Obx(
                   () => DropdownButtonFormField<MenuItemsSortType>(
-                    value: controller.sortType.value,
+                    initialValue: controller.sortType.value,
                     onChanged: (v) {
                       if (v != null) controller.setSortType(v);
                     },
@@ -414,7 +414,7 @@ class MenuSetDetailsView extends StatelessWidget {
                 flex: 2,
                 child: Obx(
                   () => DropdownButtonFormField<MenuCategory?>(
-                    value: controller.selectedCategory.value,
+                    initialValue: controller.selectedCategory.value,
                     onChanged: (v) => controller.setCategoryFilter(v),
                     isDense: true,
                     decoration: InputDecoration(
@@ -1025,7 +1025,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<MenuCategory>(
-                value: _category,
+                initialValue: _category,
                 items: MenuCategory.values
                     .map(
                       (c) => DropdownMenuItem(
@@ -1042,7 +1042,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<FoodType>(
-                value: _foodType,
+                initialValue: _foodType,
                 decoration: const InputDecoration(labelText: 'Food type'),
                 items: const [
                   DropdownMenuItem(

@@ -34,6 +34,7 @@ class GuestModel {
   final DateTime? createdAt;
   final DateTime? modifiedAt;
   final bool isDisabled;
+  final bool isInvited;
 
   GuestModel({
     this.guestId,
@@ -48,6 +49,7 @@ class GuestModel {
     this.createdAt,
     this.modifiedAt,
     this.isDisabled = false,
+    this.isInvited = false,
   });
 
   /// Firestore: create (new document)
@@ -63,6 +65,7 @@ class GuestModel {
       if (country != null) 'country': country,
       if (gender != null) 'gender': gender!.name, // Store enum name as string
       'isDisabled': isDisabled,
+      'isInvited': isInvited,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
     };
@@ -81,6 +84,7 @@ class GuestModel {
       if (country != null) 'country': country,
       if (gender != null) 'gender': gender!.name, // Store enum name as string
       'isDisabled': isDisabled,
+      'isInvited': isInvited,
       // keep old createdAt, only update modifiedAt
       'modifiedAt': FieldValue.serverTimestamp(),
     };
@@ -140,6 +144,7 @@ class GuestModel {
       createdAt: parseTimestamp(data['createdAt']),
       modifiedAt: parseTimestamp(data['modifiedAt']),
       isDisabled: data['isDisabled'] as bool? ?? false,
+      isInvited: data['isInvited'] as bool? ?? false,
     );
   }
 
@@ -157,6 +162,7 @@ class GuestModel {
     DateTime? createdAt,
     DateTime? modifiedAt,
     bool? isDisabled,
+    bool? isInvited,
   }) {
     return GuestModel(
       guestId: guestId ?? this.guestId,
@@ -171,6 +177,7 @@ class GuestModel {
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,
+      isInvited: isInvited ?? this.isInvited,
     );
   }
 
@@ -188,7 +195,8 @@ class GuestModel {
         'gender: ${gender?.name}, '
         'createdAt: $createdAt, '
         'modifiedAt: $modifiedAt, '
-        'isDisabled: $isDisabled'
+        'isDisabled: $isDisabled, '
+        'isInvited: $isInvited'
         ')';
   }
 }

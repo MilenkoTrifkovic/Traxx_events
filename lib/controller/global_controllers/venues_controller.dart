@@ -1,8 +1,6 @@
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
-import 'package:traxx_wepapp/models/menu_item.dart';
-import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -28,11 +26,36 @@ class VenuesController extends GetxController {
 
   Future<List<Venue>> _withPhotoUrls(List<Venue> venueList) async {
     return Future.wait(venueList.map((v) async {
-      // if photoUrl already set or no photoPath available, skip
-      if (v.photoUrl != null || v.photoPath == null) return v;
-      final url = await _storageServices.loadImageURL(v.photoPath);
-      if (url == null) return v;
-      return v.copyWith(photoUrl: url);
+      String? singlePhotoUrl = v.photoUrl;
+      List<String>? multiplePhotoUrls = v.photoUrls;
+
+      // Load single photoUrl if not already set
+      if (singlePhotoUrl == null && v.photoPath != null) {
+        singlePhotoUrl = await _storageServices.loadImageURL(v.photoPath);
+      }
+
+      // Load multiple photoUrls if photoPaths exist and photoUrls not set
+      if (multiplePhotoUrls == null &&
+          v.photoPaths != null &&
+          v.photoPaths!.isNotEmpty) {
+        multiplePhotoUrls = [];
+        for (final path in v.photoPaths!) {
+          final url = await _storageServices.loadImageURL(path);
+          if (url != null) {
+            multiplePhotoUrls.add(url);
+          }
+        }
+      }
+
+      // Return updated venue only if we actually fetched something new
+      if (singlePhotoUrl != v.photoUrl || multiplePhotoUrls != v.photoUrls) {
+        return v.copyWith(
+          photoUrl: singlePhotoUrl,
+          photoUrls: multiplePhotoUrls,
+        );
+      }
+
+      return v;
     }));
   }
 
@@ -46,6 +69,8 @@ class VenuesController extends GetxController {
       print('Organisation ID in VenuesController: $organisationId');
       final allVenues = await _firestoreServices.getVenues(organisationId);
       final withUrls = await _withPhotoUrls(allVenues);
+      print('Loaded with URLs: ${withUrls.length} venues');
+      print('List of venue IDs: ${withUrls.map((v) => v.photoUrls).toList()}');
       venues.assignAll(withUrls);
       isLoading.value = false;
     } catch (e) {
@@ -115,6 +140,7 @@ class VenuesController extends GetxController {
 
   Future<Venue> updateVenue(Venue updatedVenue) async {
     try {
+    print('Updating venue in local list: ${updatedVenue.venueID}');
       // Find the index of the existing venue
       final index =
           venues.indexWhere((venue) => venue.venueID == updatedVenue.venueID);
@@ -125,25 +151,40 @@ class VenuesController extends GetxController {
             'Venue with ID ${updatedVenue.venueID} not found in local list');
       }
 
-      // Get the existing venue to preserve any fields if needed
-      final existingVenue = venues[index];
-
-      // If updatedVenue has a photoPath but no photoUrl, try to load it
+      // Load photo URLs if needed
       Venue venueToUpdate = updatedVenue;
-      if (updatedVenue.photoPath != null && updatedVenue.photoUrl == null) {
-        print(
-            '1 entered photo path loading for venue ID: ${updatedVenue.venueID}');
-        final url =
+      String? singlePhotoUrl = updatedVenue.photoUrl;
+      List<String>? multiplePhotoUrls = updatedVenue.photoUrls;
+
+      // Load single photoUrl if not already set
+      if (updatedVenue.photoPath != null && singlePhotoUrl == null) {
+        print('Loading single photo URL for venue ID: ${updatedVenue.venueID}');
+        singlePhotoUrl =
             await _storageServices.loadImageURL(updatedVenue.photoPath!);
-        if (url != null) {
-          venueToUpdate = updatedVenue.copyWith(photoUrl: url);
-        }
-      } else if (updatedVenue.photoPath == null &&
-          existingVenue.photoPath != null) {
+      }
+
+      // Load multiple photoUrls if photoPaths exist and photoUrls not set
+      if (updatedVenue.photoPaths != null &&
+          updatedVenue.photoPaths!.isNotEmpty &&
+          multiplePhotoUrls == null) {
         print(
-            '2 entered photo path loading for venue ID: ${updatedVenue.venueID}');
-        // If new venue doesn't have photoPath but old one did, clear the photoUrl
-        venueToUpdate = updatedVenue.copyWith(photoUrl: null);
+            'Loading multiple photo URLs for venue ID: ${updatedVenue.venueID}');
+        multiplePhotoUrls = [];
+        for (final path in updatedVenue.photoPaths!) {
+          final url = await _storageServices.loadImageURL(path);
+          if (url != null) {
+            multiplePhotoUrls.add(url);
+          }
+        }
+      }
+
+      // Update venue with loaded URLs
+      if (singlePhotoUrl != updatedVenue.photoUrl ||
+          multiplePhotoUrls != updatedVenue.photoUrls) {
+        venueToUpdate = updatedVenue.copyWith(
+          photoUrl: singlePhotoUrl,
+          photoUrls: multiplePhotoUrls,
+        );
       }
 
       // Update the venue in the observable list
@@ -151,12 +192,11 @@ class VenuesController extends GetxController {
 
       // Optional: Force UI update by reassigning the list
       // venues.value = List.from(venues);
-
+print('venue updated successfully');
       return venueToUpdate;
     } catch (e) {
       print('Failed to update venue in local list: $e');
       rethrow;
     }
   }
-
 }

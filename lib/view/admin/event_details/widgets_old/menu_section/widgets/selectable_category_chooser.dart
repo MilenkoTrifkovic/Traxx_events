@@ -3,7 +3,6 @@ import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/menu_controllers/set_menus_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';

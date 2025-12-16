@@ -10,7 +10,6 @@ import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets_old/responses_section.dart/widgets/details_dialog.dart';
 import 'package:traxx_wepapp/widgets/app_future_builder.dart';
-import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
 class ResponsesView extends StatefulWidget {
   const ResponsesView({super.key});

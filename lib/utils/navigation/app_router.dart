@@ -6,7 +6,6 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
-import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
@@ -20,6 +19,7 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -109,6 +109,21 @@ GoRouter buildRouter() {
         builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
+      GoRoute(
+        path: AppRoute.demographics.path,
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'];
+
+          if (invitationId == null || invitationId.isEmpty) {
+            return const Scaffold(
+              body: Center(child: Text('Invalid invitation link')),
+            );
+          }
+
+          return DemographicResponsePage(invitationId: invitationId);
+        },
+      ),
+
       //HOST SHELL ROUTE
       ShellRoute(
         redirect: (context, state) {
@@ -172,29 +187,20 @@ GoRouter buildRouter() {
                   location.startsWith(AppRoute.hostQuestions.path) ||
                   location.startsWith(AppRoute.hostQuestionSetQuestions.path);
 
-              const Color _gfBackground = Color(0xFFF4F0FB);
+              const Color gfBackground = Color(0xFFF4F0FB);
 
               return NavigationRailWrapper(
                 child: ContentWrapper(
-                  // ✅ All non-question pages keep the old grey background
-                  // ✅ Question pages use the SAME lavender as in the screen files (_gfBackground)
                   contentColor: isQuestionsPage
-                      ? _gfBackground // Color(0xFFF4F0FB)
+                      ? gfBackground // Color(0xFFF4F0FB)
                       : const Color.fromARGB(255, 247, 247, 247),
                   header: getPageHeader(state),
                   child: child,
                 ),
               );
-              // return AppScaffold(
-              //   body:
-              //       NavigationRailWrapper(child: ContentWrapper(child: child)),
-              //   role: 'host',
-              //   name: name,
-              //   onLogout: authController.logout,
-              // );
             } catch (e) {
               print('Exception in host shell route builder: $e');
-              return Container(); //Temporary
+              return Center(child: Text('Error: $e'));
               // Error Handling or redirection
             }
           });
@@ -230,21 +236,14 @@ GoRouter buildRouter() {
           ),
           GoRoute(
             path: AppRoute.hostRoleSelection.path,
-            // builder: (context, state) => AdminUserListPage(),
             builder: (context, state) {
               return AdminUserListPage();
             },
           ),
-          /*  GoRoute(
-              path: AppRoute.hostQuestions.path,
-              builder: (context, state) => HostQuestionsScreen(),
-            ), */
-          // 🔹 NEW: Question Sets list page
           GoRoute(
             path: AppRoute.hostQuestionSets.path,
             builder: (context, state) => const QuestionSetsScreen(),
           ),
-
           GoRoute(
             path: AppRoute.hostQuestions.path,
             builder: (context, state) {
@@ -262,7 +261,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {
@@ -280,7 +278,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-
           GoRoute(
             path: AppRoute.hostCreateEvent.path,
             builder: (context, state) => CreateEditEventView(),
@@ -299,41 +296,6 @@ GoRouter buildRouter() {
             path: AppRoute.hostSettings.path,
             builder: (context, state) => SettingsPage(),
           ),
-          // GoRoute(
-          //   path: AppRoute.eventDetails.path,
-          //   builder: (context, state) {
-          //     final Event? selectedEvent = eventController.selectedEvent.value;
-          //     if (selectedEvent != null) {
-          //       print('Returning existing selected event');
-          //       return HostEventDetailsView(event: selectedEvent);
-          //     }
-
-          //     // final Event? event;
-          //     // if (state.extra != null && state.extra is Event) {
-          //     //   event = state.extra as Event;
-          //     // } else {
-          //     //   event = null;
-          //     // }
-          //     final eventId =
-          //         state.pathParameters[AppRoute.eventDetails.placeholder]!;
-          //     return FutureBuilder<Event>(
-          //       future: EventFetcher.fetchEvent(eventId),
-          //       builder: (context, snapshot) {
-          //         if (snapshot.connectionState == ConnectionState.waiting) {
-          //           return Center(child: CircularProgressIndicator());
-          //         }
-          //         if (snapshot.hasError) {
-          //           return Center(child: Text('Error: ${snapshot.error}'));
-          //         }
-          //         eventController.setSelectedEvent(snapshot.data!);
-
-          //         return HostEventDetailsView(event: snapshot.data!);
-          //       },
-          //     );
-          //     // return HostEventDetailsView(event: selectedEvent);
-          //   },
-          //   // builder: (context, state) => HostEventDetailsView(),
-          // ),
           GoRoute(
             path: AppRoute.eventQuestions.path,
             builder: (context, state) => SetQuestionsView(),
@@ -363,24 +325,7 @@ GoRouter buildRouter() {
                 },
               );
             },
-            // builder: (context, state) async {
-            //   final Event? event;
-            //   if (state.extra != null && state.extra is Event) {
-            //     event = state.extra as Event;
-            //   } else {
-            //     event = null;
-            //   }
-            //   final eventId =
-            //       state.pathParameters[AppRoute.eventDetails.placeholder]!;
-            //       //helper function that accepts event id and event object and returns event object
-            //       Event finalEvent = await EventFetcher.fetchEvent(event, eventId);
-            //   return SetMenusView(event: finalEvent);
-            // },
           ),
-          // GoRoute(
-          //   path: AppRoute.eventMenus.path,
-          //   builder: (context, state) => SetMenusView(),
-          // ),
           GoRoute(
             path: AppRoute.eventGuests.path,
             builder: (context, state) => SetGuestsView(),
@@ -394,6 +339,18 @@ GoRouter buildRouter() {
                 eventController: eventController,
                 eventId: eventId,
                 builder: (context, event) => ResponsesView(),
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.hostDemographics.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              return DemographicResponsePage(
+                invitationId: invitationId,
+                showInvitationInput: true,
+                embedded: true, // ✅ NEW
               );
             },
           ),
@@ -420,7 +377,7 @@ GoRouter buildRouter() {
                   location.startsWith(AppRoute.hostQuestions.path) ||
                   location.startsWith(AppRoute.hostQuestionSetQuestions.path);
 
-              const Color _gfBackground = Color(0xFFF4F0FB);
+              const Color gfBackground = Color(0xFFF4F0FB);
 
               if (isQuestionsPage) {
                 // ✅ QUESTION PAGES:
@@ -441,7 +398,7 @@ GoRouter buildRouter() {
                       // content area with lavender background + limited-width body
                       Expanded(
                         child: ContentWrapper(
-                          contentColor: _gfBackground,
+                          contentColor: gfBackground,
                           // no header here – body only
                           child: child,
                         ),
@@ -495,21 +452,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-          // GoRoute(
-          //   path: AppRoute.guestEventDetails.path,
-          //   builder: (context, state) {
-          //     final Event? event;
-          //     if (state.extra != null && state.extra is Event) {
-          //       event = state.extra as Event;
-          //     } else {
-          //       event = null;
-          //     }
-          //     final eventId =
-          //         state.pathParameters[AppRoute.guestEventDetails.placeholder]!;
-          //     // return GuestEventDetails(eventId: eventId, event: event);
-          //     return GuestEventDetails();
-          //   },
-          // ),
           GoRoute(
             path: AppRoute.guestEventRespond.path,
             builder: (context, state) {

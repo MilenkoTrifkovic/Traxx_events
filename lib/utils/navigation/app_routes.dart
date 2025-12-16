@@ -5,7 +5,6 @@ enum AppRoute {
   signup('/signup'),
   emailVerification('/email-verification'),
 
-
   // Host routes
   host('/host'),
   hostOrganisationInfoForm('/host-organisation-info-form'),
@@ -36,6 +35,12 @@ enum AppRoute {
   eventResponses('/event-responses/:eventId/responses', 'eventId'),
   eventMenus('/guest-event-details/:eventId/event-menus', 'eventId'),
   eventGuests('/event-guests'),
+
+  // Public guest form route (you already have it hardcoded as '/demographics')
+  demographics('/demographics'),
+
+// Dev-only host route visible in sidebar
+  hostDemographics('/host-demographics'),
 
   // Other
   aboutView('/about'),

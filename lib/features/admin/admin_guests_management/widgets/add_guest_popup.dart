@@ -171,8 +171,37 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
 
             AppSpacing.verticalSm(context),
 
+            // Status toggle (Enabled by default)
+            Obx(() {
+              final enabled = !controller.isDisabled.value;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppText.styledBodyLarge(context, 'Status',
+                          weight: AppFontWeight.semiBold),
+                      const SizedBox(height: 4),
+                      AppText.styledBodyMedium(
+                          context, enabled ? 'Enabled' : 'Disabled'),
+                    ],
+                  ),
+
+                  // Switch reflects "Enabled" state (true when not disabled)
+                  Switch.adaptive(
+                    value: enabled,
+                    onChanged: (val) {
+                      controller.isDisabled.value = !val;
+                    },
+                  ),
+                ],
+              );
+            }),
+
+            AppSpacing.verticalSm(context),
+
             // Buttons row
-            // Replace the existing Row(...) that contains Cancel/Primary buttons with this:
             Row(
               children: [
                 // Cancel button: always visible (for both add & edit modes),

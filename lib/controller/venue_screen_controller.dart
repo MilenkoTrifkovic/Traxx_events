@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
-import 'package:traxx_wepapp/main.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
@@ -47,8 +46,8 @@ class VenueScreenController extends GetxController {
   final countryError = RxnString();
   final formKey = GlobalKey<FormState>();
 
-  // Image handling
-  final selectedImage = Rxn<XFile>();
+  // Image handling - support multiple images
+  final selectedImages = <XFile>[].obs;
   final imageError = RxnString();
 
   // Use global snackbar message controller
@@ -73,11 +72,6 @@ class VenueScreenController extends GetxController {
     snackbarMessageController.clearMessage();
   }
 
-  /// Shows a success message globally
-  void _showSuccessMessage(String text) {
-    snackbarMessageController.showSuccessMessage(text);
-  }
-
   /// Shows an error message globally
   void _showErrorMessage(String text) {
     snackbarMessageController.showErrorMessage(text);
@@ -86,9 +80,9 @@ class VenueScreenController extends GetxController {
   void updateClassFields(Venue venue) {
     nameController.text = venue.name;
     descriptionController.text = venue.description ?? '';
-    streetController.text = venue.street ?? '';
-    cityController.text = venue.city ?? '';
-    zipController.text = venue.zip ?? '';
+    streetController.text = venue.street;
+    cityController.text = venue.city;
+    zipController.text = venue.zip;
     selectedState.value = venue.state;
     selectedCountry.value = venue.country;
     venueId = venue.venueID;
@@ -120,14 +114,6 @@ class VenueScreenController extends GetxController {
     throw Exception('Form validation failed');
   }
 
-  /// Creates a new venue with all required and optional parameters
-  ///
-  /// Required parameters:
-  /// - name: The venue name
-  ///
-  /// Optional parameters:
-  /// - description: Optional venue description
-  /// - image: Optional venue photo (XFile)
   Future<Venue> createVenue() async {
     try {
       // Validate required fields
@@ -149,34 +135,38 @@ class VenueScreenController extends GetxController {
 
       isCreatingVenue.value = true;
 
-      // Upload image if selected
-      String? photoPath;
-      if (selectedImage.value != null) {
+      // Upload images if selected
+      List<String>? photoPaths;
+      if (selectedImages.isNotEmpty) {
         try {
-          photoPath = await _storageServices.uploadImage(selectedImage.value!);
-          print('Image uploaded successfully: $photoPath');
+          photoPaths = [];
+          for (final image in selectedImages) {
+            final path = await _storageServices.uploadImage(image);
+            photoPaths.add(path);
+            print('Image uploaded successfully: $path');
+          }
         } catch (e) {
-          print('Failed to upload image: $e');
-          // Continue without image - image upload is optional
+          print('Failed to upload images: $e');
+          // Continue without images - image upload is optional
         }
       }
 
       // Create venue object
       final venue = Venue(
-        organisationId: organisationId,
-        name: nameController.text.trim(),
-        description: descriptionController.text.trim().isEmpty
-            ? null
-            : descriptionController.text.trim(),
-        photoPath: photoPath,
-        isDisabled: false,
-        street: streetController.text.trim(),
-        city: cityController.text.trim(),
-        zip: zipController.text.trim(),
-        state: selectedState.value!.trim(),
-        country: selectedCountry.value!.trim(),
-        venueID: venueId
-      );
+          organisationId: organisationId,
+          name: nameController.text.trim(),
+          description: descriptionController.text.trim().isEmpty
+              ? null
+              : descriptionController.text.trim(),
+          photoPath: photoPaths?.isNotEmpty == true ? photoPaths!.first : null,
+          photoPaths: photoPaths,
+          isDisabled: false,
+          street: streetController.text.trim(),
+          city: cityController.text.trim(),
+          zip: zipController.text.trim(),
+          state: selectedState.value!.trim(),
+          country: selectedCountry.value!.trim(),
+          venueID: venueId);
       return venue;
     } catch (e) {
       _showErrorMessage('Failed to create venue: $e');
@@ -186,24 +176,31 @@ class VenueScreenController extends GetxController {
     }
   }
 
-  /// Picks an image from the device gallery
-  Future<void> pickImage() async {
+  /// Picks multiple images from the device gallery
+  Future<void> pickImages() async {
     try {
-      final image = await _imageServices.pickImage(ImageSource.gallery);
-      if (image != null) {
-        selectedImage.value = image;
+      final images = await _imageServices.pickMultipleImages();
+      if (images.isNotEmpty) {
+        selectedImages.addAll(images);
         imageError.value = null;
-        print('Image selected: ${image.path}');
+        print('${images.length} image(s) selected');
       }
     } catch (e) {
-      imageError.value = 'Failed to pick image: $e';
-      _showErrorMessage('Failed to pick image: $e');
+      imageError.value = 'Failed to pick images: $e';
+      _showErrorMessage('Failed to pick images: $e');
     }
   }
 
-  /// Removes the selected image
-  void removeImage() {
-    selectedImage.value = null;
+  /// Removes a specific image from the list
+  void removeImage(int index) {
+    if (index >= 0 && index < selectedImages.length) {
+      selectedImages.removeAt(index);
+    }
+  }
+
+  /// Removes all selected images
+  void removeAllImages() {
+    selectedImages.clear();
     imageError.value = null;
   }
 
@@ -295,7 +292,7 @@ class VenueScreenController extends GetxController {
   void clearForm() {
     nameController.clear();
     descriptionController.clear();
-    selectedImage.value = null;
+    selectedImages.clear();
     nameError.value = null;
     descriptionError.value = null;
     imageError.value = null;

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
 
 /// A reusable section divider that can be customized or used with default styling.
 ///

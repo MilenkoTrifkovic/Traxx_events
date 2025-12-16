@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_rx/src/rx_workers/rx_workers.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
-import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 
 class ContentWrapper extends StatefulWidget {
   final Widget child;

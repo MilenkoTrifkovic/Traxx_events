@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/section_header.dart';
 import 'package:traxx_wepapp/utils/data/us_data.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';

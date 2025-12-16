@@ -5,7 +5,6 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/extensions/string_extensions.dart';
 
 class EventInfoSection extends StatelessWidget {
   final Event event;

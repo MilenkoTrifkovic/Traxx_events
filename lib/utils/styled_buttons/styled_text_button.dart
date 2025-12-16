@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/constantsOld.dart';
 
 class StyledTextButton extends StatelessWidget {
   final VoidCallback? onPressed;

@@ -1,10 +1,4 @@
-// import 'package:firebase_auth/firebase_auth.dart};
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
-// import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
@@ -19,10 +13,8 @@ import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
-import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
-import 'package:traxx_wepapp/utils/snackbar_utils.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
@@ -30,12 +22,6 @@ import 'firebase_options.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
-
-//TODO
-//after event is created, navigation to events doesn't work properly
-//  Get.lazyPut<EventListController>(() => EventListController(), fenix: true); should not be here
-
-//EventDetails back arrow doesn't work after reload - add check and pushRouted
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,11 +54,11 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  MyApp({super.key});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final snackbarController = Get.put(SnackbarMessageController());
+    Get.put(SnackbarMessageController());
 
     return MaterialApp.router(
       scaffoldMessengerKey: rootScaffoldMessengerKey,

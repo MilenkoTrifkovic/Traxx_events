@@ -23,7 +23,10 @@ class CreateVenuePopupView extends StatelessWidget {
   final VenuesController venuesController;
   final bool isEditMode;
   const CreateVenuePopupView(
-      {super.key, required this.controller, required this.venuesController, this.isEditMode = false});
+      {super.key,
+      required this.controller,
+      required this.venuesController,
+      this.isEditMode = false});
   // final VenueScreenController controller = VenueScreenController();
   // final VenuesController venuesController = Get.find<VenuesController>();
   @override
@@ -163,11 +166,8 @@ class CreateVenuePopupView extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                
               ],
             ),
-
 
             // Image Upload Section
             _buildImageUploadSection(context),
@@ -208,20 +208,24 @@ class CreateVenuePopupView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Obx(() {
-          if (controller.selectedImage.value != null) {
-            return _buildSelectedImage(context);
-          } else {
-            return AppSecondaryButton(
-                width: double.infinity,
-                icon: Icons.file_upload,
-                iconColor: AppColors.primaryAccent,
-                textColor: AppColors.primaryAccent,
-                text: 'Upload Venue Photo',
-                onPressed: controller.pickImage);
-          }
-        }),
+        // Upload button
+        AppSecondaryButton(
+            width: double.infinity,
+            icon: Icons.file_upload,
+            iconColor: AppColors.primaryAccent,
+            textColor: AppColors.primaryAccent,
+            text: 'Upload Venue Photos',
+            onPressed: controller.pickImages),
+
         AppSpacing.verticalSm(context),
+
+        // Selected images grid
+        Obx(() {
+          if (controller.selectedImages.isNotEmpty) {
+            return _buildSelectedImagesGrid(context);
+          }
+          return const SizedBox.shrink();
+        }),
 
         // Image error display
         Obx(() {
@@ -243,54 +247,59 @@ class CreateVenuePopupView extends StatelessWidget {
     );
   }
 
-  /// Builds the selected image preview
-  Widget _buildSelectedImage(BuildContext context) {
+  /// Builds the selected images grid
+  Widget _buildSelectedImagesGrid(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: controller.selectedImages.length,
+      itemBuilder: (context, index) {
+        return _buildImagePreview(context, index);
+      },
+    );
+  }
+
+  /// Builds a single image preview with remove button
+  Widget _buildImagePreview(BuildContext context, int index) {
     return Container(
-      width: double.infinity,
-      height: 200,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.0),
         border: Border.all(color: AppColors.borderHover),
       ),
       child: Stack(
         children: [
-          //     // Image preview
           ClipRRect(
             borderRadius: BorderRadius.circular(8.0),
             child: FutureBuilder<Uint8List>(
-              future: controller.selectedImage.value!.readAsBytes(),
+              future: controller.selectedImages[index].readAsBytes(),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 360,
-                    ),
-                    child: Image.memory(
-                      snapshot.data!,
-                      width: 360,
-                      fit: BoxFit.cover,
-                    ),
+                  return Image.memory(
+                    snapshot.data!,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
                   );
                 } else {
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 360,
-                    ),
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                  return const Center(
+                    child: CircularProgressIndicator(),
                   );
                 }
               },
             ),
           ),
-
           // Remove button
           Positioned(
-            top: 8,
-            right: 8,
+            top: 4,
+            right: 4,
             child: GestureDetector(
-              onTap: controller.removeImage,
+              onTap: () => controller.removeImage(index),
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(

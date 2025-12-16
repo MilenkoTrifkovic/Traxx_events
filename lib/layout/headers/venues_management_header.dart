@@ -49,7 +49,7 @@ class VenuesManagementHeader extends StatelessWidget {
                           showLoadingIndicator();
                           final createdVenue = await controller.submitForm();
                           // venuesController.addVenue(createdVenue);
-                        } on Exception catch (e) {
+                        } on Exception {
                           // snackbarMessageController
                           //     .showErrorMessage('Error creating venue');
                         } finally {

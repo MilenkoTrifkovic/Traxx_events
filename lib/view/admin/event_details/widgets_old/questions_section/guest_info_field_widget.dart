@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/set_questions_controller.dart';
-import 'package:traxx_wepapp/helper/app_border_radius.dart';
 import 'package:traxx_wepapp/helper/app_decoration.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
@@ -11,9 +10,6 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
-/// Widget that allows event hosts to create and edit custom fields for guest information.
-/// Each field has a name, group ID, and input type (text, number, date, or yes/no).
-/// Supports both mobile and desktop layouts.
 class GuestInfoFieldWidget extends StatefulWidget {
   final EventQuestions guestFieldConfig;
   final SetQuestionsController guestInfoController;

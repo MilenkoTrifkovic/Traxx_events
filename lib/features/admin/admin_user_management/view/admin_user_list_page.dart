@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
@@ -80,7 +79,7 @@ class AdminUserListPage extends StatelessWidget {
                         showLoadingIndicator();
                         await controller.updateUser(
                             userId: list[index].userId!);
-                      } on Exception catch (e) {
+                      } on Exception {
                       } finally {
                         hideLoadingIndicator();
                       }

@@ -2,22 +2,16 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/global_controllers/menus_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
-import 'package:traxx_wepapp/theme/app_font_weight.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
-import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
 class CreateMenuPopupView extends StatelessWidget {
   final MenusScreenController controller;

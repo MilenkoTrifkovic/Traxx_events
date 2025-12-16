@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/models/user_model.dart';
-import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -45,29 +44,11 @@ class FirstSectionUserCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  //status
-                  // AppText.styledBodySmall(
-                  //     context, event.status.toLowerCase())
                 ],
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Creates a 48x48 placeholder widget with a wine glass icon
-  /// when the event has no cover image or if image loading fails
-  Widget _buildPlaceholder(BuildContext context) {
-    return Container(
-      color: AppColors.background(context),
-      child: const Center(
-        child: Icon(
-          Icons.home_work_outlined,
-          size: 24,
-          color: Colors.red,
-        ),
       ),
     );
   }

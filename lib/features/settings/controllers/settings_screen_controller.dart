@@ -115,6 +115,7 @@ class SettingsScreenController extends GetxController {
   /// Returns true on success, false otherwise.
   Future<void> updateOrganisation() async {
     try {
+      showLoadingIndicator();
       final updated = organisation.copyWith(
         name: companyNameController.text.trim(),
         phone: phoneController.text.trim(),
@@ -147,6 +148,8 @@ class SettingsScreenController extends GetxController {
     } catch (e) {
       print('SettingsScreenController.update error: $e');
       snackbar.showErrorMessage('Failed to update organisation');
+    } finally {
+      hideLoadingIndicator();
     }
   }
 
@@ -194,7 +197,7 @@ class SettingsScreenController extends GetxController {
     } catch (e) {
       print('SettingsScreenController.changePassword error: $e');
       // Provide a generic error message; AuthServices should throw meaningful errors
-      snackbar.showErrorMessage('Failed to change password');
+      snackbar.showErrorMessage('$e');
     } finally {
       hideLoadingIndicator();
     }

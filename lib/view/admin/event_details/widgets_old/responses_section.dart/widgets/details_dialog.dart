@@ -9,10 +9,8 @@ import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
-import 'package:traxx_wepapp/utils/styled_buttons/styled_text_button.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 import 'package:intl/intl.dart';
-import 'package:velocity_x/velocity_x.dart';
 
 class DetailsDialog extends StatelessWidget {
   const DetailsDialog(

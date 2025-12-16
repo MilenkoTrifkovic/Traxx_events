@@ -8,7 +8,6 @@ import 'package:traxx_wepapp/widgets/date_time_picker.dart';
 import 'package:traxx_wepapp/view/admin/create_event_old/widgets/timezone_chooser.dart';
 import 'package:traxx_wepapp/forms/create_event/event_form_state.dart';
 import 'package:traxx_wepapp/utils/static_data.dart';
-import 'package:traxx_wepapp/widgets/section_devider.dart';
 
 /// A widget that displays the required fields for event creation.
 /// This includes essential information such as event name, address,
