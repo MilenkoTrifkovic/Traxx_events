@@ -140,6 +140,7 @@ class VenuesController extends GetxController {
 
   Future<Venue> updateVenue(Venue updatedVenue) async {
     try {
+    print('Updating venue in local list: ${updatedVenue.venueID}');
       // Find the index of the existing venue
       final index =
           venues.indexWhere((venue) => venue.venueID == updatedVenue.venueID);
@@ -154,8 +155,6 @@ class VenuesController extends GetxController {
       Venue venueToUpdate = updatedVenue;
       String? singlePhotoUrl = updatedVenue.photoUrl;
       List<String>? multiplePhotoUrls = updatedVenue.photoUrls;
-      print('single: $singlePhotoUrl');
-      print('multiple: $multiplePhotoUrls');
 
       // Load single photoUrl if not already set
       if (updatedVenue.photoPath != null && singlePhotoUrl == null) {
@@ -193,7 +192,7 @@ class VenuesController extends GetxController {
 
       // Optional: Force UI update by reassigning the list
       // venues.value = List.from(venues);
-
+print('venue updated successfully');
       return venueToUpdate;
     } catch (e) {
       print('Failed to update venue in local list: $e');
