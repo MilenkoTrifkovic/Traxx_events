@@ -856,7 +856,6 @@ class MenuSelectionCard extends StatelessWidget {
         : (price is num
             ? price.toDouble()
             : double.tryParse(price.toString()) ?? 0.0);
-    final double p = (price == null) ? 0.0 : price.toDouble();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
