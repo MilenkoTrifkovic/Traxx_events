@@ -179,7 +179,7 @@ class FirestoreServices {
       final eventWithId = event.copyWith(eventId: id);
 
       // Convert to map and remove nulls (but do NOT rely on client-side timestamps)
-  final data = Map<String, dynamic>.from(eventWithId.toJson());
+      final data = Map<String, dynamic>.from(eventWithId.toJson());
       data.removeWhere((k, v) => v == null);
 
       // Ensure server-side timestamps for createdAt and updatedAt
@@ -952,30 +952,26 @@ class FirestoreServices {
     }
   }
 
-  /// Fetches a single venue by its ID.
+  /// Fetches a single venue by its venueID field.
   ///
   /// Parameters:
-  /// - [venueId]: The ID of the venue to fetch
+  /// - [venueId]: The venueID field value to search for
   ///
   /// Returns the [Venue] object if found.
   /// Throws [FirebaseException] if the fetch operation fails.
   /// Throws [Exception] if the venue is not found.
   Future<Venue> getVenueById(String venueId) async {
     try {
-      final docSnapshot = await retryFirestore(
-        () => venuesRef.doc(venueId).get(),
-        operationName: 'Fetching venue by ID',
+      final querySnapshot = await retryFirestore(
+        () => venuesRef.where('venueID', isEqualTo: venueId).limit(1).get(),
+        operationName: 'Fetching venue by venueID field',
       );
 
-      if (!docSnapshot.exists) {
-        throw Exception('Venue not found with ID: $venueId');
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Venue not found with venueID: $venueId');
       }
 
-      final venue = docSnapshot.data();
-      if (venue == null) {
-        throw Exception('Venue data is null for ID: $venueId');
-      }
-
+      final venue = querySnapshot.docs.first.data();
       print('Venue fetched successfully: $venueId');
       return venue;
     } on FirebaseException catch (e) {
@@ -991,9 +987,9 @@ class FirestoreServices {
     final uuid = Uuid();
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
-  await menuItemsRef.add(item.toFirestoreCreate());
+    await menuItemsRef.add(item.toFirestoreCreate());
 
-  return item;
+    return item;
   }
 
   Future<List<MenuItem>> getAllMenus(String organisationId) async {

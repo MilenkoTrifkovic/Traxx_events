@@ -1076,8 +1076,8 @@ class AdminEventDetailsController {
   /// @param photoPathsToRemove List of storage paths for photos to remove
   Future<void> updateEventVenueAndPhotos({
     required String venueId,
-    List<String> photoPathsToAdd = const [],
-    List<String> photoPathsToRemove = const [],
+    // List<String> photoPathsToAdd = const [],
+    // List<String> photoPathsToRemove = const [],
   }) async {
     if (_eventDocId.isEmpty) {
       debugPrint('updateEventVenueAndPhotos: event document id not available');
@@ -1098,21 +1098,11 @@ class AdminEventDetailsController {
       // 3. Reload venue to update UI
       await _loadVenue(venueId);
 
-      // 4. Update venue photos if there are changes
-      if (photoPathsToAdd.isNotEmpty || photoPathsToRemove.isNotEmpty) {
-        await _updateVenuePhotos(
-          venueId: venueId,
-          photoPathsToAdd: photoPathsToAdd,
-          photoPathsToRemove: photoPathsToRemove,
-        );
-      }
 
-      // 5. Write audit log
+      // 4. Write audit log
       await _writeResponseAudit({
         'type': 'venue_updated',
         'venueId': venueId,
-        'photosAdded': photoPathsToAdd.length,
-        'photosRemoved': photoPathsToRemove.length,
       });
     } catch (e, st) {
       debugPrint('updateEventVenueAndPhotos error: $e\n$st');
@@ -1120,42 +1110,4 @@ class AdminEventDetailsController {
     }
   }
 
-  /// Internal method to update venue photos in Firestore
-  Future<void> _updateVenuePhotos({
-    required String venueId,
-    required List<String> photoPathsToAdd,
-    required List<String> photoPathsToRemove,
-  }) async {
-    try {
-      // Get current venue from Firestore
-      final currentVenue = await firestore.getVenueById(venueId);
-      
-      // Get current photoPaths list
-      List<String> currentPhotoPaths = List<String>.from(currentVenue.photoPaths ?? []);
-
-      // Remove photos
-      for (final pathToRemove in photoPathsToRemove) {
-        currentPhotoPaths.removeWhere((p) => p == pathToRemove);
-      }
-
-      // Add new photos
-      currentPhotoPaths.addAll(photoPathsToAdd);
-
-      // Update venue in Firestore
-      final updatedVenue = currentVenue.copyWith(
-        photoPaths: currentPhotoPaths.isEmpty ? null : currentPhotoPaths,
-      );
-
-      await firestore.updateVenue(updatedVenue);
-
-      // Update venue controller's local cache
-      await _venuesController.updateVenue(updatedVenue);
-
-      // Reload venue to update UI with new photos
-      await _loadVenue(venueId);
-    } catch (e, st) {
-      debugPrint('_updateVenuePhotos error: $e\n$st');
-      rethrow;
-    }
-  }
 }

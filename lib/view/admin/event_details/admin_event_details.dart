@@ -259,16 +259,16 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            EventDetailsHeader(
-              title: evt.name,
-              status: evt.status,
-              date: dateStr,
-              time: timeStr,
-              location: organisation?.city ?? '',
-              serviceType: evt.serviceType,
-              venue: venue?.name ?? '',
-            ),
-            const SizedBox(height: 24),
+            // EventDetailsHeader(
+            //   title: evt.name,
+            //   status: evt.status,
+            //   date: dateStr,
+            //   time: timeStr,
+            //   location: organisation?.city ?? '',
+            //   serviceType: evt.serviceType,
+            //   venue: venue?.name ?? '',
+            // ),
+            // const SizedBox(height: 24),
 
             /// Event details section
             EventSummarySection(controller: controller),
@@ -830,8 +830,6 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                       // Just update the event's venueId, no photo changes
                       await widget.controller.updateEventVenueAndPhotos(
                         venueId: _selectedVenueId!,
-                        photoPathsToAdd: [], // Photos handled by VenuePhotoManager
-                        photoPathsToRemove: [], // Photos handled by VenuePhotoManager
                       );
                     }
 
