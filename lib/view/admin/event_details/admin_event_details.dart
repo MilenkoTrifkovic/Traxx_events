@@ -8,8 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
-import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/add_guest_popup.dart'
-    show AddGuestPopup;
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
@@ -18,11 +16,11 @@ import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/enums/genders.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
 
 class AdminEventDetails extends StatefulWidget {
@@ -482,7 +480,7 @@ class EventSummarySection extends StatelessWidget {
                 ),
                 _pill(
                   icon: Icons.location_city,
-                  label: venue?.name ?? 'Venue not set',
+                  label: venue?.name.capitalize ?? 'Venue not set',
                 ),
                 _pill(
                   icon: Icons.restaurant,
@@ -544,6 +542,9 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   late String _serviceType;
   bool _saving = false;
 
+  // Venue selection - tracked by child widget
+  String? _selectedVenueId;
+
   @override
   void initState() {
     super.initState();
@@ -553,6 +554,8 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
         TextEditingController(text: widget.initialEvent.address ?? '');
     // ServiceType is enum; use its name to bind to Dropdown
     _serviceType = widget.initialEvent.serviceType.name;
+    // Initialize selected venue
+    _selectedVenueId = widget.initialEvent.venueId;
   }
 
   @override
@@ -567,42 +570,56 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
     return AlertDialog(
       title: const Text('Edit event details'),
       content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Event name',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _locationCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Location (address)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _serviceType,
-              decoration: const InputDecoration(
-                labelText: 'Service type',
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'buffet',
-                  child: Text('Buffet'),
+        width: 600,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Event name',
                 ),
-                DropdownMenuItem(
-                  value: 'plated',
-                  child: Text('Plated'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _locationCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Location (address)',
                 ),
-              ],
-              onChanged: (v) => setState(() => _serviceType = v ?? 'buffet'),
-            ),
-          ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _serviceType,
+                decoration: const InputDecoration(
+                  labelText: 'Service type',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'buffet',
+                    child: Text('Buffet'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'plated',
+                    child: Text('Plated'),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _serviceType = v ?? 'buffet'),
+              ),
+              const SizedBox(height: 12),
+              // Venue Selection and Photo Management
+              // Note: Photo add/remove happens immediately, independent of save button
+              VenuePhotoManager(
+                initialVenueId: _selectedVenueId,
+                onVenueSelected: (venueId) {
+                  setState(() {
+                    _selectedVenueId = venueId;
+                  });
+                },
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -626,6 +643,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
 
                   setState(() => _saving = true);
                   try {
+                    // Update event core details
                     await widget.controller.updateEventCoreDetails(
                       name: name,
                       serviceType: _serviceType,
@@ -633,7 +651,29 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                           ? null
                           : _locationCtrl.text.trim(),
                     );
+
+                    // Update venue if it changed
+                    // Note: Photos are managed independently and immediately by VenuePhotoManager
+                    if (_selectedVenueId != null &&
+                        _selectedVenueId != widget.initialEvent.venueId) {
+                      // Just update the event's venueId, no photo changes
+                      await widget.controller.updateEventVenueAndPhotos(
+                        venueId: _selectedVenueId!,
+                        photoPathsToAdd: [], // Photos handled by VenuePhotoManager
+                        photoPathsToRemove: [], // Photos handled by VenuePhotoManager
+                      );
+                    }
+
                     if (mounted) Navigator.of(context).pop();
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to save changes: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   } finally {
                     if (mounted) setState(() => _saving = false);
                   }
