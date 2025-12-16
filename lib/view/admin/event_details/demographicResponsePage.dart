@@ -4,13 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 // ✅ Same palette used in HostQuestionsScreen
 const Color kAccent = Color(0xFF6C4BFF);
-const Color kAccentLight = Color(0xFFA18CFF);
 const Color kBorder = Color(0xFFE5E5E5);
 const Color kTextDark = Color(0xFF1A1A1A);
 const Color kTextBody = Color(0xFF333333);
 const Color kGfPurple = Color(0xFF673AB7);
 const Color _gfBackground = Color(0xFFF4F0FB);
-const Color _gfPurple = Color(0xFF673AB7);
 
 class DemographicResponsePage extends StatefulWidget {
   final String invitationId;
@@ -51,6 +49,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   final Map<String, TextEditingController> _textCtrls = {}; // short/paragraph
 
   late final TextEditingController _invitationIdCtrl;
+  final ScrollController _listCtrl = ScrollController();
 
   @override
   void initState() {
@@ -70,6 +69,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void dispose() {
     _invitationIdCtrl.dispose();
+    _listCtrl.dispose();
     for (final c in _freeTextCtrls.values) {
       c.dispose();
     }
@@ -111,7 +111,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
       _invitation = invDoc.data();
 
-      // Token validation (web)
+      // Token validation (web links)
       final uri = Uri.base;
       final tokenFromLink = uri.queryParameters['token'];
       final tokenInInvite = _invitation?['token'];
@@ -395,7 +395,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // optional (may fail based on rules)
       try {
         await _db.collection('invitations').doc(_activeInvitationId).update({
           'used': true,
@@ -417,9 +416,13 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: Text('OK',
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600, color: kGfPurple)),
+              child: Text(
+                'OK',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: kGfPurple,
+                ),
+              ),
             ),
           ],
         ),
@@ -465,102 +468,135 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
   @override
   Widget build(BuildContext context) {
-    final title =
-        (_questionSet?['title'] ?? 'Demographic Questions').toString();
+    // ✅ Big top heading like other host pages
+    const pageTitle = 'Demographic Questions';
+
+    final title = (_questionSet?['title'] ?? pageTitle).toString();
     final description = (_questionSet?['description'] ?? '').toString();
 
-    final content = DefaultTextStyle(
-      style: GoogleFonts.poppins(),
-      child: Stack(
-        children: [
-          const Positioned.fill(child: ColoredBox(color: _gfBackground)),
-          Align(
-            alignment: Alignment.topCenter,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (widget.showInvitationInput) ...[
-                        _InvitationLoaderCard(
-                          controller: _invitationIdCtrl,
-                          loading: _loading || _submitting,
-                          onLoad: () {
-                            final id = _invitationIdCtrl.text.trim();
-                            if (id.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  backgroundColor: Colors.black87,
-                                  content: Text(
-                                    'Please paste invitationId',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+    final content = LayoutBuilder(
+      builder: (ctx, constraints) {
+        final viewportH = MediaQuery.of(ctx).size.height;
+        final boundedH = constraints.hasBoundedHeight;
+        final maxH = boundedH ? constraints.maxHeight : viewportH;
+
+        // Header area height approx (title + cards). We keep a safe scroll height.
+        final scrollH = (maxH - 280).clamp(260.0, 800.0);
+
+        return SizedBox(
+          width: double.infinity,
+          height: boundedH ? maxH : null,
+          child: Stack(
+            children: [
+              const Positioned.fill(child: ColoredBox(color: _gfBackground)),
+              Align(
+                alignment: Alignment.topCenter,
+                child: SingleChildScrollView(
+                  // ✅ only this outer scroll is for small screens;
+                  // the questions list still scrolls independently.
+                  physics: const ClampingScrollPhysics(),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1040),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // ✅ BIG BLACK HEADING (matches your other host page)
+                            Text(
+                              pageTitle,
+                              style: GoogleFonts.poppins(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            if (widget.showInvitationInput) ...[
+                              _InvitationLoaderCard(
+                                controller: _invitationIdCtrl,
+                                loading: _loading || _submitting,
+                                onLoad: () {
+                                  final id = _invitationIdCtrl.text.trim();
+                                  if (id.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        backgroundColor: Colors.black87,
+                                        content: Text(
+                                          'Please paste invitationId',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  _loadForInvitation(id);
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            _HeaderWithAction(
+                              title: title,
+                              description: description,
+                              actionLabel: 'Finish',
+                              actionEnabled: !_loading &&
+                                  !_submitting &&
+                                  _invitation != null &&
+                                  _questions.isNotEmpty,
+                              onAction: _submit,
+                            ),
+
+                            const SizedBox(height: 14),
+                            Center(
+                              child: Text(
+                                'Click on a question to answer',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey,
                                 ),
-                              );
-                              return;
-                            }
-                            _loadForInvitation(id);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
 
-                      _HeaderWithAction(
-                        title: title,
-                        description: description,
-                        actionLabel: 'Finish',
-                        actionEnabled: !_loading &&
-                            !_submitting &&
-                            _invitation != null &&
-                            _questions.isNotEmpty,
-                        onAction: _submit,
-                      ),
+                            // ✅ ONLY THIS AREA SCROLLS (like HostQuestionsScreen)
+                            SizedBox(
+                              height: scrollH,
+                              child: _buildScrollableBody(),
+                            ),
 
-                      const SizedBox(height: 16),
-                      Center(
-                        child: Text(
-                          'Click on a question to answer',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey,
-                          ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // ✅ IMPORTANT: NO Expanded here (fixes grey screen)
-                      _buildBodyList(),
-
-                      const SizedBox(height: 40),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (_submitting)
+                Positioned.fill(
+                  child: Container(
+                    color: _gfBackground.withOpacity(0.35),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: kGfPurple,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          if (_submitting)
-            Positioned.fill(
-              child: Container(
-                color: _gfBackground.withOpacity(0.35),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: _gfPurple,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
 
     if (widget.embedded) return content;
@@ -571,84 +607,75 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     );
   }
 
-  Widget _buildBodyList() {
+  Widget _buildScrollableBody() {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: kGfPurple,
-          ),
+      return const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 3,
+          color: kGfPurple,
         ),
       );
     }
 
     if (_invitation == null && _activeInvitationId.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: _InfoCard(
-          icon: Icons.info_outline_rounded,
-          iconColor: kGfPurple,
-          title: 'Waiting for invitation',
-          message: 'Paste an invitationId above and click Load.',
-        ),
+      return const _InfoCard(
+        icon: Icons.info_outline_rounded,
+        iconColor: kGfPurple,
+        title: 'Waiting for invitation',
+        message: 'Paste an invitationId above and click Load.',
       );
     }
 
     if (_invitation == null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: _InfoCard(
-          icon: Icons.error_outline_rounded,
-          iconColor: Colors.red.shade600,
-          title: 'Invalid or expired invitation',
-          message: 'Please check your link and try again.',
-        ),
+      return _InfoCard(
+        icon: Icons.error_outline_rounded,
+        iconColor: Colors.red.shade600,
+        title: 'Invalid or expired invitation',
+        message: 'Please check your link and try again.',
       );
     }
 
     if (_questions.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: _InfoCard(
-          icon: Icons.help_outline_rounded,
-          iconColor: kGfPurple,
-          title: 'No questions in this set',
-          message: 'There are no demographic questions to answer.',
-        ),
+      return const _InfoCard(
+        icon: Icons.help_outline_rounded,
+        iconColor: kGfPurple,
+        title: 'No questions in this set',
+        message: 'There are no demographic questions to answer.',
       );
     }
 
-    // ✅ shrinkWrap list (like HostQuestionsScreen) — no flex, no overflow error
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: _questions.length,
-      itemBuilder: (_, idx) {
-        final q = _questions[idx];
-        final isActive = q.id == _activeQuestionId;
+    return Scrollbar(
+      controller: _listCtrl,
+      thumbVisibility: true,
+      child: ListView.builder(
+        controller: _listCtrl,
+        padding: EdgeInsets.zero,
+        itemCount: _questions.length,
+        itemBuilder: (_, idx) {
+          final q = _questions[idx];
+          final isActive = q.id == _activeQuestionId;
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _GuestGoogleFormsQuestionCard(
-            question: q,
-            isActive: isActive,
-            answer: _answers[q.id],
-            textController: _textCtrls[q.id],
-            freeTextCtrls: _freeTextCtrls,
-            onTap: () => _setActiveQuestion(q.id),
-            onAnswerChanged: (value) => setState(() => _answers[q.id] = value),
-          ),
-        );
-      },
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _GuestGoogleFormsQuestionCard(
+              question: q,
+              isActive: isActive,
+              answer: _answers[q.id],
+              textController: _textCtrls[q.id],
+              freeTextCtrls: _freeTextCtrls,
+              onTap: () => _setActiveQuestion(q.id),
+              onAnswerChanged: (value) =>
+                  setState(() => _answers[q.id] = value),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 // -----------------------------------------------------------------------------
-// Header + Finish button (same look as HostQuestionsScreen)
+// Header + Finish button
 // -----------------------------------------------------------------------------
 
 class _HeaderWithAction extends StatelessWidget {
@@ -703,7 +730,7 @@ class _HeaderWithAction extends StatelessWidget {
                       Text(
                         safeTitle,
                         style: GoogleFonts.poppins(
-                          fontSize: 28,
+                          fontSize: 26,
                           fontWeight: FontWeight.w600,
                           color: kTextDark,
                         ),
@@ -892,7 +919,7 @@ class _GuestOption {
 }
 
 // -----------------------------------------------------------------------------
-// Info card (empty/error states)
+// Info card
 // -----------------------------------------------------------------------------
 
 class _InfoCard extends StatelessWidget {
@@ -948,7 +975,7 @@ class _InfoCard extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Question card (same style as HostQuestionsScreen card)
+// Question card
 // -----------------------------------------------------------------------------
 
 class _GuestGoogleFormsQuestionCard extends StatelessWidget {
