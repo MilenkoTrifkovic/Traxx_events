@@ -27,31 +27,32 @@ class VenuesController extends GetxController {
   Future<List<Venue>> _withPhotoUrls(List<Venue> venueList) async {
     return Future.wait(venueList.map((v) async {
       String? singlePhotoUrl = v.photoUrl;
-      List<String>? multiplePhotoUrls = v.photoUrls;
+      Map<String, String>? photoPathToUrlMap = v.photoPathToUrlMap;
 
       // Load single photoUrl if not already set
       if (singlePhotoUrl == null && v.photoPath != null) {
         singlePhotoUrl = await _storageServices.loadImageURL(v.photoPath);
       }
 
-      // Load multiple photoUrls if photoPaths exist and photoUrls not set
-      if (multiplePhotoUrls == null &&
+      // Load multiple photoUrls if photoPaths exist and map not set
+      if (photoPathToUrlMap == null &&
           v.photoPaths != null &&
           v.photoPaths!.isNotEmpty) {
-        multiplePhotoUrls = [];
+        photoPathToUrlMap = {};
         for (final path in v.photoPaths!) {
           final url = await _storageServices.loadImageURL(path);
           if (url != null) {
-            multiplePhotoUrls.add(url);
+            photoPathToUrlMap[path] = url;
           }
         }
       }
 
       // Return updated venue only if we actually fetched something new
-      if (singlePhotoUrl != v.photoUrl || multiplePhotoUrls != v.photoUrls) {
+      if (singlePhotoUrl != v.photoUrl ||
+          photoPathToUrlMap != v.photoPathToUrlMap) {
         return v.copyWith(
           photoUrl: singlePhotoUrl,
-          photoUrls: multiplePhotoUrls,
+          photoPathToUrlMap: photoPathToUrlMap,
         );
       }
 
@@ -140,7 +141,7 @@ class VenuesController extends GetxController {
 
   Future<Venue> updateVenue(Venue updatedVenue) async {
     try {
-    print('Updating venue in local list: ${updatedVenue.venueID}');
+      print('Updating venue in local list: ${updatedVenue.venueID}');
       // Find the index of the existing venue
       final index =
           venues.indexWhere((venue) => venue.venueID == updatedVenue.venueID);
@@ -154,7 +155,7 @@ class VenuesController extends GetxController {
       // Load photo URLs if needed
       Venue venueToUpdate = updatedVenue;
       String? singlePhotoUrl = updatedVenue.photoUrl;
-      List<String>? multiplePhotoUrls = updatedVenue.photoUrls;
+      Map<String, String>? photoPathToUrlMap = updatedVenue.photoPathToUrlMap;
 
       // Load single photoUrl if not already set
       if (updatedVenue.photoPath != null && singlePhotoUrl == null) {
@@ -163,27 +164,27 @@ class VenuesController extends GetxController {
             await _storageServices.loadImageURL(updatedVenue.photoPath!);
       }
 
-      // Load multiple photoUrls if photoPaths exist and photoUrls not set
+      // Load multiple photoUrls if photoPaths exist and map not set
       if (updatedVenue.photoPaths != null &&
           updatedVenue.photoPaths!.isNotEmpty &&
-          multiplePhotoUrls == null) {
+          photoPathToUrlMap == null) {
         print(
             'Loading multiple photo URLs for venue ID: ${updatedVenue.venueID}');
-        multiplePhotoUrls = [];
+        photoPathToUrlMap = {};
         for (final path in updatedVenue.photoPaths!) {
           final url = await _storageServices.loadImageURL(path);
           if (url != null) {
-            multiplePhotoUrls.add(url);
+            photoPathToUrlMap[path] = url;
           }
         }
       }
 
       // Update venue with loaded URLs
       if (singlePhotoUrl != updatedVenue.photoUrl ||
-          multiplePhotoUrls != updatedVenue.photoUrls) {
+          photoPathToUrlMap != updatedVenue.photoPathToUrlMap) {
         venueToUpdate = updatedVenue.copyWith(
           photoUrl: singlePhotoUrl,
-          photoUrls: multiplePhotoUrls,
+          photoPathToUrlMap: photoPathToUrlMap,
         );
       }
 
@@ -192,7 +193,7 @@ class VenuesController extends GetxController {
 
       // Optional: Force UI update by reassigning the list
       // venues.value = List.from(venues);
-print('venue updated successfully');
+      print('venue updated successfully');
       return venueToUpdate;
     } catch (e) {
       print('Failed to update venue in local list: $e');

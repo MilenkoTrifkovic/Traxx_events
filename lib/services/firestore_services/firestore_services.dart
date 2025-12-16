@@ -782,20 +782,16 @@ class FirestoreServices {
 
   Future<Venue> getVenueById(String venueId) async {
     try {
-      final docSnapshot = await retryFirestore(
-        () => venuesRef.doc(venueId).get(),
-        operationName: 'Fetching venue by ID',
+      final querySnapshot = await retryFirestore(
+        () => venuesRef.where('venueID', isEqualTo: venueId).limit(1).get(),
+        operationName: 'Fetching venue by venueID field',
       );
 
-      if (!docSnapshot.exists) {
-        throw Exception('Venue not found with ID: $venueId');
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('Venue not found with venueID: $venueId');
       }
 
-      final venue = docSnapshot.data();
-      if (venue == null) {
-        throw Exception('Venue data is null for ID: $venueId');
-      }
-
+      final venue = querySnapshot.docs.first.data();
       print('Venue fetched successfully: $venueId');
       return venue;
     } on FirebaseException catch (e) {
