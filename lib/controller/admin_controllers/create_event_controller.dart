@@ -54,7 +54,8 @@ class CreateEventController extends GetxController {
   final Rx<SnackBarMessage?> snackBarMessage = Rx<SnackBarMessage?>(null);
 
   // Global snackbar helper
-  final SnackbarMessageController snackbar = Get.find<SnackbarMessageController>();
+  final SnackbarMessageController snackbar =
+      Get.find<SnackbarMessageController>();
 
   // Navigation state
   final RxBool shouldPop = false.obs;
@@ -356,9 +357,10 @@ class CreateEventController extends GetxController {
 
       // Save to Firebase and get saved event (with eventId)
       final savedEvent = await _firestoreServices.saveEvent(event);
+      print('Saved event: ${savedEvent.toString()}');
 
-  // Success feedback (global snackbar)
-  snackbar.showSuccessMessage('Event created successfully!');
+      // Success feedback (global snackbar)
+      snackbar.showSuccessMessage('Event created successfully!');
 
       // Signal UI to navigate back
       eventListController.addCreatedEventToList(savedEvent);

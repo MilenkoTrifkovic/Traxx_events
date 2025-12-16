@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
+import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/add_guest_popup.dart'
     show AddGuestPopup;
 import 'package:traxx_wepapp/models/event.dart';
@@ -122,6 +123,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
             const SizedBox(height: 24),
 
             /// Guest list section (keep Milenko’s logic, but inside a card)
+            /// Guest list section class returned to Original Folder from line 1905-2080
             GuestListSection(),
           ],
         ),
@@ -854,6 +856,7 @@ class MenuSelectionCard extends StatelessWidget {
         : (price is num
             ? price.toDouble()
             : double.tryParse(price.toString()) ?? 0.0);
+    final double p = (price == null) ? 0.0 : price.toDouble();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2165,271 +2168,5 @@ class DemographicSelectionCard extends StatelessWidget {
         ),
       );
     });
-  }
-}
-
-class GuestListSection extends StatelessWidget {
-  const GuestListSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final AdminGuestListController controller =
-        Get.find<AdminGuestListController>();
-
-    final EventController eventController = Get.find<EventController>();
-    final CloudFunctionsService cloudFunctions =
-        Get.find<CloudFunctionsService>();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ---------------------------
-          // HEADER
-          // ---------------------------
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Guest list',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-
-              // ADD GUEST BUTTON
-              AppPrimaryButton(
-                onPressed: () {
-                  controller.clearForm();
-                  showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (ctx) => AddGuestPopup(controller: controller),
-                  ).then((added) {
-                    if (added == true) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Guest added')),
-                      );
-                    }
-                    controller.clearForm();
-                  });
-                },
-                text: '+ Add Guest',
-              ),
-
-              const SizedBox(width: 12),
-
-              // SEND INVITATION BUTTON
-              ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: 0,
-                  maxWidth: 200, // prevents infinite width
-                ),
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.send, size: 18),
-                  label: Text(
-                    'Send invitation',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                  ),
-                  onPressed: () async {
-                    final event = eventController.selectedEvent.value;
-                    if (event == null || event.eventId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Select an event first')),
-                      );
-                      return;
-                    }
-
-                    final guests = controller.filteredGuests;
-                    if (guests.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No guests to invite')),
-                      );
-                      return;
-                    }
-
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Send invitations'),
-                        content: Text(
-                            'Send invitations to ${guests.length} guest(s)?'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(false),
-                              child: const Text('Cancel')),
-                          ElevatedButton(
-                              onPressed: () => Navigator.of(ctx).pop(true),
-                              child: const Text('Send')),
-                        ],
-                      ),
-                    );
-                    if (confirm != true) return;
-
-                    // show loader
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      useRootNavigator: true,
-                      builder: (_) =>
-                          const Center(child: CircularProgressIndicator()),
-                    );
-
-                    try {
-                      final result = await cloudFunctions
-                          .sendInvitationsForEvent(event, guests: guests);
-
-                      // close loader
-                      if (Navigator.of(context, rootNavigator: true).canPop()) {
-                        Navigator.of(context, rootNavigator: true).pop();
-                      }
-
-                      final invitedCount = result['invited'] ?? guests.length;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(
-                                'Invitations sent to $invitedCount guest(s)')),
-                      );
-                    } on FirebaseFunctionsException catch (fe) {
-                      if (Navigator.of(context, rootNavigator: true).canPop()) {
-                        Navigator.of(context, rootNavigator: true).pop();
-                      }
-                      final msg =
-                          fe.message ?? 'Cloud function error: ${fe.code}';
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(SnackBar(content: Text(msg)));
-                    } catch (e) {
-                      if (Navigator.of(context, rootNavigator: true).canPop()) {
-                        Navigator.of(context, rootNavigator: true).pop();
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('Error sending invitations: $e')));
-                    }
-                  },
-                ),
-              )
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // ---------------------------
-          // TABLE BODY
-          // ---------------------------
-          Obx(() {
-            if (!controller.isInitialized.value) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24.0),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            final list = controller.filteredGuests;
-            if (list.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24.0),
-                child: Text(
-                  'No guests yet. Click "Add Guest" to create one.',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              );
-            }
-
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
-                dividerThickness: 1,
-                columns: const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('City')),
-                  DataColumn(label: Text('Country')),
-                  DataColumn(label: Text('Gender')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: list.map((guest) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(guest.name)),
-                      DataCell(Text(guest.email ?? '—')),
-                      DataCell(Text(guest.city ?? '—')),
-                      DataCell(Text(guest.country ?? '—')),
-                      DataCell(Text(
-                        guest.gender?.name ?? '—',
-                      )),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, size: 18),
-                              onPressed: () {
-                                controller.updateAllFields(guest);
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => AddGuestPopup(
-                                    controller: controller,
-                                    isEditMode: true,
-                                  ),
-                                ).then((_) => controller.clearForm());
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete,
-                                  size: 18, color: Colors.redAccent),
-                              onPressed: () async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete guest?'),
-                                    content: Text('Delete "${guest.name}"?'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(true),
-                                        child: const Text('Delete'),
-                                      )
-                                    ],
-                                  ),
-                                );
-                                if (ok == true && guest.guestId != null) {
-                                  await controller.deleteGuest(guest.guestId!);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            );
-          }),
-        ],
-      ),
-    );
   }
 }
