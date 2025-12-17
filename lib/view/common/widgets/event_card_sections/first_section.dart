@@ -26,7 +26,9 @@ class FirstSection extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.red,
+                color: event.coverImageDownloadUrl != null
+                    ? AppColors.textMuted
+                    : Colors.red,
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -34,16 +36,16 @@ class FirstSection extends StatelessWidget {
             child: ClipRRect(
               borderRadius:
                   BorderRadius.circular(6), // 8 - 2 (border width) = 6
-              child: event.coverImageDownloadUrl == null
-                  ? _buildPlaceholder(context)
-                  // ? Image.network(
-                  //     event.coverImageDownloadUrl!,
-                  //     width: 44, // 48 - 4 (border width on both sides)
-                  //     height: 44,
-                  //     fit: BoxFit.cover,
-                  //     errorBuilder: (context, error, stackTrace) =>
-                  //         _buildPlaceholder(context),
-                  // )
+              child: event.coverImageDownloadUrl != null
+                  // ? _buildPlaceholder(context)
+                  ? Image.network(
+                      event.coverImageDownloadUrl!,
+                      width: 44, // 48 - 4 (border width on both sides)
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildPlaceholder(context),
+                    )
                   : _buildPlaceholder(context),
             ),
           ),
