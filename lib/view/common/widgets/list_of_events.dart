@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/user_type.dart';
@@ -26,8 +27,14 @@ class ListOfEvents extends StatelessWidget {
     AuthController authController = Get.find<AuthController>();
     final EventListController controller = Get.find<EventListController>();
     final EventController eventController = Get.find<EventController>();
+    final VenuesController _venuesController = Get.find<VenuesController>();
 
     return Obx(() {
+      // Show loading indicator while venues or events are loading
+      if (_venuesController.isLoading.value || controller.isLoading.value) {
+        return Center(child: CircularProgressIndicator());
+      }
+
       if (controller.filteredEvents.isEmpty && controller.events.isEmpty) {
         return SizedBox(
           height: MediaQuery.of(context).size.height -
@@ -56,9 +63,18 @@ class ListOfEvents extends StatelessWidget {
         itemCount: controller.filteredEvents.length,
         itemBuilder: (context, index) {
           final event = controller.filteredEvents[index];
+          final venue = _venuesController.getVenueById(event.venueId);
+          
+          // Skip rendering if venue is not found
+          if (venue == null) {
+            print('Warning: Venue not found for event ${event.eventId} with venueId ${event.venueId}');
+            return SizedBox.shrink();
+          }
+          
           return Padding(
             padding: AppPadding.bottom(context, paddingType: Sizes.xxs),
             child: EventCard(
+              venue: venue,
               event: event,
               onTap: () {
                 controller.selectedEvent.value = event;

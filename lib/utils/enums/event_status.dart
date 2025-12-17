@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Enum representing the possible states of an event
 enum EventStatus {
   /// Event is saved but not published yet
@@ -26,6 +28,20 @@ extension EventStatusExtension on EventStatus {
         return 'Upcoming';
       case EventStatus.completed:
         return 'Completed';
+    }
+  }
+
+  /// Get the color associated with this status
+  Color get color {
+    switch (this) {
+      case EventStatus.draft:
+        return Colors.grey;
+      case EventStatus.live:
+        return Colors.green;
+      case EventStatus.upcoming:
+        return Colors.blue;
+      case EventStatus.completed:
+        return Colors.orange;
     }
   }
 

@@ -82,6 +82,8 @@ class VenuesController extends GetxController {
   }
 
   Venue? getVenueById(String venueId) {
+    print('Searching for venue with ID: $venueId');
+    print('All venue IDs: ${venues.map((v) => v.venueID).toList()}');
     try {
       return venues.firstWhere((venue) => venue.venueID == venueId);
     } catch (e) {

@@ -49,32 +49,34 @@ class FirstSection extends StatelessWidget {
                   : _buildPlaceholder(context),
             ),
           ),
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppText.styledBodyLarge(
-                  context,
-                  event.name,
-                  weight: FontWeight.bold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // AppSpacing.horizontalXxs(context),
-                AppText.styledBodyMedium(
-                  context,
-                  color: AppColors.textMuted,
-                  'Placeholder',
-                  weight: AppFontWeight.semiBold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                //status
-                // AppText.styledBodySmall(
-                //     context, event.status.toLowerCase())
-              ],
+          Expanded(
+            child: Padding(
+              padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppText.styledBodyLarge(
+                    context,
+                    event.name,
+                    weight: FontWeight.bold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // AppSpacing.horizontalXxs(context),
+                  AppText.styledBodyMedium(
+                    context,
+                    color: AppColors.textMuted,
+                    'Placeholder',
+                    weight: AppFontWeight.semiBold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  //status
+                  // AppText.styledBodySmall(
+                  //     context, event.status.toLowerCase())
+                ],
+              ),
             ),
           ),
         ],
