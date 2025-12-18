@@ -33,19 +33,21 @@ class NavigationRailWrapper extends StatelessWidget {
     int selectedIndex;
     if (location.startsWith(AppRoute.hostEvents.path)) {
       selectedIndex = 0;
-    } else if (location.startsWith(AppRoute.hostVenues.path)) {
+    } else if (location.startsWith(AppRoute.calendarView.path)) {
       selectedIndex = 1;
-    } else if (location.startsWith(AppRoute.hostMenus.path)) {
+    } else if (location.startsWith(AppRoute.hostVenues.path)) {
       selectedIndex = 2;
+    } else if (location.startsWith(AppRoute.hostMenus.path)) {
+      selectedIndex = 3;
     } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path)) {
-      selectedIndex = 3;
+      selectedIndex = 4;
     } else if (location.startsWith(AppRoute.hostDemographics.path)) {
-      selectedIndex = 4; // ✅ NEW
+      selectedIndex = 5;
     } else if (location.startsWith(AppRoute.hostRoleSelection.path)) {
-      selectedIndex = 5; // shifted
+      selectedIndex = 6;
     } else if (location.startsWith(AppRoute.hostSettings.path)) {
-      selectedIndex = 6; // shifted
+      selectedIndex = 7;
     } else {
       selectedIndex = 0;
     }
@@ -89,25 +91,25 @@ class NavigationRailWrapper extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) async {
               // Map indices to routes:
-              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions, 4 -> Users, 5 -> Settings, 6 -> Logout
-              // 0 -> Events, 1 -> Venues, 2 -> Menus, 3 -> Questions,
-// 4 -> Demographic Responses (dev), 5 -> Users, 6 -> Settings, 7 -> Logout
+              // 0 -> Events, 1 -> Calendar, 2 -> Venues, 3 -> Menus, 4 -> Questions,
+              // 5 -> Demographic Responses (dev), 6 -> Users, 7 -> Settings, 8 -> Logout
               if (index == 0) {
                 pushAndRemoveAllRoute(AppRoute.hostEvents, context);
               } else if (index == 1) {
-                pushAndRemoveAllRoute(AppRoute.hostVenues, context);
+                pushAndRemoveAllRoute(AppRoute.calendarView, context);
               } else if (index == 2) {
-                pushAndRemoveAllRoute(AppRoute.hostMenus, context);
+                pushAndRemoveAllRoute(AppRoute.hostVenues, context);
               } else if (index == 3) {
-                pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
+                pushAndRemoveAllRoute(AppRoute.hostMenus, context);
               } else if (index == 4) {
-                // ✅ NEW: go to your dev page that can show DemographicResponsePage
-                pushAndRemoveAllRoute(AppRoute.hostDemographics, context);
+                pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
               } else if (index == 5) {
-                pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
+                pushAndRemoveAllRoute(AppRoute.hostDemographics, context);
               } else if (index == 6) {
-                pushAndRemoveAllRoute(AppRoute.hostSettings, context);
+                pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
               } else if (index == 7) {
+                pushAndRemoveAllRoute(AppRoute.hostSettings, context);
+              } else if (index == 8) {
                 try {
                   await authController.logout();
                   if (context.mounted)
@@ -133,11 +135,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.location_on_outlined),
-                selectedIcon: const Icon(Icons.location_on),
+                icon: const Icon(Icons.calendar_month_outlined),
+                selectedIcon: const Icon(Icons.calendar_month),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Venues',
+                  'Calendar',
                   color: selectedIndex == 1
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -146,11 +148,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.restaurant_menu_outlined),
-                selectedIcon: const Icon(Icons.restaurant_menu),
+                icon: const Icon(Icons.location_on_outlined),
+                selectedIcon: const Icon(Icons.location_on),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Menus',
+                  'Venues',
                   color: selectedIndex == 2
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -159,11 +161,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.quiz_outlined),
-                selectedIcon: const Icon(Icons.quiz),
+                icon: const Icon(Icons.restaurant_menu_outlined),
+                selectedIcon: const Icon(Icons.restaurant_menu),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Questions',
+                  'Menus',
                   color: selectedIndex == 3
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -172,11 +174,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.assignment_outlined),
-                selectedIcon: const Icon(Icons.assignment),
+                icon: const Icon(Icons.quiz_outlined),
+                selectedIcon: const Icon(Icons.quiz),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Responses',
+                  'Questions',
                   color: selectedIndex == 4
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -185,11 +187,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.group_outlined),
-                selectedIcon: const Icon(Icons.group),
+                icon: const Icon(Icons.assignment_outlined),
+                selectedIcon: const Icon(Icons.assignment),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Users',
+                  'Responses',
                   color: selectedIndex == 5
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
@@ -198,16 +200,29 @@ class NavigationRailWrapper extends StatelessWidget {
                 ),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.settings_outlined),
-                selectedIcon: const Icon(Icons.settings),
+                icon: const Icon(Icons.group_outlined),
+                selectedIcon: const Icon(Icons.group),
                 label: AppText.styledBodyMedium(
                   context,
-                  'Settings',
+                  'Users',
                   color: selectedIndex == 6
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
                   weight:
                       selectedIndex == 6 ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings),
+                label: AppText.styledBodyMedium(
+                  context,
+                  'Settings',
+                  color: selectedIndex == 7
+                      ? AppColors.primaryOld(context)
+                      : AppColors.onPrimaryContainer(context),
+                  weight:
+                      selectedIndex == 7 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               NavigationRailDestination(
@@ -219,11 +234,11 @@ class NavigationRailWrapper extends StatelessWidget {
                 label: AppText.styledBodyMedium(
                   context,
                   'Logout',
-                  color: selectedIndex == 7
+                  color: selectedIndex == 8
                       ? AppColors.primaryOld(context)
                       : AppColors.onPrimaryContainer(context),
                   weight:
-                      selectedIndex == 7 ? FontWeight.bold : FontWeight.normal,
+                      selectedIndex == 8 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],

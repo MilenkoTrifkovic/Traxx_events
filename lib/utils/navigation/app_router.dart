@@ -11,6 +11,7 @@ import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_contr
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
+import 'package:traxx_wepapp/features/common/calendar_page/view/calendar_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
@@ -209,6 +210,10 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.hostEvents.path,
             builder: (context, state) => EventListScreen(),
+          ),
+          GoRoute(
+            path: AppRoute.calendarView.path,
+            builder: (context, state) => const CalendarPage(),
           ),
           GoRoute(
             path: AppRoute.hostMenus.path,

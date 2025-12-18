@@ -44,7 +44,8 @@ enum AppRoute {
 
   // Other
   aboutView('/about'),
-  contactView('/contact');
+  contactView('/contact'),
+  calendarView('/calendar');
 
   static AppRoute? fromPath(String path) {
     try {
