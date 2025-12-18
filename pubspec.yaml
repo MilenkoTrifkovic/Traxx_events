@@ -98,6 +98,8 @@ dependencies:
   image_picker_for_web: ^3.0.6
   geocoding: ^4.0.0
   retry: ^3.1.2
+  money2: ^6.0.9
+  table_calendar: ^3.2.0
   excel: ^4.0.6
   cloud_functions: ^5.6.2
   firebase_ui_auth: ^2.0.0

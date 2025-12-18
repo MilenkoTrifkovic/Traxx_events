@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
@@ -25,6 +26,10 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize date formatting for table_calendar locale support
+  await initializeDateFormatting();
+  
   tzdata.initializeTimeZones();
   setPathUrlStrategy();
   GoRouter.optionURLReflectsImperativeAPIs = true;

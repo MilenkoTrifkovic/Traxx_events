@@ -23,11 +23,15 @@ class StorageServices {
   }
 
   Future<Event> loadImage(Event event) async {
-    //should use loadImageURL instead...
     try {
-      String path = event.coverImageUrl ?? '';
+      String? path = event.coverImageUrl;
+      if (path == null || path.isEmpty) {
+        return event;
+      }
       final ref = FirebaseStorage.instance.ref().child(path);
       event.coverImageDownloadUrl = await ref.getDownloadURL();
+      print('image loaded for event ${event.eventId}');
+      print(' url: ${event.coverImageDownloadUrl}');
     } catch (e) {
       print('Image loading failed: $e');
     }

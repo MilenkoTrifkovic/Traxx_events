@@ -265,6 +265,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.11"
+  decimal:
+    dependency: transitive
+    description:
+      name: decimal
+      sha256: fc706a5618b81e5b367b01dd62621def37abc096f2b46a9bd9068b64c1fa36d0
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.4"
   desktop_webview_auth:
     dependency: transitive
     description:
@@ -625,6 +633,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.2"
+  fixed:
+    dependency: transitive
+    description:
+      name: fixed
+      sha256: "233bf345eefebd10ef382054060de4d60eab452455391b03ba8e2ff3fe45777f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.1"
   fixnum:
     dependency: transitive
     description:
@@ -1357,6 +1373,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  money2:
+    dependency: "direct main"
+    description:
+      name: money2
+      sha256: "1bb17f92cb9b740e671888998669bef95707565962383e7c183d351a00395505"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.9"
   multi_select_flutter:
     dependency: "direct main"
     description:
@@ -1533,6 +1557,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.5"
+  rational:
+    dependency: transitive
+    description:
+      name: rational
+      sha256: cb808fb6f1a839e6fc5f7d8cb3b0a10e1db48b3be102de73938c627f0b636336
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.3"
   readmore:
     dependency: "direct main"
     description:
@@ -1645,6 +1677,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.2.0"
+  simple_gesture_detector:
+    dependency: transitive
+    description:
+      name: simple_gesture_detector
+      sha256: ba2cd5af24ff20a0b8d609cec3f40e5b0744d2a71804a2616ae086b9c19d19a3
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.1"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -1746,6 +1786,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.1"
+  table_calendar:
+    dependency: "direct main"
+    description:
+      name: table_calendar
+      sha256: "0c0c6219878b363a2d5f40c7afb159d845f253d061dc3c822aa0d5fe0f721982"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
   term_glyph:
     dependency: transitive
     description:

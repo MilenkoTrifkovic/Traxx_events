@@ -34,6 +34,7 @@ class EventListController extends GetxController {
           await firestoreServices.getAllEvents(authController.organisationId!);
       eventsResult = await Future.wait(
           eventsResult.map((e) => storageServices.loadImage(e)));
+      //load urls before assigning to events
       events.assignAll(eventsResult);
     } catch (e) {
       print("Failed to fetch events: $e");

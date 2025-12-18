@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
+import 'package:traxx_wepapp/controller/common_controllers/list_of_events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/user_type.dart';
@@ -26,8 +28,15 @@ class ListOfEvents extends StatelessWidget {
     AuthController authController = Get.find<AuthController>();
     final EventListController controller = Get.find<EventListController>();
     final EventController eventController = Get.find<EventController>();
+    final VenuesController venuesController = Get.find<VenuesController>();
+    final ListOfEventsController paginationController = Get.put(ListOfEventsController());
 
     return Obx(() {
+      // Show loading indicator while venues or events are loading
+      if (venuesController.isLoading.value || controller.isLoading.value) {
+        return Center(child: CircularProgressIndicator());
+      }
+
       if (controller.filteredEvents.isEmpty && controller.events.isEmpty) {
         return SizedBox(
           height: MediaQuery.of(context).size.height -
@@ -50,31 +59,75 @@ class ListOfEvents extends StatelessWidget {
       if (controller.filteredEvents.isEmpty) {
         return Center(child: Text('No filtered events found'));
       }
-      return ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: controller.filteredEvents.length,
-        itemBuilder: (context, index) {
-          final event = controller.filteredEvents[index];
-          return Padding(
-            padding: AppPadding.bottom(context, paddingType: Sizes.xxs),
-            child: EventCard(
-              event: event,
-              onTap: () {
-                print(  'Event tapped: ${event.name} (ID: ${event.eventId})${event.toString()}');
-                controller.selectedEvent.value = event;
-                eventController.setSelectedEvent(event);
-                if (authController.userRole.value == UserRole.admin) {
-                  pushAndRemoveAllRoute(AppRoute.eventDetails, context,
-                      urlParam: event.eventId);
-                } else {
-                  pushRoute(AppRoute.guestEventDetails, context,
-                      urlParam: event.eventId, extra: event);
-                }
-              },
+
+      // Get paginated events from controller
+      final paginatedEvents = paginationController.getPaginatedEvents(controller.filteredEvents);
+      final totalPages = paginationController.getTotalPages(controller.filteredEvents);
+
+      return Column(
+        children: [
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: paginatedEvents.length,
+            itemBuilder: (context, index) {
+              final event = paginatedEvents[index];
+              final venue = venuesController.getVenueById(event.venueId);
+              
+              // Skip rendering if venue is not found
+              if (venue == null) {
+                print('Warning: Venue not found for event ${event.eventId} with venueId ${event.venueId}');
+                return SizedBox.shrink();
+              }
+              
+              return Padding(
+                padding: AppPadding.bottom(context, paddingType: Sizes.xxs),
+                child: EventCard(
+                  venue: venue,
+                  event: event,
+                  onTap: () {
+                    controller.selectedEvent.value = event;
+                    eventController.setSelectedEvent(event);
+                    if (authController.userRole.value == UserRole.admin) {
+                      pushAndRemoveAllRoute(AppRoute.eventDetails, context,
+                          urlParam: event.eventId);
+                    } else {
+                      pushRoute(AppRoute.guestEventDetails, context,
+                          urlParam: event.eventId, extra: event);
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          if (totalPages > 1)
+            Padding(
+              padding: AppPadding.all(context, paddingType: Sizes.md),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: paginationController.hasPreviousPage
+                        ? () => paginationController.previousPage()
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    paginationController.getPaginationText(controller.filteredEvents),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(width: 16),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: paginationController.hasNextPage(controller.filteredEvents)
+                        ? () => paginationController.nextPage(controller.filteredEvents)
+                        : null,
+                  ),
+                ],
+              ),
             ),
-          );
-        },
+        ],
       );
     });
   }

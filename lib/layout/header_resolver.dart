@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/admin_user_management_header.dart';
+import 'package:traxx_wepapp/layout/headers/calendar_header.dart';
 import 'package:traxx_wepapp/layout/headers/event_list_header.dart';
 import 'package:traxx_wepapp/layout/headers/host_event_details_header.dart';
 import 'package:traxx_wepapp/layout/headers/menus_management_header.dart';
@@ -18,6 +19,9 @@ Widget getPageHeader(GoRouterState state) {
   // if (state.matchedLocation == AppRoute.eventDetails.path) {
   if (state.matchedLocation.startsWith('/event-details/')) {
     return AppBarCustom(content: HostEventDetailsHeader());
+  }
+  if (state.matchedLocation == AppRoute.calendarView.path) {
+    return AppBarCustom(content: CalendarHeader());
   }
   if (state.matchedLocation == AppRoute.hostVenues.path) {
     return AppBarCustom(content: VenuesManagementHeader());

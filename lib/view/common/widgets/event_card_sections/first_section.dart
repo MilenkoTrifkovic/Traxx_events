@@ -26,7 +26,9 @@ class FirstSection extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.red,
+                color: event.coverImageDownloadUrl != null
+                    ? AppColors.textMuted
+                    : Colors.red,
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -34,45 +36,47 @@ class FirstSection extends StatelessWidget {
             child: ClipRRect(
               borderRadius:
                   BorderRadius.circular(6), // 8 - 2 (border width) = 6
-              child: event.coverImageDownloadUrl == null
-                  ? _buildPlaceholder(context)
-                  // ? Image.network(
-                  //     event.coverImageDownloadUrl!,
-                  //     width: 44, // 48 - 4 (border width on both sides)
-                  //     height: 44,
-                  //     fit: BoxFit.cover,
-                  //     errorBuilder: (context, error, stackTrace) =>
-                  //         _buildPlaceholder(context),
-                  // )
+              child: event.coverImageDownloadUrl != null
+                  // ? _buildPlaceholder(context)
+                  ? Image.network(
+                      event.coverImageDownloadUrl!,
+                      width: 44, // 48 - 4 (border width on both sides)
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildPlaceholder(context),
+                    )
                   : _buildPlaceholder(context),
             ),
           ),
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppText.styledBodyLarge(
-                  context,
-                  event.name,
-                  weight: FontWeight.bold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // AppSpacing.horizontalXxs(context),
-                AppText.styledBodyMedium(
-                  context,
-                  color: AppColors.textMuted,
-                  'Placeholder',
-                  weight: AppFontWeight.semiBold,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                //status
-                // AppText.styledBodySmall(
-                //     context, event.status.toLowerCase())
-              ],
+          Expanded(
+            child: Padding(
+              padding: AppPadding.horizontal(context, paddingType: Sizes.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppText.styledBodyLarge(
+                    context,
+                    event.name,
+                    weight: FontWeight.bold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // AppSpacing.horizontalXxs(context),
+                  AppText.styledBodyMedium(
+                    context,
+                    color: AppColors.textMuted,
+                    'Placeholder',
+                    weight: AppFontWeight.semiBold,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  //status
+                  // AppText.styledBodySmall(
+                  //     context, event.status.toLowerCase())
+                ],
+              ),
             ),
           ),
         ],
