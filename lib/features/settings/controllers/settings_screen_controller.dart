@@ -26,6 +26,7 @@ class SettingsScreenController extends GetxController {
   var selectedCountry = ''.obs;
   var selectedState = ''.obs;
   var selectedTimezone = ''.obs;
+  var selectedCurrency = ''.obs;
   var isEditing = false.obs;
 
   late final TextEditingController companyNameController;
@@ -60,6 +61,7 @@ class SettingsScreenController extends GetxController {
       (tz) => tz.split(' ').first == organisation.timezone,
       orElse: () => USData.timezones.first,
     );
+    selectedCurrency.value = organisation.currency;
   }
 
   /// Pick an image from gallery (or camera) and upload it to Firebase Storage.
@@ -126,6 +128,7 @@ class SettingsScreenController extends GetxController {
         state: selectedState.value,
         country: selectedCountry.value,
         timezone: selectedTimezone.value,
+        currency: selectedCurrency.value,
         // Local modifiedDate - Firestore service will also set server timestamp
         modifiedDate: DateTime.now(),
       );
@@ -222,6 +225,7 @@ class SettingsScreenController extends GetxController {
     selectedCountry.value = organisation.country;
     selectedState.value = organisation.state;
     selectedTimezone.value = organisation.timezone;
+    selectedCurrency.value = organisation.currency;
 
     isEditing.value = false;
   }

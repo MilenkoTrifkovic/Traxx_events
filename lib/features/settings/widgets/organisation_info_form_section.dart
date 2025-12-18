@@ -11,6 +11,7 @@ import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/utils/data/us_data.dart';
+import 'package:traxx_wepapp/utils/money_helper.dart';
 
 /// Right-hand organisation info form and action buttons (Save/Cancel).
 class OrganisationInfoFormSection extends StatelessWidget {
@@ -132,6 +133,26 @@ class OrganisationInfoFormSection extends StatelessWidget {
               },
               validator: (v) =>
                   ValidationHelper.validateDropdownSelection(v, 'state'),
+            ))),
+        wrapChild(Obx(() => AppDropdownMenu<String>(
+              label: 'Currency',
+              value: controller.selectedCurrency.value,
+              hintText: 'Select currency',
+              enabled: controller.isEditing.value,
+              items: MoneyHelper.commonCurrencyCodes
+                  .map((code) {
+                    final symbol = MoneyHelper.getSymbol(code);
+                    return DropdownMenuItem<String>(
+                      value: code,
+                      child: Text('$code ($symbol)'),
+                    );
+                  })
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) controller.selectedCurrency.value = v;
+              },
+              validator: (v) =>
+                  ValidationHelper.validateDropdownSelection(v, 'currency'),
             ))),
       ];
 
