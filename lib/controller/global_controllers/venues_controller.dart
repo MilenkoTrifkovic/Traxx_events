@@ -67,11 +67,8 @@ class VenuesController extends GetxController {
       // You may want to pass organisationId as a parameter or get it from another controller
       // For now, assuming organisationId is available globally
       final organisationId = _authController.organisationId!;
-      print('Organisation ID in VenuesController: $organisationId');
       final allVenues = await _firestoreServices.getVenues(organisationId);
       final withUrls = await _withPhotoUrls(allVenues);
-      print('Loaded with URLs: ${withUrls.length} venues');
-      print('List of venue IDs: ${withUrls.map((v) => v.photoUrls).toList()}');
       venues.assignAll(withUrls);
       isLoading.value = false;
     } catch (e) {
@@ -82,8 +79,6 @@ class VenuesController extends GetxController {
   }
 
   Venue? getVenueById(String venueId) {
-    print('Searching for venue with ID: $venueId');
-    print('All venue IDs: ${venues.map((v) => v.venueID).toList()}');
     try {
       return venues.firstWhere((venue) => venue.venueID == venueId);
     } catch (e) {

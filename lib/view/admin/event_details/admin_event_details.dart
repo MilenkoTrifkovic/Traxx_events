@@ -22,6 +22,7 @@ import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
 
 class AdminEventDetails extends StatefulWidget {
   final String eventId;
@@ -439,55 +440,83 @@ class EventSummarySection extends StatelessWidget {
           children: [
             /// title + edit icon
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  evt.name,
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF111827),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Edit event details',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => EditEventDetailsDialog(
-                        controller: controller,
-                        initialEvent: evt,
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      EventImage(
+                        onUpdate: (updatedEvent) => controller.updateEvent(updatedEvent),
+                        event: evt,
+                        width: 90,
+                        height: 90,
+                        borderRadius: 12,
+                        iconSize: 36,
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _pill(
-                  icon: Icons.event,
-                  label: '$dateStr • $timeStr',
-                ),
-                _pill(
-                  icon: Icons.place,
-                  label: organisation?.city ?? 'Location not set',
-                ),
-                _pill(
-                  icon: Icons.location_city,
-                  label: venue?.name.capitalize ?? 'Venue not set',
-                ),
-                _pill(
-                  icon: Icons.restaurant,
-                  label: evt.serviceType.name.isEmpty
-                      ? 'Service type'
-                      : evt.serviceType.name[0].toUpperCase() +
-                          evt.serviceType.name.substring(1),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  evt.name,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Edit event details',
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (_) => EditEventDetailsDialog(
+                                        controller: controller,
+                                        initialEvent: evt,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 16,
+                              runSpacing: 8,
+                              children: [
+                                _pill(
+                                  icon: Icons.event,
+                                  label: '$dateStr • $timeStr',
+                                ),
+                                _pill(
+                                  icon: Icons.place,
+                                  label:
+                                      organisation?.city ?? 'Location not set',
+                                ),
+                                _pill(
+                                  icon: Icons.location_city,
+                                  label:
+                                      venue?.name.capitalize ?? 'Venue not set',
+                                ),
+                                _pill(
+                                  icon: Icons.restaurant,
+                                  label: evt.serviceType.name.isEmpty
+                                      ? 'Service type'
+                                      : evt.serviceType.name[0].toUpperCase() +
+                                          evt.serviceType.name.substring(1),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

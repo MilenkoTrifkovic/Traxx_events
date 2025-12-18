@@ -12,6 +12,7 @@ import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
+import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 
@@ -33,6 +34,7 @@ class AdminEventDetailsController {
   final isMenusLoading = true.obs;
   final isItemsLoading = true.obs;
   final FirestoreServices firestore = FirestoreServices();
+  final StorageServices _storageServices = StorageServices();
   String _eventDocId = '';
   String get eventDocId => _eventDocId;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
@@ -85,6 +87,26 @@ class AdminEventDetailsController {
     return res == true;
   }
 
+  /// Loads image URLs for a single event
+  /// Ensures the download URL is loaded from storage if a path exists
+  Future<Event> _loadEventImageUrl(Event event) async {
+    try {
+      // Only attempt to load if there's a path and no download URL yet
+      print('Event coverImageUrl: ${event.coverImageUrl}');
+      if ((event.coverImageUrl != null && event.coverImageUrl!.isNotEmpty) ||
+          (event.coverImageDownloadUrl == null || event.coverImageDownloadUrl!.isEmpty)) {
+            print('Loading image for event ID: ${event.eventId}');
+        return await _storageServices.loadImage(event);
+      }
+      print('image URL is ${event.coverImageDownloadUrl}');
+      return event;
+    } catch (e) {
+      debugPrint('Error loading event image URL: $e');
+      // Return event as-is if loading fails
+      return event;
+    }
+  }
+
   /// ========= LOAD EVENT + REALTIME LISTENER =========
 
   Future<void> loadEvent(String publicEventId) async {
@@ -109,6 +131,18 @@ class AdminEventDetailsController {
 
       // initial load
       event.value = Event.fromFirestore(doc);
+      
+      // Load event image URL (with error handling to not lose event data)
+      try {
+
+        final e =  await _loadEventImageUrl(event.value!);
+        print('LOADED event image URL for event ID: ${e.coverImageDownloadUrl}');
+        event.value = e;
+        print(  'Event after loading image URL: ${event.value!.coverImageDownloadUrl}');
+      } catch (e, st) {
+        debugPrint('Failed to load event image URL, continuing without it: $e\n$st');
+        // Event remains with the data from Firestore, just without download URL
+      }
 
       // 2) Load related data
       await _loadVenue(event.value!.venueId);
@@ -142,13 +176,32 @@ class AdminEventDetailsController {
 
       // 5) Realtime listener
       _eventSubscription?.cancel();
+      
+      // Track if this is the first snapshot (which fires immediately)
+      bool isFirstSnapshot = true;
+      
       _eventSubscription = firestore.eventsRef
           .doc(_eventDocId)
           .snapshots()
           .listen((docSnap) async {
         if (!docSnap.exists) return;
 
+        // Skip the first snapshot since we already loaded the event with image
+        if (isFirstSnapshot) {
+          isFirstSnapshot = false;
+          debugPrint('Skipping initial snapshot - event already loaded with image');
+          return;
+        }
+
+        // For subsequent updates, load the new data
         event.value = Event.fromFirestore(docSnap);
+        // Load image URL for the updated event (with error handling)
+        try {
+          event.value = await _loadEventImageUrl(event.value!);
+        } catch (e, st) {
+          debugPrint('Failed to load event image URL in listener, continuing without it: $e\n$st');
+          // Event remains with the data from Firestore, just without download URL
+        }
         selectedDemographicSetId.value =
             event.value?.selectedDemographicQuestionSetId;
 
@@ -559,6 +612,31 @@ class AdminEventDetailsController {
         },
       ),
     );
+  }
+
+  /// ========= EVENT UPDATE =========
+
+  /// Updates the event in the reactive variable
+  /// 
+  /// This method updates the event in memory without persisting to Firestore.
+  /// Use this for optimistic UI updates or when you need to update the local
+  /// event state with changes that have already been saved.
+  /// 
+  /// The method will automatically load the image URL if available before
+  /// assigning the event.
+  /// 
+  /// @param updatedEvent The new event object to set
+  Future<void> updateEvent(Event updatedEvent) async {
+    try {
+      // Load image URL before assigning
+      final eventWithImage = await _loadEventImageUrl(updatedEvent);
+      event.value = eventWithImage;
+      debugPrint('Event updated in reactive variable: ${eventWithImage.eventId}');
+    } catch (e, st) {
+      debugPrint('Error loading image in updateEvent, using event without image: $e\n$st');
+      // Fallback: assign event without image URL if loading fails
+      event.value = updatedEvent;
+    }
   }
 
   /// ========= VENUE PHOTO MANAGEMENT =========
