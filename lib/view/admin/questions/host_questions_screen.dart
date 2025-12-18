@@ -497,19 +497,19 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         if (snapshot.hasError) {
           final err = snapshot.error;
           if (kDebugMode) {
-            print('🔥 HostQuestionsScreen error: $err');
+            debugPrint('🔥 HostQuestionsScreen error: $err');
           }
           return _buildErrorState(err.toString());
         }
 
+        // ✅ IMPORTANT: show loader until first emission arrives
         if (!snapshot.hasData) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingSkeleton();
-          }
-          return _buildEmptyState();
+          return _buildLoadingSkeleton();
         }
 
         final items = snapshot.data!;
+
+        // Once we HAVE data (even empty), show empty state correctly
         if (items.isEmpty) return _buildEmptyState();
 
         final questions = List<DemographicQuestionWithOptions>.from(items);
@@ -547,10 +547,8 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      'Failed to reorder questions: $e',
-                      style: GoogleFonts.poppins(),
-                    ),
+                    content: Text('Failed to reorder questions: $e',
+                        style: GoogleFonts.poppins()),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -578,12 +576,8 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                 onRequiredChanged: (required) =>
                     _updateRequired(item.question.id, required),
                 onDelete: () => _confirmDeleteQuestion(item),
-
-                // 🔹 Add / remove options
                 onRemoveOption: (opt) => _removeOption(item, opt),
                 onAddOption: () => _addOption(item),
-
-                // 🔹 Update option labels (debounced)
                 onOptionLabelChanged: (opt, newLabel) {
                   if (opt.id.isEmpty) return;
                   _debouncedUpdateOption(opt.id, {'label': newLabel});
@@ -601,12 +595,34 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   // ---------------------------------------------------------------------------
 
   Widget _buildLoadingSkeleton() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 80),
-      child: Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-          color: kGfPurple,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Card(
+        color: Colors.white,
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.05),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child:
+                    CircularProgressIndicator(strokeWidth: 3, color: kGfPurple),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'Loading questions…',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: kTextDark,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -747,17 +763,17 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Drag handle
-            Center(
-              child: ReorderableDragStartListener(
-                index: index,
-                child: Icon(
-                  Icons.drag_indicator_rounded,
-                  size: 20,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
+            // Center(
+            //   child: ReorderableDragStartListener(
+            //     index: index,
+            //     child: Icon(
+            //       Icons.drag_indicator_rounded,
+            //       size: 20,
+            //       color: Colors.grey.shade500,
+            //     ),
+            //   ),
+            // ),
+            // const SizedBox(height: 8),
 
             // Question row
             Row(

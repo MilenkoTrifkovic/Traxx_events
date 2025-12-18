@@ -34,18 +34,18 @@ Widget getPageHeader(GoRouterState state) {
   if (state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostDemographics.path) {
-    return AppBarCustom(
-      content: Row(
-        children: const [
-          Text(
-            'Guest Demographic Responses',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
+  // if (state.matchedLocation == AppRoute.hostDemographics.path) {
+  //   return AppBarCustom(
+  //     content: Row(
+  //       children: const [
+  //         Text(
+  //           'Guest Demographic Responses',
+  //           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   if (state.matchedLocation == AppRoute.hostSettings.path) {
     return AppBarCustom(content: SettingsHeader());

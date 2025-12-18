@@ -40,7 +40,7 @@ enum AppRoute {
   demographics('/demographics'),
 
 // Dev-only host route visible in sidebar
-  hostDemographics('/host-demographics'),
+  // hostDemographics('/host-demographics'),
 
   // Other
   aboutView('/about'),

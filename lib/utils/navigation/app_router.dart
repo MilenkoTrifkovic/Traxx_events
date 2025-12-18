@@ -20,6 +20,8 @@ import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -110,17 +112,32 @@ GoRouter buildRouter() {
       ),
 
       GoRoute(
-        path: AppRoute.demographics.path,
+        path: '/demographics',
         builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'];
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          final token = state.uri.queryParameters['token'] ?? '';
+          return DemographicResponsePage(
+            invitationId: invitationId,
+            token: token, // ✅ IMPORTANT
+            embedded: false,
+            showInvitationInput: false,
+          );
+        },
+      ),
 
-          if (invitationId == null || invitationId.isEmpty) {
-            return const Scaffold(
-              body: Center(child: Text('Invalid invitation link')),
-            );
-          }
+      GoRoute(
+        path: '/menu-selection',
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          return GuestMenuSelectionPage(invitationId: invitationId);
+        },
+      ),
 
-          return DemographicResponsePage(invitationId: invitationId);
+      GoRoute(
+        path: '/thank-you',
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          return ThankYouPage(invitationId: invitationId);
         },
       ),
 
@@ -251,13 +268,15 @@ GoRouter buildRouter() {
               final setTitle = state.uri.queryParameters['setTitle'] ?? '';
               final setDescription =
                   state.uri.queryParameters['setDescription'] ?? '';
+
               if (setId.isEmpty) {
                 return const QuestionSetsScreen();
               }
+
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: Uri.decodeComponent(setTitle),
-                questionSetDescription: Uri.decodeComponent(setDescription),
+                questionSetTitle: setTitle, // ✅ no decode
+                questionSetDescription: setDescription, // ✅ no decode
               );
             },
           ),
@@ -342,18 +361,18 @@ GoRouter buildRouter() {
               );
             },
           ),
-          GoRoute(
-            path: AppRoute.hostDemographics.path,
-            builder: (context, state) {
-              final invitationId =
-                  state.uri.queryParameters['invitationId'] ?? '';
-              return DemographicResponsePage(
-                invitationId: invitationId,
-                showInvitationInput: true,
-                embedded: true, // ✅ NEW
-              );
-            },
-          ),
+          // GoRoute(
+          //   path: AppRoute.hostDemographics.path,
+          //   builder: (context, state) {
+          //     final invitationId =
+          //         state.uri.queryParameters['invitationId'] ?? '';
+          //     return DemographicResponsePage(
+          //       invitationId: invitationId,
+          //       showInvitationInput: true,
+          //       embedded: true, // ✅ NEW
+          //     );
+          //   },
+          // ),
         ],
       ),
       // Guest Shell Route

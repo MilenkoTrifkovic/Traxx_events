@@ -40,12 +40,12 @@ class NavigationRailWrapper extends StatelessWidget {
     } else if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path)) {
       selectedIndex = 3;
-    } else if (location.startsWith(AppRoute.hostDemographics.path)) {
-      selectedIndex = 4; // ✅ NEW
+      // } else if (location.startsWith(AppRoute.hostDemographics.path)) {
+      //   selectedIndex = 4; // ✅ NEW
     } else if (location.startsWith(AppRoute.hostRoleSelection.path)) {
-      selectedIndex = 5; // shifted
+      selectedIndex = 4; // shifted
     } else if (location.startsWith(AppRoute.hostSettings.path)) {
-      selectedIndex = 6; // shifted
+      selectedIndex = 5; // shifted
     } else {
       selectedIndex = 0;
     }
@@ -100,21 +100,23 @@ class NavigationRailWrapper extends StatelessWidget {
                 pushAndRemoveAllRoute(AppRoute.hostMenus, context);
               } else if (index == 3) {
                 pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
+                // } else if (index == 4) {
+                //   // ✅ NEW: go to your dev page that can show DemographicResponsePage
+                //   pushAndRemoveAllRoute(AppRoute.hostDemographics, context);
               } else if (index == 4) {
-                // ✅ NEW: go to your dev page that can show DemographicResponsePage
-                pushAndRemoveAllRoute(AppRoute.hostDemographics, context);
-              } else if (index == 5) {
                 pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
-              } else if (index == 6) {
+              } else if (index == 5) {
                 pushAndRemoveAllRoute(AppRoute.hostSettings, context);
-              } else if (index == 7) {
+              } else if (index == 6) {
                 try {
                   await authController.logout();
-                  if (context.mounted)
+                  if (context.mounted) {
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
+                  }
                 } catch (e) {
-                  if (context.mounted)
+                  if (context.mounted) {
                     pushAndRemoveAllRoute(AppRoute.welcome, context);
+                  }
                 }
               }
             },
