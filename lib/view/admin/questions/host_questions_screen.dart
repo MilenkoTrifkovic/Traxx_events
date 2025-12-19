@@ -22,14 +22,10 @@ const Color _gfPurple = Color(0xFF673AB7);
 
 class HostQuestionsScreen extends StatefulWidget {
   final String questionSetId;
-  final String questionSetTitle;
-  final String questionSetDescription;
 
   const HostQuestionsScreen({
     super.key,
     required this.questionSetId,
-    required this.questionSetTitle,
-    required this.questionSetDescription,
   });
 
   @override
@@ -45,6 +41,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   final Map<String, Timer> _optionDebounceTimers = {};
   bool _pendingFocusNew = false;
   bool _isProcessing = false;
+  final ScrollController _listScrollCtrl = ScrollController();
+  String _setTitle = '';
+  String _setDescription = '';
+  bool _metaLoading = true;
 
   void _setProcessing(bool value) {
     if (!mounted) return;
@@ -56,10 +56,12 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     super.initState();
     _controller =
         HostQuestionsController(firestore: FirebaseFirestore.instance);
+    _loadSetMeta();
   }
 
   @override
   void dispose() {
+    _listScrollCtrl.dispose();
     for (final t in _debounceTimers.values) {
       t.cancel();
     }
@@ -72,6 +74,27 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   void _setActiveQuestion(String id) {
     if (_activeQuestionId == id) return;
     setState(() => _activeQuestionId = id);
+  }
+
+  Future<void> _loadSetMeta() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('demographicQuestionSets')
+          .doc(widget.questionSetId)
+          .get();
+
+      final data = doc.data() ?? {};
+      if (!mounted) return;
+
+      setState(() {
+        _setTitle = (data['title'] ?? '').toString();
+        _setDescription = (data['description'] ?? '').toString();
+        _metaLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _metaLoading = false);
+    }
   }
 
   /*  void _debouncedUpdateQuestion(
@@ -327,61 +350,62 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final viewportH = MediaQuery.of(context).size.height;
+    final listH = (viewportH - 360).clamp(320.0, 900.0); // ✅ safe height
+
     return DefaultTextStyle(
-      // ✅ Force Poppins across this whole page
       style: GoogleFonts.poppins(),
       child: Stack(
         children: [
-          // Full lavender background behind everything
-          const Positioned.fill(
-            child: ColoredBox(
-              color: _gfBackground, // 0xFFF4F0FB
-            ),
-          ),
-
-          // Centered, width-limited content (like QuestionSets)
+          const Positioned.fill(child: ColoredBox(color: _gfBackground)),
           Align(
             alignment: Alignment.topCenter,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeaderWithAddButton(context),
-                      const SizedBox(height: 16),
-                      Center(
-                        child: Text(
-                          'Click on a question to edit',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey,
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildHeaderWithAddButton(context),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: Text(
+                            'Click on a question to edit',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildQuestionsStream(),
-                      const SizedBox(height: 40),
-                    ],
+                        const SizedBox(height: 20),
+
+                        // ✅ fixed-height scroll area (no Expanded)
+                        SizedBox(
+                          height: listH,
+                          child: _buildQuestionsStream(),
+                        ),
+
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-
           if (_isProcessing)
             Positioned.fill(
               child: Container(
                 color: _gfBackground.withOpacity(0.35),
                 child: const Center(
                   child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: _gfPurple,
-                  ),
+                      strokeWidth: 3, color: _gfPurple),
                 ),
               ),
             ),
@@ -425,12 +449,9 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 
   Widget _buildFormHeaderCard() {
-    final title = widget.questionSetTitle.isEmpty
-        ? 'Untitled form'
-        : widget.questionSetTitle;
-    final description = widget.questionSetDescription.isEmpty
-        ? 'Form description'
-        : widget.questionSetDescription;
+    final title = _setTitle.isEmpty ? 'Untitled form' : _setTitle;
+    final description =
+        _setDescription.isEmpty ? 'Form description' : _setDescription;
 
     return Card(
       color: Colors.white, // pure white like Forms
@@ -522,70 +543,72 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
           });
         }
 
-        return ReorderableListView.builder(
-          key: const PageStorageKey('questions_reorderable_list'),
-          buildDefaultDragHandles: false,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemCount: questions.length,
-          onReorder: (oldIndex, newIndex) async {
-            if (newIndex > oldIndex) newIndex--;
-            final item = questions.removeAt(oldIndex);
-            questions.insert(newIndex, item);
+        return Scrollbar(
+            thumbVisibility: true,
+            child: ReorderableListView.builder(
+              scrollController: _listScrollCtrl,
+              key: const PageStorageKey('questions_reorderable_list'),
+              buildDefaultDragHandles: false,
+              physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: questions.length,
+              onReorder: (oldIndex, newIndex) async {
+                if (newIndex > oldIndex) newIndex--;
+                final item = questions.removeAt(oldIndex);
+                questions.insert(newIndex, item);
 
-            _setProcessing(true);
-            try {
-              await Future.wait([
-                for (int i = 0; i < questions.length; i++)
-                  _controller.updateQuestion(
-                    questionDocId: questions[i].question.id,
-                    data: {'displayOrder': i + 1},
-                  ),
-              ]);
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to reorder questions: $e',
-                        style: GoogleFonts.poppins()),
-                    backgroundColor: Colors.red,
+                _setProcessing(true);
+                try {
+                  await Future.wait([
+                    for (int i = 0; i < questions.length; i++)
+                      _controller.updateQuestion(
+                        questionDocId: questions[i].question.id,
+                        data: {'displayOrder': i + 1},
+                      ),
+                  ]);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to reorder questions: $e',
+                            style: GoogleFonts.poppins()),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } finally {
+                  _setProcessing(false);
+                }
+              },
+              itemBuilder: (context, index) {
+                final item = questions[index];
+                return Padding(
+                  key: ValueKey(item.question.id),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _GoogleFormsQuestionCard(
+                    index: index,
+                    item: item,
+                    isActive: item.question.id == _activeQuestionId,
+                    onTap: () => _setActiveQuestion(item.question.id),
+                    onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
+                      item.question.id,
+                      {'questionText': text},
+                    ),
+                    onQuestionTypeChanged: (type) =>
+                        _updateQuestionType(item.question.id, type),
+                    onRequiredChanged: (required) =>
+                        _updateRequired(item.question.id, required),
+                    onDelete: () => _confirmDeleteQuestion(item),
+                    onRemoveOption: (opt) => _removeOption(item, opt),
+                    onAddOption: () => _addOption(item),
+                    onOptionLabelChanged: (opt, newLabel) {
+                      if (opt.id.isEmpty) return;
+                      _debouncedUpdateOption(opt.id, {'label': newLabel});
+                    },
                   ),
                 );
-              }
-            } finally {
-              _setProcessing(false);
-            }
-          },
-          itemBuilder: (context, index) {
-            final item = questions[index];
-            return Padding(
-              key: ValueKey(item.question.id),
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _GoogleFormsQuestionCard(
-                index: index,
-                item: item,
-                isActive: item.question.id == _activeQuestionId,
-                onTap: () => _setActiveQuestion(item.question.id),
-                onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
-                  item.question.id,
-                  {'questionText': text},
-                ),
-                onQuestionTypeChanged: (type) =>
-                    _updateQuestionType(item.question.id, type),
-                onRequiredChanged: (required) =>
-                    _updateRequired(item.question.id, required),
-                onDelete: () => _confirmDeleteQuestion(item),
-                onRemoveOption: (opt) => _removeOption(item, opt),
-                onAddOption: () => _addOption(item),
-                onOptionLabelChanged: (opt, newLabel) {
-                  if (opt.id.isEmpty) return;
-                  _debouncedUpdateOption(opt.id, {'label': newLabel});
-                },
-              ),
-            );
-          },
-        );
+              },
+            ));
       },
     );
   }
@@ -699,6 +722,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 }
+
 // -----------------------------------------------------------------------------
 // QUESTION CARD – updated styling
 // -----------------------------------------------------------------------------

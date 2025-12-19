@@ -434,17 +434,7 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                             _QuestionSetTile(
                               set: set,
                               onTap: () {
-                                final uri = Uri(
-                                  path: AppRoute.hostQuestions.path,
-                                  queryParameters: {
-                                    'setId': set
-                                        .id, // or set.questionSetId if that's what you use
-                                    'setTitle': set.title,
-                                    'setDescription': set.description,
-                                  },
-                                );
-
-                                context.go(uri.toString());
+                                context.go('/host-question-sets/${set.id}');
                               },
                             ),
                         ],

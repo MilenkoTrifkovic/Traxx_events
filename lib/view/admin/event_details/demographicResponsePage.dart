@@ -50,6 +50,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
   String _activeInvitationId = '';
   String? _activeQuestionId;
+  String? _invalidTitle;
+  String? _invalidMessage;
 
   Map<String, dynamic>? _invitation;
   Map<String, dynamic>? _questionSet;
@@ -65,7 +67,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void initState() {
     debugPrint(
-        '*** DemographicResponsePage loaded. invitationId=${widget.invitationId} url=${Uri.base}');
+      '*** DemographicResponsePage loaded. invitationId=${widget.invitationId} url=${Uri.base}',
+    );
     super.initState();
     _invitationIdCtrl = TextEditingController(text: widget.invitationId);
 
@@ -99,7 +102,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     setState(() => _activeQuestionId = id);
   }
 
-  void _setInvalid() {
+  void _setInvalid(String title, String message) {
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -108,6 +111,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       _questions.clear();
       _answers.clear();
       _activeQuestionId = null;
+      _invalidTitle = title;
+      _invalidMessage = message;
     });
   }
 
@@ -133,9 +138,58 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   List<List<T>> _chunks<T>(List<T> list, int size) {
     final out = <List<T>>[];
     for (int i = 0; i < list.length; i += size) {
-      out.add(list.sublist(i, i + size > list.length ? list.length : i + size));
+      final end = (i + size > list.length) ? list.length : i + size;
+      out.add(List<T>.of(list.sublist(i, end), growable: true)); // ✅ growable
     }
     return out;
+  }
+
+  String _readTokenFromUrl() {
+    // 1) explicit widget token (if you pass it via router)
+    final t1 = widget.token.trim();
+    if (t1.isNotEmpty) return t1;
+
+    // 2) normal query param
+    final t2 = (Uri.base.queryParameters['token'] ?? '').trim();
+    if (t2.isNotEmpty) return t2;
+
+    // 3) hash route support: "#/demographics?invitationId=...&token=..."
+    final frag = Uri.base.fragment;
+    final qIndex = frag.indexOf('?');
+    if (qIndex >= 0 && qIndex + 1 < frag.length) {
+      final queryPart = frag.substring(qIndex + 1);
+      try {
+        final params = Uri.splitQueryString(queryPart);
+        return (params['token'] ?? '').trim();
+      } catch (_) {}
+    }
+
+    return '';
+  }
+
+  int _asInt(dynamic v, {int fallback = 0}) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    final s = v.toString().trim();
+    return int.tryParse(s) ?? fallback;
+  }
+
+  bool _asBool(dynamic v, {bool fallback = false}) {
+    if (v == null) return fallback;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v.toString().trim().toLowerCase();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no') return false;
+    return fallback;
+  }
+
+  DateTime? _asDate(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    if (v is Timestamp) return v.toDate();
+    return null;
   }
 
   bool _isAnswered(_GuestQuestion q) {
@@ -182,6 +236,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       _answers.clear();
       _activeInvitationId = invitationId.trim();
       _activeQuestionId = null;
+      _invalidTitle = null;
+      _invalidMessage = null;
     });
 
     for (final c in _freeTextCtrls.values) c.dispose();
@@ -190,18 +246,24 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     _textCtrls.clear();
 
     try {
+      // -----------------------------
+      // 1) Invitation
+      // -----------------------------
       final invDoc =
           await _db.collection('invitations').doc(_activeInvitationId).get();
 
       if (!invDoc.exists) {
-        _setInvalid();
+        _setInvalid(
+          'Invitation not found',
+          'This link is invalid. Please request a new invite.',
+        );
         return;
       }
 
       _invitation = invDoc.data();
 
       // ✅ If menu already submitted → go straight to thank-you
-      if (_invitation?['menuSelectionSubmitted'] == true) {
+      if (_asBool(_invitation?['menuSelectionSubmitted'], fallback: false)) {
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           context.go(
@@ -211,40 +273,51 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         return;
       }
 
-      // ✅ Token handling
-      final tokenFromLink = (widget.token.isNotEmpty
-              ? widget.token
-              : (Uri.base.queryParameters['token'] ?? ''))
-          .trim();
-
+      // -----------------------------
+      // 2) Token + expiry checks
+      // -----------------------------
+      final tokenFromLink = _readTokenFromUrl();
       final tokenInInvite = (_invitation?['token'] ?? '').toString().trim();
 
-      // Invitation must have a stored token
       if (tokenInInvite.isEmpty) {
-        _setInvalid();
+        _setInvalid(
+          'Invitation not found',
+          'This link is invalid. Please request a new invite.',
+        );
         return;
       }
 
-      // Guests must match token; host demo can skip
       final requireToken = !widget.showInvitationInput;
-      if (requireToken && tokenFromLink != tokenInInvite) {
-        _setInvalid();
-        return;
+      if (requireToken) {
+        if (tokenFromLink.isEmpty) {
+          _setInvalid(
+            'Invalid link token',
+            'This link is missing a token. Please request a new invite.',
+          );
+          return;
+        }
+        if (tokenFromLink != tokenInInvite) {
+          _setInvalid(
+            'Invalid link token',
+            'This link token does not match the invitation.',
+          );
+          return;
+        }
       }
 
-      // ✅ Expiry check
-      final expiresTimestamp = _invitation?['expiresAt'] as Timestamp?;
-      final expires = expiresTimestamp?.toDate();
+      final expires = _asDate(_invitation?['expiresAt']);
       if (expires != null && expires.isBefore(DateTime.now())) {
-        _setInvalid();
+        _setInvalid(
+          'Link expired',
+          'This invitation expired on $expires. Please request a new invite.',
+        );
         return;
       }
 
       // ✅ If demographics already submitted → continue to menu selection
-      if (_invitation?['used'] == true) {
+      if (_asBool(_invitation?['used'], fallback: false)) {
         final tokenForNav =
             tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite;
-
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           context.go(
@@ -255,15 +328,29 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         return;
       }
 
-      // ✅ Determine setId
-      String? questionSetId =
-          _invitation?['demographicQuestionSetId'] as String?;
+      // -----------------------------
+      // 3) Determine questionSetId
+      // -----------------------------
+      String questionSetId =
+          (_invitation?['demographicQuestionSetId'] ?? '').toString().trim();
 
-      // fallback from event
-      if (questionSetId == null || questionSetId.isEmpty) {
-        final eventId = _invitation?['eventId'] as String?;
-        if (eventId == null || eventId.isEmpty) {
-          _setInvalid();
+      // fallback from event (HOST only)
+      if (questionSetId.isEmpty) {
+        // ✅ Guests must NOT read /events (rules require signed-in)
+        if (!widget.showInvitationInput) {
+          _setInvalid(
+            'Questions not assigned',
+            'This invitation is missing a demographic question set. Please ask the host to resend the invite.',
+          );
+          return;
+        }
+
+        final eventId = (_invitation?['eventId'] ?? '').toString().trim();
+        if (eventId.isEmpty) {
+          _setInvalid(
+            'Invitation not found',
+            'This link is invalid. Please request a new invite.',
+          );
           return;
         }
 
@@ -278,41 +365,56 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
               .where('eventId', isEqualTo: eventId)
               .limit(1)
               .get();
+
           if (q.docs.isEmpty) {
-            _setInvalid();
+            _setInvalid(
+              'Invitation not found',
+              'This link is invalid. Please request a new invite.',
+            );
             return;
           }
           eventData = q.docs.first.data();
         }
 
-        questionSetId =
-            eventData?['selectedDemographicQuestionSetId'] as String?;
+        questionSetId = (eventData?['selectedDemographicQuestionSetId'] ?? '')
+            .toString()
+            .trim();
       }
 
-      if (questionSetId == null || questionSetId.isEmpty) {
-        _setInvalid();
+      if (questionSetId.isEmpty) {
+        _setInvalid(
+          'Invitation not found',
+          'This link is invalid. Please request a new invite.',
+        );
         return;
       }
 
-      // ✅ Fetch question set (for title/desc)
+      // -----------------------------
+      // 4) Fetch question set
+      // -----------------------------
       final qsDoc = await _db
           .collection('demographicQuestionSets')
           .doc(questionSetId)
           .get();
 
       if (!qsDoc.exists) {
-        _setInvalid();
+        _setInvalid(
+          'Question set not found',
+          'This invitation points to a missing question set.',
+        );
         return;
       }
 
       _questionSet = qsDoc.data();
 
-      // ✅ Fetch questions
+      // -----------------------------
+      // 5) Fetch questions (ORDERED by Firestore, no local sort)
+      // -----------------------------
       final qSnap = await _db
           .collection('demographicQuestions')
-          .where('isDisabled', isEqualTo: false)
           .where('questionSetId', isEqualTo: questionSetId)
-          .orderBy('displayOrder')
+          .where('isDisabled', isEqualTo: false)
+          .orderBy('displayOrder') // ✅ Firestore sorts
           .get();
 
       if (qSnap.docs.isEmpty) {
@@ -324,16 +426,20 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         return;
       }
 
-      final questionDocs = qSnap.docs;
+      final questionDocs = qSnap.docs; // no sorting required
       final questionIds = questionDocs.map((d) => d.id).toList();
 
-      // ✅ Fetch options for all questionIds (chunk whereIn, max 30)
+      // -----------------------------
+      // 6) Fetch options (ORDERED by Firestore, no local sort)
+      // -----------------------------
       final Map<String, List<_GuestOption>> optionsByQuestionId = {};
-      for (final chunk in _chunks(questionIds, 30)) {
+
+      for (final ids in _chunks(questionIds, 30)) {
         final optSnap = await _db
             .collection('demographicQuestionOptions')
+            .where('questionId', whereIn: ids)
             .where('isDisabled', isEqualTo: false)
-            .where('questionId', whereIn: chunk)
+            .orderBy('displayOrder') // ✅ Firestore sorts
             .get();
 
         for (final doc in optSnap.docs) {
@@ -346,15 +452,21 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
             questionId: qId,
             label: (data['label'] ?? '').toString(),
             value: (data['value'] ?? '').toString(),
-            requiresFreeText: (data['requiresFreeText'] ?? false) == true,
-            displayOrder: (data['displayOrder'] ?? 0) as int,
+            requiresFreeText:
+                _asBool(data['requiresFreeText'], fallback: false),
+            displayOrder: _asInt(data['displayOrder'], fallback: 0),
           );
 
-          optionsByQuestionId.putIfAbsent(qId, () => []).add(opt);
+          optionsByQuestionId.putIfAbsent(qId, () => <_GuestOption>[]).add(opt);
         }
       }
 
+      // -----------------------------
+      // 7) Build questions list + init answers/controllers
+      //    (options already in displayOrder from query)
+      // -----------------------------
       _questions.clear();
+
       for (final doc in questionDocs) {
         final data = doc.data();
         final qId = doc.id;
@@ -362,14 +474,15 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         final rawType = (data['questionType'] ?? '').toString();
         final type = _normalizeType(rawType);
 
+        final opts = optionsByQuestionId[qId] ?? <_GuestOption>[];
+
         final q = _GuestQuestion(
           id: qId,
           text: (data['questionText'] ?? '').toString(),
           type: type,
-          isRequired: (data['isRequired'] ?? false) == true,
-          displayOrder: (data['displayOrder'] ?? 0) as int,
-          options: (optionsByQuestionId[qId] ?? const [])
-            ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder)),
+          isRequired: _asBool(data['isRequired'], fallback: false),
+          displayOrder: _asInt(data['displayOrder'], fallback: 0),
+          options: opts,
         );
 
         _questions.add(q);
@@ -384,13 +497,24 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         }
       }
 
+      // -----------------------------
+      // 8) Final UI state
+      // -----------------------------
       if (!mounted) return;
       setState(() {
         _loading = false;
         _activeQuestionId = _questions.isNotEmpty ? _questions.first.id : null;
       });
-    } catch (_) {
-      _setInvalid();
+    } catch (e, st) {
+      debugPrint('Demographic load error: $e');
+      debugPrint('$st');
+
+      if (!mounted) return;
+
+      _setInvalid(
+        'Something went wrong',
+        'We could not load the questions right now. Please refresh and try again.',
+      );
     }
   }
 
@@ -418,9 +542,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     // Guests must match token; host demo can skip
     final requireToken = !widget.showInvitationInput;
     if (requireToken && tokenFromLink != tokenInInvite) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid token in link')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid token in link')));
       return;
     }
 
@@ -551,7 +675,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                       constraints: const BoxConstraints(maxWidth: 1040),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 24),
+                          horizontal: 40,
+                          vertical: 24,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -634,7 +760,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                     color: gfBackground.withOpacity(0.35),
                     child: const Center(
                       child: CircularProgressIndicator(
-                          strokeWidth: 3, color: kGfPurple),
+                        strokeWidth: 3,
+                        color: kGfPurple,
+                      ),
                     ),
                   ),
                 ),
@@ -646,10 +774,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
     if (widget.embedded) return content;
 
-    return Scaffold(
-      backgroundColor: gfBackground,
-      body: content,
-    );
+    return Scaffold(backgroundColor: gfBackground, body: content);
   }
 
   Widget _buildScrollableBody() {
@@ -672,8 +797,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       return _InfoCard(
         icon: Icons.error_outline_rounded,
         iconColor: Colors.red.shade600,
-        title: 'Invalid or expired invitation',
-        message: 'Please check your link and try again.',
+        title: _invalidTitle ?? 'Invalid or expired invitation',
+        message: _invalidMessage ?? 'Please check your link and try again.',
       );
     }
 
@@ -768,8 +893,9 @@ class _HeaderWithAction extends StatelessWidget {
                   height: 6,
                   decoration: const BoxDecoration(
                     color: kGfPurple,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(12)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
                   ),
                 ),
                 Padding(
@@ -814,9 +940,12 @@ class _HeaderWithAction extends StatelessWidget {
               elevation: 2,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               textStyle: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w600),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             child: Text(actionLabel),
           ),
@@ -878,7 +1007,9 @@ class _InvitationLoaderCard extends StatelessWidget {
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: kBorder),
@@ -905,9 +1036,12 @@ class _InvitationLoaderCard extends StatelessWidget {
                       elevation: 2,
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       textStyle: GoogleFonts.poppins(
-                          fontSize: 14, fontWeight: FontWeight.w600),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     child: const Text('Load'),
                   ),
@@ -1085,46 +1219,24 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Icon(Icons.drag_indicator_rounded,
-                  size: 20, color: Colors.grey.shade500),
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                size: 20,
+                color: Colors.grey.shade500,
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    titleText,
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: kTextDark,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                SizedBox(
-                  width: 200,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.grey.shade100,
-                    ),
-                    child: Text(
-                      _typeLabel(question.type),
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: kTextBody,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+
+            // ✅ Only the question text now (no questionType pill)
+            Text(
+              titleText,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: kTextDark,
+              ),
             ),
+
             const SizedBox(height: 12),
             _buildInput(context),
           ],
@@ -1143,21 +1255,29 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
           maxLines: question.type == 'paragraph' ? 4 : 1,
           onChanged: (v) => onAnswerChanged(v),
           style: GoogleFonts.poppins(
-              fontSize: 14, fontWeight: FontWeight.w600, color: kTextDark),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: kTextDark,
+          ),
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: kBorder)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kBorder),
+            ),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: kBorder)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kBorder),
+            ),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: kAccent, width: 2)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: kAccent, width: 2),
+            ),
           ),
         );
 
@@ -1175,24 +1295,30 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                 isDense: true,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: kBorder)),
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
                 enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: kBorder)),
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: kAccent, width: 2)),
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kAccent, width: 2),
+                ),
               ),
               hint: Text(
                 'Choose an option',
                 style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey,
+                ),
               ),
               items: [
                 for (final opt in question.options)
@@ -1202,9 +1328,10 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                       opt.label,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: kTextDark),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
                     ),
                   ),
               ],
@@ -1215,12 +1342,15 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                         onAnswerChanged(null);
                         return;
                       }
-                      final opt =
-                          question.options.firstWhere((o) => o.value == v);
+                      final opt = question.options.firstWhere(
+                        (o) => o.value == v,
+                      );
                       if (opt.requiresFreeText) {
                         final ctrlKey = '${question.id}__${opt.value}';
                         freeTextCtrls.putIfAbsent(
-                            ctrlKey, () => TextEditingController());
+                          ctrlKey,
+                          () => TextEditingController(),
+                        );
                         onAnswerChanged({
                           'value': opt.value,
                           'label': opt.label,
@@ -1279,7 +1409,9 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                       if (opt.requiresFreeText) {
                         final ctrlKey = '${question.id}__${opt.value}';
                         freeTextCtrls.putIfAbsent(
-                            ctrlKey, () => TextEditingController());
+                          ctrlKey,
+                          () => TextEditingController(),
+                        );
                         onAnswerChanged({
                           'value': opt.value,
                           'label': opt.label,
@@ -1299,7 +1431,10 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
             child: Text(
               opt.label,
               style: GoogleFonts.poppins(
-                  fontSize: 16, fontWeight: FontWeight.w500, color: kTextDark),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: kTextDark,
+              ),
             ),
           ),
         ],
@@ -1328,8 +1463,9 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                   onChanged: !isActive
                       ? null
                       : (v) {
-                          final next =
-                              List<Map<String, dynamic>>.from(selected);
+                          final next = List<Map<String, dynamic>>.from(
+                            selected,
+                          );
                           if (v == true) {
                             if (opt.requiresFreeText) {
                               next.add({
@@ -1339,8 +1475,10 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                                 'freeText': freeTextCtrls[ctrlKey]!.text,
                               });
                             } else {
-                              next.add(
-                                  {'value': opt.value, 'label': opt.label});
+                              next.add({
+                                'value': opt.value,
+                                'label': opt.label,
+                              });
                             }
                           } else {
                             next.removeWhere((x) => x['value'] == opt.value);
@@ -1356,9 +1494,10 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                 child: Text(
                   opt.label,
                   style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: kTextDark),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: kTextDark,
+                  ),
                 ),
               ),
             ],
@@ -1373,11 +1512,13 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'Please specify',
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: kBorder)),
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: kAccent, width: 2)),
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: kAccent, width: 2),
+                ),
               ),
               onChanged: (txt) {
                 final next = List<Map<String, dynamic>>.from(selected);
@@ -1386,7 +1527,7 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                   next[idx] = {
                     ...next[idx],
                     'requiresFreeText': true,
-                    'freeText': txt
+                    'freeText': txt,
                   };
                   onAnswerChanged(next);
                 }
@@ -1419,11 +1560,13 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
         decoration: InputDecoration(
           labelText: 'Please specify',
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: kBorder)),
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kBorder),
+          ),
           focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: kAccent, width: 2)),
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kAccent, width: 2),
+          ),
         ),
         onChanged: (txt) => onAnswerChanged({...a, 'freeText': txt}),
       ),

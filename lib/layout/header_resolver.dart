@@ -32,9 +32,12 @@ Widget getPageHeader(GoRouterState state) {
   if (state.matchedLocation == AppRoute.hostRoleSelection.path) {
     return AppBarCustom(content: AdminUserManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostQuestionSets.path) {
+  if (state.matchedLocation == AppRoute.hostQuestionSets.path ||
+      state.matchedLocation.startsWith('/host-question-sets/') || // ✅ NEW
+      state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }
+
   if (state.matchedLocation == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }

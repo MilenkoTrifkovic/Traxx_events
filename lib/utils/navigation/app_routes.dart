@@ -48,12 +48,20 @@ enum AppRoute {
   calendarView('/calendar');
 
   static AppRoute? fromPath(String path) {
-    try {
-      return AppRoute.values
-          .firstWhere((route) => path.contains(route.path.split('/:')[0]));
-    } catch (_) {
-      return null;
+    final clean = path.split('?').first;
+
+    AppRoute? best;
+    int bestLen = -1;
+
+    for (final r in AppRoute.values) {
+      final base = r.path.split('/:').first; // e.g. /host-question-sets
+      final matches = clean == base || clean.startsWith('$base/');
+      if (matches && base.length > bestLen) {
+        best = r;
+        bestLen = base.length;
+      }
     }
+    return best;
   }
 
   final String path;

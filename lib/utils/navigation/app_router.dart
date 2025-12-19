@@ -185,12 +185,6 @@ GoRouter buildRouter() {
           Get.put(OrganisationController(authController.organisationId!));
           Get.put(UsersAndRolesController());
 
-          final location = state.matchedLocation;
-          final isQuestionsPage =
-              location.startsWith(AppRoute.hostQuestions.path) ||
-                  location.startsWith(AppRoute.hostQuestionSets.path) ||
-                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
-
           return Obx(() {
             try {
               if (eventListController.isLoading.value ||
@@ -280,8 +274,6 @@ GoRouter buildRouter() {
 
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: setTitle, // ✅ no decode
-                questionSetDescription: setDescription, // ✅ no decode
               );
             },
           ),
@@ -290,18 +282,15 @@ GoRouter buildRouter() {
             builder: (context, state) {
               final setId = state.pathParameters[
                   AppRoute.hostQuestionSetQuestions.placeholder]!;
-              final setTitle = Uri.decodeComponent(
-                state.uri.queryParameters['setTitle'] ?? 'Question set',
-              );
-              final setDescription = Uri.decodeComponent(
-                  state.uri.queryParameters['setDescription'] ?? '');
+              final setTitle = state.uri.queryParameters['setTitle'] ?? '';
+              final setDescription =
+                  state.uri.queryParameters['setDescription'] ?? '';
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: setTitle,
-                questionSetDescription: setDescription,
               );
             },
           ),
+
           GoRoute(
             path: AppRoute.hostCreateEvent.path,
             builder: (context, state) => CreateEditEventView(),

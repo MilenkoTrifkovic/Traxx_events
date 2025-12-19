@@ -18,7 +18,12 @@ const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 const FROM_EMAIL = "developer@trax-event.com";
 const FROM_NAME = process.env.FROM_NAME || "Traxx Events";
 const APP_BASE_URL = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
-const INV_EXPIRY_DAYS = Number(process.env.INV_EXPIRY_DAYS || 14);
+const INV_EXPIRY_DAYS = (() => {
+  const raw = process.env.INV_EXPIRY_DAYS; // could be "0" or "0.01"
+  const n = Number.parseInt(String(raw ?? "14"), 10);
+  return Number.isFinite(n) && n >= 1 ? n : 14; // ✅ never less than 1 day
+})();
+
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
 
 function makeToken() {
@@ -73,9 +78,11 @@ export const sendInvitations = onCall(
       const client = new postmark.ServerClient(token);
 
       const createdAt = Timestamp.now();
-      const expiresAt = Timestamp.fromDate(
-        new Date(Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+      const expiresAt = Timestamp.fromMillis(
+        Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
       );
+
+      
 
       const results = [];
 
@@ -105,10 +112,9 @@ export const sendInvitations = onCall(
         });
 
         const link =
-          staticLink ||
-          `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(
-            ref.id
-          )}&token=${encodeURIComponent(inviteToken)}`;
+        `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
+        `&token=${encodeURIComponent(inviteToken)}`;
+
 
         const subject = "Please complete your demographic questions";
 
