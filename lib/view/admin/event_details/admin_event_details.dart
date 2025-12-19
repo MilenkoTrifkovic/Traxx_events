@@ -17,6 +17,7 @@ import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
 
@@ -107,6 +108,13 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
               ],
             ),
 
+            const SizedBox(height: 24),
+
+            /// Venue section
+            // VenueSelectionCard(controller: controller),
+            Row(children: [
+              Expanded(child: VenueSelectionCard(controller: controller)),
+            ]),
             const SizedBox(height: 24),
 
             /// Guest list section (keep Milenko’s logic, but inside a card)
@@ -898,7 +906,7 @@ class EventSummarySection extends StatelessWidget {
                                 _pill(
                                   icon: Icons.location_city,
                                   label:
-                                      venue?.name.capitalize ?? 'Venue not set',
+                                      venue.value?.name.capitalize ?? 'Venue not set',
                                 ),
                                 _pill(
                                   icon: Icons.restaurant,

@@ -66,7 +66,7 @@ class FirstSectionMenus extends StatelessWidget {
                 AppText.styledBodyMedium(
                   context,
                   color: AppColors.textMuted,
-                  menu.category.name.capitalized,
+                  menu.category.capitalized,
                   weight: AppFontWeight.semiBold,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

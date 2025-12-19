@@ -5,7 +5,6 @@ import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/widgets/dialogs/app_dialog.dart';
 
@@ -106,10 +105,9 @@ class MenuDetailsDialog extends StatelessWidget {
     );
   }
 
-  String _prettyCategory(MenuCategory category) {
-    final raw = category.name; // enum name
-    if (raw.isEmpty) return 'Other';
-    return raw[0].toUpperCase() + raw.substring(1);
+  String _prettyCategory(String category) {
+    // Category is already formatted
+    return category;
   }
 
   Widget _noImagePlaceholder(BuildContext context) {

@@ -6,10 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/menus_details_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
+import 'package:traxx_wepapp/helper/menu_category_helper.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
@@ -413,7 +413,8 @@ class MenuSetDetailsView extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Obx(
-                  () => DropdownButtonFormField<MenuCategory?>(
+                  () => DropdownButtonFormField<String?>(
+                    key: ValueKey(controller.selectedCategory.value),
                     initialValue: controller.selectedCategory.value,
                     onChanged: (v) => controller.setCategoryFilter(v),
                     isDense: true,
@@ -429,24 +430,17 @@ class MenuSetDetailsView extends StatelessWidget {
                         vertical: 8,
                       ),
                     ),
-                    items: [
-                      DropdownMenuItem<MenuCategory?>(
-                        value: null,
-                        child: Text(
-                          'All categories',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                      ),
-                      ...MenuCategory.values.map(
-                        (c) => DropdownMenuItem<MenuCategory?>(
-                          value: c,
-                          child: Text(
-                            _prettyCategory(c),
-                            style: GoogleFonts.poppins(fontSize: 13),
-                          ),
-                        ),
-                      ),
-                    ],
+                    items: MenuCategoryHelper.getCategoryFilterItems()
+                        .map((item) => DropdownMenuItem<String?>(
+                              value: item.value,
+                              child: Text(
+                                item.child is Text
+                                    ? (item.child as Text).data ?? ''
+                                    : '',
+                                style: GoogleFonts.poppins(fontSize: 13),
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
               ),
@@ -511,8 +505,8 @@ class MenuSetDetailsView extends StatelessWidget {
     List<MenuItem> items,
     MenuSetDetailsController controller,
   ) {
-    // group manually by category preserving MenuCategory order
-    final Map<MenuCategory, List<MenuItem>> grouped = {};
+    // group manually by category (now String-based)
+    final Map<String, List<MenuItem>> grouped = {};
     for (final i in items) {
       grouped.putIfAbsent(i.category, () => []).add(i);
     }
@@ -842,10 +836,9 @@ class MenuSetDetailsView extends StatelessWidget {
     );
   }
 
-  String _prettyCategory(MenuCategory category) {
-    final raw = category.name;
-    if (raw.isEmpty) return 'Other';
-    return raw[0].toUpperCase() + raw.substring(1);
+  String _prettyCategory(String category) {
+    // Category is already formatted by MenuCategoryHelper
+    return category;
   }
 }
 
@@ -869,7 +862,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   late final TextEditingController _descC;
   late final TextEditingController _priceC;
   late final TextEditingController _imageUrlC; // ← NEW
-  MenuCategory _category = MenuCategory.other;
+  String _category = 'Other'; // Changed from MenuCategory enum to String
   bool _isSaving = false;
   bool _isUploadingImage = false;
   FoodType _foodType = FoodType.veg;
@@ -1024,17 +1017,9 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                     (v == null || v.trim().isEmpty) ? 'Enter name' : null,
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<MenuCategory>(
+              DropdownButtonFormField<String>(
                 initialValue: _category,
-                items: MenuCategory.values
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c,
-                        child:
-                            Text(c.name[0].toUpperCase() + c.name.substring(1)),
-                      ),
-                    )
-                    .toList(),
+                items: MenuCategoryHelper.getCategoryDropdownItems(),
                 onChanged: (v) {
                   if (v != null) setState(() => _category = v);
                 },

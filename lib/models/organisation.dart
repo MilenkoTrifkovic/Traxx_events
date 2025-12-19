@@ -18,6 +18,7 @@ class Organisation {
   final String currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
   final String? logo; // Optional logo URL/path
   final String? photoUrl; // Local-only photo preview URL (not persisted)
+  final List<String>? customMenuCategories; // Optional custom menu categories
 
   // Database fields
   final DateTime? createdAt;
@@ -38,6 +39,7 @@ class Organisation {
     this.currency = 'USD', // Default to USD if not provided
     this.logo,
     this.photoUrl,
+    this.customMenuCategories,
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
@@ -53,6 +55,7 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Store currency ISO code
       'logo': logo,
+      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
       'address': {
         'street': street,
         'city': city,
@@ -86,6 +89,7 @@ class Organisation {
           'America/Los_Angeles (Pacific Time)', // Required with fallback
       currency: data['currency'] as String? ?? 'USD', // Default to USD if not in Firestore
       logo: (data['logo'] as String?)?.trim(),
+      customMenuCategories: (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -110,6 +114,7 @@ class Organisation {
           'America/Los_Angeles (Pacific Time)', // Required with fallback
       currency: json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
       logo: json['logo'] as String?,
+      customMenuCategories: (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -134,6 +139,7 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Include currency in JSON
       'logo': logo,
+      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
       'address': {
         'street': street,
         'city': city,
@@ -162,6 +168,7 @@ class Organisation {
     String? currency,
     String? logo,
     String? photoUrl,
+    List<String>? customMenuCategories,
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
@@ -180,6 +187,7 @@ class Organisation {
       currency: currency ?? this.currency,
       logo: logo ?? this.logo,
       photoUrl: photoUrl ?? this.photoUrl,
+      customMenuCategories: customMenuCategories ?? this.customMenuCategories,
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,
@@ -226,6 +234,6 @@ class Organisation {
 
   @override
   String toString() {
-    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, currency: $currency, logo: $logo, photoUrl: $photoUrl, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
+    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, currency: $currency, logo: $logo, photoUrl: $photoUrl, customMenuCategories: $customMenuCategories, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
   }
 }

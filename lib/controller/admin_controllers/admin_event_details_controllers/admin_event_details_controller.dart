@@ -23,7 +23,8 @@ class AdminEventDetailsController {
       Get.find<OrganisationController>();
 
   final Rxn<Event> event = Rxn<Event>();
-  Venue? venue;
+  final Rxn<Venue> venue = Rxn<Venue>();
+  // Venue? venue;
   Organisation? organisation;
 
   /// Menus are ONLY for browsing in popup
@@ -237,9 +238,10 @@ class AdminEventDetailsController {
 
   Future<void> _loadVenue(String venueId) async {
     try {
-      venue = await _venuesController.fetchVenueById(venueId);
-    } catch (_) {
-      venue = null;
+      venue.value = await _venuesController.fetchVenueById(venueId);
+    } catch (e) {
+      debugPrint('Error loading venue: $e');
+      venue.value = null;
     }
   }
 

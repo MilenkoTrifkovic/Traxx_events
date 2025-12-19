@@ -92,8 +92,11 @@ class VenuesController extends GetxController {
     Venue? venue = getVenueById(venueId);
     if (venue != null) return venue;
     try {
-      venue = await _firestoreServices.getVenueById(venueId);
-      return venue;
+      final fetchedVenue = await _firestoreServices.getVenueById(venueId);
+      
+      // Load photo URLs from storage
+      final venuesWithUrls = await _withPhotoUrls([fetchedVenue]);
+      return venuesWithUrls.isNotEmpty ? venuesWithUrls.first : fetchedVenue;
     } catch (e) {
       print('Error fetching venue: $e');
       return null;
