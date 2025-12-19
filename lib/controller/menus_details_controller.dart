@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 
 class MenuSetDetailsController extends GetxController {
@@ -26,7 +25,7 @@ class MenuSetDetailsController extends GetxController {
 
   // ---- FILTER STATE ----
   final searchQuery = ''.obs;
-  final selectedCategory = Rxn<MenuCategory>();
+  final selectedCategory = RxnString(); // Changed from MenuCategory to String
   final minPrice = RxnDouble();
   final maxPrice = RxnDouble();
 
@@ -93,7 +92,7 @@ class MenuSetDetailsController extends GetxController {
     _applyFilters();
   }
 
-  void setCategoryFilter(MenuCategory? category) {
+  void setCategoryFilter(String? category) {
     selectedCategory.value = category;
     _applyFilters();
   }
@@ -190,7 +189,7 @@ class MenuSetDetailsController extends GetxController {
 
   Future<void> createItem({
     required String name,
-    required MenuCategory category,
+    required String category, // Changed from MenuCategory to String
     required FoodType foodType, // NEW
     String? description,
     double? price,
