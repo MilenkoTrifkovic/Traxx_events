@@ -21,7 +21,8 @@ class AdminEventDetailsController {
   final OrganisationController _organisationController =
       Get.find<OrganisationController>();
   final Rxn<Event> event = Rxn<Event>();
-  Venue? venue;
+  final Rxn<Venue> venue = Rxn<Venue>();
+  // Venue? venue;
   Organisation? organisation;
 
   final availableMenus = <MenuModel>[].obs;
@@ -270,10 +271,10 @@ class AdminEventDetailsController {
 
   Future<void> _loadVenue(String venueId) async {
     try {
-      venue = await _venuesController.fetchVenueById(venueId);
+      venue.value = await _venuesController.fetchVenueById(venueId);
     } catch (e) {
       debugPrint('Error loading venue: $e');
-      venue = null;
+      venue.value = null;
     }
   }
 

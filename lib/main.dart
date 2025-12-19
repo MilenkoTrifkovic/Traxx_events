@@ -18,6 +18,7 @@ import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:nominatim_geocoding/nominatim_geocoding.dart';
 
 import 'firebase_options.dart';
 
@@ -38,6 +39,9 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize Nominatim Geocoding (works on web)
+  await NominatimGeocoding.init(reqCacheNum: 50);
 
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<SharedPrefServices>(() => SharedPrefServices(), fenix: true);
