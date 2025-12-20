@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "traxx-e1232"
+    "default": "traxx-e1232",
+    "staging": "traxx-e1232"
   },
   "targets": {
     "traxx-e1232": {
