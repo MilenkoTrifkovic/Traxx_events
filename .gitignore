@@ -1,3 +1,11 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Dart/Flutter web build artifacts (optional but recommended)
+build/
+.dart_tool/
+
 # Miscellaneous
 *.class
 *.log

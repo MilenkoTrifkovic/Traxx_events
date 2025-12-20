@@ -2,11 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
+import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_xlsx_parser.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
 import 'package:uuid/uuid.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class AdminGuestListController extends GetxController {
   final formKey = GlobalKey<FormState>();
@@ -75,6 +78,25 @@ class AdminGuestListController extends GetxController {
       _updatePagination();
       isInitialized.value = true;
     });
+  }
+
+  Future<Map<String, dynamic>> _getEventMeta() async {
+    final byDoc = await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .get();
+    if (byDoc.exists && byDoc.data() != null) return byDoc.data()!;
+
+    final q = await FirebaseFirestore.instance
+        .collection('events')
+        .where('eventId', isEqualTo: eventId)
+        .limit(1)
+        .get();
+
+    if (q.docs.isEmpty) {
+      throw Exception('Event not found for eventId=$eventId');
+    }
+    return q.docs.first.data();
   }
 
   Future<Map<String, dynamic>> _getEventData(String eventId) async {
@@ -352,17 +374,18 @@ class AdminGuestListController extends GetxController {
         final guestId = docRef.id;
 
         final guestWithId = GuestModel(
+          docId: guestId,
           guestId: guestId,
           name: guest.name,
           email: guest.email,
-          eventId: guest.eventId,
+          eventId: eventId,
           address: guest.address,
           city: guest.city,
           state: guest.state,
           country: guest.country,
           gender: guest.gender,
-          isDisabled: guest.isDisabled,
-          isInvited: guest.isInvited,
+          isDisabled: false,
+          isInvited: false,
         );
 
         batch.set(docRef, guestWithId.toFirestoreCreate());
@@ -383,114 +406,131 @@ class AdminGuestListController extends GetxController {
   // Invitation methods
   // ---------------------------
 
-  /// Invite a single guest by setting isInvited to true
   Future<bool> inviteGuest(String guestId) async {
     try {
       final guestDoc = await FirebaseFirestore.instance
           .collection('guests')
           .doc(guestId)
           .get();
-      if (!guestDoc.exists) throw Exception('Guest not found');
+      if (!guestDoc.exists) return false;
 
-      final data = guestDoc.data()!;
-      final email = (data['email'] ?? '').toString().trim();
-      if (email.isEmpty) throw Exception('Guest email missing');
+      final guest = GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id);
 
-      await _createInvitationForGuest(guestId: guestId, guestEmail: email);
+      if (guest.isDisabled == true) return false;
+      if (guest.isInvited == true) return true;
+      if (guest.email.trim().isEmpty) return false;
 
-      await FirebaseFirestore.instance
-          .collection('guests')
-          .doc(guestId)
-          .update({
-        'isInvited': true,
-        'modifiedAt': FieldValue.serverTimestamp(),
+      final eventMeta = await _getEventMeta();
+      final orgId = (eventMeta['organisationId'] ?? '').toString();
+      final setId =
+          (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
+
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('sendInvitations');
+
+      final res = await callable.call({
+        'eventId': eventId,
+        'organisationId': orgId.isEmpty ? null : orgId,
+        'demographicQuestionSetId': setId.isEmpty ? null : setId,
+        'invitations': [
+          {
+            'guestEmail': guest.email.trim(),
+            'guestId': guest.guestId,
+            'guestName': guest.name,
+          }
+        ],
       });
 
-      return true;
-    } catch (e) {
-      debugPrint('inviteGuest error: $e');
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final invited = (data['invited'] ?? 0) as int;
+
+      if (invited > 0) {
+        await FirebaseFirestore.instance
+            .collection('guests')
+            .doc(guestId)
+            .update({
+          'isInvited': true,
+          'modifiedAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      }
+
+      return false;
+    } catch (e, st) {
+      debugPrint('inviteGuest email error: $e\n$st');
       return false;
     }
   }
 
-  /// Invite all guests for the current event
   Future<int> inviteAllGuests() async {
     try {
-      final snap = await FirebaseFirestore.instance
+      final snapshot = await FirebaseFirestore.instance
           .collection('guests')
           .where('eventId', isEqualTo: eventId)
           .where('isDisabled', isEqualTo: false)
           .where('isInvited', isEqualTo: false)
           .get();
 
-      if (snap.docs.isEmpty) return 0;
+      if (snapshot.docs.isEmpty) return 0;
 
-      int invited = 0;
+      final guestsToInvite = snapshot.docs
+          .map((d) => GuestModel.fromFirestore(d.data(), d.id))
+          .where((g) => g.email.trim().isNotEmpty)
+          .toList();
 
-      // 2 writes per guest (invitation + guest update) so keep under 450 guests per batch
-      const int maxGuestsPerBatch = 200;
+      if (guestsToInvite.isEmpty) return 0;
 
-      for (int i = 0; i < snap.docs.length; i += maxGuestsPerBatch) {
-        final chunk = snap.docs.sublist(
-          i,
-          (i + maxGuestsPerBatch > snap.docs.length)
-              ? snap.docs.length
-              : i + maxGuestsPerBatch,
-        );
+      final eventMeta = await _getEventMeta();
+      final orgId = (eventMeta['organisationId'] ?? '').toString();
+      final setId =
+          (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
 
-        final batch = FirebaseFirestore.instance.batch();
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('sendInvitations');
 
-        // Pre-fetch event data once per batch
-        final eventData = await _getEventData(eventId);
-        final orgId = (eventData['organisationId'] ?? '').toString();
-        final setId =
-            (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
-        if (orgId.isEmpty || setId.isEmpty) {
-          throw Exception(
-              'Event missing organisationId or selectedDemographicQuestionSetId');
-        }
+      final res = await callable.call({
+        'eventId': eventId,
+        'organisationId': orgId.isEmpty ? null : orgId,
+        'demographicQuestionSetId': setId.isEmpty ? null : setId,
+        'invitations': guestsToInvite
+            .map((g) => {
+                  'guestEmail': g.email.trim(),
+                  'guestId': g.guestId,
+                  'guestName': g.name,
+                })
+            .toList(),
+      });
 
-        for (final d in chunk) {
-          final g = d.data();
-          final guestId = d.id;
-          final email = (g['email'] ?? '').toString().trim();
-          if (email.isEmpty) continue;
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final results = (data['results'] as List?) ?? [];
 
-          final invRef =
-              FirebaseFirestore.instance.collection('invitations').doc();
-          final invId = invRef.id;
+      final sentEmails = results
+          .where((r) => r is Map && r['status'] == 'sent')
+          .map((r) => (r['guestEmail'] ?? '').toString().trim().toLowerCase())
+          .where((e) => e.isNotEmpty)
+          .toSet();
 
-          batch.set(invRef, {
-            'invitationId': invId,
-            'eventId': eventId,
-            'organisationId': orgId,
-            'guestId': guestId,
-            'guestEmail': email,
-            'demographicQuestionSetId': setId,
-            'token': (_uuid.v4() + _uuid.v4()).replaceAll('-', ''),
-            'expiresAt': Timestamp.fromDate(
-                DateTime.now().add(const Duration(days: 14))),
-            'used': false,
-            'sent': false,
-            'sendError': null,
-            'createdAt': FieldValue.serverTimestamp(),
-            'sentAt': FieldValue.serverTimestamp(),
-          });
+      if (sentEmails.isEmpty) return 0;
 
-          batch.update(d.reference, {
+      final batch = FirebaseFirestore.instance.batch();
+      int count = 0;
+
+      for (final doc in snapshot.docs) {
+        final email =
+            (doc.data()['email'] ?? '').toString().trim().toLowerCase();
+        if (sentEmails.contains(email)) {
+          batch.update(doc.reference, {
             'isInvited': true,
             'modifiedAt': FieldValue.serverTimestamp(),
           });
-
-          invited++;
+          count++;
         }
-
-        await batch.commit();
       }
 
-      return invited;
-    } catch (e) {
-      debugPrint('inviteAllGuests error: $e');
+      await batch.commit();
+      return count;
+    } catch (e, st) {
+      debugPrint('inviteAllGuests email error: $e\n$st');
       return 0;
     }
   }

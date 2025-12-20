@@ -19,6 +19,7 @@ class AppBarCustom extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: backgroundColor ?? AppColors.white,
         boxShadow: [
@@ -43,7 +44,7 @@ class AppBarCustom extends StatelessWidget implements PreferredSizeWidget {
             constraints:
                 const BoxConstraints(maxWidth: Constants.maxContentWidth),
             child: Padding(
-              padding: AppPadding.vertical(context, paddingType: Sizes.xxs),
+              padding: AppPadding.vertical(context, paddingType: Sizes.xs),
               child: content,
             ),
           ),

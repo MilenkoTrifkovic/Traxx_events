@@ -36,10 +36,17 @@ class Venue {
   /// (for example, when a download URL has been resolved from a storage path).
   final String? photoUrl;
 
-  /// Optional in-memory download URLs for multiple photos.
+  /// Optional in-memory map linking photo paths to their download URLs.
   ///
-  /// This field is NOT written to Firestore and is used only at runtime
-  final List<String>? photoUrls;
+  /// This field is NOT written to Firestore and is used only at runtime.
+  /// Maps storage paths (from photoPaths) to their corresponding download URLs.
+  /// This ensures path-URL integrity and makes operations like deletion safer.
+  final Map<String, String>? photoPathToUrlMap;
+
+  /// Getter that returns list of photo URLs from the map.
+  ///
+  /// This maintains backward compatibility while using the safer map structure.
+  List<String> get photoUrls => photoPathToUrlMap?.values.toList() ?? [];
 
   /// Timestamp when the venue was created (optional - uses server timestamp when null)
   final DateTime? createdAt;
@@ -63,7 +70,7 @@ class Venue {
     this.photoPath,
     this.photoPaths,
     this.photoUrl,
-    this.photoUrls,
+    this.photoPathToUrlMap,
     this.createdAt,
     this.modifiedAt,
     this.isDisabled = false,
@@ -221,7 +228,7 @@ class Venue {
     String? photoPath,
     List<String>? photoPaths,
     String? photoUrl,
-    List<String>? photoUrls,
+    Map<String, String>? photoPathToUrlMap,
     DateTime? createdAt,
     DateTime? modifiedAt,
     bool? isDisabled,
@@ -239,7 +246,7 @@ class Venue {
       photoPath: photoPath ?? this.photoPath,
       photoPaths: photoPaths ?? this.photoPaths,
       photoUrl: photoUrl ?? this.photoUrl,
-      photoUrls: photoUrls ?? this.photoUrls,
+      photoPathToUrlMap: photoPathToUrlMap ?? this.photoPathToUrlMap,
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,

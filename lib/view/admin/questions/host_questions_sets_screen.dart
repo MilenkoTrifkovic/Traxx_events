@@ -58,15 +58,16 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
 
       if (!mounted) return;
 
-      final encodedTitle =
-          Uri.encodeComponent(title.isEmpty ? 'Question set' : title);
-      final encodedDescription = Uri.encodeComponent(description);
-
-      context.go(
-        '${AppRoute.hostQuestions.path}?setId=$setId'
-        '&setTitle=$encodedTitle'
-        '&setDescription=$encodedDescription',
+      final uri = Uri(
+        path: AppRoute.hostQuestions.path,
+        queryParameters: {
+          'setId': setId,
+          'setTitle': title.isEmpty ? 'Question set' : title,
+          'setDescription': description,
+        },
       );
+
+      context.go(uri.toString());
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -433,16 +434,7 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                             _QuestionSetTile(
                               set: set,
                               onTap: () {
-                                final encodedTitle =
-                                    Uri.encodeComponent(set.title);
-                                final encodedDescription =
-                                    Uri.encodeComponent(set.description);
-                                context.go(
-                                  '${AppRoute.hostQuestions.path}'
-                                  '?setId=${set.id}'
-                                  '&setTitle=$encodedTitle'
-                                  '&setDescription=$encodedDescription',
-                                );
+                                context.go('/host-question-sets/${set.id}');
                               },
                             ),
                         ],

@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 
 enum FoodType { veg, nonVeg }
 
@@ -22,7 +21,7 @@ class MenuItem {
   final String? organisationId;
 
   final String name;
-  final MenuCategory category;
+  final String category; // Changed from MenuCategory enum to String to support custom categories
 
   final String? description;
   final String? imagePath;
@@ -59,7 +58,7 @@ class MenuItem {
       'menuId': menuId,
       'organisationId': organisationId,
       'name': name,
-      'category': category.name,
+      'category': category, // Now already a string
       'description': description,
       'imagePath': imagePath,
       'imageUrl': imageUrl,
@@ -79,7 +78,7 @@ class MenuItem {
       'menuId': menuId,
       'organisationId': organisationId,
       'name': name,
-      'category': category.name,
+      'category': category, // Now already a string
       'description': description,
       'imagePath': imagePath,
       'imageUrl': imageUrl,
@@ -100,16 +99,12 @@ class MenuItem {
     } else if (ft == 'non_veg') {
       parsedFoodType = FoodType.nonVeg;
     }
-    final String categoryString = data['category'] ?? 'other';
     return MenuItem(
       menuItemId: id ?? data['menuItemId'] as String?,
       menuId: data['menuId'] as String?,
       organisationId: data['organisationId'] as String?,
       name: data['name'] as String? ?? '',
-      category: MenuCategory.values.firstWhere(
-        (e) => e.name == categoryString,
-        orElse: () => MenuCategory.other,
-      ),
+      category: data['category'] as String? ?? 'Other', // Direct string assignment with fallback
       description: data['description'] as String?,
       imagePath: data['imagePath'] as String?,
       imageUrl: data['imageUrl'] as String?,
@@ -130,7 +125,7 @@ class MenuItem {
     String? menuId,
     String? organisationId,
     String? name,
-    MenuCategory? category,
+    String? category, // Changed from MenuCategory to String
     String? description,
     String? imagePath,
     String? imageUrl,

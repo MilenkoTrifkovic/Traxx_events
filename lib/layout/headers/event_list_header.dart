@@ -1,6 +1,8 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -10,8 +12,12 @@ import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
 
 class EventListHeader extends StatelessWidget {
   EventListHeader({super.key});
+
   final EventListController eventListController =
       Get.find<EventListController>();
+  final SnackbarMessageController snackbarMessageController =
+      Get.find<SnackbarMessageController>();
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -29,18 +35,17 @@ class EventListHeader extends StatelessWidget {
               ),
             AppSpacing.horizontalXs(context),
             AppPrimaryButton(
-                icon: Icons.add,
-                text: 'Add Event',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return CreateEventPopupView();
-                    },
-                  );
-                  // Handle add event action
-                }),
-            // AppSpacing.horizontalXs(context),
+              icon: Icons.add,
+              text: 'Add Event',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return CreateEventPopupView();
+                  },
+                );
+              },
+            ),
           ],
         )
       ],

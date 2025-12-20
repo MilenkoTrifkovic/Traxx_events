@@ -1,4 +1,3 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -6,22 +5,21 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
-import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
-import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
 
 class AdminEventDetails extends StatefulWidget {
   final String eventId;
@@ -75,29 +73,21 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
         );
       }
 
-      final organisation = controller.organisation;
-      final venue = controller.venue;
-
-      final dateStr =
-          "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr =
-          "${evt.startTime.hour.toString().padLeft(2, '0')}:${evt.startTime.minute.toString().padLeft(2, '0')}";
-
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            EventDetailsHeader(
-              title: evt.name,
-              status: evt.status,
-              date: dateStr,
-              time: timeStr,
-              location: organisation?.city ?? '',
-              serviceType: evt.serviceType,
-              venue: venue?.name ?? '',
-            ),
-            const SizedBox(height: 24),
+            // EventDetailsHeader(
+            //   title: evt.name,
+            //   status: evt.status,
+            //   date: dateStr,
+            //   time: timeStr,
+            //   location: organisation?.city ?? '',
+            //   serviceType: evt.serviceType,
+            //   venue: venue?.name ?? '',
+            // ),
+            // const SizedBox(height: 24),
 
             /// Event details section
             EventSummarySection(controller: controller),
@@ -118,6 +108,13 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
               ],
             ),
 
+            const SizedBox(height: 24),
+
+            /// Venue section
+            // VenueSelectionCard(controller: controller),
+            Row(children: [
+              Expanded(child: VenueSelectionCard(controller: controller)),
+            ]),
             const SizedBox(height: 24),
 
             /// Guest list section (keep Milenko’s logic, but inside a card)
@@ -305,12 +302,14 @@ class DemographicQuestionsPanelBody extends StatelessWidget {
 
 class DemographicSetPickerDialog extends StatefulWidget {
   final List<QuestionSet> sets;
-  final void Function(QuestionSet) onSelected;
+
+  /// Optional: if you still want the callback style.
+  final ValueChanged<QuestionSet>? onSelected;
 
   const DemographicSetPickerDialog({
     super.key,
     required this.sets,
-    required this.onSelected,
+    this.onSelected,
   });
 
   @override
@@ -320,84 +319,490 @@ class DemographicSetPickerDialog extends StatefulWidget {
 
 class _DemographicSetPickerDialogState
     extends State<DemographicSetPickerDialog> {
-  QuestionSet? selected;
+  final ScrollController _leftScrollController = ScrollController();
+  final ScrollController _rightScrollController = ScrollController();
+
+  String _search = '';
+  QuestionSet? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    // default selection
+    if (widget.sets.isNotEmpty) {
+      _selected = widget.sets.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _leftScrollController.dispose();
+    _rightScrollController.dispose();
+    super.dispose();
+  }
+
+  List<QuestionSet> get _filteredSets {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return widget.sets;
+
+    return widget.sets.where((s) {
+      final t = (s.title).toLowerCase();
+      final d = (s.description).toLowerCase();
+      final id = (s.questionSetId).toLowerCase();
+      return t.contains(q) || d.contains(q) || id.contains(q);
+    }).toList();
+  }
+
+  void _pick(QuestionSet s) {
+    setState(() => _selected = s);
+    if (_rightScrollController.hasClients) {
+      _rightScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _confirm() {
+    final s = _selected;
+    if (s == null) return;
+
+    // If caller provided callback, fire it
+    widget.onSelected?.call(s);
+
+    // Always return selected for callers who await showDialog()
+    Navigator.of(context).pop(s);
+  }
 
   @override
   Widget build(BuildContext context) {
-    // The model now guarantees non-null title/description, but still normalize locally
-    final safeSets =
-        widget.sets.where((s) => s.questionSetId.trim().isNotEmpty).toList();
+    final sets = _filteredSets;
+    final selected = _selected;
 
-    return AlertDialog(
-      title: const Text("Select Demographic Question Set"),
-      content: SizedBox(
-        width: 500,
-        child: safeSets.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24.0),
-                  child: Text(
-                    'No question sets available.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+    final totalCount = widget.sets.length;
+    final filteredCount = sets.length;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 1240,
+        height: 820,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            )
+          ],
+        ),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            // HEADER (matches your dishes popup feel)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Select demographic question set',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(null),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // SEARCH ROW
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    style: GoogleFonts.poppins(),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Search set name, description, or id…',
+                      hintStyle: GoogleFonts.poppins(),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                    ),
+                    onChanged: (v) => setState(() => _search = v),
                   ),
                 ),
-              )
-            : ListView.builder(
-                shrinkWrap: true,
-                itemCount: safeSets.length,
-                itemBuilder: (_, i) {
-                  final set = safeSets[i];
-                  // Use defensive display strings (should not be null now)
-                  final displayTitle = set.title.trim().isEmpty
-                      ? '(Untitled set)'
-                      : set.title.trim();
-                  final displaySubtitle = set.description.trim().isEmpty
-                      ? null
-                      : set.description.trim();
+                const SizedBox(width: 12),
+                _infoChip('Total • $totalCount'),
+                const SizedBox(width: 8),
+                _infoChip(
+                  'Showing • $filteredCount',
+                  highlight: _search.trim().isNotEmpty,
+                ),
+              ],
+            ),
 
-                  final isSel = selected != null &&
-                      selected!.questionSetId == set.questionSetId;
+            const SizedBox(height: 12),
 
-                  return ListTile(
-                    title: Text(displayTitle),
-                    subtitle:
-                        displaySubtitle == null ? null : Text(displaySubtitle),
-                    trailing: isSel
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : null,
-                    onTap: () => setState(() => selected = set),
-                  );
-                },
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // LEFT LIST
+                  Expanded(
+                    flex: 3,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE6E9EE)),
+                      ),
+                      child: sets.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No sets match your search',
+                                style: GoogleFonts.poppins(color: Colors.grey),
+                              ),
+                            )
+                          : Scrollbar(
+                              controller: _leftScrollController,
+                              thumbVisibility: true,
+                              child: ListView.separated(
+                                controller: _leftScrollController,
+                                itemCount: sets.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (_, idx) {
+                                  final s = sets[idx];
+                                  final isSelected = selected?.questionSetId ==
+                                      s.questionSetId;
+
+                                  return InkWell(
+                                    onTap: () => _pick(s),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.blue.shade50
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.blue.shade700
+                                              : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 34,
+                                            height: 34,
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? Colors.blue.shade600
+                                                  : Colors.grey.shade200,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              Icons.assignment_outlined,
+                                              size: 18,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : Colors.grey.shade700,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  s.title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                if (s.description.isNotEmpty)
+                                                  Text(
+                                                    s.description,
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color:
+                                                          Colors.grey.shade700,
+                                                    ),
+                                                  )
+                                                else
+                                                  Text(
+                                                    'No description',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color:
+                                                          Colors.grey.shade500,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          TextButton(
+                                            onPressed: () {
+                                              _pick(s);
+                                              _confirm();
+                                            },
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: isSelected
+                                                  ? Colors.black
+                                                  : Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                side: BorderSide(
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isSelected ? 'Selected' : 'Pick',
+                                              style: GoogleFonts.poppins(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : Colors.black,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 18),
+
+                  // RIGHT PREVIEW
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: selected == null
+                          ? Center(
+                              child: Text(
+                                'Select a set to preview',
+                                style: GoogleFonts.poppins(color: Colors.grey),
+                              ),
+                            )
+                          : Scrollbar(
+                              controller: _rightScrollController,
+                              thumbVisibility: true,
+                              child: SingleChildScrollView(
+                                controller: _rightScrollController,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Preview',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade50,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            selected.title,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          if (selected.description.isNotEmpty)
+                                            Text(
+                                              selected.description,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade700,
+                                              ),
+                                            )
+                                          else
+                                            Text(
+                                              'No description provided.',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Tip: You can change this later anytime.',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
-      ),
-      actions: [
-        TextButton(
-          child: const Text("Cancel"),
-          onPressed: () =>
-              Navigator.of(context).pop(null), // return null on cancel
-        ),
-        ElevatedButton(
-          onPressed: selected == null
-              ? null
-              : () {
-                  final sel = selected!;
-                  // Defensive check
-                  if (sel.questionSetId.trim().isEmpty) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Selected set is invalid')),
-                      );
-                    }
-                    return;
-                  }
+            ),
 
-                  // Close the dialog and return the selected set to the caller.
-                  Navigator.of(context).pop(sel);
-                },
-          child: const Text("Choose"),
-        )
+            const SizedBox(height: 16),
+
+            // FOOTER ACTIONS
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(null),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _selected == null ? null : _confirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(
+                    'Confirm',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniKeyValue(String k, String v) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            '$k:',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            v,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _infoChip(String text,
+      {bool highlight = false, bool negative = false}) {
+    final bg = highlight
+        ? Colors.green.shade50
+        : (negative ? Colors.red.shade50 : Colors.grey.shade50);
+    final border = highlight
+        ? Colors.green.shade200
+        : (negative ? Colors.red.shade200 : Colors.grey.shade200);
+    final color = highlight
+        ? Colors.green.shade800
+        : (negative ? Colors.red.shade800 : Colors.black87);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -439,55 +844,84 @@ class EventSummarySection extends StatelessWidget {
           children: [
             /// title + edit icon
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  evt.name,
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF111827),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Edit event details',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => EditEventDetailsDialog(
-                        controller: controller,
-                        initialEvent: evt,
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      EventImage(
+                        onUpdate: (updatedEvent) =>
+                            controller.updateEvent(updatedEvent),
+                        event: evt,
+                        width: 90,
+                        height: 90,
+                        borderRadius: 12,
+                        iconSize: 36,
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _pill(
-                  icon: Icons.event,
-                  label: '$dateStr • $timeStr',
-                ),
-                _pill(
-                  icon: Icons.place,
-                  label: organisation?.city ?? 'Location not set',
-                ),
-                _pill(
-                  icon: Icons.location_city,
-                  label: venue?.name.capitalize ?? 'Venue not set',
-                ),
-                _pill(
-                  icon: Icons.restaurant,
-                  label: evt.serviceType.name.isEmpty
-                      ? 'Service type'
-                      : evt.serviceType.name[0].toUpperCase() +
-                          evt.serviceType.name.substring(1),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  evt.name,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Edit event details',
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (_) => EditEventDetailsDialog(
+                                        controller: controller,
+                                        initialEvent: evt,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 16,
+                              runSpacing: 8,
+                              children: [
+                                _pill(
+                                  icon: Icons.event,
+                                  label: '$dateStr • $timeStr',
+                                ),
+                                _pill(
+                                  icon: Icons.place,
+                                  label:
+                                      organisation?.city ?? 'Location not set',
+                                ),
+                                _pill(
+                                  icon: Icons.location_city,
+                                  label:
+                                      venue.value?.name.capitalize ?? 'Venue not set',
+                                ),
+                                _pill(
+                                  icon: Icons.restaurant,
+                                  label: evt.serviceType.name.isEmpty
+                                      ? 'Service type'
+                                      : evt.serviceType.name[0].toUpperCase() +
+                                          evt.serviceType.name.substring(1),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -659,8 +1093,6 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                       // Just update the event's venueId, no photo changes
                       await widget.controller.updateEventVenueAndPhotos(
                         venueId: _selectedVenueId!,
-                        photoPathsToAdd: [], // Photos handled by VenuePhotoManager
-                        photoPathsToRemove: [], // Photos handled by VenuePhotoManager
                       );
                     }
 
@@ -697,15 +1129,17 @@ class MenuSelectionCard extends StatelessWidget {
   const MenuSelectionCard({super.key, required this.controller});
 
   Future<void> _openMenuDialog(BuildContext context) async {
-    final currentMenuId = controller.selectedMenu.value?.id;
-    final currentItemIds = controller.selectedMenuItemIds.toList();
+    final initialMenuId = controller.lastBrowsedMenuId.value ??
+        (controller.availableMenus.isNotEmpty
+            ? controller.availableMenus.first.id
+            : null);
 
     await showDialog(
       context: context,
       builder: (_) => MenuAndItemsDialog(
         controller: controller,
-        initialMenuId: currentMenuId,
-        initialItemIds: currentItemIds,
+        initialMenuId: initialMenuId,
+        initialItemIds: controller.selectedMenuItemIds.toList(),
       ),
     );
   }
@@ -713,29 +1147,26 @@ class MenuSelectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final selectedMenu = controller.selectedMenu.value;
-      final selectedItemIds = controller.selectedMenuItemIds.toList();
-      final allItems = controller.menuItems.toList();
-      // final NumberFormat currency =
-      //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+      final selectedIds = controller.selectedMenuItemIds.toList();
+      final selectedItems = controller.selectedMenuItems.toList();
 
-      // compute selected items & total
-      final selectedItems = allItems
-          .where((i) => selectedItemIds.contains(i.menuItemId))
-          .toList(growable: false);
+      final bool hasSelection = selectedIds.isNotEmpty;
+      final bool isLoadingSelectedDocs = hasSelection && selectedItems.isEmpty;
 
-      final double total = selectedItems.map((i) {
-        final p = i.price;
+      double priceOf(MenuItem item) {
+        final p = item.price;
         if (p == null) return 0.0;
-        return p.toDouble();
+        if (p is num) return p.toDouble();
         return double.tryParse(p.toString()) ?? 0.0;
-      }).fold(0.0, (a, b) => a + b);
+      }
 
-      // category + foodType counts
+      final total = selectedItems.map(priceOf).fold(0.0, (a, b) => a + b);
+
+      // counts
       final Map<String, int> typeCounts = {};
       final Map<String, int> catCounts = {};
       for (final i in selectedItems) {
-        final ft = _foodTypeLabel(i);
+        final ft = _foodTypeLabel(i).isEmpty ? 'Other' : _foodTypeLabel(i);
         final cat = _categoryLabel(i).isEmpty ? 'Other' : _categoryLabel(i);
         typeCounts[ft] = (typeCounts[ft] ?? 0) + 1;
         catCounts[cat] = (catCounts[cat] ?? 0) + 1;
@@ -749,9 +1180,10 @@ class MenuSelectionCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 14,
-                offset: const Offset(0, 8)),
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
         child: Column(
@@ -761,94 +1193,94 @@ class MenuSelectionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Menu & dishes',
-                    style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF111827))),
+                Text(
+                  'Menu & dishes',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
                 IconButton(
-                  tooltip:
-                      selectedMenu == null ? 'Select menu' : 'Edit selection',
-                  icon: Icon(
-                      selectedMenu == null ? Icons.add : Icons.edit_outlined),
+                  tooltip: hasSelection ? 'Edit selection' : 'Select dishes',
+                  icon: Icon(hasSelection ? Icons.edit_outlined : Icons.add),
                   onPressed: () => _openMenuDialog(context),
                 ),
               ],
             ),
             const SizedBox(height: 8),
 
-            if (selectedMenu == null) ...[
-              Text('Please select the menu and menu items.',
-                  style: GoogleFonts.poppins(
-                      fontSize: 13, color: const Color(0xFF6B7280))),
+            if (!hasSelection) ...[
+              Text(
+                'No dishes selected for this event.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => _openMenuDialog(context),
-                child: Text('Choose menu', style: GoogleFonts.poppins()),
+                child: Text('Select dishes', style: GoogleFonts.poppins()),
               ),
-            ] else ...[
-              // show only menu name and description
-              Text(selectedMenu.name,
-                  style: GoogleFonts.poppins(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              if (selectedMenu.description != null &&
-                  selectedMenu.description!.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(selectedMenu.description!,
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, color: const Color(0xFF6B7280))),
-              ],
-              const SizedBox(height: 12),
-              if (selectedItems.isEmpty)
-                Text('No dishes selected for this event.',
-                    style: GoogleFonts.poppins(
-                        fontSize: 13, color: const Color(0xFF6B7280)))
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // top summary chips (veg/non-veg/category counts)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _summaryChip('Total', selectedItems.length),
-                        ...typeCounts.entries
-                            .map((e) => _summaryChip(e.key, e.value)),
-                        ...catCounts.entries
-                            .map((e) => _summaryChip(e.key, e.value)),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    // selected items list (limit visual height; scroll if many)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 340),
-                      child: Scrollbar(
-                        child: ListView.separated(
-                          itemCount: selectedItems.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (_, idx) =>
-                              selectedDishRow(selectedItems[idx]),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Total',
-                            style: GoogleFonts.poppins(
-                                fontSize: 14, fontWeight: FontWeight.w700)),
-                        Text(AppCurrency.format(total),
-                            style: GoogleFonts.poppins(
-                                fontSize: 14, fontWeight: FontWeight.w700)),
-                      ],
-                    )
-                  ],
+            ] else if (isLoadingSelectedDocs) ...[
+              // ✅ Handles the “IDs exist but docs are still loading” state
+              Text(
+                'Loading selected dishes...',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: const Color(0xFF6B7280),
                 ),
+              ),
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(minHeight: 3),
+            ] else ...[
+              // ✅ IMPORTANT: no menu name/description shown (items are mixed)
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _summaryChip('Total', selectedIds.length),
+                  ...typeCounts.entries
+                      .map((e) => _summaryChip(e.key, e.value)),
+                  ...catCounts.entries.map((e) => _summaryChip(e.key, e.value)),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 340),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: ListView.separated(
+                    itemCount: selectedItems.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, idx) =>
+                        selectedDishRow(selectedItems[idx]),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    AppCurrency.format(total),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ],
         ),
@@ -861,6 +1293,7 @@ class MenuSelectionCard extends StatelessWidget {
         !label.toLowerCase().startsWith('non');
     final bool isNonVeg = label.toLowerCase().contains('non') ||
         label.toLowerCase().contains('non-veg');
+
     final bg = isVeg
         ? Colors.green.shade50
         : (isNonVeg ? Colors.red.shade50 : Colors.grey.shade50);
@@ -874,22 +1307,26 @@ class MenuSelectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: border)),
-      child: Text('$label • $count',
-          style: GoogleFonts.poppins(
-              fontSize: 12, fontWeight: FontWeight.w600, color: textColor)),
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        '$label • $count',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
     );
   }
 
   Widget selectedDishRow(MenuItem item) {
     final String ftLabel = _foodTypeLabel(item);
     final String catLabel = _categoryLabel(item);
-    final bool isVeg = ftLabel.toLowerCase() == 'veg' ||
-        _isVegByCategory(item); // fallback to category
-    // final NumberFormat currency =
-    //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final bool isVeg = ftLabel.toLowerCase() == 'veg' || _isVegByCategory(item);
+
     final price = item.price;
     final double p = (price == null)
         ? 0.0
@@ -900,104 +1337,120 @@ class MenuSelectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE5E7EB))),
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
       child: Row(
         children: [
           Container(
             width: 18,
             height: 18,
             decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: const Color(0xFFCBD5E1))),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
             child: Center(
-                child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                        color: isVeg ? Colors.green : Colors.red,
-                        shape: BoxShape.circle))),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: isVeg ? Colors.green : Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.name,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
                   style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              Row(children: [
-                if (ftLabel.isNotEmpty)
-                  Text(ftLabel,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12, color: const Color(0xFF6B7280))),
-                if (ftLabel.isNotEmpty && catLabel.isNotEmpty)
-                  const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Text('•',
-                          style: TextStyle(color: Color(0xFFCBD5E1)))),
-                if (catLabel.isNotEmpty)
-                  Text(catLabel,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12, color: const Color(0xFF6B7280))),
-              ])
-            ]),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    if (ftLabel.isNotEmpty)
+                      Text(
+                        ftLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                    if (ftLabel.isNotEmpty && catLabel.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: Text('•',
+                            style: TextStyle(color: Color(0xFFCBD5E1))),
+                      ),
+                    if (catLabel.isNotEmpty)
+                      Text(
+                        catLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          Text(AppCurrency.format(p),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          Text(
+            AppCurrency.format(p),
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
   }
 
-  // ---------- Robust helpers (no unnecessary casts) ----------
-
-  /// Return 'Veg' / 'Non-Veg' or '' if unknown
   String _foodTypeLabel(MenuItem item) {
     final dynamic ft = item.foodType;
     if (ft == null) return '';
 
     String raw;
     if (ft is FoodType) {
-      raw = ft.name; // safe: `ft` narrowed to FoodType
+      raw = ft.name;
     } else if (ft is String) {
       raw = ft;
     } else {
       raw = ft.toString();
     }
 
-    // normalize: take last segment if something like 'FoodType.veg'
-    final String last =
-        raw.split('.').last.replaceAll('_', '').trim().toLowerCase();
-
+    final last = raw.split('.').last.replaceAll('_', '').trim().toLowerCase();
     if (last.contains('non')) return 'Non-Veg';
     if (last.contains('veg')) return 'Veg';
     if (last.isEmpty) return '';
     return last[0].toUpperCase() + last.substring(1);
   }
 
-  /// Return category label (title-cased) or ''
   String _categoryLabel(MenuItem item) {
     final dynamic c = item.category;
     if (c == null) return '';
 
     String raw;
     if (c is MenuCategory) {
-      raw = c.name; // safe: `c` narrowed to MenuCategory
+      raw = c.name;
     } else if (c is String) {
       raw = c;
     } else {
       raw = c.toString();
     }
 
-    final String last = raw.split('.').last.replaceAll('_', ' ').trim();
+    final last = raw.split('.').last.replaceAll('_', ' ').trim();
     if (last.isEmpty) return '';
     return _titleCase(last);
   }
 
-  /// Determine veg using MenuCategory.isVeg if possible, else fall back to foodType label
   bool _isVegByCategory(MenuItem item) {
     final dynamic c = item.category;
     if (c is MenuCategory) return c.isVeg;
@@ -1032,34 +1485,52 @@ class MenuAndItemsDialog extends StatefulWidget {
 
 class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   String? _menuId;
-  MenuModel? _menu;
   List<MenuItem> _items = [];
-  final Set<String> _selectedItemIds = {};
-  bool _loadingItems = false;
-  bool _saving = false;
-  // final NumberFormat _currency =
-  //     NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
-  // new controllers for scrolling
+  // keep order (newest at top)
+  final List<String> _selectedOrder = [];
+  final Set<String> _selectedIds = {};
+  final Map<String, MenuItem> _selectedCache = {};
+
+  bool _loadingItems = false;
+  bool _loadingSelected = false;
+  bool _saving = false;
+
   final ScrollController _leftScrollController = ScrollController();
   final ScrollController _rightScrollController = ScrollController();
 
-  // local filters (kept in state)
-  String search = '';
-  String? selectedCategoryFilter;
-  String? selectedFoodTypeFilter;
+  final TextEditingController _leftSearchCtrl = TextEditingController();
+  final TextEditingController _rightSearchCtrl = TextEditingController();
+
+  String _leftSearch = '';
+  String _rightSearch = '';
+
+  String? _leftCategory; // null = All
+  String? _rightCategory; // null = All
+
+  FoodType? _leftFoodType; // null = All
+  FoodType? _rightFoodType;
 
   @override
   void initState() {
     super.initState();
+
     _menuId = widget.initialMenuId ??
+        widget.controller.lastBrowsedMenuId.value ??
         (widget.controller.availableMenus.isNotEmpty
             ? widget.controller.availableMenus.first.id
             : null);
-    _selectedItemIds.addAll(widget.initialItemIds);
+
+    // init selection (preserve stored order)
+    for (final id in widget.initialItemIds) {
+      final v = id.trim();
+      if (v.isEmpty) continue;
+      if (_selectedIds.add(v)) _selectedOrder.add(v);
+    }
+
+    _prefetchSelectedDetails();
+
     if (_menuId != null) {
-      _menu = widget.controller.availableMenus
-          .firstWhereOrNull((m) => m.id == _menuId);
       _loadItems(_menuId!);
     }
   }
@@ -1068,7 +1539,24 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   void dispose() {
     _leftScrollController.dispose();
     _rightScrollController.dispose();
+    _leftSearchCtrl.dispose();
+    _rightSearchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _prefetchSelectedDetails() async {
+    if (_selectedOrder.isEmpty) return;
+    setState(() => _loadingSelected = true);
+    try {
+      final list =
+          await widget.controller.fetchMenuItemsByIds(_selectedOrder.toList());
+      for (final it in list) {
+        final id = (it.menuItemId ?? '').trim();
+        if (id.isNotEmpty) _selectedCache[id] = it;
+      }
+    } finally {
+      if (mounted) setState(() => _loadingSelected = false);
+    }
   }
 
   Future<void> _loadItems(String menuId) async {
@@ -1094,313 +1582,595 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     return double.tryParse(p.toString()) ?? 0.0;
   }
 
-  void _toggleSelection(MenuItem item) {
-    setState(() {
-      if (_selectedItemIds.contains(item.menuItemId)) {
-        _selectedItemIds.remove(item.menuItemId);
-      } else {
-        _selectedItemIds.add(item.menuItemId!);
-      }
-    });
+  // ✅ robust foodType: uses item.foodType first, then falls back to item.isVeg if present.
+  FoodType? _foodTypeFor(MenuItem item) {
+    // 1) if your model has foodType
+    final dynamic ft = (item as dynamic).foodType;
+    if (ft is FoodType) return ft;
 
-    // auto scroll right to top to reveal new selection
-    if (_rightScrollController.hasClients) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _rightScrollController.animateTo(0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut);
-      });
+    // 2) if foodType stored as String somehow
+    if (ft is String) {
+      final norm = ft.replaceAll(RegExp(r'[\s_\-]'), '').toLowerCase();
+      if (norm == 'veg') return FoodType.veg;
+      if (norm == 'nonveg') return FoodType.nonVeg;
+    }
+
+    // 3) fallback to isVeg field if present on model
+    final dynamic v = (item as dynamic).isVeg;
+    if (v is bool) return v ? FoodType.veg : FoodType.nonVeg;
+
+    return null; // unknown
+  }
+
+  String _foodTypeLabelFor(MenuItem item) {
+    final ft = _foodTypeFor(item);
+    if (ft == FoodType.veg) return 'Veg';
+    if (ft == FoodType.nonVeg) return 'Non-Veg';
+    return ''; // unknown
+  }
+
+  String _categoryLabelFor(MenuItem item) {
+    final dynamic c = item.category;
+    if (c == null) return '';
+    String raw;
+    if (c is MenuCategory) {
+      raw = c.name;
+    } else if (c is String) {
+      raw = c;
+    } else {
+      raw = c.toString();
+    }
+
+    // ✅ handle enum.toString + camelCase nicely
+    var last = raw.split('.').last.trim();
+    last = last.replaceAll('_', ' ');
+    last = last.replaceAllMapped(
+      RegExp(r'(?<=[a-z])(?=[A-Z])'),
+      (_) => ' ',
+    );
+    last = last.trim();
+
+    if (last.isEmpty) return '';
+    return _titleCase(last);
+  }
+
+  String _titleCase(String s) {
+    return s
+        .split(' ')
+        .where((p) => p.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .join(' ');
+  }
+
+  void _addToTop(String id) {
+    if (_selectedIds.add(id)) {
+      _selectedOrder.insert(0, id);
+    } else {
+      _selectedOrder.remove(id);
+      _selectedOrder.insert(0, id);
     }
   }
 
-  double get _selectedTotal => _items
-      .where((i) => _selectedItemIds.contains(i.menuItemId))
-      .map(_priceOf)
-      .fold(0.0, (a, b) => a + b);
+  void _removeId(String id) {
+    _selectedIds.remove(id);
+    _selectedOrder.remove(id);
+    _selectedCache.remove(id);
+  }
+
+  Future<void> _toggleSelection(MenuItem item) async {
+    final id = (item.menuItemId ?? '').trim();
+    if (id.isEmpty) return;
+
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _removeId(id);
+      } else {
+        _addToTop(id);
+        _selectedCache[id] = item;
+      }
+    });
+
+    if (_rightScrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _rightScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      });
+    }
+
+    if (_selectedIds.contains(id) && _selectedCache[id] == null) {
+      final fetched = await widget.controller.fetchMenuItemById(id);
+      if (fetched != null && mounted) {
+        setState(() => _selectedCache[id] = fetched);
+      }
+    }
+  }
+
+  List<MenuItem> get _selectedItemsOrdered {
+    final out = <MenuItem>[];
+    for (final id in _selectedOrder) {
+      final it = _selectedCache[id];
+      if (it != null) out.add(it);
+    }
+    return out;
+  }
+
+  double get _selectedTotal =>
+      _selectedItemsOrdered.map(_priceOf).fold(0.0, (a, b) => a + b);
+
+  Widget _buildHeader(BuildContext context, List<MenuModel> menus) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Select menu & dishes',
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          SizedBox(
+            width: 460,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Menu (browse)',
+                labelStyle: GoogleFonts.poppins(color: Colors.white70),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.18),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white24),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white54),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _menuId,
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  iconEnabledColor: Colors.white,
+
+                  // ✅ FIX: selected text in the field should be WHITE
+                  selectedItemBuilder: (_) => menus
+                      .map((m) => Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              m.name,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+
+                  // ✅ dropdown list should stay BLACK text on WHITE bg
+                  items: menus
+                      .map((m) => DropdownMenuItem(
+                            value: m.id,
+                            child: Text(
+                              m.name,
+                              style: GoogleFonts.poppins(color: Colors.black),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+
+                    setState(() {
+                      _menuId = value;
+                      _items = [];
+                    });
+
+                    widget.controller.lastBrowsedMenuId.value = value;
+                    _loadItems(value);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final menus = widget.controller.availableMenus;
 
-    // derive lists & counts from _items
+    String _norm(String s) =>
+        s.replaceAll(RegExp(r'[\s_\-]'), '').toLowerCase();
+
+    // LEFT menu categories based on current menu
     final allCategories = _items
-        .map((it) => _categoryLabelFor(it))
+        .map(_categoryLabelFor)
         .where((s) => s.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
 
     final Map<String, int> leftCategoryCounts = {};
-    final Map<String, int> leftFoodTypeCounts = {};
+    final Map<String, int> leftFoodTypeCounts = {}; // Veg / Non-Veg / Other
+
     for (final it in _items) {
       final cat =
           _categoryLabelFor(it).isEmpty ? 'Other' : _categoryLabelFor(it);
       leftCategoryCounts[cat] = (leftCategoryCounts[cat] ?? 0) + 1;
-      final ft =
-          _foodTypeLabelFor(it).isEmpty ? 'Other' : _foodTypeLabelFor(it);
-      leftFoodTypeCounts[ft] = (leftFoodTypeCounts[ft] ?? 0) + 1;
+
+      final ftLabel = _foodTypeLabelFor(it);
+      final key = ftLabel.isEmpty ? 'Other' : ftLabel;
+      leftFoodTypeCounts[key] = (leftFoodTypeCounts[key] ?? 0) + 1;
     }
 
-    // filtered items
-    final filtered = _items.where((it) {
-      final nameOk =
-          it.name.toLowerCase().contains(search.toLowerCase().trim());
+    // LEFT filtered list
+    final filteredLeft = _items.where((it) {
+      final q = _leftSearch.toLowerCase().trim();
+      final nameOk = q.isEmpty || it.name.toLowerCase().contains(q);
+
       final cat = _categoryLabelFor(it);
-      final catOk = selectedCategoryFilter == null ||
-          selectedCategoryFilter == 'All' ||
-          selectedCategoryFilter == cat;
-      final ft = _foodTypeLabelFor(it);
-      final ftOk = selectedFoodTypeFilter == null ||
-          selectedFoodTypeFilter == 'All' ||
-          selectedFoodTypeFilter == ft;
+      final catOk = _leftCategory == null || _leftCategory == cat;
+
+      final ft = _foodTypeFor(it);
+      final ftOk = _leftFoodType == null || ft == _leftFoodType;
+
       return nameOk && catOk && ftOk;
     }).toList();
 
-    // right side counts for selected items
+    // RIGHT counts (selected)
+    final selectedOrdered = _selectedItemsOrdered;
+
     final Map<String, int> rightCategoryCounts = {};
     final Map<String, int> rightFoodTypeCounts = {};
-    for (final it
-        in _items.where((i) => _selectedItemIds.contains(i.menuItemId))) {
+
+    for (final it in selectedOrdered) {
       final cat =
           _categoryLabelFor(it).isEmpty ? 'Other' : _categoryLabelFor(it);
       rightCategoryCounts[cat] = (rightCategoryCounts[cat] ?? 0) + 1;
-      final ft =
-          _foodTypeLabelFor(it).isEmpty ? 'Other' : _foodTypeLabelFor(it);
-      rightFoodTypeCounts[ft] = (rightFoodTypeCounts[ft] ?? 0) + 1;
+
+      final ftLabel = _foodTypeLabelFor(it);
+      final key = ftLabel.isEmpty ? 'Other' : ftLabel;
+      rightFoodTypeCounts[key] = (rightFoodTypeCounts[key] ?? 0) + 1;
     }
 
-    final bool showSeeMore = filtered.length > 6;
+    final bool showSeeMore = filteredLeft.length > 6;
 
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 1120,
-        height: 760,
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 12))
-          ],
+    return MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(1.08), // try 1.06–1.10
         ),
-        padding: const EdgeInsets.all(18),
-        child: Column(children: [
-          // header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: 1240,
+            height: 820,
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(children: [
-              Expanded(
-                  child: Text('Select menu & dishes',
-                      style: GoogleFonts.poppins(
-                          fontSize: 20, fontWeight: FontWeight.w700))),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 420,
-                child: Container(
-                  decoration: BoxDecoration(boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4))
-                  ]),
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Menu',
-                      labelStyle: GoogleFonts.poppins(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _menuId,
-                        isExpanded: true,
-                        items: menus
-                            .map((m) => DropdownMenuItem(
-                                value: m.id,
-                                child:
-                                    Text(m.name, style: GoogleFonts.poppins())))
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _menuId = value;
-                            _menu =
-                                menus.firstWhereOrNull((m) => m.id == value);
-                            _items = [];
-                            _selectedItemIds.clear();
-                          });
-                          _loadItems(value);
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-
-          const SizedBox(height: 12),
-
-          // filter row
-          Row(children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4))
-                ]),
-                child: TextField(
-                  style: GoogleFonts.poppins(),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
-                    hintText: 'Search dish name, e.g. "rice"',
-                    hintStyle: GoogleFonts.poppins(),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 12),
-                  ),
-                  onChanged: (v) => setState(() => search = v),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 200,
-              decoration: BoxDecoration(boxShadow: [
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4))
-              ]),
-              child: DropdownButtonFormField<String?>(
-                value: selectedCategoryFilter,
-                hint: Text('Category', style: GoogleFonts.poppins()),
-                items: [null, 'All', ...allCategories]
-                    .map((c) => DropdownMenuItem<String?>(
-                        value: c,
-                        child: Text(c ?? 'All', style: GoogleFonts.poppins())))
-                    .toList(),
-                onChanged: (v) => setState(() => selectedCategoryFilter = v),
-                decoration: InputDecoration(
-                    fillColor: Colors.white,
-                    filled: true,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8)),
-              ),
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                )
+              ],
             ),
-            const SizedBox(width: 12),
-            Row(children: [
-              _filterPill(
-                  'Veg',
-                  selectedFoodTypeFilter == 'Veg',
-                  () => setState(() => selectedFoodTypeFilter =
-                      selectedFoodTypeFilter == 'Veg' ? null : 'Veg')),
-              const SizedBox(width: 8),
-              _filterPill(
-                  'Non-Veg',
-                  selectedFoodTypeFilter == 'Non-Veg',
-                  () => setState(() => selectedFoodTypeFilter =
-                      selectedFoodTypeFilter == 'Non-Veg' ? null : 'Non-Veg')),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8)),
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 10)),
-                  onPressed: () => setState(() {
-                    search = '';
-                    selectedCategoryFilter = null;
-                    selectedFoodTypeFilter = null;
-                  }),
-                  child: Text('Clear',
-                      style: GoogleFonts.poppins(color: Colors.black)),
-                ),
-              ),
-            ]),
-          ]),
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _buildHeader(context, menus),
+                // filter row
+                // Row(
+                //   children: [
+                //     Expanded(
+                //       child: TextField(
+                //         style: GoogleFonts.poppins(),
+                //         decoration: InputDecoration(
+                //           prefixIcon: const Icon(Icons.search),
+                //           hintText: 'Search dish name, e.g. "rice"',
+                //           hintStyle: GoogleFonts.poppins(),
+                //           filled: true,
+                //           fillColor: Colors.white,
+                //           border: OutlineInputBorder(
+                //             borderRadius: BorderRadius.circular(10),
+                //             borderSide: BorderSide.none,
+                //           ),
+                //           contentPadding: const EdgeInsets.symmetric(
+                //               horizontal: 12, vertical: 12),
+                //         ),
+                //         onChanged: (v) => setState(() => _leftSearch = v),
+                //       ),
+                //     ),
+                //     const SizedBox(width: 12),
+                //     SizedBox(
+                //       width: 200,
+                //       child: DropdownButtonFormField<String?>(
+                //         value: _leftCategory,
+                //         hint: Text('Category', style: GoogleFonts.poppins()),
+                //         items: [null, 'All', ...allCategories]
+                //             .map((c) => DropdownMenuItem<String?>(
+                //                   value: c,
+                //                   child: Text(c ?? 'All',
+                //                       style: GoogleFonts.poppins()),
+                //                 ))
+                //             .toList(),
+                //         onChanged: (v) => setState(() => _leftCategory = v),
+                //         decoration: InputDecoration(
+                //           fillColor: Colors.white,
+                //           filled: true,
+                //           border: OutlineInputBorder(
+                //             borderRadius: BorderRadius.circular(10),
+                //             borderSide: BorderSide.none,
+                //           ),
+                //           contentPadding: const EdgeInsets.symmetric(
+                //               horizontal: 12, vertical: 8),
+                //         ),
+                //       ),
+                //     ),
+                //     const SizedBox(width: 12),
+                //     Row(
+                //       children: [
+                //         _filterPill(
+                //           'Veg',
+                //           _leftFoodType == FoodType.veg,
+                //           () => setState(() => _leftFoodType =
+                //               _leftFoodType == FoodType.veg ? null : FoodType.veg),
+                //         ),
+                //         _filterPill(
+                //           'Non-Veg',
+                //           _leftFoodType == FoodType.nonVeg,
+                //           () => setState(() => _leftFoodType =
+                //               _leftFoodType == FoodType.nonVeg
+                //                   ? null
+                //                   : FoodType.nonVeg),
+                //         ),
+                //         const SizedBox(width: 12),
+                //         TextButton(
+                //           onPressed: () => setState(() {
+                //             _leftSearch = '';
+                //             _leftCategory = null;
+                //             _leftFoodType = null;
+                //           }),
+                //           child: Text('Clear',
+                //               style: GoogleFonts.poppins(color: Colors.black)),
+                //         ),
+                //       ],
+                //     ),
+                //   ],
+                // ),
 
-          const SizedBox(height: 12),
+                const SizedBox(height: 18),
 
-          // body
-          Expanded(
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // LEFT
-              Expanded(
-                flex: 3,
-                child: Column(
+                Expanded(
+                    child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      24, 18, 24, 24), // spacing for body
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(spacing: 8, runSpacing: 6, children: [
-                        ...leftFoodTypeCounts.entries.map((e) => _infoChip(
-                            '${e.key} • ${e.value}',
-                            highlight: e.key.toLowerCase() == 'veg',
-                            negative: e.key.toLowerCase().contains('non'))),
-                        ...leftCategoryCounts.entries
-                            .map((e) => _infoChip('${e.key} • ${e.value}')),
-                      ]),
-                      const SizedBox(height: 8),
+                      // ================= LEFT HALF (Before selection) =================
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFF9FAFB),
-                              borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: const Color(0xFFE6E9EE))),
-                          child: _loadingItems
-                              ? const Center(child: CircularProgressIndicator())
-                              : filtered.isEmpty
-                                  ? Center(
-                                      child: Text('No items match your filters',
-                                          style: GoogleFonts.poppins(
-                                              color: Colors.grey)))
-                                  : Column(children: [
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Title + Veg/Non-Veg counts (ONLY)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Before selection',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                _infoChip(
+                                  'Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.veg).length}',
+                                  highlight: true,
+                                ),
+                                const SizedBox(width: 8),
+                                _infoChip(
+                                  'Non-Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length}',
+                                  negative: true,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // LEFT filters (moved fully to left)
+                            TextField(
+                              controller: _leftSearchCtrl,
+                              style: GoogleFonts.poppins(),
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.search),
+                                hintText: 'Search dish name, e.g. "rice"',
+                                hintStyle: GoogleFonts.poppins(),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 12),
+                              ),
+                              onChanged: (v) => setState(() => _leftSearch = v),
+                            ),
+                            const SizedBox(height: 10),
+
+                            Builder(builder: (_) {
+                              // category counts for LEFT dropdown (from all _items)
+                              final Map<String, int> leftCatCounts = {};
+                              for (final it in _items) {
+                                final cat = _categoryLabelFor(it).isEmpty
+                                    ? 'Other'
+                                    : _categoryLabelFor(it);
+                                leftCatCounts[cat] =
+                                    (leftCatCounts[cat] ?? 0) + 1;
+                              }
+                              final leftCats = leftCatCounts.keys.toList()
+                                ..sort();
+
+                              return Row(
+                                children: [
+                                  SizedBox(
+                                    width: 260,
+                                    child: DropdownButtonFormField<String?>(
+                                      value: _leftCategory,
+                                      hint: Text('Category',
+                                          style: GoogleFonts.poppins()),
+                                      items: [
+                                        DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text('All (${_items.length})',
+                                              style: GoogleFonts.poppins()),
+                                        ),
+                                        ...leftCats.map((c) =>
+                                            DropdownMenuItem<String?>(
+                                              value: c,
+                                              child: Text(
+                                                  '$c (${leftCatCounts[c] ?? 0})',
+                                                  style: GoogleFonts.poppins()),
+                                            )),
+                                      ],
+                                      onChanged: (v) =>
+                                          setState(() => _leftCategory = v),
+                                      decoration: InputDecoration(
+                                        fillColor: Colors.white,
+                                        filled: true,
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _filterPill(
+                                    'Veg',
+                                    _leftFoodType == FoodType.veg,
+                                    () => setState(() => _leftFoodType =
+                                        _leftFoodType == FoodType.veg
+                                            ? null
+                                            : FoodType.veg),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _filterPill(
+                                    'Non-Veg',
+                                    _leftFoodType == FoodType.nonVeg,
+                                    () => setState(() => _leftFoodType =
+                                        _leftFoodType == FoodType.nonVeg
+                                            ? null
+                                            : FoodType.nonVeg),
+                                  ),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: () => setState(() {
+                                      _leftSearchCtrl.clear();
+                                      _leftSearch = '';
+                                      _leftCategory = null;
+                                      _leftFoodType = null;
+                                    }),
+                                    child: Text('Clear',
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.black)),
+                                  ),
+                                ],
+                              );
+                            }),
+
+                            const SizedBox(height: 10),
+
+                            // LEFT list container
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF9FAFB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: const Color(0xFFE6E9EE)),
+                                ),
+                                child: Builder(builder: (_) {
+                                  final filteredLeft = _items.where((it) {
+                                    final q = _leftSearch.toLowerCase().trim();
+                                    final nameOk = q.isEmpty ||
+                                        it.name.toLowerCase().contains(q);
+
+                                    final cat = _categoryLabelFor(it);
+                                    final catOk = _leftCategory == null ||
+                                        _leftCategory == cat;
+
+                                    final ft = _foodTypeFor(it);
+                                    final ftOk = _leftFoodType == null ||
+                                        ft == _leftFoodType;
+
+                                    return nameOk && catOk && ftOk;
+                                  }).toList();
+
+                                  final bool showSeeMore =
+                                      filteredLeft.length > 6;
+
+                                  if (_loadingItems) {
+                                    return const Center(
+                                        child: CircularProgressIndicator());
+                                  }
+                                  if (filteredLeft.isEmpty) {
+                                    return Center(
+                                      child: Text(
+                                        'No items match your filters',
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.grey),
+                                      ),
+                                    );
+                                  }
+
+                                  return Column(
+                                    children: [
                                       Expanded(
                                         child: Scrollbar(
                                           controller: _leftScrollController,
                                           thumbVisibility: true,
                                           child: ListView.separated(
                                             controller: _leftScrollController,
-                                            itemCount: filtered.length,
+                                            itemCount: filteredLeft.length,
                                             separatorBuilder: (_, __) =>
                                                 const SizedBox(height: 10),
                                             itemBuilder: (_, idx) {
-                                              final item = filtered[idx];
+                                              final item = filteredLeft[idx];
+                                              final id = (item.menuItemId ?? '')
+                                                  .trim();
                                               final isSelected =
-                                                  _selectedItemIds.contains(
-                                                      item.menuItemId);
+                                                  id.isNotEmpty &&
+                                                      _selectedIds.contains(id);
                                               final bool isVeg =
-                                                  (_categoryLabelFor(item)
-                                                          .toLowerCase()
-                                                          .contains('veg') ||
-                                                      _foodTypeLabelFor(item)
-                                                              .toLowerCase() ==
-                                                          'veg');
+                                                  _foodTypeFor(item) ==
+                                                      FoodType.veg;
 
                                               return InkWell(
                                                 onTap: () =>
@@ -1422,31 +2192,36 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                         BorderRadius.circular(
                                                             10),
                                                     border: Border.all(
-                                                        color: isSelected
-                                                            ? (isVeg
-                                                                ? Colors.green
-                                                                    .shade700
-                                                                : Colors.red
-                                                                    .shade700)
-                                                            : Colors
-                                                                .grey.shade300),
+                                                      color: isSelected
+                                                          ? (isVeg
+                                                              ? Colors.green
+                                                                  .shade700
+                                                              : Colors
+                                                                  .red.shade700)
+                                                          : Colors
+                                                              .grey.shade300,
+                                                    ),
                                                   ),
-                                                  child: Row(children: [
-                                                    _foodSquareIcon(isVeg),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Column(
+                                                  child: Row(
+                                                    children: [
+                                                      _foodSquareIcon(isVeg),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Column(
                                                           crossAxisAlignment:
                                                               CrossAxisAlignment
                                                                   .start,
                                                           children: [
-                                                            Text(item.name,
-                                                                style: GoogleFonts.poppins(
-                                                                    fontSize:
-                                                                        15,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w700)),
+                                                            Text(
+                                                              item.name,
+                                                              style: GoogleFonts
+                                                                  .poppins(
+                                                                fontSize: 15,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                            ),
                                                             const SizedBox(
                                                                 height: 6),
                                                             Text(
@@ -1460,29 +2235,32 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                                         item)
                                                                     .isNotEmpty)
                                                                   _categoryLabelFor(
-                                                                      item)
+                                                                      item),
                                                               ].join(' • '),
                                                               style: GoogleFonts
                                                                   .poppins(
-                                                                      fontSize:
-                                                                          12,
-                                                                      color: Colors
-                                                                          .grey
-                                                                          .shade700),
+                                                                fontSize: 12,
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade700,
+                                                              ),
                                                             ),
-                                                          ]),
-                                                    ),
-                                                    Text(
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      Text(
                                                         AppCurrency.format(
                                                             _priceOf(item)),
                                                         style:
                                                             GoogleFonts.poppins(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700)),
-                                                    const SizedBox(width: 8),
-                                                    Container(
-                                                      decoration: BoxDecoration(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Container(
+                                                        decoration:
+                                                            BoxDecoration(
                                                           color: isSelected
                                                               ? Colors.black
                                                               : Colors.white,
@@ -1491,32 +2269,28 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                                   .circular(6),
                                                           border: Border.all(
                                                               color: Colors.grey
-                                                                  .shade300)),
-                                                      child: TextButton(
-                                                        style: TextButton.styleFrom(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .symmetric(
-                                                                    horizontal:
-                                                                        12,
-                                                                    vertical:
-                                                                        10)),
-                                                        onPressed: () =>
-                                                            _toggleSelection(
-                                                                item),
-                                                        child: Text(
+                                                                  .shade300),
+                                                        ),
+                                                        child: TextButton(
+                                                          onPressed: () =>
+                                                              _toggleSelection(
+                                                                  item),
+                                                          child: Text(
                                                             isSelected
                                                                 ? 'Remove'
                                                                 : 'Add',
-                                                            style: GoogleFonts.poppins(
-                                                                color: isSelected
-                                                                    ? Colors
-                                                                        .white
-                                                                    : Colors
-                                                                        .black)),
+                                                            style: GoogleFonts
+                                                                .poppins(
+                                                              color: isSelected
+                                                                  ? Colors.white
+                                                                  : Colors
+                                                                      .black,
+                                                            ),
+                                                          ),
+                                                        ),
                                                       ),
-                                                    )
-                                                  ]),
+                                                    ],
+                                                  ),
                                                 ),
                                               );
                                             },
@@ -1536,8 +2310,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                       horizontal: 16,
                                                       vertical: 12),
                                               shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8)),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
                                             ),
                                             onPressed: () {
                                               final max = _leftScrollController
@@ -1546,346 +2321,598 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                   _leftScrollController.offset +
                                                       260;
                                               _leftScrollController.animateTo(
-                                                  pos.clamp(0, max),
-                                                  duration: const Duration(
-                                                      milliseconds: 420),
-                                                  curve: Curves.easeInOut);
+                                                pos.clamp(0, max),
+                                                duration: const Duration(
+                                                    milliseconds: 420),
+                                                curve: Curves.easeInOut,
+                                              );
                                             },
-                                            child: Text('See more',
-                                                style: GoogleFonts.poppins(
-                                                    color: Colors.white,
-                                                    fontWeight:
-                                                        FontWeight.w600)),
+                                            child: Text(
+                                              'See more',
+                                              style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                    ]),
-                        ),
-                      ),
-                    ]),
-              ),
-
-              const SizedBox(width: 18),
-
-              // RIGHT
-              Expanded(
-                flex: 2,
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Selected header + total count displayed separately
-                      Text.rich(
-                        TextSpan(
-                          text: 'Selected items - ',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: '${_selectedItemIds.length}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
+                                    ],
+                                  );
+                                }),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
 
-                      // Selected summary chips
+                      const SizedBox(width: 20),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE5E7EB))),
-                        child: Wrap(spacing: 8, children: [
-                          _infoChip('Total • ${_selectedItemIds.length}'),
-                          ...rightFoodTypeCounts.entries.map((e) => _infoChip(
-                              '${e.key} • ${e.value}',
-                              highlight: e.key.toLowerCase() == 'veg',
-                              negative: e.key.toLowerCase().contains('non'))),
-                          ...rightCategoryCounts.entries
-                              .map((e) => _infoChip('${e.key} • ${e.value}')),
-                        ]),
-                      ),
+                          width: 1,
+                          height: double.infinity,
+                          color: const Color(0xFFE5E7EB)),
+                      const SizedBox(width: 20),
 
-                      const SizedBox(height: 8),
-
-                      // selected list
+                      // ================= RIGHT HALF (After selection) =================
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: const Color(0xFFE5E7EB))),
-                          child: _items
-                                  .where((i) =>
-                                      _selectedItemIds.contains(i.menuItemId))
-                                  .isEmpty
-                              ? Center(
-                                  child: Text('No items selected yet.',
-                                      style: GoogleFonts.poppins(
-                                          color: Colors.grey)))
-                              : Scrollbar(
-                                  controller: _rightScrollController,
-                                  thumbVisibility: true,
-                                  child: ListView.builder(
-                                    controller: _rightScrollController,
-                                    itemCount: _items
-                                        .where((i) => _selectedItemIds
-                                            .contains(i.menuItemId))
-                                        .length,
-                                    itemBuilder: (_, index) {
-                                      final selectedList = _items
-                                          .where((i) => _selectedItemIds
-                                              .contains(i.menuItemId))
-                                          .toList();
-                                      final it = selectedList[index];
-                                      final price = _priceOf(it);
-                                      final ft = _foodTypeLabelFor(it);
-                                      final cat = _categoryLabelFor(it);
-                                      final isVeg = ft.toLowerCase() == 'veg';
-                                      return Container(
-                                        margin:
-                                            const EdgeInsets.only(bottom: 10),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 10),
-                                        decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                            border: Border.all(
-                                                color:
-                                                    const Color(0xFFE5E7EB))),
-                                        child: Row(children: [
-                                          _foodSquareIcon(isVeg),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(it.name,
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                              fontSize: 14,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700)),
-                                                  const SizedBox(height: 6),
-                                                  Text(
-                                                      [
-                                                        if (ft.isNotEmpty) ft,
-                                                        if (cat.isNotEmpty) cat
-                                                      ].join(' • '),
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                              fontSize: 12,
-                                                              color: Colors.grey
-                                                                  .shade700)),
-                                                ]),
-                                          ),
-                                          Text(AppCurrency.format(price),
-                                              style: GoogleFonts.poppins(
-                                                  fontWeight: FontWeight.w700)),
-                                          IconButton(
-                                              icon: const Icon(Icons.close,
-                                                  size: 18),
-                                              onPressed: () => setState(() =>
-                                                  _selectedItemIds
-                                                      .remove(it.menuItemId))),
-                                        ]),
-                                      );
-                                    },
-                                  ),
-                                ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // total + actions
-                      // --- Replace the existing total + actions row with this "bill" footer ---
-                      // ---------- SNIPPET A: selected-items mini footer (centered, pill style) ----------
-                      const SizedBox(height: 10),
-
-// Centered pills (Items count + Total) inside the selected-items panel
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        // keep it visually separated but subtle
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Items pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(color: Colors.grey.shade200),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 3),
-                                  )
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Text('Items:',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600)),
-                                  const SizedBox(width: 10),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                          color: Colors.grey.shade200),
+                            // Build selected list ids filtered by RIGHT filters
+                            Builder(builder: (_) {
+                              final bool rightFiltersActive =
+                                  _rightSearch.trim().isNotEmpty ||
+                                      _rightCategory != null ||
+                                      _rightFoodType != null;
+
+                              bool match(MenuItem it) {
+                                final q = _rightSearch.toLowerCase().trim();
+                                final nameOk = q.isEmpty ||
+                                    it.name.toLowerCase().contains(q);
+
+                                final cat = _categoryLabelFor(it);
+                                final catOk = _rightCategory == null ||
+                                    _rightCategory == cat;
+
+                                final ft = _foodTypeFor(it);
+                                final ftOk = _rightFoodType == null ||
+                                    ft == _rightFoodType;
+
+                                return nameOk && catOk && ftOk;
+                              }
+
+                              final visibleSelectedIds = <String>[];
+                              for (final id in _selectedOrder) {
+                                final it = _selectedCache[id];
+                                if (it == null) {
+                                  // show loading cards only when no right filters are applied
+                                  if (!rightFiltersActive)
+                                    visibleSelectedIds.add(id);
+                                  continue;
+                                }
+                                if (match(it)) visibleSelectedIds.add(id);
+                              }
+
+                              final visibleItems = visibleSelectedIds
+                                  .map((id) => _selectedCache[id])
+                                  .whereType<MenuItem>()
+                                  .toList();
+
+                              final vegCount = visibleItems
+                                  .where(
+                                      (it) => _foodTypeFor(it) == FoodType.veg)
+                                  .length;
+                              final nonCount = visibleItems
+                                  .where((it) =>
+                                      _foodTypeFor(it) == FoodType.nonVeg)
+                                  .length;
+
+                              // category counts for RIGHT dropdown (from all selected, not filtered)
+                              final Map<String, int> rightCatCounts = {};
+                              for (final it in _selectedItemsOrdered) {
+                                final cat = _categoryLabelFor(it).isEmpty
+                                    ? 'Other'
+                                    : _categoryLabelFor(it);
+                                rightCatCounts[cat] =
+                                    (rightCatCounts[cat] ?? 0) + 1;
+                              }
+                              final rightCats = rightCatCounts.keys.toList()
+                                ..sort();
+
+                              return Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Title + counts only
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Selected Items - ${_selectedOrder.length}',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        _infoChip('Veg • $vegCount',
+                                            highlight: true),
+                                        const SizedBox(width: 8),
+                                        _infoChip('Non-Veg • $nonCount',
+                                            negative: true),
+                                      ],
                                     ),
-                                    child: Text('${_selectedItemIds.length}',
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700)),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                    const SizedBox(height: 10),
 
-                            const SizedBox(width: 16),
+                                    // RIGHT filters (new, only for selected items)
+                                    TextField(
+                                      controller: _rightSearchCtrl,
+                                      style: GoogleFonts.poppins(),
+                                      decoration: InputDecoration(
+                                        prefixIcon: const Icon(Icons.search),
+                                        hintText:
+                                            'Search within selected items',
+                                        hintStyle: GoogleFonts.poppins(),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 12),
+                                      ),
+                                      onChanged: (v) =>
+                                          setState(() => _rightSearch = v),
+                                    ),
+                                    const SizedBox(height: 10),
 
-                            // Total pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black.withOpacity(0.12),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4))
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Text('Total',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.w600)),
-                                  const SizedBox(width: 10),
-                                  Text(AppCurrency.format(_selectedTotal),
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 15,
+                                    Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 260,
+                                          child:
+                                              DropdownButtonFormField<String?>(
+                                            value: _rightCategory,
+                                            hint: Text('Category',
+                                                style: GoogleFonts.poppins()),
+                                            items: [
+                                              DropdownMenuItem<String?>(
+                                                value: null,
+                                                child: Text(
+                                                  'All (${_selectedOrder.length})',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                              ),
+                                              ...rightCats.map((c) =>
+                                                  DropdownMenuItem<String?>(
+                                                    value: c,
+                                                    child: Text(
+                                                      '$c (${rightCatCounts[c] ?? 0})',
+                                                      style:
+                                                          GoogleFonts.poppins(),
+                                                    ),
+                                                  )),
+                                            ],
+                                            onChanged: (v) => setState(
+                                                () => _rightCategory = v),
+                                            decoration: InputDecoration(
+                                              fillColor: Colors.white,
+                                              filled: true,
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: BorderSide.none,
+                                              ),
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        _filterPill(
+                                          'Veg',
+                                          _rightFoodType == FoodType.veg,
+                                          () => setState(() => _rightFoodType =
+                                              _rightFoodType == FoodType.veg
+                                                  ? null
+                                                  : FoodType.veg),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _filterPill(
+                                          'Non-Veg',
+                                          _rightFoodType == FoodType.nonVeg,
+                                          () => setState(() => _rightFoodType =
+                                              _rightFoodType == FoodType.nonVeg
+                                                  ? null
+                                                  : FoodType.nonVeg),
+                                        ),
+                                        const Spacer(),
+                                        TextButton(
+                                          onPressed: () => setState(() {
+                                            _rightSearchCtrl.clear();
+                                            _rightSearch = '';
+                                            _rightCategory = null;
+                                            _rightFoodType = null;
+                                          }),
+                                          child: Text('Clear',
+                                              style: GoogleFonts.poppins(
+                                                  color: Colors.black)),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 10),
+
+                                    // RIGHT list
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.w800)),
-                                ],
-                              ),
-                            ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                              color: const Color(0xFFE5E7EB)),
+                                        ),
+                                        child: _loadingSelected
+                                            ? const Center(
+                                                child:
+                                                    CircularProgressIndicator())
+                                            : visibleSelectedIds.isEmpty
+                                                ? Center(
+                                                    child: Text(
+                                                      'No selected items match your filters',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                              color:
+                                                                  Colors.grey),
+                                                    ),
+                                                  )
+                                                : Scrollbar(
+                                                    controller:
+                                                        _rightScrollController,
+                                                    thumbVisibility: true,
+                                                    child: ListView.builder(
+                                                      controller:
+                                                          _rightScrollController,
+                                                      itemCount:
+                                                          visibleSelectedIds
+                                                              .length,
+                                                      itemBuilder: (_, index) {
+                                                        final id =
+                                                            visibleSelectedIds[
+                                                                index];
+                                                        final it =
+                                                            _selectedCache[id];
+
+                                                        if (it == null) {
+                                                          return Container(
+                                                            margin:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                    bottom: 10),
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        12,
+                                                                    vertical:
+                                                                        10),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color:
+                                                                  Colors.white,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          10),
+                                                              border: Border.all(
+                                                                  color: const Color(
+                                                                      0xFFE5E7EB)),
+                                                            ),
+                                                            child: Row(
+                                                              children: [
+                                                                const SizedBox(
+                                                                  width: 18,
+                                                                  height: 18,
+                                                                  child: CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2),
+                                                                ),
+                                                                const SizedBox(
+                                                                    width: 10),
+                                                                Expanded(
+                                                                  child: Text(
+                                                                    'Loading item...',
+                                                                    style: GoogleFonts
+                                                                        .poppins(
+                                                                      fontSize:
+                                                                          13,
+                                                                      color: Colors
+                                                                          .grey
+                                                                          .shade700,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                                IconButton(
+                                                                  icon: const Icon(
+                                                                      Icons
+                                                                          .close,
+                                                                      size: 18),
+                                                                  onPressed: () =>
+                                                                      setState(() =>
+                                                                          _removeId(
+                                                                              id)),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                        }
+
+                                                        final price =
+                                                            _priceOf(it);
+                                                        final bool isVeg =
+                                                            _foodTypeFor(it) ==
+                                                                FoodType.veg;
+                                                        final ftLabel =
+                                                            _foodTypeLabelFor(
+                                                                it);
+                                                        final cat =
+                                                            _categoryLabelFor(
+                                                                it);
+
+                                                        return Container(
+                                                          margin:
+                                                              const EdgeInsets
+                                                                  .only(
+                                                                  bottom: 10),
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal:
+                                                                      12,
+                                                                  vertical: 10),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        10),
+                                                            border: Border.all(
+                                                                color: const Color(
+                                                                    0xFFE5E7EB)),
+                                                          ),
+                                                          child: Row(
+                                                            children: [
+                                                              _foodSquareIcon(
+                                                                  isVeg),
+                                                              const SizedBox(
+                                                                  width: 10),
+                                                              Expanded(
+                                                                child: Column(
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .start,
+                                                                  children: [
+                                                                    Text(
+                                                                      it.name,
+                                                                      style: GoogleFonts
+                                                                          .poppins(
+                                                                        fontSize:
+                                                                            14,
+                                                                        fontWeight:
+                                                                            FontWeight.w700,
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                        height:
+                                                                            6),
+                                                                    Text(
+                                                                      [
+                                                                        if (ftLabel
+                                                                            .isNotEmpty)
+                                                                          ftLabel,
+                                                                        if (cat
+                                                                            .isNotEmpty)
+                                                                          cat,
+                                                                      ].join(
+                                                                          ' • '),
+                                                                      style: GoogleFonts
+                                                                          .poppins(
+                                                                        fontSize:
+                                                                            12,
+                                                                        color: Colors
+                                                                            .grey
+                                                                            .shade700,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                AppCurrency
+                                                                    .format(
+                                                                        price),
+                                                                style:
+                                                                    GoogleFonts
+                                                                        .poppins(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                ),
+                                                              ),
+                                                              IconButton(
+                                                                icon: const Icon(
+                                                                    Icons.close,
+                                                                    size: 18),
+                                                                onPressed: () =>
+                                                                    setState(() =>
+                                                                        _removeId(
+                                                                            id)),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 10),
+
+                                    // totals (overall selection, not filtered)
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade50,
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                            border: Border.all(
+                                                color: Colors.grey.shade200),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Text('Items:',
+                                                  style: GoogleFonts.poppins(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                              const SizedBox(width: 10),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(18),
+                                                  border: Border.all(
+                                                      color:
+                                                          Colors.grey.shade200),
+                                                ),
+                                                child: Text(
+                                                    '${_selectedOrder.length}',
+                                                    style: GoogleFonts.poppins(
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w700)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 18, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black,
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Text('Total',
+                                                  style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                      color: Colors.white70,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                  AppCurrency.format(
+                                                      _selectedTotal),
+                                                  style: GoogleFonts.poppins(
+                                                      fontSize: 15,
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w800)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        TextButton(
+                                          onPressed: _saving
+                                              ? null
+                                              : () =>
+                                                  Navigator.of(context).pop(),
+                                          child: Text('Cancel',
+                                              style: GoogleFonts.poppins()),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        ElevatedButton(
+                                          onPressed: _saving
+                                              ? null
+                                              : () async {
+                                                  setState(
+                                                      () => _saving = true);
+                                                  try {
+                                                    widget
+                                                        .controller
+                                                        .lastBrowsedMenuId
+                                                        .value = _menuId;
+                                                    await widget.controller
+                                                        .applyMenuSelection(
+                                                            _selectedOrder);
+                                                    if (mounted)
+                                                      Navigator.of(context)
+                                                          .pop();
+                                                  } finally {
+                                                    if (mounted)
+                                                      setState(() =>
+                                                          _saving = false);
+                                                  }
+                                                },
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.black),
+                                          child: _saving
+                                              ? const SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : Text('Confirm',
+                                                  style: GoogleFonts.poppins(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w700)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
                           ],
                         ),
                       ),
-                    ]),
-              ),
-            ]),
+                    ],
+                  ),
+                )),
+              ],
+            ),
           ),
-
-          const SizedBox(height: 10),
-
-          // --- GLOBAL ACTION ROW AT THE BOTTOM OF POPUP ---
-          const SizedBox(height: 16),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              // Cancel
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: TextButton(
-                  onPressed: _saving ? null : () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 22, vertical: 14),
-                  ),
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Confirm
-              ElevatedButton(
-                onPressed: _saving || _menuId == null
-                    ? null
-                    : () async {
-                        setState(() => _saving = true);
-                        await widget.controller.applyMenuSelection(
-                          _menuId!,
-                          _selectedItemIds.toList(),
-                        );
-                        if (mounted) Navigator.of(context).pop();
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Confirm',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ]),
-      ),
-    );
+        ));
   }
 
   Widget _infoChip(String text,
@@ -1899,21 +2926,30 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     final color = highlight
         ? Colors.green.shade800
         : (negative ? Colors.red.shade800 : Colors.black87);
+
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: border)),
-        child: Text(text,
-            style: GoogleFonts.poppins(
-                fontSize: 12, fontWeight: FontWeight.w600, color: color)));
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
   }
 
   Widget _filterPill(String text, bool selected, VoidCallback onTap) {
     final bool isVeg = text.toLowerCase().contains('veg') &&
         !text.toLowerCase().contains('non');
     final bool isNon = text.toLowerCase().contains('non');
+
     final bg = selected
         ? (isVeg
             ? Colors.green.shade900
@@ -1931,19 +2967,14 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 6,
-                        offset: const Offset(0, 4))
-                  ]
-                : null),
-        child: Text(text,
-            style: GoogleFonts.poppins(color: fg, fontWeight: FontWeight.w600)),
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(color: fg, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
@@ -1954,63 +2985,20 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-          border: Border.all(color: color, width: 2),
-          borderRadius: BorderRadius.circular(4)),
+        border: Border.all(color: color, width: 2),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Center(
-          child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(1.5)))),
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(1.5),
+          ),
+        ),
+      ),
     );
-  }
-
-  // Small helpers used in this dialog (string-safe, no casts)
-  String _foodTypeLabelFor(MenuItem item) {
-    final dynamic ft = item.foodType;
-    if (ft == null) return '';
-
-    String raw;
-    if (ft is FoodType) {
-      raw = ft.name;
-    } else if (ft is String) {
-      raw = ft;
-    } else {
-      raw = ft.toString();
-    }
-
-    final last = raw.split('.').last.replaceAll('_', '').trim().toLowerCase();
-
-    if (last.contains('non')) return 'Non-Veg';
-    if (last.contains('veg')) return 'Veg';
-    if (last.isEmpty) return '';
-    return last[0].toUpperCase() + last.substring(1);
-  }
-
-  String _categoryLabelFor(MenuItem item) {
-    final dynamic c = item.category;
-    if (c == null) return '';
-
-    String raw;
-    if (c is MenuCategory) {
-      raw = c.name;
-    } else if (c is String) {
-      raw = c;
-    } else {
-      raw = c.toString();
-    }
-
-    final last = raw.split('.').last.replaceAll('_', ' ').trim();
-    if (last.isEmpty) return '';
-    return _titleCase(last);
-  }
-
-  String _titleCase(String s) {
-    return s
-        .split(' ')
-        .where((p) => p.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-        .join(' ');
   }
 }
 
@@ -2049,34 +3037,12 @@ class DemographicSelectionCard extends StatelessWidget {
       return;
     }
 
-    // Show dialog and await result (QuestionSet or null)
     final QuestionSet? picked = await showDialog<QuestionSet?>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => DemographicSetPickerDialog(
-        sets: cleanedSets,
-        onSelected: (selected) async {
-          try {
-            await controller.chooseDemographicSet(selected.questionSetId);
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              // safe navigation
-              context.push('/somewhere');
-            });
-          } catch (e, st) {
-            debugPrint('Error selecting demographic set: $e\n$st');
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to apply selection.')),
-              );
-            }
-          }
-          // Optionally close the dialog here if you want the caller to close it:
-          Navigator.of(context).pop();
-        },
-      ),
+      builder: (_) => DemographicSetPickerDialog(sets: cleanedSets),
     );
 
-    // If user cancelled or dismissed, do nothing
     if (picked == null) return;
 
     // Persist selection and handle errors here, AFTER the dialog is closed.

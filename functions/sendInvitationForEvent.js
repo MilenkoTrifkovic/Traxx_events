@@ -1,282 +1,212 @@
-// import { onCall, HttpsError } from "firebase-functions/v2/https";
-// import { setGlobalOptions } from "firebase-functions/v2";
-// import admin from "firebase-admin";
-// import sgMail from "@sendgrid/mail";
-// import { randomBytes } from "crypto";
-
-// setGlobalOptions({ timeoutSeconds: 120, memory: "256MB" });
-
-// if (!admin.apps.length) admin.initializeApp();
-// const db = admin.firestore();
-
-// /* ENV */
-// const SENDGRID_KEY = process.env.SENDGRID_KEY;
-// const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
-// const FROM_NAME = process.env.SENDGRID_FROM_NAME || "Traxx Events";
-// const APP_BASE_URL = process.env.APP_BASE_URL;
-// const INV_EXPIRY_DAYS = Number(process.env.INV_EXPIRY_DAYS || 14);
-
-// if (SENDGRID_KEY) {
-//   sgMail.setApiKey(SENDGRID_KEY);
-// }
-
-// function makeToken() {
-//   return randomBytes(24).toString("hex");
-// }
-
-// export const sendInvitations = onCall(async (request) => {
-//   // ✅ runtime validation (safe)
-//   if (!SENDGRID_KEY || !FROM_EMAIL || !APP_BASE_URL) {
-//     throw new HttpsError(
-//       "failed-precondition",
-//       "SendGrid environment variables are not configured"
-//     );
-//   }
-
-//   const { eventId, organisationId, invitations, demographicQuestionSetId } =
-//     request.data || {};
-
-//   if (!eventId) {
-//     throw new HttpsError("invalid-argument", "eventId is required");
-//   }
-
-//   if (!Array.isArray(invitations) || invitations.length === 0) {
-//     throw new HttpsError("invalid-argument", "invitations array required");
-//   }
-
-//   const now = admin.firestore.Timestamp.now();
-//   const expiresAt = admin.firestore.Timestamp.fromDate(
-//     new Date(Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-//   );
-
-//   const results = [];
-
-//   for (const g of invitations) {
-//     const guestEmail = (g?.guestEmail || "").trim();
-//     if (!guestEmail) continue;
-
-//     const ref = db.collection("invitations").doc();
-//     const token = makeToken();
-
-//     await ref.set({
-//       invitationId: ref.id,
-//       eventId,
-//       organisationId: organisationId || null,
-//       guestId: g?.guestId || null,
-//       guestEmail,
-//       token,
-//       demographicQuestionSetId: demographicQuestionSetId || null,
-//       used: false,
-//       createdAt: now,
-//       expiresAt,
-//     });
-
-//     const link = `${APP_BASE_URL}/demographics?invitationId=${ref.id}&token=${token}`;
-
-//     try {
-//       await sgMail.send({
-//         to: guestEmail,
-//         from: { email: FROM_EMAIL, name: FROM_NAME },
-//         subject: "You are invited to an event",
-//         html: `
-//           <p>Hello,</p>
-//           <p>You are invited to an event.</p>
-//           <p><a href="${link}">Click here to answer the questionnaire</a></p>
-//           <p>This link expires in ${INV_EXPIRY_DAYS} days.</p>
-//           <p>— ${FROM_NAME}</p>
-//         `,
-//       });
-
-//       await ref.update({
-//         sent: true,
-//         sentAt: admin.firestore.Timestamp.now(),
-//       });
-
-//       results.push({ guestEmail, status: "sent" });
-//     } catch (err) {
-//       await ref.update({
-//         sent: false,
-//         sentAt: admin.firestore.Timestamp.now(),
-//         sendError: err.message,
-//       });
-
-//       results.push({ guestEmail, status: "failed", error: err.message });
-//     }
-//   }
-
-//   await db.collection("invitationLogs").add({
-//     eventId,
-//     organisationId,
-//     createdAt: now,
-//     results,
-//   });
-
-//   return { ok: true, invited: results.length, results };
-// });
-
-
-
-// functions/sendInvitationForEvent.js
-
-
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { setGlobalOptions } from "firebase-functions/v2";
-import admin from "firebase-admin";
-import nodemailer from "nodemailer";
+import { defineSecret } from "firebase-functions/params";
+
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+
+import postmark from "postmark";
 import { randomBytes } from "crypto";
 
-setGlobalOptions({ timeoutSeconds: 120, memory: "256MB" });
+// ✅ ESM-safe firebase-admin init
+if (!getApps().length) initializeApp();
+const db = getFirestore();
 
-if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
+// Secret
+const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
-/* ========= ENV CONFIG ========= */
-const SMTP_HOST = process.env.SMTP_HOST;
-const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
-
-const FROM_EMAIL = process.env.FROM_EMAIL;
+// Config
+const FROM_EMAIL = "developer@trax-event.com";
 const FROM_NAME = process.env.FROM_NAME || "Traxx Events";
-
 const APP_BASE_URL = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
-const INV_EXPIRY_DAYS = Number(process.env.INV_EXPIRY_DAYS || 14);
-/* ============================== */
+const INV_EXPIRY_DAYS = (() => {
+  const raw = process.env.INV_EXPIRY_DAYS; // could be "0" or "0.01"
+  const n = Number.parseInt(String(raw ?? "14"), 10);
+  return Number.isFinite(n) && n >= 1 ? n : 14; // ✅ never less than 1 day
+})();
 
-/* Fail only when function is CALLED (not during deploy) */
-function validateEnv() {
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    throw new HttpsError(
-      "failed-precondition",
-      "SMTP configuration missing"
-    );
-  }
-  if (!FROM_EMAIL) {
-    throw new HttpsError("failed-precondition", "FROM_EMAIL missing");
-  }
-  if (!APP_BASE_URL) {
-    throw new HttpsError("failed-precondition", "APP_BASE_URL missing");
-  }
-}
-
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_PORT === 465,
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
+const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
 
 function makeToken() {
   return randomBytes(24).toString("hex");
 }
 
-export const sendInvitations = onCall(async (request) => {
-  try {
-    validateEnv();
+function escapeHtml(s) {
+  const str = (s ?? "").toString();
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-    const {
-      eventId,
-      organisationId,
-      invitations,
-      demographicQuestionSetId,
-      staticLink,
-    } = request.data || {};
+export const sendInvitations = onCall(
+  { secrets: [POSTMARK_SERVER_TOKEN] },
+  async (request) => {
+    try {
+      if (!APP_BASE_URL) {
+        throw new HttpsError("failed-precondition", "APP_BASE_URL missing");
+      }
 
-    if (!eventId) {
-      throw new HttpsError("invalid-argument", "eventId is required");
-    }
+      const {
+        eventId,
+        organisationId,
+        invitations,
+        demographicQuestionSetId,
+        staticLink,
+      } = request.data || {};
 
-    if (!Array.isArray(invitations) || invitations.length === 0) {
-      throw new HttpsError("invalid-argument", "invitations array required");
-    }
+      if (!eventId) {
+        throw new HttpsError("invalid-argument", "eventId is required");
+      }
 
-    const createdAt = admin.firestore.Timestamp.now();
-    const expiresAt = admin.firestore.Timestamp.fromDate(
-      new Date(Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-    );
+      if (!Array.isArray(invitations) || invitations.length === 0) {
+        throw new HttpsError("invalid-argument", "invitations array required");
+      }
 
-    const results = [];
+      // ✅ token: trim to remove accidental whitespace/newlines
+      const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
+      console.log("Postmark token length:", token.length);
 
-    for (const guest of invitations) {
-      const guestEmail = (guest?.guestEmail || "").trim();
-      const guestName = guest?.guestName || "";
+      if (!token) {
+        throw new HttpsError(
+          "failed-precondition",
+          "POSTMARK_SERVER_TOKEN missing/empty at runtime."
+        );
+      }
 
-      if (!guestEmail) continue;
+      const client = new postmark.ServerClient(token);
 
-      const ref = db.collection("invitations").doc();
-      const token = makeToken();
+      const createdAt = Timestamp.now();
+      const expiresAt = Timestamp.fromMillis(
+        Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+      );
 
-      await ref.set({
-        invitationId: ref.id,
+      
+
+      const results = [];
+
+      for (const guest of invitations) {
+        const guestEmail = (guest?.guestEmail || "").trim();
+        const guestName = (guest?.guestName || "").trim();
+        const guestId = guest?.guestId || null;
+
+        if (!guestEmail) continue;
+
+        const ref = db.collection("invitations").doc();
+        const inviteToken = makeToken();
+
+        await ref.set({
+          invitationId: ref.id,
+          eventId,
+          organisationId: organisationId || null,
+          guestId,
+          guestEmail,
+          guestName,
+          demographicQuestionSetId: demographicQuestionSetId || null,
+          token: inviteToken,
+          used: false,
+          createdAt,
+          expiresAt,
+          sent: false,
+        });
+
+        const link =
+        `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
+        `&token=${encodeURIComponent(inviteToken)}`;
+
+
+        const subject = "Please complete your demographic questions";
+
+        const textBody =
+          `Hello${guestName ? " " + guestName : ""},\n\n` +
+          `Please open this link to answer the demographic questions:\n${link}\n\n` +
+          `This link expires in ${INV_EXPIRY_DAYS} days.\n` +
+          `— ${FROM_NAME}`;
+
+        const safeName = guestName ? escapeHtml(guestName) : "";
+        const htmlBody = `
+          <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
+            <p>Hello${safeName ? " " + safeName : ""},</p>
+            <p>Please click the button below to answer the demographic questions.</p>
+
+            <p style="margin: 18px 0;">
+              <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">
+                Open questions
+              </a>
+            </p>
+
+            <p style="color:#6b7280;font-size:13px">
+              If the button doesn’t work, copy and paste this link into your browser:<br/>
+              <a href="${link}">${link}</a>
+            </p>
+
+            <p style="color:#6b7280;font-size:13px">
+              This link expires in ${INV_EXPIRY_DAYS} days.
+            </p>
+
+            <p>— ${escapeHtml(FROM_NAME)}</p>
+          </div>
+        `;
+
+        try {
+          const resp = await client.sendEmail({
+            From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+            To: guestEmail,
+            Subject: subject,
+            TextBody: textBody,
+            HtmlBody: htmlBody,
+            MessageStream: MESSAGE_STREAM,
+            Metadata: { invitationId: ref.id, eventId },
+          });
+
+          await ref.update({
+            sent: true,
+            sentAt: Timestamp.now(),
+            postmarkMessageId: resp.MessageID,
+          });
+
+          results.push({ guestEmail, invitationId: ref.id, status: "sent" });
+        } catch (err) {
+          const status = err?.statusCode ?? err?.code ?? null;
+          const msg = err?.message ?? String(err);
+          const body = err?.response?.body ?? err?.body ?? null;
+
+          await ref.update({
+            sent: false,
+            sentAt: Timestamp.now(),
+            sendError: msg,
+            sendErrorStatus: status,
+            sendErrorBody: body,
+          });
+
+          results.push({
+            guestEmail,
+            invitationId: ref.id,
+            status: "failed",
+            error: msg,
+            statusCode: status,
+          });
+        }
+      }
+
+      await db.collection("invitationLogs").add({
         eventId,
         organisationId: organisationId || null,
-        guestId: guest?.guestId || null,
-        guestEmail,
-        guestName,
-        demographicQuestionSetId: demographicQuestionSetId || null,
-        token,
-        used: false,
-        createdAt,
-        expiresAt,
+        createdAt: Timestamp.now(),
+        results,
       });
 
-      const link =
-        staticLink ||
-        `${APP_BASE_URL}/demographics?invitationId=${ref.id}&token=${token}`;
-
-      const mail = {
-        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-        to: guestEmail,
-        subject: "You are invited",
-        text: `Please open this link:\n${link}`,
-        html: `
-          <p>Hello ${guestName},</p>
-          <p>You are invited to an event.</p>
-          <p><a href="${link}">Click here to continue</a></p>
-          <p>This link expires in ${INV_EXPIRY_DAYS} days.</p>
-          <p>— ${FROM_NAME}</p>
-        `,
+      return {
+        ok: true,
+        invited: results.filter((r) => r.status === "sent").length,
+        results,
       };
-
-      try {
-        await transporter.sendMail(mail);
-
-        await ref.update({
-          sent: true,
-          sentAt: admin.firestore.Timestamp.now(),
-        });
-
-        results.push({ guestEmail, status: "sent" });
-      } catch (err) {
-        await ref.update({
-          sent: false,
-          sentAt: admin.firestore.Timestamp.now(),
-          sendError: err.message,
-        });
-
-        results.push({ guestEmail, status: "failed", error: err.message });
-      }
+    } catch (err) {
+      console.error("sendInvitations error:", err);
+      throw err instanceof HttpsError
+        ? err
+        : new HttpsError("internal", err?.message ?? "Unknown error");
     }
-
-    await db.collection("invitationLogs").add({
-      eventId,
-      organisationId,
-      createdAt,
-      results,
-    });
-
-    return {
-      ok: true,
-      invited: results.filter(r => r.status === "sent").length,
-      results,
-    };
-  } catch (err) {
-    console.error("sendInvitations error:", err);
-    throw err instanceof HttpsError
-      ? err
-      : new HttpsError("internal", err.message);
   }
-});
+);

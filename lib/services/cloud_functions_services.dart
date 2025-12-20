@@ -114,6 +114,7 @@ class CloudFunctionsService extends GetxService {
         .map((g) => {
               'guestEmail': g.email!.trim(),
               'guestId': g.guestId,
+              'guestName': g.name, // ✅ add this
             })
         .toList();
 
@@ -142,5 +143,66 @@ class CloudFunctionsService extends GetxService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>> submitDemographics({
+    required String invitationId,
+    required String token,
+    required List<Map<String, dynamic>> answers,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'submitDemographics',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'invitationId': invitationId,
+      'token': token.trim(),
+      'answers': answers,
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
+  }
+
+  Future<Map<String, dynamic>> getSelectedMenuItemsForInvitation({
+    required String invitationId,
+    required String token,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'getSelectedMenuItemsForInvitation',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'invitationId': invitationId,
+      'token': token.trim(),
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
+  }
+
+  Future<Map<String, dynamic>> submitMenuSelection({
+    required String invitationId,
+    required String token,
+    required List<String> selectedMenuItemIds,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'submitMenuSelection',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'invitationId': invitationId,
+      'token': token.trim(),
+      'selectedMenuItemIds': selectedMenuItemIds,
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
   }
 }

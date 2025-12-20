@@ -15,8 +15,10 @@ class Organisation {
   final String country; // address.country
 
   final String timezone; // Required
+  final String currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
   final String? logo; // Optional logo URL/path
   final String? photoUrl; // Local-only photo preview URL (not persisted)
+  final List<String>? customMenuCategories; // Optional custom menu categories
 
   // Database fields
   final DateTime? createdAt;
@@ -34,8 +36,10 @@ class Organisation {
     required this.state,
     required this.country,
     required this.timezone,
+    this.currency = 'USD', // Default to USD if not provided
     this.logo,
     this.photoUrl,
+    this.customMenuCategories,
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
@@ -49,7 +53,9 @@ class Organisation {
       'phone': phone,
       'website': website,
       'timezone': timezone,
+      'currency': currency, // Store currency ISO code
       'logo': logo,
+      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
       'address': {
         'street': street,
         'city': city,
@@ -81,7 +87,9 @@ class Organisation {
       website: data['website'] as String?,
       timezone: data['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
+      currency: data['currency'] as String? ?? 'USD', // Default to USD if not in Firestore
       logo: (data['logo'] as String?)?.trim(),
+      customMenuCategories: (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -104,7 +112,9 @@ class Organisation {
       website: json['website'] as String?,
       timezone: json['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
+      currency: json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
       logo: json['logo'] as String?,
+      customMenuCategories: (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -127,7 +137,9 @@ class Organisation {
       'phone': phone,
       'website': website,
       'timezone': timezone,
+      'currency': currency, // Include currency in JSON
       'logo': logo,
+      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
       'address': {
         'street': street,
         'city': city,
@@ -153,8 +165,10 @@ class Organisation {
     String? zip,
     String? country,
     String? timezone,
+    String? currency,
     String? logo,
     String? photoUrl,
+    List<String>? customMenuCategories,
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
@@ -170,8 +184,10 @@ class Organisation {
       zip: zip ?? this.zip,
       country: country ?? this.country,
       timezone: timezone ?? this.timezone,
+      currency: currency ?? this.currency,
       logo: logo ?? this.logo,
       photoUrl: photoUrl ?? this.photoUrl,
+      customMenuCategories: customMenuCategories ?? this.customMenuCategories,
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,
@@ -194,7 +210,8 @@ class Organisation {
         n(state) == n(other.state) &&
         n(zip) == n(other.zip) &&
         n(country) == n(other.country) &&
-        n(timezone) == n(other.timezone);
+        n(timezone) == n(other.timezone) &&
+        n(currency) == n(other.currency);
   }
 
   /// Returns a list of field names that differ between this and [other].
@@ -211,11 +228,12 @@ class Organisation {
     if (n(state) != n(other.state)) changes.add('state');
     if (n(country) != n(other.country)) changes.add('country');
     if (n(timezone) != n(other.timezone)) changes.add('timezone');
+    if (n(currency) != n(other.currency)) changes.add('currency');
     return changes;
   }
 
   @override
   String toString() {
-    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, logo: $logo, photoUrl: $photoUrl, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
+    return 'Organisation(organisationId: $organisationId, name: $name, phone: $phone, website: $website, street: $street, city: $city, state: $state, zip: $zip, country: $country, timezone: $timezone, currency: $currency, logo: $logo, photoUrl: $photoUrl, customMenuCategories: $customMenuCategories, isDisabled: $isDisabled, createdAt: $createdAt, modifiedDate: $modifiedDate)';
   }
 }

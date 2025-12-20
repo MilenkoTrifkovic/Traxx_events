@@ -11,6 +11,7 @@ import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_contr
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
+import 'package:traxx_wepapp/features/common/calendar_page/view/calendar_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
@@ -20,6 +21,8 @@ import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -110,17 +113,32 @@ GoRouter buildRouter() {
       ),
 
       GoRoute(
-        path: AppRoute.demographics.path,
+        path: '/demographics',
         builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'];
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          final token = state.uri.queryParameters['token'] ?? '';
+          return DemographicResponsePage(
+            invitationId: invitationId,
+            token: token, // ✅ IMPORTANT
+            embedded: false,
+            showInvitationInput: false,
+          );
+        },
+      ),
 
-          if (invitationId == null || invitationId.isEmpty) {
-            return const Scaffold(
-              body: Center(child: Text('Invalid invitation link')),
-            );
-          }
+      GoRoute(
+        path: '/menu-selection',
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          return GuestMenuSelectionPage(invitationId: invitationId);
+        },
+      ),
 
-          return DemographicResponsePage(invitationId: invitationId);
+      GoRoute(
+        path: '/thank-you',
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          return ThankYouPage(invitationId: invitationId);
         },
       ),
 
@@ -167,12 +185,6 @@ GoRouter buildRouter() {
           Get.put(OrganisationController(authController.organisationId!));
           Get.put(UsersAndRolesController());
 
-          final location = state.matchedLocation;
-          final isQuestionsPage =
-              location.startsWith(AppRoute.hostQuestions.path) ||
-                  location.startsWith(AppRoute.hostQuestionSets.path) ||
-                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
-
           return Obx(() {
             try {
               if (eventListController.isLoading.value ||
@@ -209,6 +221,10 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.hostEvents.path,
             builder: (context, state) => EventListScreen(),
+          ),
+          GoRoute(
+            path: AppRoute.calendarView.path,
+            builder: (context, state) => const CalendarPage(),
           ),
           GoRoute(
             path: AppRoute.hostMenus.path,
@@ -251,13 +267,13 @@ GoRouter buildRouter() {
               final setTitle = state.uri.queryParameters['setTitle'] ?? '';
               final setDescription =
                   state.uri.queryParameters['setDescription'] ?? '';
+
               if (setId.isEmpty) {
                 return const QuestionSetsScreen();
               }
+
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: Uri.decodeComponent(setTitle),
-                questionSetDescription: Uri.decodeComponent(setDescription),
               );
             },
           ),
@@ -266,18 +282,15 @@ GoRouter buildRouter() {
             builder: (context, state) {
               final setId = state.pathParameters[
                   AppRoute.hostQuestionSetQuestions.placeholder]!;
-              final setTitle = Uri.decodeComponent(
-                state.uri.queryParameters['setTitle'] ?? 'Question set',
-              );
-              final setDescription = Uri.decodeComponent(
-                  state.uri.queryParameters['setDescription'] ?? '');
+              final setTitle = state.uri.queryParameters['setTitle'] ?? '';
+              final setDescription =
+                  state.uri.queryParameters['setDescription'] ?? '';
               return HostQuestionsScreen(
                 questionSetId: setId,
-                questionSetTitle: setTitle,
-                questionSetDescription: setDescription,
               );
             },
           ),
+
           GoRoute(
             path: AppRoute.hostCreateEvent.path,
             builder: (context, state) => CreateEditEventView(),
@@ -342,18 +355,18 @@ GoRouter buildRouter() {
               );
             },
           ),
-          GoRoute(
-            path: AppRoute.hostDemographics.path,
-            builder: (context, state) {
-              final invitationId =
-                  state.uri.queryParameters['invitationId'] ?? '';
-              return DemographicResponsePage(
-                invitationId: invitationId,
-                showInvitationInput: true,
-                embedded: true, // ✅ NEW
-              );
-            },
-          ),
+          // GoRoute(
+          //   path: AppRoute.hostDemographics.path,
+          //   builder: (context, state) {
+          //     final invitationId =
+          //         state.uri.queryParameters['invitationId'] ?? '';
+          //     return DemographicResponsePage(
+          //       invitationId: invitationId,
+          //       showInvitationInput: true,
+          //       embedded: true, // ✅ NEW
+          //     );
+          //   },
+          // ),
         ],
       ),
       // Guest Shell Route

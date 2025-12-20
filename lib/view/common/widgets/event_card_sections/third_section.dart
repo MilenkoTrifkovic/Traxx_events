@@ -19,15 +19,24 @@ class ThirdSection extends StatelessWidget {
     return Padding(
       padding: AppPadding.all(context, paddingType: Sizes.xs),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          AppText.styledBodyMedium(
-            context,
-            DateFormat('EEE, MMM d, y').format(_getEventDateTime(event)),
-            weight: AppFontWeight.semiBold,
+          Flexible(
+            child: AppText.styledBodyMedium(
+              context,
+              DateFormat('EEE, MMM d, y').format(_getEventDateTime(event)),
+              weight: AppFontWeight.semiBold,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          AppText.styledBodyMedium(
-            context,
-            DateFormat(' • h:mm a').format(_getEventDateTime(event)),
+          Flexible(
+            child: AppText.styledBodyMedium(
+              context,
+              DateFormat(' • h:mm a').format(_getEventDateTime(event)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ), // Add your widgets for the third section here
         ],
       ),

@@ -27,17 +27,16 @@ class HostQuestionsController {
         .where('questionSetId', isEqualTo: questionSetId)
         .orderBy('displayOrder');
 
-    final optionsQuery = _db
-        .collection('demographicQuestionOptions')
-        .where('isDisabled', isEqualTo: false);
-
     final controller = StreamController<List<DemographicQuestionWithOptions>>();
 
+    StreamSubscription? questionsSub;
+    final optionSubs = <StreamSubscription>[];
+
     QuerySnapshot<Map<String, dynamic>>? latestQuestionsSnap;
-    QuerySnapshot<Map<String, dynamic>>? latestOptionsSnap;
+    final Map<String, DemographicQuestionOption> optionById = {};
 
     void emitCombined() {
-      if (latestQuestionsSnap == null || latestOptionsSnap == null) return;
+      if (latestQuestionsSnap == null) return;
 
       final questions = latestQuestionsSnap!.docs
           .map((doc) => DemographicQuestion.fromDoc(doc))
@@ -48,15 +47,10 @@ class HostQuestionsController {
         return;
       }
 
-      final allOptions = latestOptionsSnap!.docs
-          .map((doc) => DemographicQuestionOption.fromDoc(doc))
-          .toList();
-
-      // Group options by questionId
+      // group options by questionId
       final Map<String, List<DemographicQuestionOption>> byQuestionId = {};
-      for (final opt in allOptions) {
-        final qId = opt.questionId;
-        byQuestionId.putIfAbsent(qId, () => []).add(opt);
+      for (final opt in optionById.values) {
+        byQuestionId.putIfAbsent(opt.questionId, () => []).add(opt);
       }
 
       final result = <DemographicQuestionWithOptions>[];
@@ -65,30 +59,58 @@ class HostQuestionsController {
           byQuestionId[q.questionId] ?? const [],
         )..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
-        result.add(
-          DemographicQuestionWithOptions(
-            question: q,
-            options: opts,
-          ),
-        );
+        result.add(DemographicQuestionWithOptions(question: q, options: opts));
       }
 
       controller.add(result);
     }
 
-    final questionsSub = questionsQuery.snapshots().listen((qsnap) {
-      latestQuestionsSnap = qsnap;
-      emitCombined();
-    });
+    void resetOptionStreams(List<String> questionIds) {
+      for (final s in optionSubs) {
+        s.cancel();
+      }
+      optionSubs.clear();
+      optionById.clear();
 
-    final optionsSub = optionsQuery.snapshots().listen((osnap) {
-      latestOptionsSnap = osnap;
+      // Firestore whereIn limit: use chunks (safe: 30)
+      const chunkSize = 30;
+      for (int i = 0; i < questionIds.length; i += chunkSize) {
+        final chunk = questionIds.sublist(
+          i,
+          (i + chunkSize > questionIds.length)
+              ? questionIds.length
+              : i + chunkSize,
+        );
+
+        final q = _db
+            .collection('demographicQuestionOptions')
+            .where('isDisabled', isEqualTo: false)
+            .where('questionId', whereIn: chunk);
+
+        final sub = q.snapshots().listen((snap) {
+          for (final d in snap.docs) {
+            final opt = DemographicQuestionOption.fromDoc(d);
+            optionById[opt.id] = opt;
+          }
+          emitCombined();
+        });
+
+        optionSubs.add(sub);
+      }
+    }
+
+    questionsSub = questionsQuery.snapshots().listen((qsnap) {
+      latestQuestionsSnap = qsnap;
+      final questionIds = qsnap.docs.map((d) => d.id).toList();
+      resetOptionStreams(questionIds);
       emitCombined();
     });
 
     controller.onCancel = () async {
-      await questionsSub.cancel();
-      await optionsSub.cancel();
+      await questionsSub?.cancel();
+      for (final s in optionSubs) {
+        await s.cancel();
+      }
       await controller.close();
     };
 

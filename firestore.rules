@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return userDoc().data.role;
+    }
+
+    function userOrgId() {
+      return userDoc().data.organisationId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && userRole() == "superAdmin";
+    }
+
+    // helper to fetch event's organisation id
+    function eventOrgId(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data.organisationId;
+    }
+
+    // Organisations - keep read only to signed in users
+    match /organisations/{orgDocId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Menus collection (dev mode)
+    match /menus/{menuId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Menu items collection (dev mode)
+    match /menu_items/{menuItemId} {
+      allow read, create, update, delete: if isSignedIn();
+    }
+
+    // Users (TEMP)
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // Events (TEMP - dev)
+    match /events/{eventId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if isSignedIn();
+    }
+
+    // Responses subcollection
+    match /events/{eventId}/responses/{respId} {
+      allow create: if isSignedIn() && (isSuperAdmin() || userOrgId() == eventOrgId(eventId));
+      allow read: if isSignedIn() && (isSuperAdmin() || userOrgId() == eventOrgId(eventId));
+      allow update, delete: if false;
+    }
+
+    // guestResponses (existing)
+    match /events/{eventId}/guestResponses/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // guestQuestions config
+    match /events/{eventId}/guestQuestions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ✅ Demographic Question Sets
+    // Guests must be able to GET the specific set referenced by invitation.
+    // But do NOT allow list for guests.
+    match /demographicQuestionSets/{setId} {
+      // guests can only GET a single doc (no list), and only if enabled
+      allow get: if resource.data.isDisabled != true;
+
+      // signed-in users can list (and read) per your existing constraints
+      allow list: if isSignedIn();
+
+      // keep your original signed-in read constraints
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.organisationId == userOrgId()
+      );
+
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // ✅ Demographic Questions
+    // Guests need to query questions, so allow read when enabled.
+    match /demographicQuestions/{questionId} {
+      allow read: if resource.data.isDisabled != true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // ✅ Demographic Question Options
+    match /demographicQuestionOptions/{optId} {
+      allow read: if resource.data.isDisabled != true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Venues dev
+    match /venues/{venueId} {
+      allow read, create, update, delete: if isSignedIn();
+    }
+
+    // Guests dev (org-level)
+    match /guests/{guestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Invitations
+    match /invitations/{invId} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if isSignedIn(); // dev
+      allow update, delete: if false;
+    }
+
+    // Demographic Responses: Anyone can create (guest submission), only org members can read
+    match /demographicQuestionsResponses/{respId} {
+      allow create: if true;
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        userOrgId() == resource.data.organisationId
+      );
+      allow update, delete: if false;
+    }
+
+    // Invitation Logs: Only org members can read
+    match /invitationLogs/{logId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        userOrgId() == resource.data.organisationId
+      );
+      allow write: if false;
+    }
+  }
+}
