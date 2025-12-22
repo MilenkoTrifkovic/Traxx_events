@@ -120,6 +120,25 @@ export function validateCompanyInfo(data) {
         }
     }
 
+    // Validate optional currency field
+    if (data.currency !== undefined && data.currency !== null) {
+        if (typeof data.currency !== "string") {
+            throw new HttpsError(
+                "invalid-argument",
+                "Currency must be a string."
+            );
+        }
+
+        // Validate currency is a 3-letter ISO code
+        const currencyRegex = /^[A-Z]{3}$/;
+        if (data.currency.trim().length > 0 && !currencyRegex.test(data.currency.trim())) {
+            throw new HttpsError(
+                "invalid-argument",
+                "Invalid currency format. Must be a 3-letter ISO code (e.g., 'USD', 'EUR', 'GBP')."
+            );
+        }
+    }
+
     // Validate optional website field
     if (data.website !== undefined && data.website !== null) {
         if (typeof data.website !== "string") {
@@ -163,6 +182,7 @@ export function validateCompanyInfo(data) {
         "website",
         "address",
         "timezone",
+        "currency",       // Currency ISO code (e.g., 'USD', 'EUR')
         "logo",
         "organisationId", // Allow this field but it will be overwritten
         "isDisabled",     // Allow from Flutter but will be overwritten
