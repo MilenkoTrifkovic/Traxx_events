@@ -55,6 +55,49 @@ class EventListController extends GetxController {
     }
   }
 
+  /// Applies multiple filters to the event list
+  /// Supports search text, date range, and event type filtering
+  void applyFilters({
+    String? searchText,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? eventType,
+  }) {
+    var filtered = events.toList();
+
+    // Apply search text filter
+    if (searchText != null && searchText.isNotEmpty) {
+      filtered = filtered
+          .where((event) =>
+              event.name.toLowerCase().contains(searchText.toLowerCase()))
+          .toList();
+    }
+
+    // Apply date range filter
+    if (startDate != null) {
+      filtered = filtered
+          .where((event) =>
+              event.date.isAfter(startDate.subtract(const Duration(days: 1))))
+          .toList();
+    }
+
+    if (endDate != null) {
+      filtered = filtered
+          .where((event) =>
+              event.date.isBefore(endDate.add(const Duration(days: 1))))
+          .toList();
+    }
+
+    // Apply event type filter
+    if (eventType != null && eventType.isNotEmpty) {
+      filtered =
+          filtered.where((event) => event.eventType == eventType).toList();
+    }
+
+    filteredEvents.assignAll(filtered);
+    print('Filtered events count: ${filteredEvents.length}');
+  }
+
   /// Sorts the filtered events list based on the specified sort type
   /// Supports sorting by date (newest/oldest) and name (A-Z/Z-A)
   void sortEvents(SortType sortType) {

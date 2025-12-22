@@ -5,7 +5,8 @@ import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
-import 'package:traxx_wepapp/view/common/widgets/event_list_header.dart';
+import 'package:traxx_wepapp/view/common/widgets/event_filter_section.dart';
+import 'package:traxx_wepapp/view/common/widgets/event_list_header_old.dart';
 import 'package:traxx_wepapp/view/common/widgets/list_of_events.dart';
 
 /// A screen that displays a list of events for the host user.
@@ -17,7 +18,8 @@ import 'package:traxx_wepapp/view/common/widgets/list_of_events.dart';
 /// - The behavior of the list items depends on the logged in user type (host/guest).
 class EventListScreen extends StatelessWidget {
   EventListScreen({super.key});
-  final EventListController eventListController = Get.find<EventListController>();
+  final EventListController eventListController =
+      Get.find<EventListController>();
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +27,10 @@ class EventListScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Row(
-          //   children: [
-          //   ],
-          // ),
-          // List of event cards
+          // Event list container
           Obx(() => Container(
               decoration: BoxDecoration(
-                color: eventListController.filteredEvents.isNotEmpty
+                color: eventListController.events.isNotEmpty
                     ? AppColors.white
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
@@ -41,9 +39,13 @@ class EventListScreen extends StatelessWidget {
                 padding: AppPadding.all(context, paddingType: Sizes.sm),
                 child: Column(
                   children: [
-                    if (eventListController.filteredEvents.isNotEmpty)
-                      EventListHeader(),
-                    AppSpacing.verticalXxxs(context),
+                    // Show header and filters if there are any events in the system
+                    if (eventListController.events.isNotEmpty) ...[
+                      // EventListHeader(),
+                      AppSpacing.verticalXs(context),
+                      EventFilterSection(),
+                      AppSpacing.verticalXs(context),
+                    ],
                     const ListOfEvents(),
                   ],
                 ),

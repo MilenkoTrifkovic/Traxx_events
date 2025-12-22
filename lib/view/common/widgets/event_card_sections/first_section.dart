@@ -67,7 +67,7 @@ class FirstSection extends StatelessWidget {
                   AppText.styledBodyMedium(
                     context,
                     color: AppColors.textMuted,
-                    'Placeholder',
+                    event.eventType,
                     weight: AppFontWeight.semiBold,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
