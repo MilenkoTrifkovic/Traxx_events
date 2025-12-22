@@ -127,8 +127,8 @@ class _GuestListItemState extends State<GuestListItem> {
                                         .inviteGuest(widget.item);
                                     setState(() {});
                                   } catch (e) {
-                                    snackbarController.showErrorMessage(
-                                        'Invitation failed');
+                                    snackbarController
+                                        .showErrorMessage('Invitation failed');
                                   }
                                 },
                           text: widget.item.invited ? 'Invited' : 'Invite',

@@ -10,7 +10,8 @@ if (!getApps().length) {
 export {signupAdmin} from "./signupAdmin.js";
 export {saveCompanyInfo} from "./saveCompanyInfo.js";
 export {checkOrganisationInfo} from "./checkOrganisationInfo.js";
-export {sendInvitations} from "./sendInvitationForEvent.js";
+export { sendInvitations } from "./sendInvitationForEvent.js";
 export { submitDemographics } from "./submitDemographics.js";
 export { getSelectedMenuItemsForInvitation } from "./getSelectedMenuItemsForInvitation.js";
 export { submitMenuSelection } from "./submitMenuSelection.js";
+export { getEventAnalytics } from "./getEventAnalytics.js";

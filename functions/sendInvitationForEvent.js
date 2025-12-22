@@ -1,15 +1,15 @@
+// functions/sendInvitationForEvent.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
+import { db } from "./admin.js";
 
 import postmark from "postmark";
 import { randomBytes } from "crypto";
 
 // ✅ ESM-safe firebase-admin init
-if (!getApps().length) initializeApp();
-const db = getFirestore();
+// if (!getApps().length) initializeApp();
+// const db = getFirestore();
 
 // Secret
 const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
@@ -128,7 +128,7 @@ export const sendInvitations = onCall(
         const htmlBody = `
           <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
             <p>Hello${safeName ? " " + safeName : ""},</p>
-            <p>Please click the button below to answer the demographic questions.</p>
+            <p>Please click the button below to complete the demographic questions, then choose your preferred menu items.</p>
 
             <p style="margin: 18px 0;">
               <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">

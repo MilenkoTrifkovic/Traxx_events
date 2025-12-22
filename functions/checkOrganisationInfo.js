@@ -1,9 +1,9 @@
 // functions/checkOrganisationInfo.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { getFirestore } from "firebase-admin/firestore";
+import { db } from "./admin.js";
 
-const db = getFirestore();
+// const db = getFirestore();
 
 /**
  * Callable function to check if the current user already has an organisation.

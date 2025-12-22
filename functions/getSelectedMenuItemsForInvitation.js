@@ -1,9 +1,10 @@
+// functions/getSelectedMenuItemsForInvitation.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, FieldPath } from "firebase-admin/firestore";
+import { FieldPath } from "firebase-admin/firestore";
+import { db } from "./admin.js";
 
-if (!getApps().length) initializeApp();
-const db = getFirestore();
+// if (!getApps().length) initializeApp();
+// const db = getFirestore();
 
 function chunk(arr, size) {
   const out = [];

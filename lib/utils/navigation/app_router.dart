@@ -43,6 +43,8 @@ import 'package:traxx_wepapp/view/admin/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 import 'package:traxx_wepapp/widgets/event_loader.dart';
+import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
+import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -339,6 +341,23 @@ GoRouter buildRouter() {
               );
             },
           ),
+          GoRoute(
+            path: AppRoute.eventDemographicAnalyzer.path,
+            builder: (context, state) {
+              final eventId = state.pathParameters[
+                  AppRoute.eventDemographicAnalyzer.placeholder]!;
+              return EventDemographicAnalyzerPage(eventId: eventId);
+            },
+          ),
+          GoRoute(
+            path: AppRoute.eventMenuAnalyzer.path,
+            builder: (context, state) {
+              final eventId =
+                  state.pathParameters[AppRoute.eventMenuAnalyzer.placeholder]!;
+              return EventMenuAnalyzerPage(eventId: eventId);
+            },
+          ),
+
           GoRoute(
             path: AppRoute.eventGuests.path,
             builder: (context, state) => SetGuestsView(),

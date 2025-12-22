@@ -1,15 +1,15 @@
+// functions/signupAdmin.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-// import * as logger from "firebase-functions/logger";
-import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import { db } from "./admin.js";
 
-if (!getApps().length) {
-  initializeApp();
-}
+// if (!getApps().length) {
+//   initializeApp();
+// }
 
 const auth = getAuth();
-const db = getFirestore();
+// const db = getFirestore();
 
 /**
  * Callable function used by the Flutter client to sign up a new admin user.

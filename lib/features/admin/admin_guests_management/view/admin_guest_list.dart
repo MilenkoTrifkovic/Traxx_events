@@ -15,12 +15,32 @@ import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
 
 class GuestListSection extends StatelessWidget {
-  const GuestListSection({super.key});
+  final String eventName;
+  final int? capacity;
+
+  /// Invite is enabled only when both:
+  /// - demographic question set selected
+  /// - menu items selected
+  final bool canInvite;
+
+  const GuestListSection({
+    super.key,
+    required this.eventName,
+    required this.canInvite,
+    this.capacity,
+  });
 
   @override
   Widget build(BuildContext context) {
     final AdminGuestListController controller =
         Get.find<AdminGuestListController>();
+
+    void showSetupHint() {
+      final snackbarController = Get.find<SnackbarMessageController>();
+      snackbarController.showInfoMessage(
+        'Before inviting guests, please select Menu & dishes and Demographic questions for this event.',
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -39,7 +59,7 @@ class GuestListSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: title + buttons at top-right
+          // Header row: title + search + buttons
           Row(
             children: [
               Expanded(
@@ -51,46 +71,36 @@ class GuestListSection extends StatelessWidget {
                   ),
                 ),
               ),
+
               AppSearchInputField(
                 hintText: 'Search by name or email',
                 controller: controller.searchController,
                 onChanged: controller.filterGuests,
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    controller.clearFilter();
-                  },
+                  onPressed: controller.clearFilter,
                 ),
               ),
+
               const SizedBox(width: 12),
 
-              // Download Guest List button
+              // Download Guest List (disabled if no guests)
               Obx(() => AppPrimaryButton(
                     onPressed: controller.guests.isEmpty
                         ? null
                         : () {
-                            // Get event name
-                            String eventName = 'Event';
-                            try {
-                              final eventsController =
-                                  Get.find<EventsController>();
-                              final event = eventsController
-                                  .getEventById(controller.eventId);
-                              eventName = event?.name ?? 'Event';
-                            } catch (e) {
-                              debugPrint(
-                                  'Could not find events controller: $e');
-                            }
-
                             GuestTemplateGenerator.downloadGuestList(
-                              eventName: eventName,
+                              eventName: eventName.trim().isEmpty
+                                  ? 'Event'
+                                  : eventName,
                               controller: controller,
                             );
 
                             final snackbarController =
                                 Get.find<SnackbarMessageController>();
                             snackbarController.showSuccessMessage(
-                                '${controller.guests.length} guests exported successfully');
+                              '${controller.guests.length} guests exported successfully',
+                            );
                           },
                     text: 'Download Guest List',
                     icon: Icons.download_outlined,
@@ -98,34 +108,22 @@ class GuestListSection extends StatelessWidget {
 
               const SizedBox(width: 12),
 
-              // Download Excel Template button
+              // Download Template (uses passed capacity + eventName)
               AppPrimaryButton(
                 onPressed: () {
-                  // Get event details from EventsController using the eventId
-                  int? eventCapacity;
-                  String eventName = 'Event';
-                  try {
-                    final eventsController = Get.find<EventsController>();
-                    final event =
-                        eventsController.getEventById(controller.eventId);
-                    eventCapacity = event?.capacity;
-                    eventName = event?.name ?? 'Event';
-                  } catch (e) {
-                    // If controller not found, capacity will be null
-                    debugPrint('Could not find events controller: $e');
-                  }
-
                   GuestTemplateGenerator.downloadXlsxTemplate(
-                    eventName: eventName,
+                    eventName: eventName.trim().isEmpty ? 'Event' : eventName,
                     includeExamples: true,
-                    capacity: eventCapacity,
+                    capacity: capacity,
                   );
 
                   final snackbarController =
                       Get.find<SnackbarMessageController>();
-                  snackbarController.showSuccessMessage(eventCapacity != null
-                      ? 'Excel template with $eventCapacity rows downloaded successfully'
-                      : 'Excel template downloaded successfully');
+                  snackbarController.showSuccessMessage(
+                    capacity != null
+                        ? 'Excel template with $capacity rows downloaded successfully'
+                        : 'Excel template downloaded successfully',
+                  );
                 },
                 text: 'Download Template',
                 icon: Icons.download,
@@ -133,53 +131,49 @@ class GuestListSection extends StatelessWidget {
 
               const SizedBox(width: 12),
 
-              // Upload CSV button
+              // Upload CSV/XLSX
               AppPrimaryButton(
                 onPressed: () async {
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.custom,
-                    allowedExtensions: ['csv'],
+                    allowedExtensions: ['csv', 'xlsx'],
                   );
 
-                  if (result == null || context.mounted == false) {
-                    return; // User canceled
-                  }
+                  if (result == null || context.mounted == false) return;
 
                   final file = result.files.first;
 
                   try {
-                    final result = await controller.uploadGuestsFromFile(file);
-                    final added = result['added'] ?? 0;
-                    final skipped = result['skipped'] ?? 0;
+                    final res = await controller.uploadGuestsFromFile(file);
+                    final added = res['added'] ?? 0;
+                    final skipped = res['skipped'] ?? 0;
 
-                    if (context.mounted) {
-                      final snackbarController =
-                          Get.find<SnackbarMessageController>();
+                    if (!context.mounted) return;
 
-                      if (added > 0 && skipped > 0) {
-                        // Some guests added, some skipped
-                        snackbarController.showInfoMessage(
-                            'Added $added new guest(s). $skipped guest(s) were already in the system.');
-                      } else if (added > 0) {
-                        // All guests added successfully
-                        snackbarController.showSuccessMessage(
-                            'Successfully uploaded $added guest(s)');
-                      } else if (skipped > 0) {
-                        // All guests were duplicates
-                        snackbarController.showInfoMessage(
-                            'All $skipped guest(s) were already in the system.');
-                      } else {
-                        // No guests found in file
-                        snackbarController
-                            .showInfoMessage('No guests found in file');
-                      }
+                    final snackbarController =
+                        Get.find<SnackbarMessageController>();
+
+                    if (added > 0 && skipped > 0) {
+                      snackbarController.showInfoMessage(
+                        'Added $added new guest(s). $skipped guest(s) were already in the system.',
+                      );
+                    } else if (added > 0) {
+                      snackbarController.showSuccessMessage(
+                        'Successfully uploaded $added guest(s)',
+                      );
+                    } else if (skipped > 0) {
+                      snackbarController.showInfoMessage(
+                        'All $skipped guest(s) were already in the system.',
+                      );
+                    } else {
+                      snackbarController
+                          .showInfoMessage('No guests found in file');
                     }
                   } catch (e) {
-                    if (context.mounted) {
-                      final snackbarController =
-                          Get.find<SnackbarMessageController>();
-                      snackbarController.showErrorMessage(e.toString());
-                    }
+                    if (!context.mounted) return;
+                    final snackbarController =
+                        Get.find<SnackbarMessageController>();
+                    snackbarController.showErrorMessage(e.toString());
                   }
                 },
                 text: 'Upload CSV',
@@ -188,15 +182,21 @@ class GuestListSection extends StatelessWidget {
 
               const SizedBox(width: 12),
 
-              // Invite All button
+              // Invite All (disabled until canInvite)
               AppPrimaryButton(
                 onPressed: () async {
+                  if (!canInvite) {
+                    showSetupHint();
+                    return;
+                  }
+
                   final confirmed = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
                       title: const Text('Invite All Guests?'),
                       content: const Text(
-                          'This will send invitations to all enabled guests who haven\'t been invited yet. Do you want to continue?'),
+                        'This will send invitations to all enabled guests who haven\'t been invited yet. Do you want to continue?',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
@@ -225,11 +225,13 @@ class GuestListSection extends StatelessWidget {
                 },
                 text: 'Invite All',
                 icon: Icons.send,
+                // If your AppPrimaryButton supports disabled state via onPressed == null,
+                // you can do: onPressed: canInvite ? (...) : null
               ),
 
               const SizedBox(width: 12),
 
-              // Add Guest button
+              // Add Guest
               AppPrimaryButton(
                 onPressed: () {
                   controller.clearForm();
@@ -238,13 +240,11 @@ class GuestListSection extends StatelessWidget {
                     barrierDismissible: false,
                     builder: (ctx) => AddGuestPopup(controller: controller),
                   ).then((added) {
+                    controller.clearForm();
                     if (added == true) {
                       final snackbarController =
                           Get.find<SnackbarMessageController>();
                       snackbarController.showSuccessMessage('Guest added');
-                      controller.clearForm();
-                    } else {
-                      controller.clearForm();
                     }
                   });
                 },
@@ -255,7 +255,38 @@ class GuestListSection extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Body: loading / empty / table - Single Obx watching all observables
+          // Setup hint when invites are blocked
+          if (!canInvite)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 18, color: Color(0xFF6B7280)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Invites are disabled until you select Menu & dishes and Demographic questions for this event.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (!canInvite) const SizedBox(height: 12),
+
+          // Body
           Obx(() {
             if (!controller.isInitialized.value) {
               return const Center(
@@ -278,12 +309,10 @@ class GuestListSection extends StatelessWidget {
               );
             }
 
-            // Access reactive observables here to register them with Obx
             final list = controller.pagedGuests;
             final current = controller.currentPage.value;
             final total = controller.totalPages;
 
-            // Render paginated DataTable
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -332,6 +361,10 @@ class GuestListSection extends StatelessWidget {
                                   child: Text('Actions'))),
                         ],
                         rows: list.map((guest) {
+                          final isDisabledGuest = guest.isDisabled == true;
+                          final canInviteThisGuest =
+                              canInvite && !isDisabledGuest;
+
                           return DataRow(
                             cells: [
                               DataCell(Align(
@@ -347,8 +380,9 @@ class GuestListSection extends StatelessWidget {
                                   alignment: Alignment.centerLeft,
                                   child: Text(guest.country ?? '—'))),
                               DataCell(Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(guest.gender == null
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  guest.gender == null
                                       ? '—'
                                       : (guest.gender == Gender.male
                                           ? 'Male'
@@ -357,14 +391,16 @@ class GuestListSection extends StatelessWidget {
                                               : guest.gender ==
                                                       Gender.preferNotToSay
                                                   ? 'Prefer not to say'
-                                                  : guest.gender!.name)))),
-                              // Status derived from isDisabled flag
+                                                  : guest.gender!.name),
+                                ),
+                              )),
                               DataCell(Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(guest.isDisabled == true
-                                      ? 'Disabled'
-                                      : 'Enabled'))),
-                              // Invited column - show button or checkmark aligned left
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                    isDisabledGuest ? 'Disabled' : 'Enabled'),
+                              )),
+
+                              // Invited cell
                               DataCell(
                                 Align(
                                   alignment: Alignment.centerLeft,
@@ -373,34 +409,50 @@ class GuestListSection extends StatelessWidget {
                                           icon: const Icon(Icons.check_circle,
                                               size: 18, color: Colors.green),
                                           tooltip: 'Already invited',
-                                          onPressed: () {
-                                            // Do nothing - guest is already invited
-                                          },
+                                          onPressed: () {},
                                         )
                                       : IconButton(
-                                          icon: const Icon(Icons.send,
-                                              size: 18, color: Colors.blue),
-                                          tooltip: 'Invite guest',
-                                          onPressed: () async {
-                                            if (guest.guestId != null) {
-                                              final success = await controller
-                                                  .inviteGuest(guest.guestId!);
-                                              final snackbarController = Get.find<
-                                                  SnackbarMessageController>();
-                                              if (success) {
-                                                snackbarController
-                                                    .showSuccessMessage(
-                                                        'Guest invited');
-                                              } else {
-                                                snackbarController
-                                                    .showErrorMessage(
-                                                        'Failed to invite guest');
-                                              }
-                                            }
-                                          },
+                                          icon: Icon(
+                                            Icons.send,
+                                            size: 18,
+                                            color: canInviteThisGuest
+                                                ? Colors.blue
+                                                : Colors.grey,
+                                          ),
+                                          tooltip: isDisabledGuest
+                                              ? 'Guest is disabled'
+                                              : (!canInvite
+                                                  ? 'Select menu + demographic set first'
+                                                  : 'Invite guest'),
+                                          onPressed: canInviteThisGuest
+                                              ? () async {
+                                                  if (guest.guestId != null) {
+                                                    final success =
+                                                        await controller
+                                                            .inviteGuest(
+                                                                guest.guestId!);
+                                                    final snackbarController =
+                                                        Get.find<
+                                                            SnackbarMessageController>();
+                                                    if (success) {
+                                                      snackbarController
+                                                          .showSuccessMessage(
+                                                              'Guest invited');
+                                                    } else {
+                                                      snackbarController
+                                                          .showErrorMessage(
+                                                              'Failed to invite guest');
+                                                    }
+                                                  }
+                                                }
+                                              : () {
+                                                  if (!canInvite)
+                                                    showSetupHint();
+                                                },
                                         ),
                                 ),
                               ),
+
                               DataCell(Row(
                                 children: [
                                   IconButton(
@@ -411,8 +463,9 @@ class GuestListSection extends StatelessWidget {
                                       showDialog(
                                         context: context,
                                         builder: (ctx) => AddGuestPopup(
-                                            controller: controller,
-                                            isEditMode: true),
+                                          controller: controller,
+                                          isEditMode: true,
+                                        ),
                                       ).then((_) => controller.clearForm());
                                     },
                                   ),
@@ -430,18 +483,19 @@ class GuestListSection extends StatelessWidget {
                                               Text('Delete "${guest.name}"?'),
                                           actions: [
                                             TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(ctx)
-                                                        .pop(false),
-                                                child: const Text('Cancel')),
+                                              onPressed: () =>
+                                                  Navigator.of(ctx).pop(false),
+                                              child: const Text('Cancel'),
+                                            ),
                                             ElevatedButton(
                                               onPressed: () =>
                                                   Navigator.of(ctx).pop(true),
                                               child: const Text('Delete'),
-                                            )
+                                            ),
                                           ],
                                         ),
                                       );
+
                                       if (ok == true && guest.guestId != null) {
                                         await controller
                                             .deleteGuest(guest.guestId!);
@@ -461,10 +515,7 @@ class GuestListSection extends StatelessWidget {
                     ),
                   );
                 }),
-
                 const SizedBox(height: 12),
-
-                // Pagination controls - no Obx needed, variables already accessed above
                 if (total > 1)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,

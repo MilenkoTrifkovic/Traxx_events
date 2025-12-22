@@ -1,11 +1,11 @@
 // functions/saveCompanyInfo.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { validateCompanyInfo } from "./validators/organisationValidator.js";
 
-const db = getFirestore();
+// const db = getFirestore();
 
 export const saveCompanyInfo = onCall(async (request) => {
   try {

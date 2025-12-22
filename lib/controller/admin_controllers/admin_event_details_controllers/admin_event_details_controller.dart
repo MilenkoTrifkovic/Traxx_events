@@ -13,7 +13,6 @@ import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
-import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'dart:math' as math;
 

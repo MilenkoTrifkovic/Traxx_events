@@ -21,7 +21,8 @@ class CreateEditEventController {
   final AuthController authController = Get.find<AuthController>();
 
   // Snackbar helper
-  final SnackbarMessageController snackbar = Get.find<SnackbarMessageController>();
+  final SnackbarMessageController snackbar =
+      Get.find<SnackbarMessageController>();
 
   final ImageServices _imageServices = ImageServices();
 
@@ -30,8 +31,8 @@ class CreateEditEventController {
   Future<Event> saveEvent() async {
     try {
       print('Saving event...form State: ${formState.toString()}');
-    var event =
-      Event.fromFormState(formState, authController.organisationId!);
+      var event =
+          Event.fromFormState(formState, authController.organisationId!);
       print('Saving event...event State: ${event.toString()}');
 
       if (formState.coverImage != null) {
@@ -40,11 +41,10 @@ class CreateEditEventController {
         event = event.copyWith(coverImageUrl: imagePath);
         await storageServices.loadImage(event);
       }
-  final savedEvent = await firestoreServices.saveEvent(event);
-  eventListController.addCreatedEventToList(savedEvent); //add event to list
-  snackbar.showSuccessMessage('Event created successfully!');
-  print('Event saved successfully');
-  return savedEvent;
+      final savedEvent = await firestoreServices.saveEvent(event);
+      eventListController.addCreatedEventToList(savedEvent); //add event to list
+      print('Event saved successfully');
+      return savedEvent;
       //Planner Invite
     } catch (e) {
       print('Error saving event: $e');

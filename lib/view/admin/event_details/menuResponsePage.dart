@@ -54,14 +54,6 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   int get _vegCount => _items.where((x) => x.isVeg == true).length;
   int get _nonVegCount => _items.where((x) => x.isVeg == false).length;
 
-  double get _selectedTotal {
-    double sum = 0;
-    for (final it in _items) {
-      if (_selected.contains(it.id)) sum += (it.price ?? 0);
-    }
-    return sum;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -302,7 +294,11 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                             ? 'Veg'
                             : it.isVeg == false
                                 ? 'Non-Veg'
-                                : (it.foodType ?? 'Food');
+                                : (it.foodType ?? '');
+
+                        final subtitle = foodTypeLabel.isEmpty
+                            ? it.categoryLabel
+                            : '$foodTypeLabel • ${it.categoryLabel}';
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
@@ -345,7 +341,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '$foodTypeLabel • ${it.categoryLabel}',
+                                          subtitle,
                                           style: GoogleFonts.poppins(
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w600,
@@ -372,15 +368,6 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      if (it.price != null)
-                                        Text(
-                                          '\$${it.price!.toStringAsFixed(2)}',
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w700,
-                                            color: kTextDark,
-                                          ),
-                                        ),
-                                      const SizedBox(height: 8),
                                       SizedBox(
                                         height: 34,
                                         child: ElevatedButton(
@@ -435,9 +422,6 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _summaryPill('Items', _selected.length.toString()),
-                      const SizedBox(width: 10),
-                      _summaryPill(
-                          'Total', '\$${_selectedTotal.toStringAsFixed(2)}'),
                     ],
                   ),
                 ],
