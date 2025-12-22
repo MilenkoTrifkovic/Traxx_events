@@ -34,6 +34,9 @@ enum AppRoute {
   eventQuestions('/event-questions'),
   eventResponses('/event-responses/:eventId/responses', 'eventId'),
   eventMenus('/guest-event-details/:eventId/event-menus', 'eventId'),
+  eventDemographicAnalyzer(
+      '/event-details/:eventId/demographic-analyzer', 'eventId'),
+  eventMenuAnalyzer('/event-details/:eventId/menu-analyzer', 'eventId'),
   eventGuests('/event-guests'),
 
   // Public guest form route (you already have it hardcoded as '/demographics')

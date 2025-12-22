@@ -1,10 +1,11 @@
+// functions/submitMenuSelection.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import { db } from "./admin.js";
 
 
-if (!getApps().length) initializeApp();
-const db = getFirestore();
+// if (!getApps().length) initializeApp();
+// const db = getFirestore();
 
 export const submitMenuSelection = onCall(async (request) => {
   try {

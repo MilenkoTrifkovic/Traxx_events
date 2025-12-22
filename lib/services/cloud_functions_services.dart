@@ -205,4 +205,21 @@ class CloudFunctionsService extends GetxService {
     if (data is Map) return Map<String, dynamic>.from(data);
     return {'data': data};
   }
+
+  Future<Map<String, dynamic>> getEventAnalytics({
+    required String eventId,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'getEventAnalytics',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'eventId': eventId.trim(),
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
+  }
 }

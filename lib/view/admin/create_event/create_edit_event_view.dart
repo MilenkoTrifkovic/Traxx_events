@@ -209,6 +209,9 @@ class _CreateEditEventViewState extends State<CreateEditEventView> {
     try {
       showLoadingIndicator();
       await createEventController.updateEvent(event!);
+      hostController.toggleEditingEvent(false);
+      pushAndRemoveAllRoute(AppRoute.eventDetails, context,
+          urlParam: event!.eventId);
       if (!mounted) return;
       hostController.toggleEditingEvent(false);
       if (!mounted) return;

@@ -15,32 +15,60 @@ import 'package:traxx_wepapp/view/common/widgets/event_card.dart';
 import 'package:traxx_wepapp/widgets/empty_state.dart';
 
 /// A widget that displays a scrollable list of events using EventCard widgets.
-class ListOfEvents extends StatelessWidget {
-  const ListOfEvents({
-    super.key,
-  });
+class ListOfEvents extends StatefulWidget {
+  const ListOfEvents({super.key});
 
-  /// Builds a reactive list view that updates when the filtered events change.
-  /// Shows a "No events found" message when the list is empty.
+  @override
+  State<ListOfEvents> createState() => _ListOfEventsState();
+}
+
+class _ListOfEventsState extends State<ListOfEvents> {
+  late final AuthController authController;
+  late final EventListController controller;
+  late final EventController eventController;
+  late final VenuesController venuesController;
+
+  // If you might have multiple ListOfEvents in the tree, using a tag avoids conflicts.
+  late final String _tag;
+  late final ListOfEventsController paginationController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    authController = Get.find<AuthController>();
+    controller = Get.find<EventListController>();
+    eventController = Get.find<EventController>();
+    venuesController = Get.find<VenuesController>();
+
+    _tag = 'ListOfEvents_${identityHashCode(this)}';
+
+    // Put only once (initState), not on every build.
+    paginationController = Get.isRegistered<ListOfEventsController>(tag: _tag)
+        ? Get.find<ListOfEventsController>(tag: _tag)
+        : Get.put(ListOfEventsController(), tag: _tag);
+  }
+
+  @override
+  void dispose() {
+    // Clean up only if this controller is meant to be owned by this widget.
+    if (Get.isRegistered<ListOfEventsController>(tag: _tag)) {
+      Get.delete<ListOfEventsController>(tag: _tag);
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    AuthController authController = Get.find<AuthController>();
-    final EventListController controller = Get.find<EventListController>();
-    final EventController eventController = Get.find<EventController>();
-    final VenuesController venuesController = Get.find<VenuesController>();
-    final ListOfEventsController paginationController = Get.put(ListOfEventsController());
-
     return Obx(() {
       // Show loading indicator while venues or events are loading
       if (venuesController.isLoading.value || controller.isLoading.value) {
-        return Center(child: CircularProgressIndicator());
+        return const Center(child: CircularProgressIndicator());
       }
 
       if (controller.filteredEvents.isEmpty && controller.events.isEmpty) {
         return SizedBox(
-          height: MediaQuery.of(context).size.height -
-              200, // Give it most of the screen height
+          height: MediaQuery.of(context).size.height - 200,
           child: EmptyState(
             title: 'Welcome to Traxx',
             description: 'Lets create your first event',
@@ -48,21 +76,21 @@ class ListOfEvents extends StatelessWidget {
             onButtonPressed: () {
               showDialog(
                 context: context,
-                builder: (context) {
-                  return CreateEventPopupView();
-                },
+                builder: (_) => CreateEventPopupView(),
               );
             },
           ),
         );
       }
+
       if (controller.filteredEvents.isEmpty) {
-        return Center(child: Text('No filtered events found'));
+        return const Center(child: Text('No filtered events found'));
       }
 
-      // Get paginated events from controller
-      final paginatedEvents = paginationController.getPaginatedEvents(controller.filteredEvents);
-      final totalPages = paginationController.getTotalPages(controller.filteredEvents);
+      final paginatedEvents =
+          paginationController.getPaginatedEvents(controller.filteredEvents);
+      final totalPages =
+          paginationController.getTotalPages(controller.filteredEvents);
 
       return Column(
         children: [
@@ -73,13 +101,15 @@ class ListOfEvents extends StatelessWidget {
             itemBuilder: (context, index) {
               final event = paginatedEvents[index];
               final venue = venuesController.getVenueById(event.venueId);
-              
+
               // Skip rendering if venue is not found
               if (venue == null) {
-                print('Warning: Venue not found for event ${event.eventId} with venueId ${event.venueId}');
-                return SizedBox.shrink();
+                print(
+                  'Warning: Venue not found for event ${event.eventId} with venueId ${event.venueId}',
+                );
+                return const SizedBox.shrink();
               }
-              
+
               return Padding(
                 padding: AppPadding.bottom(context, paddingType: Sizes.xxs),
                 child: EventCard(
@@ -88,12 +118,20 @@ class ListOfEvents extends StatelessWidget {
                   onTap: () {
                     controller.selectedEvent.value = event;
                     eventController.setSelectedEvent(event);
+
                     if (authController.userRole.value == UserRole.admin) {
-                      pushAndRemoveAllRoute(AppRoute.eventDetails, context,
-                          urlParam: event.eventId);
+                      pushAndRemoveAllRoute(
+                        AppRoute.eventDetails,
+                        context,
+                        urlParam: event.eventId,
+                      );
                     } else {
-                      pushRoute(AppRoute.guestEventDetails, context,
-                          urlParam: event.eventId, extra: event);
+                      pushRoute(
+                        AppRoute.guestEventDetails,
+                        context,
+                        urlParam: event.eventId,
+                        extra: event,
+                      );
                     }
                   },
                 ),
@@ -114,14 +152,18 @@ class ListOfEvents extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    paginationController.getPaginationText(controller.filteredEvents),
+                    paginationController
+                        .getPaginationText(controller.filteredEvents),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(width: 16),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
-                    onPressed: paginationController.hasNextPage(controller.filteredEvents)
-                        ? () => paginationController.nextPage(controller.filteredEvents)
+                    onPressed: paginationController
+                            .hasNextPage(controller.filteredEvents)
+                        ? () => paginationController.nextPage(
+                              controller.filteredEvents,
+                            )
                         : null,
                   ),
                 ],
