@@ -10,6 +10,7 @@ class GuestTemplateGenerator {
   static const List<String> headers = [
     'Name',
     'Email',
+    'Max Invite',
     'Address',
     'City',
     'State',
@@ -22,6 +23,7 @@ class GuestTemplateGenerator {
     [
       'John Doe',
       'john@example.com',
+      '2',
       '123 Main St',
       'New York',
       'NY',
@@ -31,13 +33,14 @@ class GuestTemplateGenerator {
     [
       'Jane Smith',
       'jane@example.com',
+      '0',
       '456 Oak Ave',
       'Los Angeles',
       'CA',
       'USA',
       'female'
     ],
-    ['Bob Johnson', 'bob@example.com', '', '', '', '', 'preferNotToSay'],
+    ['Bob Johnson', 'bob@example.com', '1', '', '', '', '', 'preferNotToSay'],
   ];
 
   /// Downloads an XLSX template file
@@ -209,6 +212,13 @@ class GuestTemplateGenerator {
 
     row++;
     sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+            .value =
+        TextCellValue(
+            '• Max Invite - Number of additional guests this person can bring (0 or more)');
+
+    row++;
+    sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
         .value = TextCellValue('• Address - Street address');
 
@@ -375,7 +385,7 @@ class GuestTemplateGenerator {
       numberCell.value = IntCellValue(rowIdx + 1);
 
       // Add guest data (shifted by 1 column)
-      // Column mapping: Name, Email, Address, City, State, Country, Gender
+      // Column mapping: Name, Email, Max Invite, Address, City, State, Country, Gender
 
       // Helper function to safely get gender name
       String getGenderName(dynamic gender) {
@@ -393,6 +403,7 @@ class GuestTemplateGenerator {
       final guestData = [
         guest.name ?? '',
         guest.email ?? '',
+        (guest.maxGuestInvite ?? 0).toString(),
         guest.address ?? '',
         guest.city ?? '',
         guest.state ?? '',

@@ -10,7 +10,7 @@ import 'package:traxx_wepapp/utils/enums/genders.dart';
 /// The CSV must have a header row with column names.
 ///
 /// Required columns: "Name", "Email"
-/// Optional columns: "Address", "City", "State", "Country", "Gender"
+/// Optional columns: "Max Invite", "Address", "City", "State", "Country", "Gender"
 ///
 /// Features:
 /// - Handles CSV exports from Excel, Numbers, Google Sheets, etc.
@@ -99,11 +99,12 @@ class GuestModelCsvParser {
     // Validate required columns
     if (!headerMap.containsKey('name') || !headerMap.containsKey('email')) {
       throw FormatException(
-          'Invalid CSV format. Required columns: Name, Email. Optional: Address, City, State, Country, Gender.');
+          'Invalid CSV format. Required columns: Name, Email. Optional: Max Invite, Address, City, State, Country, Gender.');
     }
 
     final nameIdx = headerMap['name']!;
     final emailIdx = headerMap['email']!;
+    final maxInviteIdx = headerMap['max invite'] ?? headerMap['maxinvite'];
     final addressIdx = headerMap['address'];
     final cityIdx = headerMap['city'];
     final stateIdx = headerMap['state'];
@@ -180,6 +181,18 @@ class GuestModelCsvParser {
         country = elements[countryIdx].isEmpty ? null : elements[countryIdx];
       }
 
+      // Parse Max Invite - default to 0 if empty or invalid
+      int maxGuestInvite = 0;
+      if (maxInviteIdx != null && elements.length > maxInviteIdx) {
+        final maxInviteStr = elements[maxInviteIdx].trim();
+        if (maxInviteStr.isNotEmpty) {
+          final parsed = int.tryParse(maxInviteStr);
+          if (parsed != null && parsed >= 0) {
+            maxGuestInvite = parsed;
+          }
+        }
+      }
+
       Gender? gender;
       if (genderIdx != null && elements.length > genderIdx) {
         final genderStr = elements[genderIdx].toLowerCase();
@@ -198,6 +211,7 @@ class GuestModelCsvParser {
         state: state,
         country: country,
         gender: gender,
+        maxGuestInvite: maxGuestInvite,
         isDisabled: false,
         isInvited: false,
       ));

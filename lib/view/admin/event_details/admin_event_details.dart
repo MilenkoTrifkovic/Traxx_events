@@ -133,6 +133,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
               eventName: evt.name,
               capacity: evt.capacity,
               canInvite: canInvite,
+              maxInviteByGuest: evt.maxInviteByGuest,
             ),
           ],
         ),
@@ -1033,7 +1034,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                 description: 'Update the event\'s information.',
               ),
               const SizedBox(height: 24),
-              
+
               // Event Name
               AppTextInputField(
                 label: 'Event Name',
@@ -1066,7 +1067,8 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
               // Max Guests Per Invite
               AppDropdownMenu<int>(
                 label: 'Max Guests Per Invite',
-                helperText: 'Maximum number of additional guests each invitee can bring',
+                helperText:
+                    'Maximum number of additional guests each invitee can bring',
                 value: _maxInviteByGuest,
                 items: List.generate(6, (index) => index).map((number) {
                   return DropdownMenuItem<int>(
@@ -2007,634 +2009,735 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
 
                 Expanded(
                     child: SingleChildScrollView(
-                      child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      24, 18, 24, 24), // spacing for body
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ================= LEFT HALF (Before selection) =================
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title + Veg/Non-Veg counts (ONLY)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Before selection',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                _infoChip(
-                                  'Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.veg).length}',
-                                  highlight: true,
-                                ),
-                                const SizedBox(width: 8),
-                                _infoChip(
-                                  'Non-Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length}',
-                                  negative: true,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // LEFT filters (moved fully to left)
-                            TextField(
-                              controller: _leftSearchCtrl,
-                              style: GoogleFonts.poppins(),
-                              decoration: InputDecoration(
-                                prefixIcon: const Icon(Icons.search),
-                                hintText: 'Search dish name, e.g. "rice"',
-                                hintStyle: GoogleFonts.poppins(),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
-                              ),
-                              onChanged: (v) => setState(() => _leftSearch = v),
-                            ),
-                            const SizedBox(height: 10),
-
-                            Builder(builder: (_) {
-                              // category counts for LEFT dropdown (from all _items)
-                              final Map<String, int> leftCatCounts = {};
-                              for (final it in _items) {
-                                final cat = _categoryLabelFor(it).isEmpty
-                                    ? 'Other'
-                                    : _categoryLabelFor(it);
-                                leftCatCounts[cat] =
-                                    (leftCatCounts[cat] ?? 0) + 1;
-                              }
-                              final leftCats = leftCatCounts.keys.toList()
-                                ..sort();
-
-                              return Row(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        24, 18, 24, 24), // spacing for body
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ================= LEFT HALF (Before selection) =================
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Title + Veg/Non-Veg counts (ONLY)
+                              Row(
                                 children: [
-                                  SizedBox(
-                                    width: 260,
-                                    child: DropdownButtonFormField<String?>(
-                                      value: _leftCategory,
-                                      hint: Text('Category',
-                                          style: GoogleFonts.poppins()),
-                                      items: [
-                                        DropdownMenuItem<String?>(
-                                          value: null,
-                                          child: Text('All (${_items.length})',
-                                              style: GoogleFonts.poppins()),
-                                        ),
-                                        ...leftCats.map((c) =>
-                                            DropdownMenuItem<String?>(
-                                              value: c,
-                                              child: Text(
-                                                  '$c (${leftCatCounts[c] ?? 0})',
-                                                  style: GoogleFonts.poppins()),
-                                            )),
-                                      ],
-                                      onChanged: (v) =>
-                                          setState(() => _leftCategory = v),
-                                      decoration: InputDecoration(
-                                        fillColor: Colors.white,
-                                        filled: true,
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Before selection',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  _filterPill(
-                                    'Veg',
-                                    _leftFoodType == FoodType.veg,
-                                    () => setState(() => _leftFoodType =
-                                        _leftFoodType == FoodType.veg
-                                            ? null
-                                            : FoodType.veg),
+                                  _infoChip(
+                                    'Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.veg).length}',
+                                    highlight: true,
                                   ),
                                   const SizedBox(width: 8),
-                                  _filterPill(
-                                    'Non-Veg',
-                                    _leftFoodType == FoodType.nonVeg,
-                                    () => setState(() => _leftFoodType =
-                                        _leftFoodType == FoodType.nonVeg
-                                            ? null
-                                            : FoodType.nonVeg),
-                                  ),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: () => setState(() {
-                                      _leftSearchCtrl.clear();
-                                      _leftSearch = '';
-                                      _leftCategory = null;
-                                      _leftFoodType = null;
-                                    }),
-                                    child: Text('Clear',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.black)),
+                                  _infoChip(
+                                    'Non-Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length}',
+                                    negative: true,
                                   ),
                                 ],
-                              );
-                            }),
+                              ),
+                              const SizedBox(height: 10),
 
-                            const SizedBox(height: 10),
-
-                            // LEFT list container
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF9FAFB),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: const Color(0xFFE6E9EE)),
+                              // LEFT filters (moved fully to left)
+                              TextField(
+                                controller: _leftSearchCtrl,
+                                style: GoogleFonts.poppins(),
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.search),
+                                  hintText: 'Search dish name, e.g. "rice"',
+                                  hintStyle: GoogleFonts.poppins(),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 12),
                                 ),
-                                child: Builder(builder: (_) {
-                                  final filteredLeft = _items.where((it) {
-                                    final q = _leftSearch.toLowerCase().trim();
-                                    final nameOk = q.isEmpty ||
-                                        it.name.toLowerCase().contains(q);
+                                onChanged: (v) =>
+                                    setState(() => _leftSearch = v),
+                              ),
+                              const SizedBox(height: 10),
 
-                                    final cat = _categoryLabelFor(it);
-                                    final catOk = _leftCategory == null ||
-                                        _leftCategory == cat;
+                              Builder(builder: (_) {
+                                // category counts for LEFT dropdown (from all _items)
+                                final Map<String, int> leftCatCounts = {};
+                                for (final it in _items) {
+                                  final cat = _categoryLabelFor(it).isEmpty
+                                      ? 'Other'
+                                      : _categoryLabelFor(it);
+                                  leftCatCounts[cat] =
+                                      (leftCatCounts[cat] ?? 0) + 1;
+                                }
+                                final leftCats = leftCatCounts.keys.toList()
+                                  ..sort();
 
-                                    final ft = _foodTypeFor(it);
-                                    final ftOk = _leftFoodType == null ||
-                                        ft == _leftFoodType;
-
-                                    return nameOk && catOk && ftOk;
-                                  }).toList();
-
-                                  final bool showSeeMore =
-                                      filteredLeft.length > 6;
-
-                                  if (_loadingItems) {
-                                    return const Center(
-                                        child: CircularProgressIndicator());
-                                  }
-                                  if (filteredLeft.isEmpty) {
-                                    return Center(
-                                      child: Text(
-                                        'No items match your filters',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.grey),
+                                return Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 260,
+                                      child: DropdownButtonFormField<String?>(
+                                        value: _leftCategory,
+                                        hint: Text('Category',
+                                            style: GoogleFonts.poppins()),
+                                        items: [
+                                          DropdownMenuItem<String?>(
+                                            value: null,
+                                            child: Text(
+                                                'All (${_items.length})',
+                                                style: GoogleFonts.poppins()),
+                                          ),
+                                          ...leftCats.map((c) =>
+                                              DropdownMenuItem<String?>(
+                                                value: c,
+                                                child: Text(
+                                                    '$c (${leftCatCounts[c] ?? 0})',
+                                                    style:
+                                                        GoogleFonts.poppins()),
+                                              )),
+                                        ],
+                                        onChanged: (v) =>
+                                            setState(() => _leftCategory = v),
+                                        decoration: InputDecoration(
+                                          fillColor: Colors.white,
+                                          filled: true,
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                  horizontal: 12, vertical: 8),
+                                        ),
                                       ),
-                                    );
-                                  }
+                                    ),
+                                    const SizedBox(width: 10),
+                                    _filterPill(
+                                      'Veg',
+                                      _leftFoodType == FoodType.veg,
+                                      () => setState(() => _leftFoodType =
+                                          _leftFoodType == FoodType.veg
+                                              ? null
+                                              : FoodType.veg),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _filterPill(
+                                      'Non-Veg',
+                                      _leftFoodType == FoodType.nonVeg,
+                                      () => setState(() => _leftFoodType =
+                                          _leftFoodType == FoodType.nonVeg
+                                              ? null
+                                              : FoodType.nonVeg),
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: () => setState(() {
+                                        _leftSearchCtrl.clear();
+                                        _leftSearch = '';
+                                        _leftCategory = null;
+                                        _leftFoodType = null;
+                                      }),
+                                      child: Text('Clear',
+                                          style: GoogleFonts.poppins(
+                                              color: Colors.black)),
+                                    ),
+                                  ],
+                                );
+                              }),
 
-                                  return Column(
-                                    children: [
-                                      Expanded(
-                                        child: Scrollbar(
-                                          controller: _leftScrollController,
-                                          thumbVisibility: true,
-                                          child: ListView.separated(
+                              const SizedBox(height: 10),
+
+                              // LEFT list container
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF9FAFB),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                        color: const Color(0xFFE6E9EE)),
+                                  ),
+                                  child: Builder(builder: (_) {
+                                    final filteredLeft = _items.where((it) {
+                                      final q =
+                                          _leftSearch.toLowerCase().trim();
+                                      final nameOk = q.isEmpty ||
+                                          it.name.toLowerCase().contains(q);
+
+                                      final cat = _categoryLabelFor(it);
+                                      final catOk = _leftCategory == null ||
+                                          _leftCategory == cat;
+
+                                      final ft = _foodTypeFor(it);
+                                      final ftOk = _leftFoodType == null ||
+                                          ft == _leftFoodType;
+
+                                      return nameOk && catOk && ftOk;
+                                    }).toList();
+
+                                    final bool showSeeMore =
+                                        filteredLeft.length > 6;
+
+                                    if (_loadingItems) {
+                                      return const Center(
+                                          child: CircularProgressIndicator());
+                                    }
+                                    if (filteredLeft.isEmpty) {
+                                      return Center(
+                                        child: Text(
+                                          'No items match your filters',
+                                          style: GoogleFonts.poppins(
+                                              color: Colors.grey),
+                                        ),
+                                      );
+                                    }
+
+                                    return Column(
+                                      children: [
+                                        Expanded(
+                                          child: Scrollbar(
                                             controller: _leftScrollController,
-                                            itemCount: filteredLeft.length,
-                                            separatorBuilder: (_, __) =>
-                                                const SizedBox(height: 10),
-                                            itemBuilder: (_, idx) {
-                                              final item = filteredLeft[idx];
-                                              final id = (item.menuItemId ?? '')
-                                                  .trim();
-                                              final isSelected =
-                                                  id.isNotEmpty &&
-                                                      _selectedIds.contains(id);
-                                              final bool isVeg =
-                                                  _foodTypeFor(item) ==
-                                                      FoodType.veg;
+                                            thumbVisibility: true,
+                                            child: ListView.separated(
+                                              controller: _leftScrollController,
+                                              itemCount: filteredLeft.length,
+                                              separatorBuilder: (_, __) =>
+                                                  const SizedBox(height: 10),
+                                              itemBuilder: (_, idx) {
+                                                final item = filteredLeft[idx];
+                                                final id =
+                                                    (item.menuItemId ?? '')
+                                                        .trim();
+                                                final isSelected = id
+                                                        .isNotEmpty &&
+                                                    _selectedIds.contains(id);
+                                                final bool isVeg =
+                                                    _foodTypeFor(item) ==
+                                                        FoodType.veg;
 
-                                              return InkWell(
-                                                onTap: () =>
-                                                    _toggleSelection(item),
-                                                child: Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 12),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? (isVeg
-                                                            ? Colors
-                                                                .green.shade50
-                                                            : Colors
-                                                                .red.shade50)
-                                                        : Colors.white,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                    border: Border.all(
+                                                return InkWell(
+                                                  onTap: () =>
+                                                      _toggleSelection(item),
+                                                  child: Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 12),
+                                                    decoration: BoxDecoration(
                                                       color: isSelected
                                                           ? (isVeg
-                                                              ? Colors.green
-                                                                  .shade700
+                                                              ? Colors
+                                                                  .green.shade50
                                                               : Colors
-                                                                  .red.shade700)
-                                                          : Colors
-                                                              .grey.shade300,
+                                                                  .red.shade50)
+                                                          : Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10),
+                                                      border: Border.all(
+                                                        color: isSelected
+                                                            ? (isVeg
+                                                                ? Colors.green
+                                                                    .shade700
+                                                                : Colors.red
+                                                                    .shade700)
+                                                            : Colors
+                                                                .grey.shade300,
+                                                      ),
                                                     ),
-                                                  ),
-                                                  child: Row(
-                                                    children: [
-                                                      _foodSquareIcon(isVeg),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              item.name,
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 15,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
+                                                    child: Row(
+                                                      children: [
+                                                        _foodSquareIcon(isVeg),
+                                                        const SizedBox(
+                                                            width: 12),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              Text(
+                                                                item.name,
+                                                                style:
+                                                                    GoogleFonts
+                                                                        .poppins(
+                                                                  fontSize: 15,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                ),
                                                               ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 6),
-                                                            Text(
-                                                              [
-                                                                if (_foodTypeLabelFor(
-                                                                        item)
-                                                                    .isNotEmpty)
-                                                                  _foodTypeLabelFor(
-                                                                      item),
-                                                                if (_categoryLabelFor(
-                                                                        item)
-                                                                    .isNotEmpty)
-                                                                  _categoryLabelFor(
-                                                                      item),
-                                                              ].join(' • '),
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 12,
+                                                              const SizedBox(
+                                                                  height: 6),
+                                                              Text(
+                                                                [
+                                                                  if (_foodTypeLabelFor(
+                                                                          item)
+                                                                      .isNotEmpty)
+                                                                    _foodTypeLabelFor(
+                                                                        item),
+                                                                  if (_categoryLabelFor(
+                                                                          item)
+                                                                      .isNotEmpty)
+                                                                    _categoryLabelFor(
+                                                                        item),
+                                                                ].join(' • '),
+                                                                style:
+                                                                    GoogleFonts
+                                                                        .poppins(
+                                                                  fontSize: 12,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade700,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          AppCurrency.format(
+                                                              _priceOf(item)),
+                                                          style: GoogleFonts
+                                                              .poppins(
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        Container(
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: isSelected
+                                                                ? Colors.black
+                                                                : Colors.white,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        6),
+                                                            border: Border.all(
                                                                 color: Colors
                                                                     .grey
-                                                                    .shade700,
+                                                                    .shade300),
+                                                          ),
+                                                          child: TextButton(
+                                                            onPressed: () =>
+                                                                _toggleSelection(
+                                                                    item),
+                                                            child: Text(
+                                                              isSelected
+                                                                  ? 'Remove'
+                                                                  : 'Add',
+                                                              style: GoogleFonts
+                                                                  .poppins(
+                                                                color: isSelected
+                                                                    ? Colors
+                                                                        .white
+                                                                    : Colors
+                                                                        .black,
                                                               ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        AppCurrency.format(
-                                                            _priceOf(item)),
-                                                        style:
-                                                            GoogleFonts.poppins(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: isSelected
-                                                              ? Colors.black
-                                                              : Colors.white,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(6),
-                                                          border: Border.all(
-                                                              color: Colors.grey
-                                                                  .shade300),
-                                                        ),
-                                                        child: TextButton(
-                                                          onPressed: () =>
-                                                              _toggleSelection(
-                                                                  item),
-                                                          child: Text(
-                                                            isSelected
-                                                                ? 'Remove'
-                                                                : 'Add',
-                                                            style: GoogleFonts
-                                                                .poppins(
-                                                              color: isSelected
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .black,
                                                             ),
                                                           ),
                                                         ),
-                                                      ),
-                                                    ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        if (showSeeMore)
+                                          Container(
+                                            alignment: Alignment.center,
+                                            padding:
+                                                const EdgeInsets.only(top: 10),
+                                            child: TextButton(
+                                              style: TextButton.styleFrom(
+                                                backgroundColor: Colors.black,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              onPressed: () {
+                                                final max =
+                                                    _leftScrollController
+                                                        .position
+                                                        .maxScrollExtent;
+                                                final pos =
+                                                    _leftScrollController
+                                                            .offset +
+                                                        260;
+                                                _leftScrollController.animateTo(
+                                                  pos.clamp(0, max),
+                                                  duration: const Duration(
+                                                      milliseconds: 420),
+                                                  curve: Curves.easeInOut,
+                                                );
+                                              },
+                                              child: Text(
+                                                'See more',
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 20),
+                        Container(
+                            width: 1,
+                            height: double.infinity,
+                            color: const Color(0xFFE5E7EB)),
+                        const SizedBox(width: 20),
+
+                        // ================= RIGHT HALF (After selection) =================
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Build selected list ids filtered by RIGHT filters
+                              Builder(builder: (_) {
+                                final bool rightFiltersActive =
+                                    _rightSearch.trim().isNotEmpty ||
+                                        _rightCategory != null ||
+                                        _rightFoodType != null;
+
+                                bool match(MenuItem it) {
+                                  final q = _rightSearch.toLowerCase().trim();
+                                  final nameOk = q.isEmpty ||
+                                      it.name.toLowerCase().contains(q);
+
+                                  final cat = _categoryLabelFor(it);
+                                  final catOk = _rightCategory == null ||
+                                      _rightCategory == cat;
+
+                                  final ft = _foodTypeFor(it);
+                                  final ftOk = _rightFoodType == null ||
+                                      ft == _rightFoodType;
+
+                                  return nameOk && catOk && ftOk;
+                                }
+
+                                final visibleSelectedIds = <String>[];
+                                for (final id in _selectedOrder) {
+                                  final it = _selectedCache[id];
+                                  if (it == null) {
+                                    // show loading cards only when no right filters are applied
+                                    if (!rightFiltersActive)
+                                      visibleSelectedIds.add(id);
+                                    continue;
+                                  }
+                                  if (match(it)) visibleSelectedIds.add(id);
+                                }
+
+                                final visibleItems = visibleSelectedIds
+                                    .map((id) => _selectedCache[id])
+                                    .whereType<MenuItem>()
+                                    .toList();
+
+                                final vegCount = visibleItems
+                                    .where((it) =>
+                                        _foodTypeFor(it) == FoodType.veg)
+                                    .length;
+                                final nonCount = visibleItems
+                                    .where((it) =>
+                                        _foodTypeFor(it) == FoodType.nonVeg)
+                                    .length;
+
+                                // category counts for RIGHT dropdown (from all selected, not filtered)
+                                final Map<String, int> rightCatCounts = {};
+                                for (final it in _selectedItemsOrdered) {
+                                  final cat = _categoryLabelFor(it).isEmpty
+                                      ? 'Other'
+                                      : _categoryLabelFor(it);
+                                  rightCatCounts[cat] =
+                                      (rightCatCounts[cat] ?? 0) + 1;
+                                }
+                                final rightCats = rightCatCounts.keys.toList()
+                                  ..sort();
+
+                                return Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Title + counts only
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'Selected Items - ${_selectedOrder.length}',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                          _infoChip('Veg • $vegCount',
+                                              highlight: true),
+                                          const SizedBox(width: 8),
+                                          _infoChip('Non-Veg • $nonCount',
+                                              negative: true),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+
+                                      // RIGHT filters (new, only for selected items)
+                                      TextField(
+                                        controller: _rightSearchCtrl,
+                                        style: GoogleFonts.poppins(),
+                                        decoration: InputDecoration(
+                                          prefixIcon: const Icon(Icons.search),
+                                          hintText:
+                                              'Search within selected items',
+                                          hintStyle: GoogleFonts.poppins(),
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                  horizontal: 12, vertical: 12),
+                                        ),
+                                        onChanged: (v) =>
+                                            setState(() => _rightSearch = v),
+                                      ),
+                                      const SizedBox(height: 10),
+
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 260,
+                                            child: DropdownButtonFormField<
+                                                String?>(
+                                              value: _rightCategory,
+                                              hint: Text('Category',
+                                                  style: GoogleFonts.poppins()),
+                                              items: [
+                                                DropdownMenuItem<String?>(
+                                                  value: null,
+                                                  child: Text(
+                                                    'All (${_selectedOrder.length})',
+                                                    style:
+                                                        GoogleFonts.poppins(),
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      if (showSeeMore)
-                                        Container(
-                                          alignment: Alignment.center,
-                                          padding:
-                                              const EdgeInsets.only(top: 10),
-                                          child: TextButton(
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: Colors.black,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 12),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            onPressed: () {
-                                              final max = _leftScrollController
-                                                  .position.maxScrollExtent;
-                                              final pos =
-                                                  _leftScrollController.offset +
-                                                      260;
-                                              _leftScrollController.animateTo(
-                                                pos.clamp(0, max),
-                                                duration: const Duration(
-                                                    milliseconds: 420),
-                                                curve: Curves.easeInOut,
-                                              );
-                                            },
-                                            child: Text(
-                                              'See more',
-                                              style: GoogleFonts.poppins(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 20),
-                      Container(
-                          width: 1,
-                          height: double.infinity,
-                          color: const Color(0xFFE5E7EB)),
-                      const SizedBox(width: 20),
-
-                      // ================= RIGHT HALF (After selection) =================
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Build selected list ids filtered by RIGHT filters
-                            Builder(builder: (_) {
-                              final bool rightFiltersActive =
-                                  _rightSearch.trim().isNotEmpty ||
-                                      _rightCategory != null ||
-                                      _rightFoodType != null;
-
-                              bool match(MenuItem it) {
-                                final q = _rightSearch.toLowerCase().trim();
-                                final nameOk = q.isEmpty ||
-                                    it.name.toLowerCase().contains(q);
-
-                                final cat = _categoryLabelFor(it);
-                                final catOk = _rightCategory == null ||
-                                    _rightCategory == cat;
-
-                                final ft = _foodTypeFor(it);
-                                final ftOk = _rightFoodType == null ||
-                                    ft == _rightFoodType;
-
-                                return nameOk && catOk && ftOk;
-                              }
-
-                              final visibleSelectedIds = <String>[];
-                              for (final id in _selectedOrder) {
-                                final it = _selectedCache[id];
-                                if (it == null) {
-                                  // show loading cards only when no right filters are applied
-                                  if (!rightFiltersActive)
-                                    visibleSelectedIds.add(id);
-                                  continue;
-                                }
-                                if (match(it)) visibleSelectedIds.add(id);
-                              }
-
-                              final visibleItems = visibleSelectedIds
-                                  .map((id) => _selectedCache[id])
-                                  .whereType<MenuItem>()
-                                  .toList();
-
-                              final vegCount = visibleItems
-                                  .where(
-                                      (it) => _foodTypeFor(it) == FoodType.veg)
-                                  .length;
-                              final nonCount = visibleItems
-                                  .where((it) =>
-                                      _foodTypeFor(it) == FoodType.nonVeg)
-                                  .length;
-
-                              // category counts for RIGHT dropdown (from all selected, not filtered)
-                              final Map<String, int> rightCatCounts = {};
-                              for (final it in _selectedItemsOrdered) {
-                                final cat = _categoryLabelFor(it).isEmpty
-                                    ? 'Other'
-                                    : _categoryLabelFor(it);
-                                rightCatCounts[cat] =
-                                    (rightCatCounts[cat] ?? 0) + 1;
-                              }
-                              final rightCats = rightCatCounts.keys.toList()
-                                ..sort();
-
-                              return Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Title + counts only
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            'Selected Items - ${_selectedOrder.length}',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        _infoChip('Veg • $vegCount',
-                                            highlight: true),
-                                        const SizedBox(width: 8),
-                                        _infoChip('Non-Veg • $nonCount',
-                                            negative: true),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    // RIGHT filters (new, only for selected items)
-                                    TextField(
-                                      controller: _rightSearchCtrl,
-                                      style: GoogleFonts.poppins(),
-                                      decoration: InputDecoration(
-                                        prefixIcon: const Icon(Icons.search),
-                                        hintText:
-                                            'Search within selected items',
-                                        hintStyle: GoogleFonts.poppins(),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 12),
-                                      ),
-                                      onChanged: (v) =>
-                                          setState(() => _rightSearch = v),
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 260,
-                                          child:
-                                              DropdownButtonFormField<String?>(
-                                            value: _rightCategory,
-                                            hint: Text('Category',
-                                                style: GoogleFonts.poppins()),
-                                            items: [
-                                              DropdownMenuItem<String?>(
-                                                value: null,
-                                                child: Text(
-                                                  'All (${_selectedOrder.length})',
-                                                  style: GoogleFonts.poppins(),
+                                                ...rightCats.map((c) =>
+                                                    DropdownMenuItem<String?>(
+                                                      value: c,
+                                                      child: Text(
+                                                        '$c (${rightCatCounts[c] ?? 0})',
+                                                        style: GoogleFonts
+                                                            .poppins(),
+                                                      ),
+                                                    )),
+                                              ],
+                                              onChanged: (v) => setState(
+                                                  () => _rightCategory = v),
+                                              decoration: InputDecoration(
+                                                fillColor: Colors.white,
+                                                filled: true,
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  borderSide: BorderSide.none,
                                                 ),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 8),
                                               ),
-                                              ...rightCats.map((c) =>
-                                                  DropdownMenuItem<String?>(
-                                                    value: c,
-                                                    child: Text(
-                                                      '$c (${rightCatCounts[c] ?? 0})',
-                                                      style:
-                                                          GoogleFonts.poppins(),
-                                                    ),
-                                                  )),
-                                            ],
-                                            onChanged: (v) => setState(
-                                                () => _rightCategory = v),
-                                            decoration: InputDecoration(
-                                              fillColor: Colors.white,
-                                              filled: true,
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                borderSide: BorderSide.none,
-                                              ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        _filterPill(
-                                          'Veg',
-                                          _rightFoodType == FoodType.veg,
-                                          () => setState(() => _rightFoodType =
-                                              _rightFoodType == FoodType.veg
-                                                  ? null
-                                                  : FoodType.veg),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _filterPill(
-                                          'Non-Veg',
-                                          _rightFoodType == FoodType.nonVeg,
-                                          () => setState(() => _rightFoodType =
-                                              _rightFoodType == FoodType.nonVeg
-                                                  ? null
-                                                  : FoodType.nonVeg),
-                                        ),
-                                        const Spacer(),
-                                        TextButton(
-                                          onPressed: () => setState(() {
-                                            _rightSearchCtrl.clear();
-                                            _rightSearch = '';
-                                            _rightCategory = null;
-                                            _rightFoodType = null;
-                                          }),
-                                          child: Text('Clear',
-                                              style: GoogleFonts.poppins(
-                                                  color: Colors.black)),
-                                        ),
-                                      ],
-                                    ),
+                                          const SizedBox(width: 10),
+                                          _filterPill(
+                                            'Veg',
+                                            _rightFoodType == FoodType.veg,
+                                            () => setState(() =>
+                                                _rightFoodType =
+                                                    _rightFoodType ==
+                                                            FoodType.veg
+                                                        ? null
+                                                        : FoodType.veg),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _filterPill(
+                                            'Non-Veg',
+                                            _rightFoodType == FoodType.nonVeg,
+                                            () => setState(() =>
+                                                _rightFoodType =
+                                                    _rightFoodType ==
+                                                            FoodType.nonVeg
+                                                        ? null
+                                                        : FoodType.nonVeg),
+                                          ),
+                                          const Spacer(),
+                                          TextButton(
+                                            onPressed: () => setState(() {
+                                              _rightSearchCtrl.clear();
+                                              _rightSearch = '';
+                                              _rightCategory = null;
+                                              _rightFoodType = null;
+                                            }),
+                                            child: Text('Clear',
+                                                style: GoogleFonts.poppins(
+                                                    color: Colors.black)),
+                                          ),
+                                        ],
+                                      ),
 
-                                    const SizedBox(height: 10),
+                                      const SizedBox(height: 10),
 
-                                    // RIGHT list
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(
-                                              color: const Color(0xFFE5E7EB)),
-                                        ),
-                                        child: _loadingSelected
-                                            ? const Center(
-                                                child:
-                                                    CircularProgressIndicator())
-                                            : visibleSelectedIds.isEmpty
-                                                ? Center(
-                                                    child: Text(
-                                                      'No selected items match your filters',
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                              color:
-                                                                  Colors.grey),
-                                                    ),
-                                                  )
-                                                : Scrollbar(
-                                                    controller:
-                                                        _rightScrollController,
-                                                    thumbVisibility: true,
-                                                    child: ListView.builder(
+                                      // RIGHT list
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            border: Border.all(
+                                                color: const Color(0xFFE5E7EB)),
+                                          ),
+                                          child: _loadingSelected
+                                              ? const Center(
+                                                  child:
+                                                      CircularProgressIndicator())
+                                              : visibleSelectedIds.isEmpty
+                                                  ? Center(
+                                                      child: Text(
+                                                        'No selected items match your filters',
+                                                        style:
+                                                            GoogleFonts.poppins(
+                                                                color: Colors
+                                                                    .grey),
+                                                      ),
+                                                    )
+                                                  : Scrollbar(
                                                       controller:
                                                           _rightScrollController,
-                                                      itemCount:
-                                                          visibleSelectedIds
-                                                              .length,
-                                                      itemBuilder: (_, index) {
-                                                        final id =
-                                                            visibleSelectedIds[
-                                                                index];
-                                                        final it =
-                                                            _selectedCache[id];
+                                                      thumbVisibility: true,
+                                                      child: ListView.builder(
+                                                        controller:
+                                                            _rightScrollController,
+                                                        itemCount:
+                                                            visibleSelectedIds
+                                                                .length,
+                                                        itemBuilder:
+                                                            (_, index) {
+                                                          final id =
+                                                              visibleSelectedIds[
+                                                                  index];
+                                                          final it =
+                                                              _selectedCache[
+                                                                  id];
 
-                                                        if (it == null) {
+                                                          if (it == null) {
+                                                            return Container(
+                                                              margin:
+                                                                  const EdgeInsets
+                                                                      .only(
+                                                                      bottom:
+                                                                          10),
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .symmetric(
+                                                                      horizontal:
+                                                                          12,
+                                                                      vertical:
+                                                                          10),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .white,
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            10),
+                                                                border: Border.all(
+                                                                    color: const Color(
+                                                                        0xFFE5E7EB)),
+                                                              ),
+                                                              child: Row(
+                                                                children: [
+                                                                  const SizedBox(
+                                                                    width: 18,
+                                                                    height: 18,
+                                                                    child: CircularProgressIndicator(
+                                                                        strokeWidth:
+                                                                            2),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                      width:
+                                                                          10),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'Loading item...',
+                                                                      style: GoogleFonts
+                                                                          .poppins(
+                                                                        fontSize:
+                                                                            13,
+                                                                        color: Colors
+                                                                            .grey
+                                                                            .shade700,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  IconButton(
+                                                                    icon: const Icon(
+                                                                        Icons
+                                                                            .close,
+                                                                        size:
+                                                                            18),
+                                                                    onPressed: () =>
+                                                                        setState(() =>
+                                                                            _removeId(id)),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          }
+
+                                                          final price =
+                                                              _priceOf(it);
+                                                          final bool isVeg =
+                                                              _foodTypeFor(
+                                                                      it) ==
+                                                                  FoodType.veg;
+                                                          final ftLabel =
+                                                              _foodTypeLabelFor(
+                                                                  it);
+                                                          final cat =
+                                                              _categoryLabelFor(
+                                                                  it);
+
                                                           return Container(
                                                             margin:
                                                                 const EdgeInsets
@@ -2661,26 +2764,60 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                             ),
                                                             child: Row(
                                                               children: [
-                                                                const SizedBox(
-                                                                  width: 18,
-                                                                  height: 18,
-                                                                  child: CircularProgressIndicator(
-                                                                      strokeWidth:
-                                                                          2),
-                                                                ),
+                                                                _foodSquareIcon(
+                                                                    isVeg),
                                                                 const SizedBox(
                                                                     width: 10),
                                                                 Expanded(
-                                                                  child: Text(
-                                                                    'Loading item...',
-                                                                    style: GoogleFonts
-                                                                        .poppins(
-                                                                      fontSize:
-                                                                          13,
-                                                                      color: Colors
-                                                                          .grey
-                                                                          .shade700,
-                                                                    ),
+                                                                  child: Column(
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .start,
+                                                                    children: [
+                                                                      Text(
+                                                                        it.name,
+                                                                        style: GoogleFonts
+                                                                            .poppins(
+                                                                          fontSize:
+                                                                              14,
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                          height:
+                                                                              6),
+                                                                      Text(
+                                                                        [
+                                                                          if (ftLabel
+                                                                              .isNotEmpty)
+                                                                            ftLabel,
+                                                                          if (cat
+                                                                              .isNotEmpty)
+                                                                            cat,
+                                                                        ].join(
+                                                                            ' • '),
+                                                                        style: GoogleFonts
+                                                                            .poppins(
+                                                                          fontSize:
+                                                                              12,
+                                                                          color: Colors
+                                                                              .grey
+                                                                              .shade700,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                                Text(
+                                                                  AppCurrency
+                                                                      .format(
+                                                                          price),
+                                                                  style: GoogleFonts
+                                                                      .poppins(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
                                                                   ),
                                                                 ),
                                                                 IconButton(
@@ -2696,264 +2833,161 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                                               ],
                                                             ),
                                                           );
-                                                        }
-
-                                                        final price =
-                                                            _priceOf(it);
-                                                        final bool isVeg =
-                                                            _foodTypeFor(it) ==
-                                                                FoodType.veg;
-                                                        final ftLabel =
-                                                            _foodTypeLabelFor(
-                                                                it);
-                                                        final cat =
-                                                            _categoryLabelFor(
-                                                                it);
-
-                                                        return Container(
-                                                          margin:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  bottom: 10),
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      12,
-                                                                  vertical: 10),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: Colors.white,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        10),
-                                                            border: Border.all(
-                                                                color: const Color(
-                                                                    0xFFE5E7EB)),
-                                                          ),
-                                                          child: Row(
-                                                            children: [
-                                                              _foodSquareIcon(
-                                                                  isVeg),
-                                                              const SizedBox(
-                                                                  width: 10),
-                                                              Expanded(
-                                                                child: Column(
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .start,
-                                                                  children: [
-                                                                    Text(
-                                                                      it.name,
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            14,
-                                                                        fontWeight:
-                                                                            FontWeight.w700,
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        height:
-                                                                            6),
-                                                                    Text(
-                                                                      [
-                                                                        if (ftLabel
-                                                                            .isNotEmpty)
-                                                                          ftLabel,
-                                                                        if (cat
-                                                                            .isNotEmpty)
-                                                                          cat,
-                                                                      ].join(
-                                                                          ' • '),
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            12,
-                                                                        color: Colors
-                                                                            .grey
-                                                                            .shade700,
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                              Text(
-                                                                AppCurrency
-                                                                    .format(
-                                                                        price),
-                                                                style:
-                                                                    GoogleFonts
-                                                                        .poppins(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                                ),
-                                                              ),
-                                                              IconButton(
-                                                                icon: const Icon(
-                                                                    Icons.close,
-                                                                    size: 18),
-                                                                onPressed: () =>
-                                                                    setState(() =>
-                                                                        _removeId(
-                                                                            id)),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                      },
+                                                        },
+                                                      ),
                                                     ),
-                                                  ),
+                                        ),
                                       ),
-                                    ),
 
-                                    const SizedBox(height: 10),
+                                      const SizedBox(height: 10),
 
-                                    // totals (overall selection, not filtered)
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 14, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade50,
-                                            borderRadius:
-                                                BorderRadius.circular(24),
-                                            border: Border.all(
-                                                color: Colors.grey.shade200),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Text('Items:',
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                              const SizedBox(width: 10),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 6),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  border: Border.all(
-                                                      color:
-                                                          Colors.grey.shade200),
-                                                ),
-                                                child: Text(
-                                                    '${_selectedOrder.length}',
+                                      // totals (overall selection, not filtered)
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 14, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              border: Border.all(
+                                                  color: Colors.grey.shade200),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Text('Items:',
                                                     style: GoogleFonts.poppins(
                                                         fontSize: 14,
                                                         fontWeight:
-                                                            FontWeight.w700)),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 18, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black,
-                                            borderRadius:
-                                                BorderRadius.circular(24),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Text('Total',
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 13,
-                                                      color: Colors.white70,
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                              const SizedBox(width: 10),
-                                              Text(
-                                                  AppCurrency.format(
-                                                      _selectedTotal),
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 15,
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w800)),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton(
-                                          onPressed: _saving
-                                              ? null
-                                              : () =>
-                                                  Navigator.of(context).pop(),
-                                          child: Text('Cancel',
-                                              style: GoogleFonts.poppins()),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        ElevatedButton(
-                                          onPressed: _saving
-                                              ? null
-                                              : () async {
-                                                  setState(
-                                                      () => _saving = true);
-                                                  try {
-                                                    widget
-                                                        .controller
-                                                        .lastBrowsedMenuId
-                                                        .value = _menuId;
-                                                    await widget.controller
-                                                        .applyMenuSelection(
-                                                            _selectedOrder);
-                                                    if (mounted)
-                                                      Navigator.of(context)
-                                                          .pop();
-                                                  } finally {
-                                                    if (mounted)
-                                                      setState(() =>
-                                                          _saving = false);
-                                                  }
-                                                },
-                                          style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.black),
-                                          child: _saving
-                                              ? const SizedBox(
-                                                  width: 20,
-                                                  height: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
+                                                            FontWeight.w600)),
+                                                const SizedBox(width: 10),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 6),
+                                                  decoration: BoxDecoration(
                                                     color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            18),
+                                                    border: Border.all(
+                                                        color: Colors
+                                                            .grey.shade200),
                                                   ),
-                                                )
-                                              : Text('Confirm',
-                                                  style: GoogleFonts.poppins(
+                                                  child: Text(
+                                                      '${_selectedOrder.length}',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                              fontSize: 14,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700)),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 18, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black,
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Text('Total',
+                                                    style: GoogleFonts.poppins(
+                                                        fontSize: 13,
+                                                        color: Colors.white70,
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                    AppCurrency.format(
+                                                        _selectedTotal),
+                                                    style: GoogleFonts.poppins(
+                                                        fontSize: 15,
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w800)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          TextButton(
+                                            onPressed: _saving
+                                                ? null
+                                                : () =>
+                                                    Navigator.of(context).pop(),
+                                            child: Text('Cancel',
+                                                style: GoogleFonts.poppins()),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton(
+                                            onPressed: _saving
+                                                ? null
+                                                : () async {
+                                                    setState(
+                                                        () => _saving = true);
+                                                    try {
+                                                      widget
+                                                          .controller
+                                                          .lastBrowsedMenuId
+                                                          .value = _menuId;
+                                                      await widget.controller
+                                                          .applyMenuSelection(
+                                                              _selectedOrder);
+                                                      if (mounted)
+                                                        Navigator.of(context)
+                                                            .pop();
+                                                    } finally {
+                                                      if (mounted)
+                                                        setState(() =>
+                                                            _saving = false);
+                                                    }
+                                                  },
+                                            style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.black),
+                                            child: _saving
+                                                ? const SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
                                                       color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w700)),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
+                                                    ),
+                                                  )
+                                                : Text('Confirm',
+                                                    style: GoogleFonts.poppins(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w700)),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
                     ),
+                  ),
                 )),
               ],
             ),

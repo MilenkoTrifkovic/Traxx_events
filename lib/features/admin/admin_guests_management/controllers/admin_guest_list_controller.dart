@@ -26,6 +26,9 @@ class AdminGuestListController extends GetxController {
   final selectedState = RxnString();
   final selectedGender = Rxn<Gender>();
 
+  /// Maximum number of guests this guest can invite (0 by default)
+  final maxGuestInvite = 0.obs;
+
   /// Whether the guest is disabled. Defaults to false (enabled).
   final isDisabled = false.obs;
 
@@ -179,6 +182,7 @@ class AdminGuestListController extends GetxController {
         'gender': selectedGender.value?.name,
         'isDisabled': isDisabled.value,
         'isInvited': false, // Default to not invited
+        'maxGuestInvite': maxGuestInvite.value,
         'eventId': eventId,
         'createdAt': FieldValue.serverTimestamp(),
         'modifiedAt': FieldValue.serverTimestamp(),
@@ -217,6 +221,7 @@ class AdminGuestListController extends GetxController {
         "state": selectedState.value,
         "gender": selectedGender.value?.name,
         "isDisabled": isDisabled.value,
+        "maxGuestInvite": maxGuestInvite.value,
         "modifiedAt": FieldValue.serverTimestamp(),
       };
 
@@ -267,6 +272,9 @@ class AdminGuestListController extends GetxController {
     // isDisabled flag
     // GuestModel.isDisabled is non-nullable in current model, assign directly
     isDisabled.value = guest.isDisabled;
+
+    // maxGuestInvite
+    maxGuestInvite.value = guest.maxGuestInvite;
 
     // // Gender: map from stored String to Gender enum safely (case-insensitive)
     // if (guest.gender != null && guest.gender!.isNotEmpty) {
@@ -384,6 +392,7 @@ class AdminGuestListController extends GetxController {
           state: guest.state,
           country: guest.country,
           gender: guest.gender,
+          maxGuestInvite: guest.maxGuestInvite,
           isDisabled: false,
           isInvited: false,
         );
@@ -554,6 +563,7 @@ class AdminGuestListController extends GetxController {
     selectedGender.value = null;
 
     isDisabled.value = false;
+    maxGuestInvite.value = 0;
     _currentGuestId = null;
   }
 

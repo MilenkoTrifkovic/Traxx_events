@@ -24,6 +24,7 @@ class GuestModel {
 
   final bool isDisabled;
   final bool isInvited;
+  final int maxGuestInvite;
 
   GuestModel({
     this.docId = '', // ✅ default, so parsers don’t need to pass it
@@ -40,6 +41,7 @@ class GuestModel {
     this.modifiedAt,
     this.isDisabled = false,
     this.isInvited = false,
+    this.maxGuestInvite = 0,
   });
 
   /// Firestore: create (new document)
@@ -61,6 +63,7 @@ class GuestModel {
 
       'isDisabled': isDisabled,
       'isInvited': isInvited,
+      'maxGuestInvite': maxGuestInvite,
 
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -82,6 +85,7 @@ class GuestModel {
       if (gender != null) 'gender': gender!.name,
       'isDisabled': isDisabled,
       'isInvited': isInvited,
+      'maxGuestInvite': maxGuestInvite,
       'modifiedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -144,6 +148,7 @@ class GuestModel {
       modifiedAt: parseTimestamp(data['modifiedAt']),
       isDisabled: data['isDisabled'] as bool? ?? false,
       isInvited: data['isInvited'] as bool? ?? false,
+      maxGuestInvite: data['maxGuestInvite'] as int? ?? 0,
     );
   }
 
@@ -162,6 +167,7 @@ class GuestModel {
     DateTime? modifiedAt,
     bool? isDisabled,
     bool? isInvited,
+    int? maxGuestInvite,
   }) {
     return GuestModel(
       docId: docId ?? this.docId,
@@ -178,6 +184,7 @@ class GuestModel {
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,
       isInvited: isInvited ?? this.isInvited,
+      maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
     );
   }
 
@@ -197,7 +204,8 @@ class GuestModel {
         'createdAt: $createdAt, '
         'modifiedAt: $modifiedAt, '
         'isDisabled: $isDisabled, '
-        'isInvited: $isInvited'
+        'isInvited: $isInvited, '
+        'maxGuestInvite: $maxGuestInvite'
         ')';
   }
 }
