@@ -248,6 +248,26 @@ class AdminGuestListController extends GetxController {
     }
   }
 
+  /// Updates a guest directly using a GuestModel object (for inline edits)
+  Future<bool> updateGuestDirectly(GuestModel guest) async {
+    if (guest.guestId == null || guest.guestId!.isEmpty) {
+      debugPrint('updateGuestDirectly: guestId is null/empty — cannot update');
+      return false;
+    }
+
+    try {
+      final docRef =
+          FirebaseFirestore.instance.collection('guests').doc(guest.guestId);
+
+      await docRef.update(guest.toFirestoreUpdate());
+      debugPrint('updateGuestDirectly: updated guest id=${guest.guestId}');
+      return true;
+    } catch (e, st) {
+      debugPrint('updateGuestDirectly error: $e\n$st');
+      return false;
+    }
+  }
+
   String? _currentGuestId;
 
   // ---------------------------

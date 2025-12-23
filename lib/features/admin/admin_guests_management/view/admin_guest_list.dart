@@ -197,11 +197,55 @@ class GuestListSection extends StatelessWidget {
                               DataCell(Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(guest.email))),
-                              // Max Invite cell
-                              DataCell(Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(guest.maxGuestInvite.toString()),
-                              )),
+                              // Max Invite cell - inline editable dropdown
+                              DataCell(
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: DropdownButton<int>(
+                                    value: guest.maxGuestInvite,
+                                    underline: const SizedBox(),
+                                    isDense: true,
+                                    focusColor: Colors.transparent,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
+                                    items: List.generate(
+                                      maxInviteByGuest + 1,
+                                      (index) => DropdownMenuItem(
+                                        value: index,
+                                        child: Text(
+                                          index == 0 ? 'None' : '$index',
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ),
+                                    ),
+                                    onChanged: (newValue) async {
+                                      if (newValue != null &&
+                                          guest.guestId != null) {
+                                        // Update the guest with new maxGuestInvite
+                                        final updatedGuest = guest.copyWith(
+                                          maxGuestInvite: newValue,
+                                        );
+                                        final success = await controller
+                                            .updateGuestDirectly(updatedGuest);
+
+                                        if (success) {
+                                          final snackbarController = Get.find<
+                                              SnackbarMessageController>();
+                                          snackbarController.showSuccessMessage(
+                                              'Max invite updated to ${newValue == 0 ? 'None' : newValue}');
+                                        } else {
+                                          final snackbarController = Get.find<
+                                              SnackbarMessageController>();
+                                          snackbarController.showErrorMessage(
+                                              'Failed to update max invite');
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
                               DataCell(Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(guest.city ?? '—'))),
