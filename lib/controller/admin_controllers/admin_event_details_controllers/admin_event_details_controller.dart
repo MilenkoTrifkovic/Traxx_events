@@ -516,6 +516,7 @@ class AdminEventDetailsController {
   Future<void> updateEventCoreDetails({
     required String name,
     required String serviceType,
+    required int maxInviteByGuest,
     String? address,
   }) async {
     if (_eventDocId.isEmpty) return;
@@ -523,6 +524,7 @@ class AdminEventDetailsController {
     final payload = <String, dynamic>{
       'name': name,
       'serviceType': serviceType,
+      'maxInviteByGuest': maxInviteByGuest,
       'address': address,
     };
 

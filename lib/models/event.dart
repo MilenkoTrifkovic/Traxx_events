@@ -41,6 +41,7 @@ class Event {
   final String? plannerEmail;
   final String? specialNotes;
   final bool hideHostInfo;
+  final int maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
 
   Event({
     this.isDisabled,
@@ -67,6 +68,7 @@ class Event {
     this.plannerEmail,
     this.specialNotes,
     this.hideHostInfo = false,
+    this.maxInviteByGuest = 0, // Default to 0
     this.selectableCategories = const [],
     this.selectedMenus,
     // new fields
@@ -141,6 +143,7 @@ class Event {
       plannerEmail: data['plannerEmail'] as String?,
       specialNotes: data['specialNotes'] as String?,
       hideHostInfo: data['hideHostInfo'] as bool? ?? false,
+      maxInviteByGuest: (data['maxInviteByGuest'] as num?)?.toInt() ?? 0,
       isDisabled: data['isDisabled'] as bool?,
       serviceType: ServiceType.values.firstWhere(
         (e) => e.name == (data['serviceType']),
@@ -273,6 +276,7 @@ class Event {
           ? state.specialNotesController.text.trim()
           : null,
       hideHostInfo: state.hideHostInfo ?? false,
+      maxInviteByGuest: state.maxInviteByGuest ?? 0,
       selectableCategories:
           state.selectableMenuCategories ?? const <MenuCategory>[],
       selectedMenus: state.selectedMenus,
@@ -323,6 +327,7 @@ class Event {
       'plannerEmail': plannerEmail,
       'specialNotes': specialNotes,
       'hideHostInfo': hideHostInfo,
+      'maxInviteByGuest': maxInviteByGuest,
       'coverImageUrl': coverImageUrl,
       'serviceType': serviceType.name,
       'status': status.statusName,
@@ -365,6 +370,7 @@ class Event {
     String? plannerEmail,
     String? specialNotes,
     bool? hideHostInfo,
+    int? maxInviteByGuest,
     List<MenuCategory>? selectableCategories,
     bool? isDisabled,
     // NEW copyWith options:
@@ -398,6 +404,7 @@ class Event {
       plannerEmail: plannerEmail ?? this.plannerEmail,
       specialNotes: specialNotes ?? this.specialNotes,
       hideHostInfo: hideHostInfo ?? this.hideHostInfo,
+      maxInviteByGuest: maxInviteByGuest ?? this.maxInviteByGuest,
       selectableCategories: selectableCategories ?? this.selectableCategories,
       isDisabled: isDisabled ?? this.isDisabled,
       selectedMenus: selectedMenus ?? this.selectedMenus,

@@ -16,11 +16,14 @@ import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
+import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
+import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
 import 'package:traxx_wepapp/widgets/event_details_header.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
 class AdminEventDetails extends StatefulWidget {
   final String eventId;
@@ -985,6 +988,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   late TextEditingController _nameCtrl;
   late TextEditingController _locationCtrl;
   late String _serviceType;
+  late int _maxInviteByGuest;
   bool _saving = false;
 
   // Venue selection - tracked by child widget
@@ -999,6 +1003,8 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
         TextEditingController(text: widget.initialEvent.address ?? '');
     // ServiceType is enum; use its name to bind to Dropdown
     _serviceType = widget.initialEvent.serviceType.name;
+    // Initialize max invite by guest
+    _maxInviteByGuest = widget.initialEvent.maxInviteByGuest;
     // Initialize selected venue
     _selectedVenueId = widget.initialEvent.venueId;
   }
@@ -1013,33 +1019,37 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit event details'),
       content: SizedBox(
-        width: 600,
+        width: 488,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              TextField(
+              // Title Header
+              DialogStepHeader(
+                icon: Icons.edit,
+                title: 'Edit Event Details',
+                description: 'Update the event\'s information.',
+              ),
+              const SizedBox(height: 24),
+              
+              // Event Name
+              AppTextInputField(
+                label: 'Event Name',
                 controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Event name',
-                ),
               ),
-              const SizedBox(height: 12),
-              TextField(
+
+              // Location (Address)
+              AppTextInputField(
+                label: 'Location (Address)',
                 controller: _locationCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Location (address)',
-                ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _serviceType,
-                decoration: const InputDecoration(
-                  labelText: 'Service type',
-                ),
+
+              // Service Type
+              AppDropdownMenu<String>(
+                label: 'Service Type',
+                value: _serviceType,
                 items: const [
                   DropdownMenuItem(
                     value: 'buffet',
@@ -1052,7 +1062,29 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                 ],
                 onChanged: (v) => setState(() => _serviceType = v ?? 'buffet'),
               ),
-              const SizedBox(height: 12),
+
+              // Max Guests Per Invite
+              AppDropdownMenu<int>(
+                label: 'Max Guests Per Invite',
+                helperText: 'Maximum number of additional guests each invitee can bring',
+                value: _maxInviteByGuest,
+                items: List.generate(6, (index) => index).map((number) {
+                  return DropdownMenuItem<int>(
+                    value: number,
+                    child: Text(number == 0
+                        ? 'No additional guests'
+                        : number == 1
+                            ? '1 additional guest'
+                            : '$number additional guests'),
+                  );
+                }).toList(),
+                onChanged: (int? value) {
+                  if (value != null) {
+                    setState(() => _maxInviteByGuest = value);
+                  }
+                },
+              ),
+
               // Venue Selection and Photo Management
               // Note: Photo add/remove happens immediately, independent of save button
               VenuePhotoManager(
@@ -1092,6 +1124,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                     await widget.controller.updateEventCoreDetails(
                       name: name,
                       serviceType: _serviceType,
+                      maxInviteByGuest: _maxInviteByGuest,
                       address: _locationCtrl.text.trim().isEmpty
                           ? null
                           : _locationCtrl.text.trim(),
@@ -1973,7 +2006,8 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                 const SizedBox(height: 18),
 
                 Expanded(
-                    child: Padding(
+                    child: SingleChildScrollView(
+                      child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                       24, 18, 24, 24), // spacing for body
                   child: Row(
@@ -2919,6 +2953,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                       ),
                     ],
                   ),
+                    ),
                 )),
               ],
             ),

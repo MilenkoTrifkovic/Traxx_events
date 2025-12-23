@@ -44,6 +44,7 @@ class CreateEventController extends GetxController {
   // Service Type error
   final RxString serviceTypeError = ''.obs;
   final RxBool hideHostInfo = false.obs;
+  final Rxn<int> maxInviteByGuest = Rxn<int>(); // Max guests per invitee (0-5), nullable to show hint
   final RxBool isLoading = false.obs;
 
   // Cover image state
@@ -69,6 +70,7 @@ class CreateEventController extends GetxController {
   final RxString endTimeError = ''.obs;
   final RxString rsvpDeadlineError = ''.obs;
   final RxString capacityError = ''.obs;
+  final RxString maxInviteByGuestError = ''.obs;
 
   @override
   void onClose() {
@@ -195,6 +197,7 @@ class CreateEventController extends GetxController {
 
     // Clear only step 2 related errors
     capacityError.value = '';
+    maxInviteByGuestError.value = '';
 
     // Validate capacity
     if (capacityController.text.trim().isEmpty) {
@@ -206,6 +209,12 @@ class CreateEventController extends GetxController {
         capacityError.value = 'Please enter a valid capacity number';
         isValid = false;
       }
+    }
+
+    // Validate max invite by guest
+    if (maxInviteByGuest.value == null) {
+      maxInviteByGuestError.value = 'Please select max guests per invite';
+      isValid = false;
     }
 
     return isValid;
@@ -265,6 +274,14 @@ class CreateEventController extends GetxController {
     selectedRsvpDeadline.value = deadline;
     if (deadline != null) {
       rsvpDeadlineError.value = '';
+    }
+  }
+
+  /// Update max invite by guest value (0-5)
+  void updateMaxInviteByGuest(int? value) {
+    if (value != null && value >= 0 && value <= 5) {
+      maxInviteByGuest.value = value;
+      maxInviteByGuestError.value = ''; // Clear error when valid value selected
     }
   }
 
@@ -329,6 +346,7 @@ class CreateEventController extends GetxController {
           ? specialNotesController.text.trim()
           : null,
       hideHostInfo: hideHostInfo.value,
+      maxInviteByGuest: maxInviteByGuest.value ?? 0, // Default to 0 if not selected
     );
   }
 
