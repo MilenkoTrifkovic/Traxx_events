@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
@@ -46,6 +48,8 @@ class AdminEventDetailsController {
 
   final FirestoreServices firestore = FirestoreServices();
   final StorageServices _storageServices = StorageServices();
+  final SnackbarMessageController _snackbarController =
+      Get.find<SnackbarMessageController>();
 
   String _eventDocId = '';
   String get eventDocId => _eventDocId;
@@ -545,5 +549,53 @@ class AdminEventDetailsController {
     }
 
     await _loadVenue(venueId);
+  }
+
+  Future<void> pickAndUploadCoverImage() async {
+    if (_eventDocId.isEmpty) return;
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image == null) {
+        // User cancelled the picker
+        return;
+      }
+
+      _snackbarController.showInfoMessage('Uploading cover image...');
+
+      // Upload image to Firebase Storage and get the storage path
+      final storagePath = await _storageServices.uploadImage(image);
+
+      // Update Firestore with the storage path
+      await firestore.updateEventFields(_eventDocId, {
+        'coverImageUrl': storagePath,
+      });
+
+      // Load the download URL
+      final downloadUrl = await _storageServices.loadImageURL(storagePath);
+
+      // Update local event object
+      if (event.value != null) {
+        event.value = event.value!.copyWith(
+          coverImageUrl: storagePath,
+          coverImageDownloadUrl: downloadUrl,
+        );
+      }
+
+      debugPrint('Cover image uploaded successfully: $storagePath');
+      _snackbarController
+          .showSuccessMessage('Cover image uploaded successfully!');
+    } catch (e, st) {
+      debugPrint('Error uploading cover image: $e\n$st');
+      _snackbarController.showErrorMessage('Failed to upload cover image');
+      rethrow;
+    }
   }
 }

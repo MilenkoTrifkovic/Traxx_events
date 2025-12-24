@@ -34,20 +34,24 @@ class GuestListToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         // Search field
-        AppSearchInputField(
-          hintText: 'Search by name or email',
-          controller: controller.searchController,
-          onChanged: controller.filterGuests,
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: controller.clearFilter,
+        SizedBox(
+          width: 280,
+          child: AppSearchInputField(
+            hintText: 'Search by name or email',
+            controller: controller.searchController,
+            onChanged: controller.filterGuests,
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: controller.clearFilter,
+            ),
           ),
         ),
-
-        const SizedBox(width: 12),
 
         // Download Guest List button (disabled if no guests)
         Obx(() => AppPrimaryButton(
@@ -58,16 +62,12 @@ class GuestListToolbar extends StatelessWidget {
               icon: Icons.download_outlined,
             )),
 
-        const SizedBox(width: 12),
-
         // Download Template button
         AppPrimaryButton(
           onPressed: () => _downloadTemplate(context),
           text: 'Download Template',
           icon: Icons.download,
         ),
-
-        const SizedBox(width: 12),
 
         // Upload CSV/XLSX button
         AppPrimaryButton(
@@ -76,16 +76,12 @@ class GuestListToolbar extends StatelessWidget {
           icon: Icons.upload_file,
         ),
 
-        const SizedBox(width: 12),
-
         // Invite All button
         AppPrimaryButton(
           onPressed: () => _inviteAllGuests(context),
           text: 'Invite All',
           icon: Icons.send,
         ),
-
-        const SizedBox(width: 12),
 
         // Add Guest button
         AppPrimaryButton(

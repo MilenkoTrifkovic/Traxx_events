@@ -20,8 +20,7 @@ import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
-import 'package:traxx_wepapp/widgets/event_details_header.dart';
-import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_summary_section.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
@@ -409,7 +408,7 @@ class _DemographicSetPickerDialogState
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withValues(alpha: 0.18),
               blurRadius: 24,
               offset: const Offset(0, 12),
             )
@@ -822,155 +821,6 @@ class _DemographicSetPickerDialogState
   }
 }
 
-class EventSummarySection extends StatelessWidget {
-  final AdminEventDetailsController controller;
-
-  const EventSummarySection({super.key, required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final evt = controller.event.value;
-      if (evt == null) return const SizedBox.shrink();
-      final organisation = controller.organisation;
-      final venue = controller.venue;
-
-      final dateStr =
-          "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr =
-          "${evt.date.hour.toString().padLeft(2, '0')}:${evt.date.minute.toString().padLeft(2, '0')}";
-
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// title + edit icon
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      EventImage(
-                        onUpdate: (updatedEvent) =>
-                            controller.updateEvent(updatedEvent),
-                        event: evt,
-                        width: 90,
-                        height: 90,
-                        borderRadius: 12,
-                        iconSize: 36,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  evt.name,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF111827),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Edit event details',
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => EditEventDetailsDialog(
-                                        controller: controller,
-                                        initialEvent: evt,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 16,
-                              runSpacing: 8,
-                              children: [
-                                _pill(
-                                  icon: Icons.event,
-                                  label: '$dateStr • $timeStr',
-                                ),
-                                _pill(
-                                  icon: Icons.place,
-                                  label:
-                                      organisation?.city ?? 'Location not set',
-                                ),
-                                _pill(
-                                  icon: Icons.location_city,
-                                  label: venue.value?.name.capitalize ??
-                                      'Venue not set',
-                                ),
-                                _pill(
-                                  icon: Icons.restaurant,
-                                  label: evt.serviceType.name.isEmpty
-                                      ? 'Service type'
-                                      : evt.serviceType.name[0].toUpperCase() +
-                                          evt.serviceType.name.substring(1),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _pill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: const Color(0xFF4B5563)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: const Color(0xFF4B5563),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class EditEventDetailsDialog extends StatefulWidget {
   final AdminEventDetailsController controller;
   final Event initialEvent;
@@ -1226,7 +1076,7 @@ class MenuSelectionCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -1774,7 +1624,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                 labelText: 'Menu (browse)',
                 labelStyle: GoogleFonts.poppins(color: Colors.white70),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.18),
+                fillColor: Colors.white.withValues(alpha: 0.18),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
@@ -1915,7 +1765,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
+                  color: Colors.black.withValues(alpha: 0.18),
                   blurRadius: 24,
                   offset: const Offset(0, 12),
                 )
@@ -3166,7 +3016,7 @@ class DemographicSelectionCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -3364,7 +3214,7 @@ class _EventAnalyzerCardState extends State<EventAnalyzerCard> {
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
