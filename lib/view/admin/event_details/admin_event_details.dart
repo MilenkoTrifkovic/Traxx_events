@@ -1858,7 +1858,6 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                 const SizedBox(height: 18),
 
                 Expanded(
-                    child: SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
                         24, 18, 24, 24), // spacing for body
@@ -2260,7 +2259,6 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                         const SizedBox(width: 20),
                         Container(
                             width: 1,
-                            height: double.infinity,
                             color: const Color(0xFFE5E7EB)),
                         const SizedBox(width: 20),
 
@@ -2838,7 +2836,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                       ],
                     ),
                   ),
-                )),
+                ),
               ],
             ),
           ),
