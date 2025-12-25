@@ -23,6 +23,7 @@ class RsvpResponseController extends GetxController {
   DateTime? get rsvpSubmittedAt => invitationStatus.value?.rsvpSubmittedAt;
   String? get declineReason => invitationStatus.value?.declineReason;
   String? get guestName => invitationStatus.value?.guestName;
+  String? get eventId => invitationStatus.value?.eventId; // For fetching event data
   
   // Step completion getters
   bool get hasDemographics => invitationStatus.value?.hasDemographics ?? false;

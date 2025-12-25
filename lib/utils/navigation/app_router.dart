@@ -44,6 +44,7 @@ import 'package:traxx_wepapp/view/admin/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 import 'package:traxx_wepapp/widgets/event_loader.dart';
+import 'package:traxx_wepapp/layout/guest_layout/guest_page_wrapper.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 
@@ -118,15 +119,11 @@ GoRouter buildRouter() {
       // Public routes for guests responding to invitations (RSVP → Demographics → Menu → Thank You)
       ShellRoute(
         builder: (context, state, child) {
-          // Simple wrapper without navigation rail - just centered content
-          return Scaffold(
-            backgroundColor: const Color(0xFFF9FAFB),
-            body: Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 800),
-                child: child,
-              ),
-            ),
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          // Wrapper fetches event cover image from invitation and displays it reactively
+          return GuestPageWrapper(
+            invitationId: invitationId,
+            child: child,
           );
         },
         routes: [
@@ -157,13 +154,13 @@ GoRouter buildRouter() {
               );
             },
           ),
-          GoRoute(
-            path: AppRoute.menuSelection.path,
-            builder: (context, state) {
-              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-              return GuestMenuSelectionPage(invitationId: invitationId);
-            },
-          ),
+          // GoRoute(
+          //   path: AppRoute.menuSelection.path,
+          //   builder: (context, state) {
+          //     final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          //     return GuestMenuSelectionPage(invitationId: invitationId);
+          //   },
+          // ),
           GoRoute(
             path: AppRoute.thankYou.path,
             builder: (context, state) {
@@ -173,6 +170,13 @@ GoRouter buildRouter() {
           ),
         ],
       ),
+       GoRoute(
+            path: AppRoute.menuSelection.path,
+            builder: (context, state) {
+              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              return GuestMenuSelectionPage(invitationId: invitationId);
+            },
+          ),
 
       //HOST SHELL ROUTE
       ShellRoute(

@@ -1,73 +1,250 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/app_font_weight.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:velocity_x/velocity_x.dart';
 
-/// Header widget with event icon and name
+/// Header widget with event icon and key event details
 class RsvpHeaderWidget extends StatelessWidget {
   final bool isPhone;
   final String? eventName;
+  final DateTime? eventDate;
+  final TimeOfDay? startTime;
+  final TimeOfDay? endTime;
+  final String? eventAddress;
+  final String? eventType;
 
   const RsvpHeaderWidget({
     super.key,
     required this.isPhone,
     this.eventName,
+    this.eventDate,
+    this.startTime,
+    this.endTime,
+    this.eventAddress,
+    this.eventType,
   });
+
+  String _formatTime(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('EEEE, MMMM d, yyyy').format(date);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Icon
-        Container(
-          width: isPhone ? 80 : 100,
-          height: isPhone ? 80 : 100,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.borderSubtle,
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
+    return Container(
+      padding: EdgeInsets.all(isPhone 
+          ? AppSpacing.lg(context) 
+          : AppSpacing.xl(context)),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Greeting message
+          AppText.styledLabelSmall(
+            context,
+            'EVENT INVITATION',
+            textAlign: TextAlign.center,
+            color: AppColors.primaryAccent,
+            weight: AppFontWeight.semiBold,
+          ),
+          
+          SizedBox(height: AppSpacing.sm(context)),
+          
+          // Event Icon with type badge
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: isPhone ? 72 : 80,
+                height: isPhone ? 72 : 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryAccent.withOpacity(0.1),
+                      AppColors.primary.withOpacity(0.05),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.primaryAccent.withOpacity(0.2),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  Icons.celebration_outlined,
+                  size: isPhone ? 36 : 40,
+                  color: AppColors.primaryAccent,
+                ),
               ),
+              // Event type badge (if available)
+              if (eventType != null && eventType!.isNotEmpty)
+                Positioned(
+                  right: -8,
+                  bottom: -4,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xxxs(context),
+                      vertical: AppSpacing.xxxxs(context),
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryAccent,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      eventType!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: AppFontWeight.semiBold,
+                        color: AppColors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
-          child: Icon(
-            Icons.event_outlined,
-            size: isPhone ? 40 : 48,
-            color: AppColors.primary,
-          ),
-        ),
 
-        SizedBox(height: isPhone ? 20 : 24),
+          SizedBox(height: isPhone 
+              ? AppSpacing.md(context) 
+              : AppSpacing.lg(context)),
 
-        // Event Name (if provided)
-        if (eventName != null) ...[
-          Text(
-            eventName!,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: isPhone ? 20 : 24,
-              fontWeight: FontWeight.w700,
+          // Event Name
+          if (eventName != null && eventName!.isNotEmpty) ...[
+            AppText.styledHeadingMedium(
+              context,
+              eventName!.capitalized,
+              textAlign: TextAlign.center,
               color: AppColors.primary,
-              height: 1.3,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          const SizedBox(height: 8),
-        ],
+            SizedBox(height: AppSpacing.xxxxs(context)),
+          ],
 
-        // Subtitle
-        Text(
-          'You\'re invited!',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(
-            fontSize: isPhone ? 14 : 16,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textMuted,
+          // "You're invited!" subtitle
+          AppText.styledLabelMedium(
+            context,
+            'You\'re Invited!',
+            textAlign: TextAlign.center,
+            color: AppColors.primaryAccent,
+            weight: AppFontWeight.semiBold,
+          ),
+
+          // Event details section (if available)
+          if (eventDate != null || startTime != null || eventAddress != null) ...[
+            SizedBox(height: isPhone 
+                ? AppSpacing.md(context) 
+                : AppSpacing.lg(context)),
+            
+            Container(
+              padding: EdgeInsets.all(isPhone 
+                  ? AppSpacing.sm(context) 
+                  : AppSpacing.md(context)),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.borderSubtle,
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Date and Time row
+                  if (eventDate != null) ...[
+                    _buildInfoRow(
+                      context: context,
+                      icon: Icons.calendar_today_outlined,
+                      label: _formatDate(eventDate!),
+                      isPhone: isPhone,
+                    ),
+                    if (startTime != null) 
+                      SizedBox(height: AppSpacing.xxxs(context)),
+                  ],
+                  
+                  // Time
+                  if (startTime != null)
+                    _buildInfoRow(
+                      context: context,
+                      icon: Icons.access_time_outlined,
+                      label: endTime != null
+                          ? '${_formatTime(startTime!)} - ${_formatTime(endTime!)}'
+                          : _formatTime(startTime!),
+                      isPhone: isPhone,
+                    ),
+                  
+                  // Address
+                  if (eventAddress != null && eventAddress!.isNotEmpty) ...[
+                    if (eventDate != null || startTime != null)
+                      SizedBox(height: AppSpacing.xxxs(context)),
+                    _buildInfoRow(
+                      context: context,
+                      icon: Icons.location_on_outlined,
+                      label: eventAddress!,
+                      isPhone: isPhone,
+                      maxLines: 2,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required bool isPhone,
+    int maxLines = 1,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: isPhone ? 16 : 18,
+          color: AppColors.primaryAccent,
+        ),
+        SizedBox(width: AppSpacing.xxxs(context)),
+        Expanded(
+          child: AppText.styledBodySmall(
+            context,
+            label,
+            color: AppColors.secondary,
+            weight: AppFontWeight.medium,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -87,14 +264,16 @@ class RsvpQuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(isPhone ? 24 : 32),
+      padding: EdgeInsets.all(isPhone 
+          ? AppSpacing.xl(context) 
+          : AppSpacing.xxxl(context)),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.borderSubtle),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: AppColors.black.withOpacity(0.03),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -102,25 +281,31 @@ class RsvpQuestionCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
+          // Context text
+          AppText.styledBodySmall(
+            context,
+            'Your presence would mean the world to us',
+            textAlign: TextAlign.center,
+            color: AppColors.textMuted,
+            weight: AppFontWeight.regular,
+          ),
+          
+          SizedBox(height: AppSpacing.md(context)),
+          
+          AppText.styledHeadingMedium(
+            context,
             'Will you be attending?',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: isPhone ? 22 : 28,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              height: 1.3,
-            ),
+            color: AppColors.primary,
+            weight: AppFontWeight.bold,
           ),
-          const SizedBox(height: 12),
-          Text(
+          SizedBox(height: AppSpacing.sm(context)),
+          AppText.styledBodyMedium(
+            context,
             'Please let us know if you can make it',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: isPhone ? 14 : 15,
-              color: AppColors.textMuted,
-              height: 1.5,
-            ),
+            color: AppColors.textMuted,
+            weight: AppFontWeight.regular,
           ),
         ],
       ),
@@ -149,8 +334,8 @@ class RsvpButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isPrimary ? AppColors.primary : Colors.white;
-    final textColor = isPrimary ? Colors.white : AppColors.primary;
+    final bgColor = isPrimary ? AppColors.primary : AppColors.white;
+    final textColor = isPrimary ? AppColors.white : AppColors.primary;
     final borderColor = isPrimary ? AppColors.primary : AppColors.borderSubtle;
 
     return SizedBox(
@@ -162,7 +347,7 @@ class RsvpButton extends StatelessWidget {
           backgroundColor: bgColor,
           foregroundColor: textColor,
           elevation: isPrimary ? 2 : 0,
-          shadowColor: Colors.black.withOpacity(0.1),
+          shadowColor: AppColors.black.withOpacity(0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
@@ -171,8 +356,10 @@ class RsvpButton extends StatelessWidget {
             ),
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 20 : 24,
-            vertical: isPhone ? 14 : 16,
+            horizontal: isPhone 
+                ? AppSpacing.lg(context) 
+                : AppSpacing.xl(context),
+            vertical: 0,
           ),
         ),
         child: isLoading
@@ -182,25 +369,28 @@ class RsvpButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    isPrimary ? Colors.white : AppColors.primary,
+                    isPrimary ? AppColors.white : AppColors.primary,
                   ),
                 ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Icon(
                     icon,
                     size: isPhone ? 22 : 24,
                     color: textColor,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: AppSpacing.sm(context)),
                   Text(
                     label,
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       fontSize: isPhone ? 15 : 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: AppFontWeight.semiBold,
                       color: textColor,
+                      height: 1.0,
                     ),
                   ),
                 ],
@@ -224,28 +414,34 @@ class RsvpErrorMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.md(context)),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: AppColors.inputError.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: AppColors.inputError.withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
-          const SizedBox(width: 12),
+          Icon(
+            Icons.error_outline, 
+            color: AppColors.inputError, 
+            size: 20,
+          ),
+          SizedBox(width: AppSpacing.sm(context)),
           Expanded(
-            child: Text(
+            child: AppText.styledBodySmall(
+              context,
               message,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.red.shade800,
-                fontWeight: FontWeight.w500,
-              ),
+              color: AppColors.inputError,
+              weight: AppFontWeight.medium,
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close, size: 18, color: Colors.red.shade700),
+            icon: Icon(
+              Icons.close, 
+              size: 18, 
+              color: AppColors.inputError,
+            ),
             onPressed: onClose,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -267,14 +463,25 @@ class RsvpFooterNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      'Your response helps us plan better. Thank you!',
-      textAlign: TextAlign.center,
-      style: GoogleFonts.poppins(
-        fontSize: isPhone ? 12 : 13,
-        color: AppColors.textMuted,
-        fontStyle: FontStyle.italic,
-      ),
+    return Column(
+      children: [
+        AppText.styledBodySmall(
+          context,
+          'Your response helps us plan better',
+          textAlign: TextAlign.center,
+          color: AppColors.textMuted,
+          weight: AppFontWeight.medium,
+        ),
+        SizedBox(height: AppSpacing.xxxxs(context)),
+        AppText.styledMetaSmall(
+          context,
+          'We look forward to celebrating with you!',
+          textAlign: TextAlign.center,
+          color: AppColors.textMuted,
+          weight: AppFontWeight.regular,
+          style: FontStyle.italic,
+        ),
+      ],
     );
   }
 }

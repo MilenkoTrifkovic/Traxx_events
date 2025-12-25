@@ -772,9 +772,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       },
     );
 
-    if (widget.embedded) return content;
-
-    return Scaffold(backgroundColor: gfBackground, body: content);
+    // Return content directly - ShellRoute provides GuestPageWrapper
+    return content;
   }
 
   Widget _buildScrollableBody() {

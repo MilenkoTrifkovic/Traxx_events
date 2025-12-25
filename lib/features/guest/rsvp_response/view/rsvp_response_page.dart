@@ -6,16 +6,19 @@ import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/rsvp_decl
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/rsvp_error_widget.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/rsvp_form_widgets.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/rsvp_loading_widget.dart';
+import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
+import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 
 /// RSVP Response Page - Guest's first step in the invitation flow
 /// Allows guests to respond Yes or No to event invitation
+/// Uses GuestLayoutController for event data (no redundant fetches)
 class RsvpResponsePage extends StatefulWidget {
   final String invitationId;
   final String? token;
-  final String? eventName;
+  final String? eventName; // Optional - will use from GuestLayoutController if available
 
   const RsvpResponsePage({
     super.key,
@@ -30,19 +33,23 @@ class RsvpResponsePage extends StatefulWidget {
 
 class _RsvpResponsePageState extends State<RsvpResponsePage> {
   late final RsvpResponseController controller;
+  late final GuestLayoutController guestController;
 
   @override
   void initState() {
     super.initState();
-    print('Invitation id in RsvpResponsePage: ${widget.invitationId}');
     
-    // Create controller
+    // Access parent GuestLayoutController (created by GuestPageWrapper)
+    guestController = Get.find<GuestLayoutController>();
+    
+    // Create RSVP controller
     controller = Get.put(RsvpResponseController());
     
     // Assign values BEFORE triggering any async operations
     controller.invitationId = widget.invitationId;
     controller.token = widget.token;
-    controller.eventName = widget.eventName;
+    // Use event name from GuestLayoutController if available, otherwise from widget
+    controller.eventName = guestController.eventName ?? widget.eventName;
     
     // NOW manually trigger the check (values are already assigned)
     controller.checkExistingResponse();
@@ -57,25 +64,8 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
   @override
   Widget build(BuildContext context) {
     final isPhone = ScreenSize.isPhone(context);
-    final isTablet = ScreenSize.isTablet(context);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 20 : (isTablet ? 40 : 60),
-            vertical: isPhone ? 24 : 40,
-          ),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: isPhone ? double.infinity : 600,
-            ),
-            child: Obx(() => _buildContent(isPhone)),
-          ),
-        ),
-      ),
-    );
+    return Obx(() => _buildContent(isPhone));
   }
 
   /// Route to appropriate state based on controller status
@@ -136,18 +126,23 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header with event icon and name
-        RsvpHeaderWidget(
+        // Header with event details from GuestLayoutController
+        Obx(() => RsvpHeaderWidget(
           isPhone: isPhone,
-          eventName: widget.eventName,
-        ),
+          eventName: guestController.eventName ?? widget.eventName,
+          eventDate: guestController.eventDate,
+          startTime: guestController.event.value?.startTime,
+          endTime: guestController.event.value?.endTime,
+          eventAddress: guestController.eventAddress,
+          eventType: guestController.eventType,
+        )),
 
-        SizedBox(height: isPhone ? 32 : 48),
+        SizedBox(height: AppSpacing.xxxl(context)),
 
         // Main question card
         RsvpQuestionCard(isPhone: isPhone),
 
-        SizedBox(height: isPhone ? 24 : 32),
+        SizedBox(height: AppSpacing.xl(context)),
 
         // Action buttons
         _buildActionButtons(isPhone),
@@ -155,14 +150,14 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
         // Error message (for submission errors)
         if (controller.error.value != null)
           Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: EdgeInsets.only(top: AppSpacing.md(context)),
             child: RsvpErrorMessage(
               message: controller.error.value!,
               onClose: () => controller.clearError(),
             ),
           ),
 
-        SizedBox(height: isPhone ? 24 : 32),
+        SizedBox(height: AppSpacing.xl(context)),
 
         // Footer note
         RsvpFooterNote(isPhone: isPhone),
@@ -193,7 +188,7 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
           isPhone: isPhone,
         ),
 
-        SizedBox(height: isPhone ? 12 : 16),
+        SizedBox(height: AppSpacing.sm(context)),
 
         // No, I can't make it
         RsvpButton(
