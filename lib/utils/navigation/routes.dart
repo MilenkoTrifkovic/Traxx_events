@@ -33,7 +33,7 @@ void pushRoute(AppRoute route, BuildContext context,
 //   context.go(route.path);
 // }
 void pushAndRemoveAllRoute(AppRoute route, BuildContext context,
-    {String? urlParam, Object? extra}) {
+    {String? urlParam, Object? extra, Map<String, String>? queryParams}) {
   String path = route.path;
   if (route.placeholder != null && urlParam != null) {
     print('Replacing placeholder ${route.placeholder} with value $urlParam');
@@ -41,6 +41,13 @@ void pushAndRemoveAllRoute(AppRoute route, BuildContext context,
         ':${route.placeholder!}'; //adds colon to match the path format
     path = path.replaceFirst(placeholder, urlParam);
   }
+  
+  // Add query parameters if provided
+  if (queryParams != null && queryParams.isNotEmpty) {
+    final uri = Uri(path: path, queryParameters: queryParams);
+    path = uri.toString();
+  }
+  
   print('Pushing route: $path');
   context.go(path, extra: extra);
 }

@@ -39,8 +39,11 @@ enum AppRoute {
   eventMenuAnalyzer('/event-details/:eventId/menu-analyzer', 'eventId'),
   eventGuests('/event-guests'),
 
-  // Public guest form route (you already have it hardcoded as '/demographics')
+  // Public guest response routes
+  guestResponse('/guest-response'),
   demographics('/demographics'),
+  menuSelection('/menu-selection'),
+  thankYou('/thank-you'),
 
 // Dev-only host route visible in sidebar
   // hostDemographics('/host-demographics'),

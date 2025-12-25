@@ -111,8 +111,11 @@ export const sendInvitations = onCall(
           sent: false,
         });
 
+        // const link =
+        // `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
+        // `&token=${encodeURIComponent(inviteToken)}`;
         const link =
-        `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
+        `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(ref.id)}` +
         `&token=${encodeURIComponent(inviteToken)}`;
 
 

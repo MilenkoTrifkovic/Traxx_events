@@ -3170,7 +3170,7 @@ class _EventAnalyzerCardState extends State<EventAnalyzerCard> {
       _error = null;
     });
 
-    try {
+    try {  
       final res = await _svc.getEventAnalytics(eventId: widget.eventId);
       if (!mounted) return;
       setState(() {

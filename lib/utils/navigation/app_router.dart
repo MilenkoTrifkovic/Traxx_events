@@ -23,6 +23,7 @@ import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
 import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage.dart';
 import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -95,7 +96,6 @@ GoRouter buildRouter() {
       ),
       GoRoute(
         redirect: (context, state) {
-          print('dasdadlaskdjkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkas');
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
           }
@@ -114,34 +114,64 @@ GoRouter buildRouter() {
         builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
-      GoRoute(
-        path: '/demographics',
-        builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          final token = state.uri.queryParameters['token'] ?? '';
-          return DemographicResponsePage(
-            invitationId: invitationId,
-            token: token, // ✅ IMPORTANT
-            embedded: false,
-            showInvitationInput: false,
+      // GUEST RESPONSE SHELL ROUTE
+      // Public routes for guests responding to invitations (RSVP → Demographics → Menu → Thank You)
+      ShellRoute(
+        builder: (context, state, child) {
+          // Simple wrapper without navigation rail - just centered content
+          return Scaffold(
+            backgroundColor: const Color(0xFFF9FAFB),
+            body: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: child,
+              ),
+            ),
           );
         },
-      ),
-
-      GoRoute(
-        path: '/menu-selection',
-        builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          return GuestMenuSelectionPage(invitationId: invitationId);
-        },
-      ),
-
-      GoRoute(
-        path: '/thank-you',
-        builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          return ThankYouPage(invitationId: invitationId);
-        },
+        routes: [
+          GoRoute(
+            path: AppRoute.guestResponse.path,
+            builder: (context, state) {
+              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              print('invitationId in app router: $invitationId');
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+              return RsvpResponsePage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.demographics.path,
+            builder: (context, state) {
+              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              return DemographicResponsePage(
+                invitationId: invitationId,
+                token: token,
+                embedded: false,
+                showInvitationInput: false,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.menuSelection.path,
+            builder: (context, state) {
+              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              return GuestMenuSelectionPage(invitationId: invitationId);
+            },
+          ),
+          GoRoute(
+            path: AppRoute.thankYou.path,
+            builder: (context, state) {
+              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              return ThankYouPage(invitationId: invitationId);
+            },
+          ),
+        ],
       ),
 
       //HOST SHELL ROUTE
