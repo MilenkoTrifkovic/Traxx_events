@@ -44,6 +44,19 @@ class InvitationResponseServices {
     await invitationsRef.doc(invitationId).update(updateData);
   }
 
+  /// Submit companion count selection
+  Future<void> submitCompanions({
+    required String invitationId,
+    required int companionsCount,
+  }) async {
+    final updateData = {
+      'companionsCount': companionsCount,
+      'companionsSubmittedAt': FieldValue.serverTimestamp(),
+    };
+
+    await invitationsRef.doc(invitationId).update(updateData);
+  }
+
   /// Get invitation by ID
   Future<DocumentSnapshot<Map<String, dynamic>>> getInvitation(
     String invitationId,

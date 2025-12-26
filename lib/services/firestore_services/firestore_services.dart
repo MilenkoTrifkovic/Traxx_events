@@ -939,4 +939,100 @@ class FirestoreServices {
       'questionSetId': questionSetId,
     });
   }
+
+  // ---------------------------
+  // Companion Guest Management
+  // ---------------------------
+
+  /// Atomically creates a companion guest and links them to an invitation
+  /// 
+  /// This method uses a Firestore batch write to ensure BOTH operations succeed or fail together:
+  /// 1. Creates a new guest document in the 'guests' collection
+  /// 2. Adds the companion entry to the invitation's 'companions' array
+  /// 
+  /// This guarantees data consistency - you won't have orphaned guest records
+  /// or invitations with missing companion references.
+  /// 
+  /// Parameters:
+  /// - [invitationId]: The invitation document ID to link the companion to (required)
+  /// - [guest]: The GuestModel containing companion information (required)
+  /// 
+  /// Returns:
+  /// - The created guestId on success
+  /// - Throws Exception if invitation not found
+  /// - Throws Exception if duplicate email detected
+  /// - Throws FirebaseException on Firestore errors
+  Future<String> createCompanionAndLinkToInvitation({
+    required String invitationId,
+    required GuestModel guest,
+  }) async {
+    try {
+      final batch = _db.batch();
+
+      // Step 1: Generate UUID v4 for guestId (business identifier)
+      final uuid = Uuid();
+      final guestId = uuid.v4();
+      
+      // Create guest document with auto-generated Firestore doc ID
+      final guestRef = guestsRef.doc();
+      
+      // Create guest with UUID v4 as guestId field
+      final guestWithId = guest.copyWith(guestId: guestId);
+      final guestData = guestWithId.toFirestoreCreate();
+      
+      // Add guest creation to batch
+      batch.set(guestRef, guestData);
+
+      // Step 2: Prepare invitation update
+      final invitationRef = _db.collection('invitations').doc(invitationId);
+
+      // Check if invitation exists and get existing companions
+      final invitationDoc = await invitationRef.get();
+      if (!invitationDoc.exists) {
+        throw Exception('Invitation not found: $invitationId');
+      }
+
+      final invitationData = invitationDoc.data()!;
+      final List<dynamic> existingCompanions =
+          invitationData['companions'] as List<dynamic>? ?? [];
+
+      // Check for duplicate email (prevent data inconsistency)
+      final duplicateEmail = existingCompanions.any((companion) {
+        final companionMap = companion as Map<String, dynamic>;
+        return companionMap['guestEmail'] == guest.email;
+      });
+
+      if (duplicateEmail) {
+        throw Exception('A companion with email ${guest.email} already exists in this invitation');
+      }
+
+      // Create companion entry
+      // Note: Cannot use FieldValue.serverTimestamp() inside arrayUnion()
+      // Use DateTime.now() instead for the addedAt timestamp
+      final companionEntry = {
+        'guestId': guestId,
+        'guestEmail': guest.email,
+        'guestName': guest.name,
+        'addedAt': Timestamp.now(),
+      };
+
+      // Add companion to invitation's companions array
+      batch.update(invitationRef, {
+        'companions': FieldValue.arrayUnion([companionEntry]),
+        'modifiedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Step 3: Commit batch atomically
+      await batch.commit();
+
+      print('✅ Companion created and linked atomically: guestId=$guestId');
+      return guestId;
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error creating companion: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error creating companion: $e');
+      rethrow;
+    }
+  }
 }

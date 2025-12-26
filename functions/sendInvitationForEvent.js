@@ -90,6 +90,9 @@ export const sendInvitations = onCall(
         const guestEmail = (guest?.guestEmail || "").trim();
         const guestName = (guest?.guestName || "").trim();
         const guestId = guest?.guestId || null;
+        const maxGuestInvite = typeof guest?.maxGuestInvite === 'number' 
+          ? guest.maxGuestInvite 
+          : 0;
 
         if (!guestEmail) continue;
 
@@ -103,6 +106,7 @@ export const sendInvitations = onCall(
           guestId,
           guestEmail,
           guestName,
+          maxGuestInvite,
           demographicQuestionSetId: demographicQuestionSetId || null,
           token: inviteToken,
           used: false,

@@ -18,7 +18,8 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 class RsvpResponsePage extends StatefulWidget {
   final String invitationId;
   final String? token;
-  final String? eventName; // Optional - will use from GuestLayoutController if available
+  final String?
+      eventName; // Optional - will use from GuestLayoutController if available
 
   const RsvpResponsePage({
     super.key,
@@ -38,26 +39,22 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Access parent GuestLayoutController (created by GuestPageWrapper)
     guestController = Get.find<GuestLayoutController>();
-    
-    // Create RSVP controller
-    controller = Get.put(RsvpResponseController());
-    
-    // Assign values BEFORE triggering any async operations
-    controller.invitationId = widget.invitationId;
-    controller.token = widget.token;
-    // Use event name from GuestLayoutController if available, otherwise from widget
-    controller.eventName = guestController.eventName ?? widget.eventName;
-    
-    // NOW manually trigger the check (values are already assigned)
-    controller.checkExistingResponse();
+
+    // Find RSVP controller (created by ShellRoute)
+    controller = Get.find<RsvpResponseController>(tag: widget.invitationId);
+
+    // Update event name from GuestLayoutController if available
+    if (guestController.eventName != null && controller.eventName == null) {
+      controller.eventName = guestController.eventName ?? widget.eventName;
+    }
   }
 
   @override
   void dispose() {
-    Get.delete<RsvpResponseController>();
+    // DON'T delete controller - it's managed by the shell route lifecycle
     super.dispose();
   }
 
@@ -128,14 +125,14 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
       children: [
         // Header with event details from GuestLayoutController
         Obx(() => RsvpHeaderWidget(
-          isPhone: isPhone,
-          eventName: guestController.eventName ?? widget.eventName,
-          eventDate: guestController.eventDate,
-          startTime: guestController.event.value?.startTime,
-          endTime: guestController.event.value?.endTime,
-          eventAddress: guestController.eventAddress,
-          eventType: guestController.eventType,
-        )),
+              isPhone: isPhone,
+              eventName: guestController.eventName ?? widget.eventName,
+              eventDate: guestController.eventDate,
+              startTime: guestController.event.value?.startTime,
+              endTime: guestController.event.value?.endTime,
+              eventAddress: guestController.eventAddress,
+              eventType: guestController.eventType,
+            )),
 
         SizedBox(height: AppSpacing.xxxl(context)),
 
@@ -178,7 +175,7 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
               : () async {
                   final success = await controller.submitAttending();
                   if (success && mounted) {
-                    _navigateToDemographics();
+                    _navigateToGuestCount();
                   }
                 },
           icon: Icons.check_circle_outline,
@@ -215,10 +212,38 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
     );
   }
 
+  /// Navigate to guest count page with query parameters
+  void _navigateToGuestCount() {
+    final queryParams = {
+      'invitationId': controller.invitationId!,
+      if (controller.token != null) 'token': controller.token!,
+    };
+    pushAndRemoveAllRoute(
+      AppRoute.guestCompanions,
+      context,
+      queryParams: queryParams,
+    );
+    print('✅ Navigated to /guest-count');
+  }
+
+  /// Navigate to companions info page with query parameters
+  void _navigateToCompanionsInfo() {
+    final queryParams = {
+      'invitationId': controller.invitationId!,
+      if (controller.token != null) 'token': controller.token!,
+    };
+    pushAndRemoveAllRoute(
+      AppRoute.guestCompanionsInfo,
+      context,
+      queryParams: queryParams,
+    );
+    print('✅ Navigated to /guest-companions-info');
+  }
+
   /// Navigate to demographics page with query parameters
   void _navigateToDemographics() {
     print('token in controller: ${controller.token}');
-    print ('token in widget: ${widget.token}');
+    print('token in widget: ${widget.token}');
     final queryParams = {
       'invitationId': controller.invitationId!,
       if (controller.token != null) 'token': controller.token!,
@@ -270,6 +295,16 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
     }
 
     switch (nextStep) {
+      case 'companions':
+        if (controller.companionsCount != null &&
+            controller.companionsCount! > 0) {
+          // User has selected companion count > 0, go to companions info to fill details
+          _navigateToCompanionsInfo();
+        } else {
+          // User hasn't selected companion count yet, go to guest count page
+          _navigateToGuestCount();
+        }
+        break;
       case 'demographics':
         _navigateToDemographics();
         break;

@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// - guestName: Guest display name
 /// - organisationId: Organisation reference
 /// - demographicQuestionSetId: Question set reference
+/// - maxGuestInvite: Maximum number of additional guests allowed
 /// - token: Unique invitation token (48 chars)
 /// - sent: Email sent status
 /// - sentAt: When invitation email was sent
@@ -33,6 +34,7 @@ class InvitationStatus {
   final String? guestName;
   final String organisationId;
   final String? demographicQuestionSetId;
+  final int maxGuestInvite;
   final String token;
   final bool sent;
   final DateTime? sentAt;
@@ -48,6 +50,11 @@ class InvitationStatus {
   final DateTime? rsvpSubmittedAt;
   final String? declineReason;
   
+  // Companion selection
+  final int? companionsCount;
+  final DateTime? companionsSubmittedAt;
+  final List<Map<String, dynamic>> companions; // List of already added companions
+  
   // Response tracking
   final String? responseId;
   final bool menuSelectionSubmitted;
@@ -61,6 +68,7 @@ class InvitationStatus {
     this.guestName,
     required this.organisationId,
     this.demographicQuestionSetId,
+    this.maxGuestInvite = 0,
     required this.token,
     required this.sent,
     this.sentAt,
@@ -73,6 +81,9 @@ class InvitationStatus {
     this.isAttending,
     this.rsvpSubmittedAt,
     this.declineReason,
+    this.companionsCount,
+    this.companionsSubmittedAt,
+    this.companions = const [], // Default to empty list
     this.responseId,
     required this.menuSelectionSubmitted,
     this.menuSelectionSubmittedAt,
@@ -91,6 +102,7 @@ class InvitationStatus {
     final usedAtTimestamp = data['usedAt'] as Timestamp?;
     final createdAtTimestamp = data['createdAt'] as Timestamp?;
     final expiresAtTimestamp = data['expiresAt'] as Timestamp?;
+    final companionsSubmittedAtTimestamp = data['companionsSubmittedAt'] as Timestamp?;
     final menuSubmittedAtTimestamp = data['menuSelectionSubmittedAt'] as Timestamp?;
 
     return InvitationStatus(
@@ -101,6 +113,7 @@ class InvitationStatus {
       guestName: data['guestName'] as String?,
       organisationId: data['organisationId'] as String? ?? '',
       demographicQuestionSetId: data['demographicQuestionSetId'] as String?,
+      maxGuestInvite: data['maxGuestInvite'] as int? ?? 0,
       token: data['token'] as String? ?? '',
       sent: data['sent'] as bool? ?? false,
       sentAt: sentAtTimestamp?.toDate(),
@@ -113,6 +126,12 @@ class InvitationStatus {
       isAttending: isAttending,
       rsvpSubmittedAt: rsvpTimestamp?.toDate(),
       declineReason: data['declineReason'] as String?,
+      companionsCount: data['companionsCount'] as int?,
+      companionsSubmittedAt: companionsSubmittedAtTimestamp?.toDate(),
+      companions: (data['companions'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          [],
       responseId: data['responseId'] as String?,
       menuSelectionSubmitted: data['menuSelectionSubmitted'] as bool? ?? false,
       menuSelectionSubmittedAt: menuSubmittedAtTimestamp?.toDate(),
@@ -150,6 +169,22 @@ class InvitationStatus {
   /// Check if guest has submitted demographics (used flag)
   bool get hasDemographics => used == true;
 
+  /// Check if guest is allowed to invite companions (based on maxGuestInvite)
+  bool get canInviteCompanions => maxGuestInvite > 0;
+
+  /// Check if guest has submitted companion count selection
+  bool get hasSubmittedCompanionCount => companionsCount != null;
+
+  /// Get the number of companions already added to Firestore
+  int get savedCompanionsCount => companions.length;
+
+  /// Get the number of remaining companions to create
+  int get remainingCompanionsToCreate {
+    final total = companionsCount ?? 0;
+    final saved = savedCompanionsCount;
+    return (total - saved).clamp(0, total);
+  }
+
   /// Check if guest has submitted menu selection
   bool get hasMenuSelection => menuSelectionSubmitted == true;
 
@@ -157,28 +192,43 @@ class InvitationStatus {
   bool get requiresDemographics => demographicQuestionSetId != null && demographicQuestionSetId!.isNotEmpty;
 
   /// Check if all required steps are completed
-  /// Returns true only if guest has done RSVP, demographics (if required), and menu
+  /// Returns true only if guest has done RSVP, demographics (if required), companions (if allowed), and menu
   bool get isFullyCompleted {
     if (!hasResponded || !isConfirmedAttending) return false;
-    // If attending, must complete demographics (if required) and menu
+    // If attending, must complete demographics (if required)
     if (requiresDemographics && !hasDemographics) return false;
+    // Must complete companion selection if allowed to invite companions
+    if (canInviteCompanions && !hasSubmittedCompanionCount) return false;
+    // Must complete menu selection
     if (!hasMenuSelection) return false;
     return true;
   }
 
   /// Get the next incomplete step for an attending guest
   /// Returns null if not attending or all steps completed
-  /// Returns 'demographics' if demographics not completed
+  /// Returns 'companions' if guest can invite companions but hasn't selected count yet
+  /// Returns 'demographics' if demographics required but not completed
   /// Returns 'menu' if menu not completed
   String? get nextIncompleteStep {
     if (!hasResponded || !isConfirmedAttending) return null;
     
-    // Check demographics first (if required)
+    // Check companion selection (if guest is allowed to invite companions)
+    // Case 1: maxGuestInvite > 0 but companionsCount not selected yet
+    if (maxGuestInvite > 0 && companionsCount == null) {
+      return 'companions';
+    }
+    
+    // Case 2: companionsCount selected but not all companions created yet
+    if (companionsCount != null && companionsCount! > 0 && companions.length < companionsCount!) {
+      return 'companions';
+    }
+    
+    // Check demographics (if required)
     if (requiresDemographics && !hasDemographics) {
       return 'demographics';
     }
     
-    // Then check menu
+    // Check menu selection
     if (!hasMenuSelection) {
       return 'menu';
     }
@@ -205,6 +255,7 @@ class InvitationStatus {
       'guestName': guestName,
       'organisationId': organisationId,
       'demographicQuestionSetId': demographicQuestionSetId,
+      'maxGuestInvite': maxGuestInvite,
       'token': token,
       'sent': sent,
       'sentAt': sentAt?.toIso8601String(),
@@ -217,6 +268,8 @@ class InvitationStatus {
       'isAttending': isAttending,
       'rsvpSubmittedAt': rsvpSubmittedAt?.toIso8601String(),
       'declineReason': declineReason,
+      'companionsCount': companionsCount,
+      'companionsSubmittedAt': companionsSubmittedAt?.toIso8601String(),
       'responseId': responseId,
       'menuSelectionSubmitted': menuSelectionSubmitted,
       'menuSelectionSubmittedAt': menuSelectionSubmittedAt?.toIso8601String(),
@@ -240,6 +293,7 @@ class InvitationStatus {
     String? guestName,
     String? organisationId,
     String? demographicQuestionSetId,
+    int? maxGuestInvite,
     String? token,
     bool? sent,
     DateTime? sentAt,
@@ -252,6 +306,9 @@ class InvitationStatus {
     bool? isAttending,
     DateTime? rsvpSubmittedAt,
     String? declineReason,
+    int? companionsCount,
+    DateTime? companionsSubmittedAt,
+    List<Map<String, dynamic>>? companions,
     String? responseId,
     bool? menuSelectionSubmitted,
     DateTime? menuSelectionSubmittedAt,
@@ -264,6 +321,7 @@ class InvitationStatus {
       guestName: guestName ?? this.guestName,
       organisationId: organisationId ?? this.organisationId,
       demographicQuestionSetId: demographicQuestionSetId ?? this.demographicQuestionSetId,
+      maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
       token: token ?? this.token,
       sent: sent ?? this.sent,
       sentAt: sentAt ?? this.sentAt,
@@ -276,6 +334,9 @@ class InvitationStatus {
       isAttending: isAttending ?? this.isAttending,
       rsvpSubmittedAt: rsvpSubmittedAt ?? this.rsvpSubmittedAt,
       declineReason: declineReason ?? this.declineReason,
+      companionsCount: companionsCount ?? this.companionsCount,
+      companionsSubmittedAt: companionsSubmittedAt ?? this.companionsSubmittedAt,
+      companions: companions ?? this.companions,
       responseId: responseId ?? this.responseId,
       menuSelectionSubmitted: menuSelectionSubmitted ?? this.menuSelectionSubmitted,
       menuSelectionSubmittedAt: menuSelectionSubmittedAt ?? this.menuSelectionSubmittedAt,

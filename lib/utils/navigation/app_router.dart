@@ -12,6 +12,9 @@ import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dar
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
 import 'package:traxx_wepapp/features/common/calendar_page/view/calendar_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/controller/rsvp_response_controller.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/compaignons_info_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_count_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
@@ -120,6 +123,25 @@ GoRouter buildRouter() {
       ShellRoute(
         builder: (context, state, child) {
           final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          final token = state.uri.queryParameters['token'] ?? '';
+
+          // Initialize RsvpResponseController at shell level
+          // Use Get.put with tag - it returns existing if already created
+          final controller = Get.put(
+            RsvpResponseController(),
+            tag: invitationId,
+          );
+
+          // Only initialize ONCE (check if invitationId is already set)
+          if (controller.invitationId == null ||
+              controller.invitationId!.isEmpty) {
+            controller.invitationId = invitationId;
+            controller.token = token;
+
+            // Load invitation status
+            controller.checkExistingResponse();
+          }
+
           // Wrapper fetches event cover image from invitation and displays it reactively
           return GuestPageWrapper(
             invitationId: invitationId,
@@ -130,8 +152,8 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.guestResponse.path,
             builder: (context, state) {
-              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-              print('invitationId in app router: $invitationId');
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
               final eventName = state.uri.queryParameters['eventName'];
               return RsvpResponsePage(
@@ -142,9 +164,38 @@ GoRouter buildRouter() {
             },
           ),
           GoRoute(
+            path: AppRoute.guestCompanionsInfo.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+              return CompaignonsInfoPage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.guestCompanions.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+              return GuestCountPage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+          GoRoute(
             path: AppRoute.demographics.path,
             builder: (context, state) {
-              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
               return DemographicResponsePage(
                 invitationId: invitationId,
@@ -164,19 +215,20 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.thankYou.path,
             builder: (context, state) {
-              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
               return ThankYouPage(invitationId: invitationId);
             },
           ),
         ],
       ),
-       GoRoute(
-            path: AppRoute.menuSelection.path,
-            builder: (context, state) {
-              final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-              return GuestMenuSelectionPage(invitationId: invitationId);
-            },
-          ),
+      GoRoute(
+        path: AppRoute.menuSelection.path,
+        builder: (context, state) {
+          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          return GuestMenuSelectionPage(invitationId: invitationId);
+        },
+      ),
 
       //HOST SHELL ROUTE
       ShellRoute(

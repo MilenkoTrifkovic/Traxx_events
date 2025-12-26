@@ -466,6 +466,7 @@ class AdminGuestListController extends GetxController {
             'guestEmail': guest.email.trim(),
             'guestId': guest.guestId,
             'guestName': guest.name,
+            'maxGuestInvite': guest.maxGuestInvite,
           }
         ],
       });
@@ -526,6 +527,7 @@ class AdminGuestListController extends GetxController {
                   'guestEmail': g.email.trim(),
                   'guestId': g.guestId,
                   'guestName': g.name,
+                  'maxGuestInvite': g.maxGuestInvite,
                 })
             .toList(),
       });
