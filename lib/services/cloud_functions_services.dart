@@ -149,6 +149,7 @@ class CloudFunctionsService extends GetxService {
     required String invitationId,
     required String token,
     required List<Map<String, dynamic>> answers,
+    int? companionIndex,
   }) async {
     final callable = _functions.httpsCallable(
       'submitDemographics',
@@ -159,6 +160,7 @@ class CloudFunctionsService extends GetxService {
       'invitationId': invitationId,
       'token': token.trim(),
       'answers': answers,
+      if (companionIndex != null) 'companionIndex': companionIndex,
     });
 
     final data = result.data;
@@ -189,6 +191,7 @@ class CloudFunctionsService extends GetxService {
     required String invitationId,
     required String token,
     required List<String> selectedMenuItemIds,
+    int? companionIndex,
   }) async {
     final callable = _functions.httpsCallable(
       'submitMenuSelection',
@@ -199,6 +202,7 @@ class CloudFunctionsService extends GetxService {
       'invitationId': invitationId,
       'token': token.trim(),
       'selectedMenuItemIds': selectedMenuItemIds,
+      if (companionIndex != null) 'companionIndex': companionIndex,
     });
 
     final data = result.data;

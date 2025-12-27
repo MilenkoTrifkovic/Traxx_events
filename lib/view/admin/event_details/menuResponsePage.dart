@@ -4,8 +4,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:traxx_wepapp/services/cloud_functions_services.dart'; // adjust import
+import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
 const Color kGfPurple = Color(0xFF673AB7);
 const Color kBorder = Color(0xFFE5E7EB);
@@ -15,7 +15,19 @@ const Color gfBackground = Color(0xFFF4F0FB);
 
 class GuestMenuSelectionPage extends StatefulWidget {
   final String invitationId;
-  const GuestMenuSelectionPage({super.key, required this.invitationId});
+  
+  /// Companion index: null = main guest, 0+ = companion
+  final int? companionIndex;
+  
+  /// Display name for companion (optional, for UI)
+  final String? companionName;
+  
+  const GuestMenuSelectionPage({
+    super.key, 
+    required this.invitationId,
+    this.companionIndex,
+    this.companionName,
+  });
 
   @override
   State<GuestMenuSelectionPage> createState() => _GuestMenuSelectionPageState();
@@ -28,6 +40,17 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   String _eventName = 'Menu Selection';
   List<_MenuItemDto> _items = [];
   final Set<String> _selected = {};
+  
+  Map<String, dynamic>? _invitation;
+  
+  /// Current companion index (null = main guest, 0+ = companion)
+  int? _companionIndex;
+  
+  /// Display name for current person
+  String _currentPersonName = '';
+  
+  /// Flow state for navigation
+  ResponseFlowState? _flowState;
 
   String get _token => (Uri.base.queryParameters['token'] ?? '').trim();
   String _search = '';
@@ -57,7 +80,68 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   @override
   void initState() {
     super.initState();
+    // Initialize companion index from widget or URL
+    _companionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant GuestMenuSelectionPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if companion index changed (navigation to same page with different params)
+    final newCompanionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
+    final oldCompanionIndex = _companionIndex;
+    
+    debugPrint('Menu didUpdateWidget: old companionIndex=$oldCompanionIndex, new=$newCompanionIndex');
+    
+    if (newCompanionIndex != oldCompanionIndex || 
+        widget.invitationId != oldWidget.invitationId) {
+      debugPrint('*** Menu: Companion index or invitation changed, reloading...');
+      _companionIndex = newCompanionIndex;
+      _selected.clear(); // Clear previous selections
+      _load();
+    }
+  }
+
+  /// Read companion index from URL query parameters
+  int? _readCompanionIndexFromUrl() {
+    final idx = Uri.base.queryParameters['companionIndex'];
+    if (idx != null && idx.isNotEmpty) {
+      return int.tryParse(idx);
+    }
+
+    // Hash route support
+    final frag = Uri.base.fragment;
+    final qIndex = frag.indexOf('?');
+    if (qIndex >= 0 && qIndex + 1 < frag.length) {
+      final queryPart = frag.substring(qIndex + 1);
+      try {
+        final params = Uri.splitQueryString(queryPart);
+        final compIdx = params['companionIndex'];
+        if (compIdx != null && compIdx.isNotEmpty) {
+          return int.tryParse(compIdx);
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  /// Check if current person (main or companion) has already submitted menu
+  bool get _isCurrentPersonDone {
+    if (_invitation == null) return false;
+    
+    if (_companionIndex == null) {
+      // Main guest
+      return _invitation?['menuSelectionSubmitted'] == true;
+    } else {
+      // Companion
+      final companions = (_invitation?['companions'] as List?) ?? [];
+      if (_companionIndex! >= companions.length) return false;
+      final companion = companions[_companionIndex!] as Map<String, dynamic>?;
+      return companion?['menuSubmitted'] == true;
+    }
   }
 
   Widget _filterChip({
@@ -110,16 +194,87 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
     try {
       final token = _token;
       if (token.isEmpty) throw Exception('Missing token');
+      
       final inv = await FirebaseFirestore.instance
           .collection('invitations')
           .doc(widget.invitationId)
           .get();
 
-      final invData = inv.data();
-      if (invData != null && invData['menuSelectionSubmitted'] == true) {
+      if (!inv.exists) {
+        throw Exception('Invitation not found');
+      }
+
+      _invitation = inv.data();
+      
+      // Build flow state
+      _flowState = ResponseFlowState.fromInvitation(
+        _invitation!, 
+        token,
+        invitationIdOverride: widget.invitationId,
+      );
+      
+      // Get companions list
+      final companions = (_invitation?['companions'] as List?) ?? [];
+      
+      // Validate and set current person name
+      if (_companionIndex != null) {
+        if (_companionIndex! < 0 || _companionIndex! >= companions.length) {
+          throw Exception('Invalid companion index');
+        }
+        final companion = companions[_companionIndex!] as Map<String, dynamic>;
+        _currentPersonName = (companion['name'] ?? 'Companion ${_companionIndex! + 1}').toString();
+        
+        // Check if companion already submitted menu
+        if (companion['menuSubmitted'] == true) {
+          if (!mounted) return;
+          // Navigate to next step using proper method
+          _navigateToNextStep();
+          return;
+        }
+        
+        // Check if companion has completed demographics first
+        if (companion['demographicSubmitted'] != true) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Demographics must be completed first')),
+          );
+          // Redirect to demographics for this companion
+          context.go(
+            '/demographics?invitationId=${Uri.encodeComponent(widget.invitationId)}'
+            '&token=${Uri.encodeComponent(token)}'
+            '&companionIndex=$_companionIndex',
+          );
+          return;
+        }
+      } else {
+        // Main guest
+        _currentPersonName = (_invitation?['guestName'] ?? 'Guest').toString();
+        
+        // Check if main guest already submitted menu
+        if (_invitation?['menuSelectionSubmitted'] == true) {
+          if (!mounted) return;
+          _navigateToNextStep();
+          return;
+        }
+        
+        // Check if main guest has completed demographics first
+        if (_invitation?['used'] != true) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Demographics must be completed first')),
+          );
+          context.go(
+            '/demographics?invitationId=${Uri.encodeComponent(widget.invitationId)}'
+            '&token=${Uri.encodeComponent(token)}',
+          );
+          return;
+        }
+      }
+      
+      // Check if entire flow is complete
+      if (_flowState!.isComplete) {
         if (!mounted) return;
-        context.go(
-            '/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId)}');
+        context.go('/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId)}');
         return;
       }
 
@@ -128,8 +283,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         invitationId: widget.invitationId,
         token: token,
       );
-      print(
-          'CF getSelectedMenuItemsForInvitation res keys: ${res.keys.toList()}');
+      print('CF getSelectedMenuItemsForInvitation res keys: ${res.keys.toList()}');
       final items = (res['items'] as List?) ?? const [];
       print('CF items length: ${items.length}');
       if (items.isNotEmpty) {
@@ -160,6 +314,13 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   Future<void> _finish() async {
     if (_submitting) return;
+    
+    // If already submitted, navigate to next step
+    if (_isCurrentPersonDone) {
+      _navigateToNextStep();
+      return;
+    }
+    
     setState(() => _submitting = true);
 
     try {
@@ -171,14 +332,56 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         invitationId: widget.invitationId,
         token: token,
         selectedMenuItemIds: _selected.toList(),
+        companionIndex: _companionIndex, // ✅ Pass companion index
       );
+
+      // Update local state
+      Map<String, dynamic> updatedInvitation;
+      if (_companionIndex == null) {
+        updatedInvitation = Map<String, dynamic>.from(_invitation ?? {});
+        updatedInvitation['menuSelectionSubmitted'] = true;
+        _invitation = updatedInvitation;
+        debugPrint('Menu: Updated local state - menuSelectionSubmitted=${_invitation?['menuSelectionSubmitted']}');
+        debugPrint('Menu: Full invitation keys: ${_invitation?.keys.toList()}');
+      } else {
+        updatedInvitation = Map<String, dynamic>.from(_invitation ?? {});
+        final companions = List<Map<String, dynamic>>.from(
+          (updatedInvitation['companions'] as List? ?? []).map((c) => Map<String, dynamic>.from(c as Map)),
+        );
+        if (_companionIndex! < companions.length) {
+          companions[_companionIndex!]['menuSubmitted'] = true;
+          updatedInvitation['companions'] = companions;
+          _invitation = updatedInvitation;
+          debugPrint('Menu: Updated companion $_companionIndex menuSubmitted=true');
+        }
+      }
+      
+      // Force UI update
+      setState(() {});
+
+      // Rebuild flow state with updated invitation - use the same variable we just modified
+      debugPrint('Menu: Before creating flow state, _invitation[menuSelectionSubmitted]=${_invitation?['menuSelectionSubmitted']}');
+      
+      final updatedFlowState = ResponseFlowState.fromInvitation(
+        _invitation!, 
+        token,
+        invitationIdOverride: widget.invitationId,
+      );
+      _flowState = updatedFlowState;
+      
+      debugPrint('Menu: Flow state after submit - mainMenuSubmitted=${updatedFlowState.mainMenuSubmitted}, '
+          'companions=${updatedFlowState.companions.map((c) => "menuSubmitted:${c.menuSubmitted}").toList()}');
 
       if (!mounted) return;
 
-      // ✅ go to thank-you (no back)
-      context.go(
-        '/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId)}',
-      );
+      // Navigate to next step using the flow state we just created
+      final nextStep = updatedFlowState.getNextStep();
+      final nextUrl = nextStep.buildUrl(widget.invitationId, token);
+      
+      debugPrint('Menu: Final navigation - step: ${nextStep.step}, '
+          'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
+      context.go(nextUrl);
+      
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,20 +392,152 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
     }
   }
 
+  /// Navigate to the next step in the flow
+  void _navigateToNextStep() {
+    final token = _token;
+    
+    debugPrint('Menu _navigateToNextStep: Building flow state from _invitation');
+    debugPrint('Menu _navigateToNextStep: _invitation[menuSelectionSubmitted]=${_invitation?['menuSelectionSubmitted']}');
+    
+    final flowState = ResponseFlowState.fromInvitation(
+      _invitation!, 
+      token,
+      invitationIdOverride: widget.invitationId,
+    );
+    
+    debugPrint('Menu _navigateToNextStep: flowState.mainMenuSubmitted=${flowState.mainMenuSubmitted}');
+    
+    final nextStep = flowState.getNextStep();
+    final nextUrl = nextStep.buildUrl(widget.invitationId, token);
+    
+    debugPrint('Menu: Navigating to next step: ${nextStep.step}, '
+        'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
+    context.go(nextUrl);
+  }
+
+  /// Build a progress banner showing which person is being filled
+  Widget _buildProgressBanner(String fillingForLabel) {
+    final companions = (_invitation?['companions'] as List?) ?? [];
+    final totalPeople = 1 + companions.length;
+    
+    // Calculate how many menus are complete
+    int completedCount = 0;
+    if (_invitation?['menuSelectionSubmitted'] == true) completedCount++;
+    for (final c in companions) {
+      if ((c as Map)['menuSubmitted'] == true) completedCount++;
+    }
+    
+    final currentPersonNum = _companionIndex == null ? 1 : (_companionIndex! + 2);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: kGfPurple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kGfPurple.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.restaurant_menu, color: kGfPurple, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fillingForLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: kGfPurple,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Person $currentPersonNum of $totalPeople • $completedCount completed',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: kTextBody,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: kGfPurple,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$completedCount / $totalPeople',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = _filteredItems;
 
+    // Build dynamic page title and filling label
+    final String pageTitle;
+    final String fillingForLabel;
+    
+    if (_companionIndex != null) {
+      final name = _currentPersonName.isNotEmpty 
+          ? _currentPersonName 
+          : 'Companion ${_companionIndex! + 1}';
+      pageTitle = 'Menu Selection';
+      fillingForLabel = 'Selecting for: $name';
+    } else {
+      pageTitle = 'Menu Selection';
+      fillingForLabel = 'Selecting for: You';
+    }
+
     final body = _loading
         ? const Center(child: CircularProgressIndicator())
-        : _items.isEmpty
+        : _isCurrentPersonDone
             ? Center(
-                child: Text(
-                  'No menu items available for this event.',
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Already submitted',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Click Finish to continue',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: kTextBody,
+                      ),
+                    ),
+                  ],
                 ),
               )
-            : Column(
+            : _items.isEmpty
+                ? Center(
+                    child: Text(
+                      'No menu items available for this event.',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+                  )
+                : Column(
                 children: [
                   // Search + filters (like popup)
                   Card(
@@ -427,6 +762,29 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                 ],
               );
 
+    // Dynamic button text based on flow state
+    final String buttonText;
+    if (_isCurrentPersonDone) {
+      buttonText = 'Continue';
+    } else if (_flowState != null && !_flowState!.isComplete) {
+      final nextStep = _flowState!.getNextStep();
+      if (nextStep.step == ResponseStep.thankYou) {
+        buttonText = 'Finish';
+      } else {
+        buttonText = 'Save & Continue';
+      }
+    } else {
+      buttonText = 'Finish';
+    }
+
+    // Subtitle text
+    final String subtitleText;
+    if (_companionIndex != null) {
+      subtitleText = 'Selecting menu for: $_currentPersonName';
+    } else {
+      subtitleText = 'Select the items you want.';
+    }
+
     return Scaffold(
       backgroundColor: gfBackground,
       body: Stack(
@@ -442,7 +800,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Menu Selection',
+                        pageTitle,
                         style: GoogleFonts.poppins(
                           fontSize: 34,
                           fontWeight: FontWeight.w700,
@@ -450,6 +808,14 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                         ),
                       ),
                       const SizedBox(height: 18),
+                      
+                      // Progress banner for multi-person flow
+                      if (_invitation != null && 
+                          ((_invitation?['companions'] as List?) ?? []).isNotEmpty) ...[
+                        _buildProgressBanner(fillingForLabel),
+                        const SizedBox(height: 14),
+                      ],
+                      
                       Card(
                         color: Colors.white,
                         elevation: 3,
@@ -489,7 +855,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'Select the items you want.',
+                                          subtitleText,
                                           style: GoogleFonts.poppins(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w500,
@@ -513,7 +879,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                                             borderRadius:
                                                 BorderRadius.circular(8)),
                                       ),
-                                      child: Text('Finish',
+                                      child: Text(buttonText,
                                           style: GoogleFonts.poppins(
                                               fontWeight: FontWeight.w600)),
                                     ),

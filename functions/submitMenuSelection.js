@@ -7,9 +7,20 @@ import { db } from "./admin.js";
 // if (!getApps().length) initializeApp();
 // const db = getFirestore();
 
+/**
+ * Submit menu selection for either the main guest or a companion.
+ * 
+ * Request data:
+ * - invitationId: string (required)
+ * - token: string (required)
+ * - selectedMenuItemIds: array of strings (required)
+ * - companionIndex: number | null (optional - null/undefined = main guest, 0+ = companion index)
+ * 
+ * Requires demographics to be submitted first (for the same person).
+ */
 export const submitMenuSelection = onCall(async (request) => {
   try {
-    const { invitationId, token, selectedMenuItemIds } = request.data || {};
+    const { invitationId, token, selectedMenuItemIds, companionIndex } = request.data || {};
 
     if (!invitationId || !token) {
       throw new HttpsError("invalid-argument", "invitationId and token are required");
@@ -18,8 +29,21 @@ export const submitMenuSelection = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "selectedMenuItemIds must be an array");
     }
 
+    // Determine if this is for main guest or companion
+    const isMainGuest = companionIndex === null || companionIndex === undefined;
+    const compIdx = isMainGuest ? null : parseInt(companionIndex, 10);
+
+    if (!isMainGuest && (isNaN(compIdx) || compIdx < 0)) {
+      throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
+    }
+
     const invRef = db.collection("invitations").doc(invitationId);
-    const respRef = db.collection("menuSelectedItemsResponses").doc(invitationId); // unique per invitation
+    
+    // Response document ID: unique per invitation + person
+    const respDocId = isMainGuest 
+      ? invitationId 
+      : `${invitationId}_companion_${compIdx}`;
+    const respRef = db.collection("menuSelectedItemsResponses").doc(respDocId);
 
     const result = await db.runTransaction(async (tx) => {
       const invSnap = await tx.get(invRef);
@@ -35,18 +59,41 @@ export const submitMenuSelection = onCall(async (request) => {
         throw new HttpsError("failed-precondition", "Invitation expired");
       }
 
-      // ✅ Must complete demographics first
-      if (inv.used !== true) {
-        throw new HttpsError("failed-precondition", "Demographic questions not submitted yet");
+      // Get companions array
+      const companions = Array.isArray(inv.companions) ? [...inv.companions] : [];
+
+      // Validate companion index
+      if (!isMainGuest && compIdx >= companions.length) {
+        throw new HttpsError("invalid-argument", `Companion index ${compIdx} is out of range.`);
       }
 
-      // already submitted menu?
+      // Check if demographics were submitted first
+      if (isMainGuest) {
+        if (inv.used !== true) {
+          throw new HttpsError("failed-precondition", "Demographic questions not submitted yet");
+        }
+        // Check if already submitted menu
+        if (inv.menuSelectionSubmitted === true) {
+          return { ok: true, alreadySubmitted: true, companionIndex: null };
+        }
+      } else {
+        const companion = companions[compIdx];
+        if (companion.demographicSubmitted !== true) {
+          throw new HttpsError("failed-precondition", `Companion ${compIdx} has not submitted demographics yet`);
+        }
+        // Check if companion already submitted menu
+        if (companion.menuSubmitted === true) {
+          return { ok: true, alreadySubmitted: true, companionIndex: compIdx };
+        }
+      }
+
+      // Check if response doc already exists (extra safety)
       const existing = await tx.get(respRef);
       if (existing.exists) {
-        return { ok: true, alreadySubmitted: true };
+        return { ok: true, alreadySubmitted: true, companionIndex: compIdx };
       }
 
-      // normalize ids
+      // Normalize selected IDs
       const cleaned = [];
       const seen = new Set();
       for (const x of selectedMenuItemIds) {
@@ -58,22 +105,53 @@ export const submitMenuSelection = onCall(async (request) => {
         }
       }
 
+      // Get guest info
+      let guestId, guestEmail, guestName;
+      if (isMainGuest) {
+        guestId = inv.guestId || null;
+        guestEmail = inv.guestEmail || "";
+        guestName = inv.guestName || "";
+      } else {
+        const companion = companions[compIdx];
+        guestId = companion.guestId || null;
+        guestEmail = companion.email || "";
+        guestName = companion.name || "";
+      }
+
+      // Write menu response
       tx.set(respRef, {
         eventId: inv.eventId || "",
         organisationId: inv.organisationId || "",
         invitationId,
-        guestId: inv.guestId || null,
-        guestEmail: inv.guestEmail || "",
+        guestId,
+        guestEmail,
+        guestName,
+        isCompanion: !isMainGuest,
+        companionIndex: compIdx,
         selectedMenuItemIds: cleaned,
         createdAt: FieldValue.serverTimestamp(),
       });
 
-      tx.update(invRef, {
-        menuSelectionSubmitted: true,
-        menuSelectionSubmittedAt: FieldValue.serverTimestamp(),
-      });
+      // Update invitation
+      if (isMainGuest) {
+        tx.update(invRef, {
+          menuSelectionSubmitted: true,
+          menuSelectionSubmittedAt: FieldValue.serverTimestamp(),
+        });
+      } else {
+        companions[compIdx] = {
+          ...companions[compIdx],
+          menuSubmitted: true,
+          menuResponseId: respRef.id,
+          menuSubmittedAt: new Date().toISOString(),
+        };
+        
+        tx.update(invRef, {
+          companions: companions,
+        });
+      }
 
-      return { ok: true, alreadySubmitted: false };
+      return { ok: true, alreadySubmitted: false, companionIndex: compIdx };
     });
 
     return result;

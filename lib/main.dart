@@ -13,6 +13,7 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
@@ -48,6 +49,8 @@ Future<void> main() async {
   Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
   Get.lazyPut<StorageServices>(() => StorageServices(), fenix: true);
   Get.lazyPut<CloudFunctionsService>(() => CloudFunctionsService(),
+      fenix: true);
+  Get.lazyPut<GuestFirestoreServices>(() => GuestFirestoreServices(),
       fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);

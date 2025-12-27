@@ -195,12 +195,21 @@ class InvitationStatus {
   /// Returns true only if guest has done RSVP, demographics (if required), companions (if allowed), and menu
   bool get isFullyCompleted {
     if (!hasResponded || !isConfirmedAttending) return false;
-    // If attending, must complete demographics (if required)
-    if (requiresDemographics && !hasDemographics) return false;
+    // If attending, must complete demographics (if required) - main guest AND all companions
+    if (requiresDemographics) {
+      if (!hasDemographics) return false;
+      // Check all companions have completed demographics
+      for (final companion in companions) {
+        if (companion['demographicSubmitted'] != true) return false;
+      }
+    }
     // Must complete companion selection if allowed to invite companions
     if (canInviteCompanions && !hasSubmittedCompanionCount) return false;
-    // Must complete menu selection
+    // Must complete menu selection - main guest AND all companions
     if (!hasMenuSelection) return false;
+    for (final companion in companions) {
+      if (companion['menuSubmitted'] != true) return false;
+    }
     return true;
   }
 
@@ -223,14 +232,31 @@ class InvitationStatus {
       return 'companions';
     }
     
-    // Check demographics (if required)
-    if (requiresDemographics && !hasDemographics) {
-      return 'demographics';
+    // Check demographics (if required) - main guest AND all companions
+    if (requiresDemographics) {
+      // Check main guest demographics
+      if (!hasDemographics) {
+        return 'demographics';
+      }
+      
+      // Check all companions have completed demographics
+      for (final companion in companions) {
+        if (companion['demographicSubmitted'] != true) {
+          return 'demographics';
+        }
+      }
     }
     
-    // Check menu selection
+    // Check menu selection - main guest AND all companions
     if (!hasMenuSelection) {
       return 'menu';
+    }
+    
+    // Check all companions have completed menu selection
+    for (final companion in companions) {
+      if (companion['menuSubmitted'] != true) {
+        return 'menu';
+      }
     }
     
     // All steps completed

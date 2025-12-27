@@ -23,8 +23,8 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
-import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
-import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage_refactored.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage_refactored.dart';
 import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
@@ -197,11 +197,24 @@ GoRouter buildRouter() {
               final invitationId =
                   state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
+
+              // Parse companion index if provided
+              final companionIndexStr =
+                  state.uri.queryParameters['companionIndex'];
+              final int? companionIndex = companionIndexStr != null
+                  ? int.tryParse(companionIndexStr)
+                  : null;
+
+              // Get companion name if provided
+              final companionName = state.uri.queryParameters['companionName'];
+
               return DemographicResponsePage(
                 invitationId: invitationId,
                 token: token,
                 embedded: false,
                 showInvitationInput: false,
+                companionIndex: companionIndex,
+                companionName: companionName,
               );
             },
           ),
@@ -220,14 +233,30 @@ GoRouter buildRouter() {
               return ThankYouPage(invitationId: invitationId);
             },
           ),
+          GoRoute(
+            path: AppRoute.menuSelection.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+
+              // Parse companion index if provided
+              final companionIndexStr =
+                  state.uri.queryParameters['companionIndex'];
+              final int? companionIndex = companionIndexStr != null
+                  ? int.tryParse(companionIndexStr)
+                  : null;
+
+              // Get companion name if provided
+              final companionName = state.uri.queryParameters['companionName'];
+
+              return GuestMenuSelectionPage(
+                invitationId: invitationId,
+                companionIndex: companionIndex,
+                companionName: companionName,
+              );
+            },
+          ),
         ],
-      ),
-      GoRoute(
-        path: AppRoute.menuSelection.path,
-        builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          return GuestMenuSelectionPage(invitationId: invitationId);
-        },
       ),
 
       //HOST SHELL ROUTE

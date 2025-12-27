@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
 // If you have CloudFunctionsService in GetX, import it.
 // Otherwise you can remove this import and we will call FirebaseFunctions directly.
@@ -23,8 +24,14 @@ const Color gfBackground = Color(0xFFF4F0FB);
 class DemographicResponsePage extends StatefulWidget {
   final String invitationId;
 
-  /// ✅ NEW
+  /// Token for authentication
   final String token;
+
+  /// Companion index: null = main guest, 0+ = companion
+  final int? companionIndex;
+
+  /// Display name for companion (optional, for UI)
+  final String? companionName;
 
   final bool showInvitationInput;
   final bool embedded;
@@ -32,7 +39,9 @@ class DemographicResponsePage extends StatefulWidget {
   const DemographicResponsePage({
     super.key,
     required this.invitationId,
-    this.token = '', // ✅ NEW default
+    this.token = '',
+    this.companionIndex,
+    this.companionName,
     this.showInvitationInput = false,
     this.embedded = false,
   });
@@ -56,6 +65,15 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   Map<String, dynamic>? _invitation;
   Map<String, dynamic>? _questionSet;
 
+  /// Current companion index (null = main guest, 0+ = companion)
+  int? _companionIndex;
+  
+  /// Display name for current person (main guest name or companion name)
+  String _currentPersonName = '';
+  
+  /// Flow state for navigation decisions
+  ResponseFlowState? _flowState;
+
   final List<_GuestQuestion> _questions = [];
   final Map<String, dynamic> _answers = {}; // questionId -> dynamic
   final Map<String, TextEditingController> _freeTextCtrls = {}; // "other"
@@ -67,10 +85,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void initState() {
     debugPrint(
-      '*** DemographicResponsePage loaded. invitationId=${widget.invitationId} url=${Uri.base}',
+      '*** DemographicResponsePage loaded. invitationId=${widget.invitationId} '
+      'companionIndex=${widget.companionIndex} url=${Uri.base}',
     );
     super.initState();
     _invitationIdCtrl = TextEditingController(text: widget.invitationId);
+    
+    // Initialize companion index from widget or URL
+    _companionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
 
     final initial = widget.invitationId.trim();
     if (initial.isEmpty) {
@@ -79,6 +101,24 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       _activeInvitationId = '';
     } else {
       _loadForInvitation(initial);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DemographicResponsePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if companion index changed (navigation to same page with different params)
+    final newCompanionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
+    final oldCompanionIndex = _companionIndex;
+    
+    debugPrint('didUpdateWidget: old companionIndex=$oldCompanionIndex, new=$newCompanionIndex');
+    
+    if (newCompanionIndex != oldCompanionIndex || 
+        widget.invitationId != oldWidget.invitationId) {
+      debugPrint('*** Companion index or invitation changed, reloading...');
+      _companionIndex = newCompanionIndex;
+      _loadForInvitation(widget.invitationId);
     }
   }
 
@@ -95,7 +135,21 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     super.dispose();
   }
 
-  bool get _isUsed => _invitation?['used'] == true;
+  /// Check if current person (main or companion) has already submitted demographics
+  bool get _isCurrentPersonDone {
+    if (_invitation == null) return false;
+    
+    if (_companionIndex == null) {
+      // Main guest
+      return _invitation?['used'] == true;
+    } else {
+      // Companion
+      final companions = (_invitation?['companions'] as List?) ?? [];
+      if (_companionIndex! >= companions.length) return false;
+      final companion = companions[_companionIndex!] as Map<String, dynamic>?;
+      return companion?['demographicSubmitted'] == true;
+    }
+  }
 
   void _setActiveQuestion(String id) {
     if (_activeQuestionId == id) return;
@@ -142,6 +196,31 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       out.add(List<T>.of(list.sublist(i, end), growable: true)); // ✅ growable
     }
     return out;
+  }
+
+  /// Read companion index from URL query parameters
+  int? _readCompanionIndexFromUrl() {
+    // 1) normal query param
+    final idx = Uri.base.queryParameters['companionIndex'];
+    if (idx != null && idx.isNotEmpty) {
+      return int.tryParse(idx);
+    }
+
+    // 2) hash route support: "#/demographics?...&companionIndex=0"
+    final frag = Uri.base.fragment;
+    final qIndex = frag.indexOf('?');
+    if (qIndex >= 0 && qIndex + 1 < frag.length) {
+      final queryPart = frag.substring(qIndex + 1);
+      try {
+        final params = Uri.splitQueryString(queryPart);
+        final compIdx = params['companionIndex'];
+        if (compIdx != null && compIdx.isNotEmpty) {
+          return int.tryParse(compIdx);
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   String _readTokenFromUrl() {
@@ -262,17 +341,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
       _invitation = invDoc.data();
 
-      // ✅ If menu already submitted → go straight to thank-you
-      if (_asBool(_invitation?['menuSelectionSubmitted'], fallback: false)) {
-        if (!mounted) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go(
-            '/thank-you?invitationId=${Uri.encodeComponent(_activeInvitationId)}',
-          );
-        });
-        return;
-      }
-
       // -----------------------------
       // 2) Token + expiry checks
       // -----------------------------
@@ -314,22 +382,70 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         return;
       }
 
-      // ✅ If demographics already submitted → continue to menu selection
-      if (_asBool(_invitation?['used'], fallback: false)) {
-        final tokenForNav =
-            tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite;
+      // -----------------------------
+      // 3) Build flow state and check completion status
+      // -----------------------------
+      final tokenToUse = tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite;
+      _flowState = ResponseFlowState.fromInvitation(
+        _invitation!, 
+        tokenToUse,
+        invitationIdOverride: _activeInvitationId, // Use the doc ID we know
+      );
+      
+      // Get companions list
+      final companions = (_invitation?['companions'] as List?) ?? [];
+      
+      // Validate companion index if specified
+      if (_companionIndex != null) {
+        if (_companionIndex! < 0 || _companionIndex! >= companions.length) {
+          _setInvalid(
+            'Invalid companion',
+            'The specified companion does not exist.',
+          );
+          return;
+        }
+        
+        // Set current person name for companion
+        final companion = companions[_companionIndex!] as Map<String, dynamic>;
+        _currentPersonName = (companion['name'] ?? 'Companion ${_companionIndex! + 1}').toString();
+        
+        // Check if this companion already submitted demographics
+        if (companion['demographicSubmitted'] == true) {
+          // Already submitted - redirect to next step
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _navigateToNextStep(tokenToUse);
+          });
+          return;
+        }
+      } else {
+        // Main guest
+        _currentPersonName = (_invitation?['guestName'] ?? 'Guest').toString();
+        
+        // Check if main guest already submitted demographics
+        if (_asBool(_invitation?['used'], fallback: false)) {
+          // Already submitted - redirect to next step
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _navigateToNextStep(tokenToUse);
+          });
+          return;
+        }
+      }
+      
+      // -----------------------------
+      // 4) Check if entire flow is complete
+      // -----------------------------
+      if (_flowState!.isComplete) {
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go(
-            '/menu-selection?invitationId=${Uri.encodeComponent(_activeInvitationId)}'
-            '&token=${Uri.encodeComponent(tokenForNav)}',
-          );
+          context.go('/thank-you?invitationId=${Uri.encodeComponent(_activeInvitationId)}');
         });
         return;
       }
 
       // -----------------------------
-      // 3) Determine questionSetId
+      // 5) Determine questionSetId
       // -----------------------------
       String questionSetId =
           (_invitation?['demographicQuestionSetId'] ?? '').toString().trim();
@@ -520,6 +636,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
   // ------------------------------------------------------------
   // ✅ SUBMIT: callable function submitDemographics (prevents resubmit)
+  // Now supports companions via companionIndex parameter
   // ------------------------------------------------------------
   Future<void> _submitAndGoNext() async {
     if (_submitting) return;
@@ -553,16 +670,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         ? tokenFromLink
         : (tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite);
 
-    // If already submitted demographics, just continue
-    if (_invitation?['used'] == true) {
+    // If current person already submitted demographics, just continue to next step
+    if (_isCurrentPersonDone) {
       if (!mounted) return;
-      context.go(
-        '/menu-selection?invitationId=${Uri.encodeComponent(_activeInvitationId)}'
-        '&token=${Uri.encodeComponent(tokenToUse)}',
-      );
+      _navigateToNextStep(tokenToUse);
       return;
     }
 
+    // Validate all required questions are answered
     final missing = _questions.where((q) => q.isRequired && !_isAnswered(q));
     if (missing.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -599,16 +714,32 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         invitationId: _activeInvitationId,
         token: tokenToUse,
         answers: payloadAnswers,
+        companionIndex: _companionIndex, // ✅ Pass companion index (null for main guest)
       );
 
-      setState(() => _invitation = {...?_invitation, 'used': true});
+      // Update local state based on who submitted
+      if (_companionIndex == null) {
+        // Main guest
+        setState(() => _invitation = {...?_invitation, 'used': true});
+      } else {
+        // Companion - update their status in local state
+        final companions = List<Map<String, dynamic>>.from(
+          (_invitation?['companions'] as List? ?? []).map((c) => Map<String, dynamic>.from(c as Map)),
+        );
+        if (_companionIndex! < companions.length) {
+          companions[_companionIndex!]['demographicSubmitted'] = true;
+          setState(() => _invitation = {...?_invitation, 'companions': companions});
+        }
+      }
+
+      // Rebuild flow state with updated invitation
+      _flowState = ResponseFlowState.fromInvitation(_invitation!, tokenToUse);
 
       if (!mounted) return;
 
-      context.go(
-        '/menu-selection?invitationId=${Uri.encodeComponent(_activeInvitationId)}'
-        '&token=${Uri.encodeComponent(tokenToUse)}',
-      );
+      // Navigate to next step
+      _navigateToNextStep(tokenToUse);
+      
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -642,12 +773,43 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     }
   }
 
+  /// Navigate to the next step in the flow
+  void _navigateToNextStep(String token) {
+    // Rebuild flow state from latest invitation data, with invitationId override
+    final flowState = ResponseFlowState.fromInvitation(
+      _invitation!, 
+      token,
+      invitationIdOverride: _activeInvitationId,
+    );
+    final nextStep = flowState.getNextStep();
+    final nextUrl = nextStep.buildUrl(_activeInvitationId, token);
+    
+    debugPrint('Demographics: Navigating to next step: ${nextStep.step}, '
+        'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
+    context.go(nextUrl);
+  }
+
   // ------------------------------------------------------------
   // ✅ Styled UI (same layout style as your host screenshot)
   // ------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    const pageTitle = 'Demographic Questions';
+    // Build dynamic page title based on who is filling
+    final String pageTitle;
+    final String fillingForLabel;
+    
+    if (_companionIndex != null) {
+      // Companion - use their actual name
+      final name = _currentPersonName.isNotEmpty 
+          ? _currentPersonName 
+          : 'Companion ${_companionIndex! + 1}';
+      pageTitle = 'Demographics';
+      fillingForLabel = 'Filling for: $name';
+    } else {
+      // Main guest
+      pageTitle = 'Demographics';
+      fillingForLabel = 'Filling for: You';
+    }
 
     final title = (_questionSet?['title'] ?? pageTitle).toString();
     final description = (_questionSet?['description'] ?? '').toString();
@@ -681,6 +843,12 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Progress indicator - show when there are companions
+                            if (_invitation != null && 
+                                ((_invitation?['companions'] as List?) ?? []).isNotEmpty) ...[
+                              _buildProgressBanner(fillingForLabel),
+                              const SizedBox(height: 12),
+                            ],
                             Text(
                               pageTitle,
                               style: GoogleFonts.poppins(
@@ -720,17 +888,17 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                             _HeaderWithAction(
                               title: title,
                               description: description,
-                              actionLabel: _isUsed ? 'Continue' : 'Next',
+                              actionLabel: _isCurrentPersonDone ? 'Continue' : 'Next',
                               actionEnabled: !_loading &&
                                   !_submitting &&
                                   _invitation != null &&
-                                  (_isUsed ||
+                                  (_isCurrentPersonDone ||
                                       _questions
                                           .isNotEmpty), // ✅ allow Continue even if questions empty
                               onAction: _submitAndGoNext,
                             ),
                             const SizedBox(height: 14),
-                            if (!_loading && _invitation != null && !_isUsed)
+                            if (!_loading && _invitation != null && !_isCurrentPersonDone)
                               Center(
                                 child: Text(
                                   'Click on a question to answer',
@@ -776,6 +944,77 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     return content;
   }
 
+  /// Build a progress banner showing which person is being filled
+  Widget _buildProgressBanner(String fillingForLabel) {
+    final companions = (_invitation?['companions'] as List?) ?? [];
+    final totalPeople = 1 + companions.length; // main guest + companions
+    
+    // Calculate how many demographics are complete
+    int completedCount = 0;
+    if (_asBool(_invitation?['used'], fallback: false)) completedCount++;
+    for (final c in companions) {
+      if ((c as Map)['demographicSubmitted'] == true) completedCount++;
+    }
+    
+    // Current person number (1-based)
+    final currentPersonNum = _companionIndex == null ? 1 : (_companionIndex! + 2);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: kGfPurple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kGfPurple.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.people_outline, color: kGfPurple, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fillingForLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: kGfPurple,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Person $currentPersonNum of $totalPeople • $completedCount completed',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: kTextBody,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Progress indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: kGfPurple,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$completedCount / $totalPeople',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildScrollableBody() {
     if (_loading) {
       return const Center(
@@ -801,12 +1040,16 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       );
     }
 
-    if (_invitation?['used'] == true) {
-      return const _InfoCard(
+    // Check if current person (main or companion) already submitted
+    if (_isCurrentPersonDone) {
+      final name = _companionIndex == null 
+          ? 'Your' 
+          : '${_currentPersonName}\'s';
+      return _InfoCard(
         icon: Icons.check_circle_outline_rounded,
         iconColor: Colors.green,
         title: 'Already submitted',
-        message: 'Your responses were already submitted. Thank you!',
+        message: '$name responses were already submitted. Click Continue to proceed.',
       );
     }
 
