@@ -658,7 +658,8 @@ class FirestoreServices {
     try {
       // Ensure venueID is set (UUID4)
       final uuid = Uuid();
-      final venueWithId = venue.copyWith(venueID: uuid.v4());
+      final venueId = uuid.v4();
+      final venueWithId = venue.copyWith(venueID: venueId);
 
       // Build the data map
       final Map<String, dynamic> data = venueWithId.toFirestoreCreate();
@@ -669,8 +670,10 @@ class FirestoreServices {
 
       // Use add with explicit create data to ensure proper timestamps
       final docRef = await _db.collection(venuesCol).add(data);
-      print('Venue created successfully with ID: ${docRef.id}');
-      return docRef.id;
+      print('Venue created successfully with docId: ${docRef.id}, venueID: $venueId');
+      
+      // Return the UUID venueID, NOT the Firestore document ID
+      return venueId;
     } on FirebaseException catch (e) {
       print('Firestore error creating venue: ${e.message}');
       rethrow;

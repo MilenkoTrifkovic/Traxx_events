@@ -69,7 +69,6 @@ class EventListSection extends StatelessWidget {
       itemCount: events.length,
       itemBuilder: (context, index) {
         final event = events[index];
-
         // Get venue
         final venue = venuesController.getVenueById(event.venueId);
         if (venue == null) {
