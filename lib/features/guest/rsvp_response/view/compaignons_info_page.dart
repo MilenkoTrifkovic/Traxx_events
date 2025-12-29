@@ -322,7 +322,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     final currentIndex = currentStep.value;
     final formData = companionForms[currentIndex];
 
-    // Validate current form
+    // Validate current form (UI validation)
     if (!formData.validate()) {
       snackbarController.showErrorMessage(
         'Please fill in all required fields correctly',
@@ -330,31 +330,41 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       return;
     }
 
+    // Get other pending emails for validation
+    final otherPendingEmails = <String>[];
+    for (int i = 0; i < companionForms.length; i++) {
+      if (i != currentIndex && companionForms[i].createdGuestId == null) {
+        final email = companionForms[i].email.text.trim();
+        if (email.isNotEmpty) {
+          otherPendingEmails.add(email);
+        }
+      }
+    }
+
     // Save current companion before moving to next step (if not already saved)
     if (formData.createdGuestId == null) {
       isSubmitting.value = true;
-      
-      final guestId = await controller.createAndInviteGuest(
+
+      // Use controller method that handles validation and snackbar messages
+      final guestId = await controller.validateAndCreateCompanion(
         name: formData.name.text.trim(),
         email: formData.email.text.trim(),
         address: formData.address.text.trim().isEmpty
             ? null
             : formData.address.text.trim(),
-        city: formData.city.text.trim().isEmpty 
-            ? null 
+        city: formData.city.text.trim().isEmpty
+            ? null
             : formData.city.text.trim(),
         state: formData.selectedState.value,
         country: formData.selectedCountry.value,
         gender: formData.selectedGender.value,
+        otherPendingEmails: otherPendingEmails,
       );
 
       isSubmitting.value = false;
 
       if (guestId == null) {
-        snackbarController.showErrorMessage(
-          'Failed to save companion. Please try again.',
-        );
-        return;
+        return; // Error already shown via snackbar in controller
       }
 
       formData.createdGuestId = guestId;
@@ -373,7 +383,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     final currentIndex = currentStep.value;
     final formData = companionForms[currentIndex];
 
-    // Validate last form (only if not already saved)
+    // Validate last form (only if not already saved) - UI validation
     if (formData.createdGuestId == null && !formData.validate()) {
       snackbarController.showErrorMessage(
         'Please fill in all required fields correctly',
@@ -381,13 +391,13 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       return;
     }
 
-    // Validate all UNSAVED forms are complete
+    // Validate all UNSAVED forms are complete - UI validation
     for (int i = 0; i < companionForms.length; i++) {
       // Skip validation for already saved companions
       if (companionForms[i].createdGuestId != null) {
         continue;
       }
-      
+
       // Only validate forms that haven't been saved yet
       if (!companionForms[i].validate()) {
         snackbarController.showErrorMessage(
@@ -396,6 +406,23 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
         currentStep.value = i; // Jump to incomplete form
         return;
       }
+    }
+
+    // Collect all emails for validation (business logic in controller)
+    final emailsToValidate = <String>[];
+    for (int i = 0; i < companionForms.length; i++) {
+      if (companionForms[i].createdGuestId == null) {
+        emailsToValidate.add(companionForms[i].email.text.trim());
+      }
+    }
+
+    // Validate all emails are unique (business logic in controller)
+    final emailValidation = controller.validateAllCompanionEmails(emailsToValidate);
+    if (emailValidation != null) {
+      snackbarController.showErrorMessage(emailValidation.errorMessage);
+      // Jump to the form with the duplicate email
+      currentStep.value = emailValidation.duplicateIndex;
+      return;
     }
 
     isSubmitting.value = true;
@@ -414,8 +441,19 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
           continue;
         }
 
-        // Add companion atomically (guest + invitation update in single transaction)
-        final guestId = await controller.createAndInviteGuest(
+        // Get other pending emails for this form
+        final otherPendingEmails = <String>[];
+        for (int j = 0; j < companionForms.length; j++) {
+          if (j != i && companionForms[j].createdGuestId == null) {
+            final email = companionForms[j].email.text.trim();
+            if (email.isNotEmpty) {
+              otherPendingEmails.add(email);
+            }
+          }
+        }
+
+        // Use controller method that handles validation and snackbar messages
+        final guestId = await controller.validateAndCreateCompanion(
           name: form.name.text.trim(),
           email: form.email.text.trim(),
           address: form.address.text.trim().isEmpty
@@ -425,12 +463,14 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
           state: form.selectedState.value,
           country: form.selectedCountry.value,
           gender: form.selectedGender.value,
+          otherPendingEmails: otherPendingEmails,
         );
 
         if (guestId != null) {
           form.createdGuestId = guestId;
           successCount++;
         } else {
+          // Error message already shown via snackbar in controller
           failedCompanions.add(form.name.text.trim());
         }
       }
@@ -460,6 +500,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       isSubmitting.value = false;
     }
   }
+
 
   /// Navigate to the next step after companions are added
   void _navigateToNextStep() {

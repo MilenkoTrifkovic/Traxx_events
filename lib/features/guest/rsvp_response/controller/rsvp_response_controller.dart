@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/invitation_status.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/firestore_services/invitation_response_services.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
 
+/// Validation result for email uniqueness checks
+class EmailValidationResult {
+  final String errorMessage;
+  final int duplicateIndex;
+
+  EmailValidationResult({
+    required this.errorMessage,
+    required this.duplicateIndex,
+  });
+}
+
 class RsvpResponseController extends GetxController {
   final InvitationResponseServices _invitationService =
       InvitationResponseServices();
   final FirestoreServices _firestoreService = FirestoreServices();
+  final SnackbarMessageController _snackbarController =
+      Get.find<SnackbarMessageController>();
 
   final RxBool isLoading = true.obs; // Start with true to load initial state
   final RxBool isSubmitting = false.obs;
@@ -285,6 +299,10 @@ class RsvpResponseController extends GetxController {
       return null;
     }
 
+    // Email validation is now handled by validateCompanionEmail method
+    // This method is called from validateAndCreateCompanion which handles validation
+    // We still check here as a safety net, but validation should happen before calling this
+
     try {
       // Create GuestModel instance
       final guestModel = GuestModel(
@@ -325,6 +343,130 @@ class RsvpResponseController extends GetxController {
 
   void clearError() {
     error.value = null;
+  }
+
+  // ============================================================================
+  // Email Validation Methods (Business Logic)
+  // ============================================================================
+
+  /// Validates that a companion email is unique
+  /// Checks against: primary guest email, saved companions, and other pending emails
+  /// Returns error message if validation fails, null if valid
+  String? validateCompanionEmail(
+    String email, {
+    List<String>? otherPendingEmails,
+  }) {
+    final trimmedEmail = email.trim().toLowerCase();
+
+    // Check against primary guest email
+    final primaryGuestEmail = invitationStatus.value?.guestEmail;
+    if (primaryGuestEmail != null &&
+        trimmedEmail == primaryGuestEmail.trim().toLowerCase()) {
+      return 'Companion email cannot be the same as your email address';
+    }
+
+    // Check against saved companions
+    final existingCompanions = invitationStatus.value?.companions ?? [];
+    final duplicateInSaved = existingCompanions.any((companion) {
+      final companionEmail =
+          (companion['guestEmail'] as String?)?.trim().toLowerCase();
+      return companionEmail == trimmedEmail;
+    });
+
+    if (duplicateInSaved) {
+      return 'A companion with this email already exists';
+    }
+
+    // Check against other pending emails (if provided)
+    if (otherPendingEmails != null) {
+      final duplicateInPending = otherPendingEmails.any((otherEmail) {
+        return otherEmail.trim().toLowerCase() == trimmedEmail;
+      });
+
+      if (duplicateInPending) {
+        return 'This email is already used for another companion. Please use a different email address.';
+      }
+    }
+
+    return null; // Valid
+  }
+
+  /// Validates that all companion emails in a list are unique
+  /// Returns validation result with error message and index of first duplicate
+  /// Returns null if all emails are valid
+  EmailValidationResult? validateAllCompanionEmails(
+    List<String> emails,
+  ) {
+    final emailSet = <String>{};
+
+    for (int i = 0; i < emails.length; i++) {
+      final email = emails[i].trim().toLowerCase();
+      if (email.isEmpty) continue; // Skip empty emails (will be caught by form validation)
+
+      // Validate individual email
+      final individualError = validateCompanionEmail(email);
+      if (individualError != null) {
+        return EmailValidationResult(
+          errorMessage: 'Companion ${i + 1}: $individualError',
+          duplicateIndex: i,
+        );
+      }
+
+      // Check for duplicates within the list
+      if (emailSet.contains(email)) {
+        return EmailValidationResult(
+          errorMessage:
+              'Duplicate email addresses found. Each companion must have a unique email address.',
+          duplicateIndex: i,
+        );
+      }
+
+      emailSet.add(email);
+    }
+
+    return null; // All valid
+  }
+
+  /// Validates and creates a companion guest with proper error handling and snackbar messages
+  /// Returns guestId on success, null on failure
+  /// Shows snackbar messages for validation errors
+  Future<String?> validateAndCreateCompanion({
+    required String name,
+    required String email,
+    String? address,
+    String? city,
+    String? state,
+    String? country,
+    Gender? gender,
+    List<String>? otherPendingEmails,
+  }) async {
+    // Validate email uniqueness
+    final emailError = validateCompanionEmail(email, otherPendingEmails: otherPendingEmails);
+    if (emailError != null) {
+      _snackbarController.showErrorMessage(emailError);
+      error.value = emailError;
+      return null;
+    }
+
+    // Create companion (this will also validate and show errors)
+    final guestId = await createAndInviteGuest(
+      name: name,
+      email: email,
+      address: address,
+      city: city,
+      state: state,
+      country: country,
+      gender: gender,
+    );
+
+    if (guestId == null) {
+      // Show snackbar for error (error.value is already set in createAndInviteGuest)
+      _snackbarController.showErrorMessage(
+        error.value ?? 'Failed to add companion. Please try again.',
+      );
+    }
+
+    return guestId;
   }
 
   @override
