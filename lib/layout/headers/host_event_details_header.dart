@@ -45,10 +45,10 @@ class HostEventDetailsHeader extends StatelessWidget {
             ),
             // AppSecondaryButton(text: 'text'),
             AppSpacing.horizontalXs(context),
-            AppSecondaryButton(
-                text: idDesktop ? 'Edit Details' : '',
-                icon: Icons.edit_note,
-                onPressed: () {}),
+            // AppSecondaryButton(
+            //     text: idDesktop ? 'Edit Details' : '',
+            //     icon: Icons.edit_note,
+            //     onPressed: () {}),
             AppSpacing.horizontalXs(context),
             AppPrimaryButton(
                 // icon: Icons.add,
@@ -56,48 +56,48 @@ class HostEventDetailsHeader extends StatelessWidget {
                 onPressed: () {
                   // Handle add event action
                 }),
-            AppSpacing.horizontalXs(context),
-            PopupMenuButton(
-              icon: Icon(
-                Icons.more_vert,
-                color: AppColors.black,
-              ),
-              color: AppColors.background(context),
-              itemBuilder: (context) {
-                return [
-                  PopupMenuItem(
-                    ///////////////////////////////////////////////ToDo
-                    child: Text('Edit Event'),
-                    onTap: () {},
-                    // onTap: () => hostController.toggleEditingEvent(true),
-                  ),
-                  PopupMenuItem(
-                    ///////////////////////////////////////////////ToDo
-                    child: Text('Delete Event'),
-                    onTap: () async {
-                      Dialogs.showConfirmationDialog(
-                        context,
-                        "Are you sure you want to delete this event? \nThis action cannot be undone.",
-                        () async {
-                          try {
-                            await eventListController
-                                .deleteEvent(); ///////////////////////////////////////////////////
-                            if (!context.mounted) return;
-              snackbarController.showSuccessMessage(
-                'Event deleted successfully');
-                            popRoute(context);
-                          } on Exception catch (e) {
-                            print('Error deleting event: $e');
-              snackbarController.showErrorMessage(
-                'Event deletion failed. Try again');
-                          }
-                        },
-                      );
-                    },
-                  ),
-                ];
-              },
-            ),
+            // AppSpacing.horizontalXs(context),
+            // PopupMenuButton(
+            //   icon: Icon(
+            //     Icons.more_vert,
+            //     color: AppColors.black,
+            //   ),
+            //   color: AppColors.background(context),
+            //   itemBuilder: (context) {
+            //     return [
+            //       PopupMenuItem(
+            //         ///////////////////////////////////////////////ToDo
+            //         child: Text('Edit Event'),
+            //         onTap: () {},
+            //         // onTap: () => hostController.toggleEditingEvent(true),
+            //       ),
+            //       PopupMenuItem(
+            //         ///////////////////////////////////////////////ToDo
+            //         child: Text('Delete Event'),
+            //         onTap: () async {
+            //           Dialogs.showConfirmationDialog(
+            //             context,
+            //             "Are you sure you want to delete this event? \nThis action cannot be undone.",
+            //             () async {
+            //               try {
+            //                 await eventListController
+            //                     .deleteEvent(); ///////////////////////////////////////////////////
+            //                 if (!context.mounted) return;
+            //   snackbarController.showSuccessMessage(
+            //     'Event deleted successfully');
+            //                 popRoute(context);
+            //               } on Exception catch (e) {
+            //                 print('Error deleting event: $e');
+            //   snackbarController.showErrorMessage(
+            //     'Event deletion failed. Try again');
+            //               }
+            //             },
+            //           );
+            //         },
+            //       ),
+            //     ];
+            //   },
+            // ),
           ],
         )
       ],
