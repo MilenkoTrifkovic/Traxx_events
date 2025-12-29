@@ -4,7 +4,6 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 class ContentWrapper extends StatefulWidget {
@@ -52,72 +51,59 @@ class _ContentWrapperState extends State<ContentWrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final double effectiveMaxWidth =
-                  constraints.maxWidth > widget.maxWidth
-                      ? widget.maxWidth
-                      : constraints.maxWidth;
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final double effectiveMaxWidth =
+              constraints.maxWidth > widget.maxWidth
+                  ? widget.maxWidth
+                  : constraints.maxWidth;
 
-              return Container(
-                alignment: widget.alignment,
-                child: Container(
-                  constraints: BoxConstraints(
-                      // maxWidth: effectiveMaxWidth,
-                      ),
-                  decoration: BoxDecoration(
-                    // color: contentColor ?? AppColors.surface(context),
-                    // color: AppColors.fofofo,
-                    // boxShadow: [
-                    //   shadow ??
-                    //       BoxShadow(
-                    //         color: AppColors.shadow(context).withAlpha(50),
-                    //         blurRadius: 6,
-                    //         offset: const Offset(0, 2),
-                    //       ),
-                    // ],
-                    color: widget.contentColor ?? AppColors.fofofo,
-                    boxShadow: widget.shadow != null ? [widget.shadow!] : null,
+          return Container(
+            alignment: widget.alignment,
+            child: Container(
+              constraints: BoxConstraints(
+                  // maxWidth: effectiveMaxWidth,
                   ),
-                  child: widget.header != null
-                      ? Column(
-                          children: [
-                            Padding(
-                              padding: AppPadding.bottom(context,
-                                  paddingType: Sizes.xxs),
-                              child: widget.header!,
-                            ),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                        maxWidth: effectiveMaxWidth),
-                                    child: widget.child,
-                                  ),
-                                ),
+              decoration: BoxDecoration(
+                // color: contentColor ?? AppColors.surface(context),
+                // color: AppColors.fofofo,
+                // boxShadow: [
+                //   shadow ??
+                //       BoxShadow(
+                //         color: AppColors.shadow(context).withAlpha(50),
+                //         blurRadius: 6,
+                //         offset: const Offset(0, 2),
+                //       ),
+                // ],
+                color: widget.contentColor ?? AppColors.fofofo,
+                boxShadow: widget.shadow != null ? [widget.shadow!] : null,
+              ),
+              child: widget.header != null
+                  ? Column(
+                      children: [
+                        Padding(
+                          padding: AppPadding.bottom(context,
+                              paddingType: Sizes.xxs),
+                          child: widget.header!,
+                        ),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                    maxWidth: effectiveMaxWidth),
+                                child: widget.child,
                               ),
-                            )
-                          ],
+                            ),
+                          ),
                         )
-                      : widget.child,
-                ),
-              );
-            },
-          ),
-          // Version number in bottom-right corner
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: AppText.styledBodyMedium(
-              context,
-              'v${Constants.traxVersion}',
+                      ],
+                    )
+                  : widget.child,
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

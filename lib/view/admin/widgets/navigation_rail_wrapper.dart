@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
@@ -242,7 +243,7 @@ class _Sidebar extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: AppText.styledHeadingLarge(
                   context,
-                  'Traxx',
+                  'Trax',
                   color: AppColors.white,
                 ),
               ),
@@ -270,7 +271,21 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 10),
+            // Version number at bottom
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'v${Constants.traxVersion}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

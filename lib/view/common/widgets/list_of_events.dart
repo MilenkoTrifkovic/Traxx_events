@@ -72,7 +72,7 @@ class _ListOfEventsState extends State<ListOfEvents> {
         return SizedBox(
           height: MediaQuery.of(context).size.height - 200,
           child: EmptyState(
-            title: 'Welcome to Traxx',
+            title: 'Welcome to Trax',
             description: 'Lets create your first event',
             buttonText: 'Add First Event',
             onButtonPressed: () {

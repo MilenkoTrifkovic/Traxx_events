@@ -16,7 +16,7 @@ const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
 // Config
 const FROM_EMAIL = "developer@trax-event.com";
-const FROM_NAME = process.env.FROM_NAME || "Traxx Events";
+const FROM_NAME = process.env.FROM_NAME || "Trax Events";
 const APP_BASE_URL = "https://trax-event.app";
 const INV_EXPIRY_DAYS = (() => {
   const raw = process.env.INV_EXPIRY_DAYS; // could be "0" or "0.01"
