@@ -822,9 +822,7 @@ class FirestoreServices {
     final menuItemId = uuid.v4();
     final item = menuItem.copyWith(menuItemId: menuItemId);
     await menuItemsRef.add(item.toFirestoreCreate());
-    await menuItemsRef.add(item.toFirestoreCreate());
 
-    return item;
     return item;
   }
 
@@ -947,6 +945,96 @@ class FirestoreServices {
   // Companion Guest Management
   // ---------------------------
 
+  /// Creates companion guests with groupId and updates main guest atomically
+  /// 
+  /// This method uses a Firestore batch write to ensure ALL operations succeed or fail together:
+  /// 1. Generates a UUID v4 groupId
+  /// 2. Updates the main guest document with the groupId
+  /// 3. Creates all companion guest documents with the same groupId
+  /// 
+  /// This guarantees data consistency - either all guests get the groupId or none do.
+  /// 
+  /// Parameters:
+  /// - [mainGuestId]: The main guest's guestId (from invitation) (required)
+  /// - [companions]: List of GuestModel instances for companions (required)
+  /// 
+  /// Returns:
+  /// - Map with 'groupId' and 'createdGuestIds' list
+  /// - Throws Exception if main guest not found
+  /// - Throws FirebaseException on Firestore errors
+  Future<Map<String, dynamic>> createCompanionsWithGroupId({
+    required String mainGuestId,
+    required List<GuestModel> companions,
+  }) async {
+    try {
+      if (companions.isEmpty) {
+        throw Exception('Companions list cannot be empty');
+      }
+
+      // Generate UUID v4 for groupId
+      final uuid = Uuid();
+      final groupId = uuid.v4();
+
+      final batch = _db.batch();
+
+      // Step 1: Find and update main guest document with groupId
+      final mainGuestQuery = await guestsRef
+          .where('guestId', isEqualTo: mainGuestId)
+          .limit(1)
+          .get();
+
+      if (mainGuestQuery.docs.isEmpty) {
+        throw Exception('Main guest with ID $mainGuestId not found');
+      }
+
+      final mainGuestRef = mainGuestQuery.docs.first.reference;
+      batch.update(mainGuestRef, {
+        'groupId': groupId,
+        'modifiedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Step 2: Create companion guest documents with groupId
+      // Use UUID v4 for guestId (not Firestore doc ID)
+      final List<String> createdGuestIds = [];
+
+      for (final companion in companions) {
+        // Generate UUID v4 for guestId
+        final guestId = uuid.v4();
+
+        // Create guest with groupId and UUID v4 guestId
+        // Mark as companion since it's created through companion flow
+        final guestWithId = companion.copyWith(
+          docId: guestId, // Use guestId as docId too
+          guestId: guestId, // UUID v4
+          groupId: groupId,
+          isCompanion: true, // Mark as companion
+        );
+
+        // Use guestId as document ID (following saveGuest pattern)
+        final docRef = guestsRef.doc(guestId);
+
+        // Add to batch
+        batch.set(docRef, guestWithId.toFirestoreCreate());
+        createdGuestIds.add(guestId);
+      }
+
+      // Step 3: Commit batch atomically
+      await batch.commit();
+
+      print('✅ Created ${companions.length} companion(s) with groupId=$groupId');
+      return {
+        'groupId': groupId,
+        'createdGuestIds': createdGuestIds,
+      };
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error creating companions with groupId: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error creating companions with groupId: $e');
+      rethrow;
+    }
+  }
+
   /// Atomically creates a companion guest and links them to an invitation
   /// 
   /// This method uses a Firestore batch write to ensure BOTH operations succeed or fail together:
@@ -972,30 +1060,69 @@ class FirestoreServices {
     try {
       final batch = _db.batch();
 
-      // Step 1: Generate UUID v4 for guestId (business identifier)
-      final uuid = Uuid();
-      final guestId = uuid.v4();
-      
-      // Create guest document with auto-generated Firestore doc ID
-      final guestRef = guestsRef.doc();
-      
-      // Create guest with UUID v4 as guestId field
-      final guestWithId = guest.copyWith(guestId: guestId);
-      final guestData = guestWithId.toFirestoreCreate();
-      
-      // Add guest creation to batch
-      batch.set(guestRef, guestData);
-
-      // Step 2: Prepare invitation update
+      // Step 1: Get invitation to find main guest ID
       final invitationRef = _db.collection('invitations').doc(invitationId);
-
-      // Check if invitation exists and get existing companions
       final invitationDoc = await invitationRef.get();
       if (!invitationDoc.exists) {
         throw Exception('Invitation not found: $invitationId');
       }
 
       final invitationData = invitationDoc.data()!;
+      final mainGuestId = (invitationData['guestId'] as String?) ?? '';
+      
+      if (mainGuestId.isEmpty) {
+        throw Exception('Main guest ID not found in invitation');
+      }
+
+      // Step 2: Check/get groupId for main guest
+      // If main guest doesn't have groupId, create one and assign it
+      String groupId;
+      final mainGuestQuery = await guestsRef
+          .where('guestId', isEqualTo: mainGuestId)
+          .limit(1)
+          .get();
+
+      if (mainGuestQuery.docs.isEmpty) {
+        throw Exception('Main guest with ID $mainGuestId not found');
+      }
+
+      final mainGuestDoc = mainGuestQuery.docs.first;
+      final mainGuestData = mainGuestDoc.data();
+      final existingGroupId = mainGuestData['groupId'] as String?;
+
+      if (existingGroupId != null && existingGroupId.isNotEmpty) {
+        // Main guest already has a groupId, use it
+        groupId = existingGroupId;
+      } else {
+        // Main guest doesn't have groupId, create one and assign it
+        final uuid = Uuid();
+        groupId = uuid.v4();
+        batch.update(mainGuestDoc.reference, {
+          'groupId': groupId,
+          'modifiedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Step 3: Generate UUID v4 for companion guestId
+      final uuid = Uuid();
+      final guestId = uuid.v4();
+      
+      // Create guest with groupId, isCompanion=true, and UUID v4 guestId
+      final guestWithId = guest.copyWith(
+        docId: guestId, // Use guestId as docId
+        guestId: guestId, // UUID v4
+        groupId: groupId,
+        isCompanion: true, // Mark as companion
+      );
+      
+      // Use guestId as document ID (following saveGuest pattern)
+      final guestRef = guestsRef.doc(guestId);
+      final guestData = guestWithId.toFirestoreCreate();
+      
+      // Add guest creation to batch
+      batch.set(guestRef, guestData);
+
+      // Step 4: Prepare invitation update
       final List<dynamic> existingCompanions =
           invitationData['companions'] as List<dynamic>? ?? [];
 
@@ -1025,16 +1152,146 @@ class FirestoreServices {
         'modifiedAt': FieldValue.serverTimestamp(),
       });
 
-      // Step 3: Commit batch atomically
+      // Step 5: Commit batch atomically
       await batch.commit();
 
-      print('✅ Companion created and linked atomically: guestId=$guestId');
+      print('✅ Companion created and linked atomically: guestId=$guestId, groupId=$groupId');
       return guestId;
     } on FirebaseException catch (e) {
       print('❌ Firestore error creating companion: ${e.message}');
       rethrow;
     } catch (e) {
       print('❌ Error creating companion: $e');
+      rethrow;
+    }
+  }
+
+  /// Updates the isInvited flag for multiple guests atomically
+  /// 
+  /// This method uses a Firestore batch write to update multiple guest documents
+  /// in a single atomic operation. All updates succeed or fail together.
+  /// 
+  /// Parameters:
+  /// - [guestIds]: List of guest IDs to update (required)
+  /// 
+  /// Returns:
+  /// - Number of guests updated
+  /// - Throws FirebaseException on Firestore errors
+  Future<int> updateGuestsInvitedStatus(List<String> guestIds) async {
+    if (guestIds.isEmpty) {
+      return 0;
+    }
+
+    try {
+      final batch = _db.batch();
+      int updateCount = 0;
+
+      for (final guestId in guestIds) {
+        if (guestId.isEmpty) continue;
+        
+        final guestRef = guestsRef.doc(guestId);
+        batch.update(guestRef, {
+          'isInvited': true,
+          'modifiedAt': FieldValue.serverTimestamp(),
+        });
+        updateCount++;
+      }
+
+      if (updateCount > 0) {
+        await batch.commit();
+        print('✅ Updated isInvited flag for $updateCount guest(s)');
+      }
+
+      return updateCount;
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error updating guests invited status: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error updating guests invited status: $e');
+      rethrow;
+    }
+  }
+
+  /// Gets the groupId for a main guest by their guestId
+  /// 
+  /// Parameters:
+  /// - [mainGuestId]: The main guest's guestId (required)
+  /// 
+  /// Returns:
+  /// - The groupId if found, null otherwise
+  /// - Throws FirebaseException on Firestore errors
+  Future<String?> getGroupIdForMainGuest(String mainGuestId) async {
+    try {
+      final mainGuestQuery = await guestsRef
+          .where('guestId', isEqualTo: mainGuestId)
+          .limit(1)
+          .get();
+
+      if (mainGuestQuery.docs.isEmpty) {
+        return null;
+      }
+
+      final mainGuestData = mainGuestQuery.docs.first.data();
+      return mainGuestData['groupId'] as String?;
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error getting groupId for main guest: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error getting groupId for main guest: $e');
+      rethrow;
+    }
+  }
+
+  /// Gets the count of existing companions for a given groupId
+  /// 
+  /// Parameters:
+  /// - [groupId]: The groupId to query (required)
+  /// 
+  /// Returns:
+  /// - Number of companions (guests with isCompanion=true) with this groupId
+  /// - Throws FirebaseException on Firestore errors
+  Future<int> getCompanionCountByGroupId(String groupId) async {
+    try {
+      final groupGuestsQuery = await guestsRef
+          .where('groupId', isEqualTo: groupId)
+          .where('isCompanion', isEqualTo: true)
+          .get();
+
+      return groupGuestsQuery.docs.length;
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error getting companion count by groupId: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error getting companion count by groupId: $e');
+      rethrow;
+    }
+  }
+
+  /// Gets an invitation document by ID
+  /// 
+  /// Parameters:
+  /// - [invitationId]: The invitation document ID (required)
+  /// 
+  /// Returns:
+  /// - The invitation data map if found, null otherwise
+  /// - Throws FirebaseException on Firestore errors
+  Future<Map<String, dynamic>?> getInvitationById(String invitationId) async {
+    try {
+      final invitationDoc = await _db
+          .collection('invitations')
+          .doc(invitationId)
+          .get();
+
+      if (!invitationDoc.exists) {
+        return null;
+      }
+
+      return invitationDoc.data();
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error getting invitation: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error getting invitation: $e');
       rethrow;
     }
   }

@@ -25,9 +25,11 @@ class GuestModel {
   final bool isDisabled;
   final bool isInvited;
   final int maxGuestInvite;
+  final String? groupId; // Optional group ID to link main guest with companions
+  final bool isCompanion; // Whether this guest is a companion (not the main guest)
 
   GuestModel({
-    this.docId = '', // ✅ default, so parsers don’t need to pass it
+    this.docId = '', // ✅ default, so parsers don't need to pass it
     this.guestId,
     required this.name,
     required this.email,
@@ -42,6 +44,8 @@ class GuestModel {
     this.isDisabled = false,
     this.isInvited = false,
     this.maxGuestInvite = 0,
+    this.groupId,
+    this.isCompanion = false,
   });
 
   /// Firestore: create (new document)
@@ -64,6 +68,8 @@ class GuestModel {
       'isDisabled': isDisabled,
       'isInvited': isInvited,
       'maxGuestInvite': maxGuestInvite,
+      if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
+      'isCompanion': isCompanion,
 
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -86,6 +92,8 @@ class GuestModel {
       'isDisabled': isDisabled,
       'isInvited': isInvited,
       'maxGuestInvite': maxGuestInvite,
+      if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
+      'isCompanion': isCompanion,
       'modifiedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -149,6 +157,8 @@ class GuestModel {
       isDisabled: data['isDisabled'] as bool? ?? false,
       isInvited: data['isInvited'] as bool? ?? false,
       maxGuestInvite: data['maxGuestInvite'] as int? ?? 0,
+      groupId: data['groupId'] as String?,
+      isCompanion: data['isCompanion'] as bool? ?? false,
     );
   }
 
@@ -168,6 +178,8 @@ class GuestModel {
     bool? isDisabled,
     bool? isInvited,
     int? maxGuestInvite,
+    String? groupId,
+    bool? isCompanion,
   }) {
     return GuestModel(
       docId: docId ?? this.docId,
@@ -185,6 +197,8 @@ class GuestModel {
       isDisabled: isDisabled ?? this.isDisabled,
       isInvited: isInvited ?? this.isInvited,
       maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
+      groupId: groupId ?? this.groupId,
+      isCompanion: isCompanion ?? this.isCompanion,
     );
   }
 
@@ -205,7 +219,9 @@ class GuestModel {
         'modifiedAt: $modifiedAt, '
         'isDisabled: $isDisabled, '
         'isInvited: $isInvited, '
-        'maxGuestInvite: $maxGuestInvite'
+        'maxGuestInvite: $maxGuestInvite, '
+        'groupId: $groupId, '
+        'isCompanion: $isCompanion'
         ')';
   }
 }

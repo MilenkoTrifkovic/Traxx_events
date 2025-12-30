@@ -48,11 +48,17 @@ class InvitationResponseServices {
   Future<void> submitCompanions({
     required String invitationId,
     required int companionsCount,
+    bool? isInvitingCompanionsByEmail,
   }) async {
     final updateData = {
       'companionsCount': companionsCount,
       'companionsSubmittedAt': FieldValue.serverTimestamp(),
     };
+
+    // Only add isInvitingCompanionsByEmail if companionsCount > 0
+    if (companionsCount > 0 && isInvitingCompanionsByEmail != null) {
+      updateData['isInvitingCompanionsByEmail'] = isInvitingCompanionsByEmail;
+    }
 
     await invitationsRef.doc(invitationId).update(updateData);
   }

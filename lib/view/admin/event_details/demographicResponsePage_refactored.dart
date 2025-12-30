@@ -228,7 +228,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '${_controller.completedCount} / ${_controller.totalPeople}',
+              '${_controller.completedCount + (_controller.isCurrentPersonDone ? 0 : 1)} / ${_controller.totalPeople}',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

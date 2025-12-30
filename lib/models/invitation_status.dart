@@ -53,6 +53,7 @@ class InvitationStatus {
   // Companion selection
   final int? companionsCount;
   final DateTime? companionsSubmittedAt;
+  final bool? isInvitingCompanionsByEmail; // Whether primary guest wants to send email invites to companions
   final List<Map<String, dynamic>> companions; // List of already added companions
   
   // Response tracking
@@ -83,6 +84,7 @@ class InvitationStatus {
     this.declineReason,
     this.companionsCount,
     this.companionsSubmittedAt,
+    this.isInvitingCompanionsByEmail,
     this.companions = const [], // Default to empty list
     this.responseId,
     required this.menuSelectionSubmitted,
@@ -128,6 +130,7 @@ class InvitationStatus {
       declineReason: data['declineReason'] as String?,
       companionsCount: data['companionsCount'] as int?,
       companionsSubmittedAt: companionsSubmittedAtTimestamp?.toDate(),
+      isInvitingCompanionsByEmail: data['isInvitingCompanionsByEmail'] as bool?,
       companions: (data['companions'] as List<dynamic>?)
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
@@ -334,6 +337,7 @@ class InvitationStatus {
     String? declineReason,
     int? companionsCount,
     DateTime? companionsSubmittedAt,
+    bool? isInvitingCompanionsByEmail,
     List<Map<String, dynamic>>? companions,
     String? responseId,
     bool? menuSelectionSubmitted,
@@ -362,6 +366,7 @@ class InvitationStatus {
       declineReason: declineReason ?? this.declineReason,
       companionsCount: companionsCount ?? this.companionsCount,
       companionsSubmittedAt: companionsSubmittedAt ?? this.companionsSubmittedAt,
+      isInvitingCompanionsByEmail: isInvitingCompanionsByEmail ?? this.isInvitingCompanionsByEmail,
       companions: companions ?? this.companions,
       responseId: responseId ?? this.responseId,
       menuSelectionSubmitted: menuSelectionSubmitted ?? this.menuSelectionSubmitted,

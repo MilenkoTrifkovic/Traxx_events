@@ -1,6 +1,6 @@
 /// Helper utilities for managing the guest response flow.
 /// 
-/// Flow: RSVP → Companions Info → Demographics (main + companions) → Menu (main + companions) → Thank You
+/// Flow: RSVP → Companions Info → Demographics (main) → Menu (main) → Demographics (companion 1) → Menu (companion 1) → ... → Thank You
 /// 
 /// This file provides:
 /// - Navigation URL builders
@@ -19,12 +19,16 @@ class ResponseFlowState {
   // Companions list with their individual status
   final List<CompanionStatus> companions;
   
+  // Whether demographics are required for this event
+  final bool requiresDemographics;
+  
   const ResponseFlowState({
     required this.invitationId,
     required this.token,
     required this.mainDemographicsSubmitted,
     required this.mainMenuSubmitted,
     required this.companions,
+    this.requiresDemographics = true, // Default to true for backward compatibility
   });
   
   /// Create from invitation document data
@@ -36,17 +40,25 @@ class ResponseFlowState {
     // Use override if provided, otherwise try to get from invitation data
     final invId = invitationIdOverride ?? (inv['invitationId'] ?? '').toString();
     
+    // Check if demographics are required (has demographicQuestionSetId)
+    final demographicQuestionSetId = inv['demographicQuestionSetId'];
+    final requiresDemographics = demographicQuestionSetId != null && 
+        demographicQuestionSetId.toString().trim().isNotEmpty;
+    
     return ResponseFlowState(
       invitationId: invId,
       token: token,
       mainDemographicsSubmitted: inv['used'] == true,
       mainMenuSubmitted: inv['menuSelectionSubmitted'] == true,
       companions: companionsList,
+      requiresDemographics: requiresDemographics,
     );
   }
   
   /// Check if all demographics (main + all companions) are complete
+  /// Returns true if demographics are not required, or if all are submitted
   bool get allDemographicsComplete {
+    if (!requiresDemographics) return true; // Demographics not required
     if (!mainDemographicsSubmitted) return false;
     return companions.every((c) => c.demographicSubmitted);
   }
@@ -61,9 +73,10 @@ class ResponseFlowState {
   bool get isComplete => allDemographicsComplete && allMenusComplete;
   
   /// Get the next step info for navigation
+  /// New flow: Demographics (main) → Menu (main) → Demographics (companion 1) → Menu (companion 1) → ...
   NextStepInfo getNextStep() {
-    // 1. Check main guest demographics
-    if (!mainDemographicsSubmitted) {
+    // 1. Check main guest demographics (if required)
+    if (requiresDemographics && !mainDemographicsSubmitted) {
       return NextStepInfo(
         step: ResponseStep.demographics,
         companionIndex: null,
@@ -72,19 +85,7 @@ class ResponseFlowState {
       );
     }
     
-    // 2. Check companion demographics (in order)
-    for (int i = 0; i < companions.length; i++) {
-      if (!companions[i].demographicSubmitted) {
-        return NextStepInfo(
-          step: ResponseStep.demographics,
-          companionIndex: i,
-          companionName: companions[i].name,
-          isMainGuest: false,
-        );
-      }
-    }
-    
-    // 3. Check main guest menu
+    // 2. Check main guest menu
     if (!mainMenuSubmitted) {
       return NextStepInfo(
         step: ResponseStep.menu,
@@ -94,19 +95,32 @@ class ResponseFlowState {
       );
     }
     
-    // 4. Check companion menus (in order)
+    // 3. Process companions in order: demographics then menu for each
     for (int i = 0; i < companions.length; i++) {
-      if (!companions[i].menuSubmitted) {
+      final companion = companions[i];
+      
+      // Check companion demographics (if required)
+      if (requiresDemographics && !companion.demographicSubmitted) {
+        return NextStepInfo(
+          step: ResponseStep.demographics,
+          companionIndex: i,
+          companionName: companion.name,
+          isMainGuest: false,
+        );
+      }
+      
+      // Check companion menu
+      if (!companion.menuSubmitted) {
         return NextStepInfo(
           step: ResponseStep.menu,
           companionIndex: i,
-          companionName: companions[i].name,
+          companionName: companion.name,
           isMainGuest: false,
         );
       }
     }
     
-    // 5. All done!
+    // 4. All done!
     return NextStepInfo(
       step: ResponseStep.thankYou,
       companionIndex: null,

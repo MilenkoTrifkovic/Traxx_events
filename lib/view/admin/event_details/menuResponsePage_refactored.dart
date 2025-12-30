@@ -243,7 +243,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '${_controller.completedMenuCount} / ${_controller.totalPeople}',
+                '${_controller.completedMenuCount + (_controller.isCurrentPersonDone ? 0 : 1)} / ${_controller.totalPeople}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,

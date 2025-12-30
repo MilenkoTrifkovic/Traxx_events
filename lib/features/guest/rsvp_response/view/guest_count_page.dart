@@ -34,6 +34,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
   late final SnackbarMessageController snackbarController;
   
   int? selectedCompanionCount;
+  bool? isInvitingCompanionsByEmail; // null = not answered, true = send emails, false = answer for them
   bool isSubmitting = false;
 
   @override
@@ -52,6 +53,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
     // Set initial value if already submitted
     if (controller.companionsCount != null) {
       selectedCompanionCount = controller.companionsCount;
+      isInvitingCompanionsByEmail = controller.invitationStatus.value?.isInvitingCompanionsByEmail;
     } else if (controller.maxGuestInvite == 0) {
       // If no companions allowed, auto-select 0
       selectedCompanionCount = 0;
@@ -79,59 +81,59 @@ class _GuestCountPageState extends State<GuestCountPage> {
       return;
     }
 
+    // If companions > 0, require the email invitation choice
+    if (selectedCompanionCount! > 0 && isInvitingCompanionsByEmail == null) {
+      snackbarController.showErrorMessage('Please specify how you want to handle companion information');
+      return;
+    }
+
     setState(() => isSubmitting = true);
 
-    final success = await controller.submitCompanions(selectedCompanionCount!);
+    final success = await controller.submitCompanions(
+      selectedCompanionCount!,
+      isInvitingCompanionsByEmail: isInvitingCompanionsByEmail,
+    );
 
     if (!mounted) return;
 
     setState(() => isSubmitting = false);
 
     if (success) {
-      // If user selected companions > 0, go to companions info page
-      // If user selected 0 companions, skip to next step
+      final queryParams = {
+        'invitationId': widget.invitationId,
+        'token': widget.token ?? '',
+      };
+
+      // If user selected companions > 0, always navigate to companions info page
+      // Same navigation for both "answer for them" and "send email invites" options
       if (selectedCompanionCount! > 0) {
         pushAndRemoveAllRoute(
           AppRoute.guestCompanionsInfo,
           context,
-          queryParams: {
-            'invitationId': widget.invitationId,
-            'token': widget.token ?? '',
-          },
+          queryParams: queryParams,
         );
         return;
       }
       
-      // No companions selected, navigate to next step (demographics or menu)
-      final nextStep = controller.nextIncompleteStep;
-      
-      if (nextStep == 'demographics') {
+      // No companions selected, navigate to next step (demographics or menu, but NOT thank you)
+      if (controller.requiresDemographics && !controller.hasDemographics) {
         pushAndRemoveAllRoute(
           AppRoute.demographics,
           context,
-          queryParams: {
-            'invitationId': widget.invitationId,
-            'token': widget.token ?? '',
-          },
+          queryParams: queryParams,
         );
-      } else if (nextStep == 'menu') {
+      } else if (!controller.hasMenuSelection) {
         pushAndRemoveAllRoute(
           AppRoute.menuSelection,
           context,
-          queryParams: {
-            'invitationId': widget.invitationId,
-            'token': widget.token ?? '',
-          },
+          queryParams: queryParams,
         );
       } else {
-        // All steps completed
+        // If both are completed, still go to demographics or menu (not thank you)
         pushAndRemoveAllRoute(
-          AppRoute.thankYou,
+          controller.requiresDemographics ? AppRoute.demographics : AppRoute.menuSelection,
           context,
-          queryParams: {
-            'invitationId': widget.invitationId,
-            'token': widget.token ?? '',
-          },
+          queryParams: queryParams,
         );
       }
     } else {
@@ -199,10 +201,69 @@ class _GuestCountPageState extends State<GuestCountPage> {
                 onChanged: (value) {
                   setState(() {
                     selectedCompanionCount = value;
+                    // Reset email invitation choice when count changes
+                    if (value == 0) {
+                      isInvitingCompanionsByEmail = null;
+                    }
                   });
                 },
               ),
-              SizedBox(height: AppSpacing.xl(context)),
+              SizedBox(height: AppSpacing.lg(context)),
+              
+              // Show email invitation question only if companions > 0
+              if (selectedCompanionCount != null && selectedCompanionCount! > 0) ...[
+                Container(
+                  padding: EdgeInsets.all(AppSpacing.md(context)),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppText.styledBodyLarge(
+                        context,
+                        'How would you like to handle companion information?',
+                        weight: AppFontWeight.semiBold,
+                      ),
+                      SizedBox(height: AppSpacing.md(context)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildChoiceButton(
+                              context,
+                              label: 'I\'ll answer for them',
+                              description: 'You will fill out all information',
+                              isSelected: isInvitingCompanionsByEmail == false,
+                              onTap: () {
+                                setState(() {
+                                  isInvitingCompanionsByEmail = false;
+                                });
+                              },
+                            ),
+                          ),
+                          SizedBox(width: AppSpacing.sm(context)),
+                          Expanded(
+                            child: _buildChoiceButton(
+                              context,
+                              label: 'Send them email invites',
+                              description: 'They will fill out their own information',
+                              isSelected: isInvitingCompanionsByEmail == true,
+                              onTap: () {
+                                setState(() {
+                                  isInvitingCompanionsByEmail = true;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xl(context)),
+              ],
             ] else ...[
               // No companions allowed message
               Container(
@@ -258,6 +319,62 @@ class _GuestCountPageState extends State<GuestCountPage> {
               }
               return const SizedBox.shrink();
             }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceButton(
+    BuildContext context, {
+    required String label,
+    required String description,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: EdgeInsets.all(AppSpacing.md(context)),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryAccent.withOpacity(0.1) : AppColors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryAccent : AppColors.borderInput,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: isSelected ? AppColors.primaryAccent : AppColors.textMuted,
+                  size: 20,
+                ),
+                SizedBox(width: AppSpacing.xxs(context)),
+                Expanded(
+                  child: AppText.styledBodyMedium(
+                    context,
+                    label,
+                    weight: isSelected ? AppFontWeight.semiBold : AppFontWeight.regular,
+                    color: isSelected ? AppColors.primaryAccent : AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppSpacing.xxs(context)),
+            Padding(
+              padding: EdgeInsets.only(left: 28),
+              child: AppText.styledBodySmall(
+                context,
+                description,
+                color: AppColors.textMuted,
+              ),
+            ),
           ],
         ),
       ),

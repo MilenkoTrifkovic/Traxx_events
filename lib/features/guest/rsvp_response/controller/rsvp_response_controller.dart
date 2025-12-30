@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
@@ -24,6 +25,7 @@ class RsvpResponseController extends GetxController {
   final FirestoreServices _firestoreService = FirestoreServices();
   final SnackbarMessageController _snackbarController =
       Get.find<SnackbarMessageController>();
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   final RxBool isLoading = true.obs; // Start with true to load initial state
   final RxBool isSubmitting = false.obs;
@@ -211,12 +213,22 @@ class RsvpResponseController extends GetxController {
 
   /// Called when user submits their companion count selection
   /// Returns true if submission was successful, false otherwise
-  Future<bool> submitCompanions(int count) async {
+  /// [isInvitingCompanionsByEmail] is only used when count > 0
+  Future<bool> submitCompanions(
+    int count, {
+    bool? isInvitingCompanionsByEmail,
+  }) async {
     if (isSubmitting.value) return false;
 
     // Validate count is within allowed range
     if (count < 0 || count > maxGuestInvite) {
       error.value = 'Invalid companion count. Please select a valid number.';
+      return false;
+    }
+
+    // Validate isInvitingCompanionsByEmail is provided when count > 0
+    if (count > 0 && isInvitingCompanionsByEmail == null) {
+      error.value = 'Please specify how you want to handle companion information.';
       return false;
     }
 
@@ -227,6 +239,7 @@ class RsvpResponseController extends GetxController {
       await _invitationService.submitCompanions(
         invitationId: invitationId!,
         companionsCount: count,
+        isInvitingCompanionsByEmail: isInvitingCompanionsByEmail,
       );
 
       // Update local state by creating a new status model
@@ -234,10 +247,11 @@ class RsvpResponseController extends GetxController {
         invitationStatus.value = invitationStatus.value!.copyWith(
           companionsCount: count,
           companionsSubmittedAt: DateTime.now(),
+          isInvitingCompanionsByEmail: isInvitingCompanionsByEmail,
         );
       }
 
-      print('✅ Companion count submitted: $count');
+      print('✅ Companion count submitted: $count, isInvitingCompanionsByEmail: $isInvitingCompanionsByEmail');
       return true;
     } catch (e) {
       error.value = 'Failed to submit companion count. Please try again.';
@@ -467,6 +481,255 @@ class RsvpResponseController extends GetxController {
     }
 
     return guestId;
+  }
+
+  // ============================================================================
+  // Send Email Invitations for Companions (Business Logic)
+  // ============================================================================
+
+  /// Sends email invitations to companions via Cloud Function
+  /// This is used when isInvitingCompanionsByEmail = true
+  /// First creates guest documents, then sends invitations with guestId
+  /// Returns true if all invitations were sent successfully, false otherwise
+  Future<bool> sendCompanionInvitations({
+    required List<Map<String, dynamic>> companionData, // List of {name, email, address, city, state, country, gender}
+  }) async {
+    if (invitationId == null || invitationId!.isEmpty) {
+      error.value = 'Invitation ID is not available';
+      debugPrint('❌ sendCompanionInvitations: invitationId is null or empty');
+      return false;
+    }
+
+    final status = invitationStatus.value;
+    if (status == null) {
+      error.value = 'Invitation status not available';
+      debugPrint('❌ sendCompanionInvitations: invitationStatus is null');
+      return false;
+    }
+
+    if (status.eventId.isEmpty || status.organisationId.isEmpty) {
+      error.value = 'Event or organisation information is missing';
+      debugPrint('❌ sendCompanionInvitations: eventId or organisationId is empty');
+      return false;
+    }
+
+    if (companionData.isEmpty) {
+      error.value = 'No companion data provided';
+      debugPrint('❌ sendCompanionInvitations: companionData is empty');
+      return false;
+    }
+
+    try {
+      isSubmitting.value = true;
+      error.value = null;
+
+      // Step 1: Create guest documents with groupId atomically
+      // This includes updating main guest and creating all companions in one batch
+      debugPrint('📝 Creating ${companionData.length} companion guest document(s) with groupId...');
+      
+      // Prepare companion GuestModel instances
+      final List<GuestModel> companionGuests = [];
+      for (final companion in companionData) {
+        final email = (companion['email'] as String?)?.trim() ?? '';
+        final name = (companion['name'] as String?)?.trim() ?? '';
+        
+        if (email.isEmpty) {
+          debugPrint('⚠️ Skipping companion with empty email: $name');
+          continue;
+        }
+
+        // Create GuestModel (without guestId yet - will be assigned in batch)
+        final guest = GuestModel(
+          name: name,
+          email: email,
+          eventId: status.eventId,
+          address: companion['address'] as String?,
+          city: companion['city'] as String?,
+          country: companion['country'] as String?,
+          state: companion['state'] as String?,
+          gender: companion['gender'] as Gender?,
+          isDisabled: false,
+          isInvited: false, // Will be updated after email is sent
+          maxGuestInvite: companion['maxGuestInvite'] ?? 0,
+        );
+        companionGuests.add(guest);
+      }
+
+      if (companionGuests.isEmpty) {
+        error.value = 'No valid companion data provided';
+        debugPrint('❌ sendCompanionInvitations: No valid companions');
+        return false;
+      }
+
+      // Get main guest ID from invitation status
+      final mainGuestId = status.guestId;
+      if (mainGuestId.isEmpty) {
+        error.value = 'Main guest ID not found in invitation';
+        debugPrint('❌ sendCompanionInvitations: mainGuestId is empty');
+        return false;
+      }
+
+      // Create companions with groupId atomically (updates main guest + creates companions)
+      final groupResult = await _firestoreService.createCompanionsWithGroupId(
+        mainGuestId: mainGuestId,
+        companions: companionGuests,
+      );
+
+      final groupId = groupResult['groupId'] as String;
+      final createdGuestIds = groupResult['createdGuestIds'] as List<String>;
+      
+      debugPrint('✅ Created ${createdGuestIds.length} companion(s) with groupId=$groupId');
+
+      // Step 2: Prepare invitations array for Cloud Function
+      final List<Map<String, dynamic>> invitations = [];
+      for (int i = 0; i < companionGuests.length && i < createdGuestIds.length; i++) {
+        final guest = companionGuests[i];
+        final guestId = createdGuestIds[i];
+        
+        invitations.add({
+          'guestEmail': guest.email,
+          'guestName': guest.name,
+          'guestId': guestId, // Now we have a guestId!
+          'maxGuestInvite': guest.maxGuestInvite,
+        });
+      }
+
+      if (invitations.isEmpty) {
+        error.value = 'No valid email addresses found for companions';
+        debugPrint('❌ sendCompanionInvitations: No valid emails');
+        return false;
+      }
+
+      debugPrint('📧 Sending ${invitations.length} companion invitation(s)...');
+
+      // Step 3: Call Cloud Function to send invitations
+      final callable = _functions.httpsCallable('sendInvitations');
+
+      final cloudFunctionResult = await callable.call(<String, dynamic>{
+        'eventId': status.eventId,
+        'organisationId': status.organisationId,
+        'invitations': invitations,
+        'demographicQuestionSetId': status.demographicQuestionSetId,
+      });
+
+      final data = cloudFunctionResult.data as Map<String, dynamic>?;
+      if (data == null) {
+        error.value = 'Failed to send invitations. Please try again.';
+        debugPrint('❌ sendCompanionInvitations: Cloud function returned null');
+        return false;
+      }
+
+      final invited = (data['invited'] as int?) ?? 0;
+      final results = (data['results'] as List?) ?? [];
+
+      // Step 3: Update isInvited flag for successfully sent invitations
+      final sentEmails = results
+          .where((r) => r is Map && r['status'] == 'sent')
+          .map((r) => (r['guestEmail'] ?? '').toString().trim().toLowerCase())
+          .where((e) => e.isNotEmpty)
+          .toSet();
+
+      if (sentEmails.isNotEmpty) {
+        // Collect guest IDs for successfully sent invitations
+        final List<String> invitedGuestIds = [];
+        for (int i = 0; i < invitations.length; i++) {
+          final invitationEmail = (invitations[i]['guestEmail'] as String).trim().toLowerCase();
+          if (sentEmails.contains(invitationEmail) && i < createdGuestIds.length) {
+            invitedGuestIds.add(createdGuestIds[i]);
+          }
+        }
+
+        // Update isInvited flag via service layer
+        if (invitedGuestIds.isNotEmpty) {
+          await _firestoreService.updateGuestsInvitedStatus(invitedGuestIds);
+        }
+      }
+
+      debugPrint('✅ Companion invitations sent: $invited of ${invitations.length}');
+
+      if (invited == invitations.length) {
+        _snackbarController.showSuccessMessage(
+          'All companion invitations sent successfully!',
+        );
+        return true;
+      } else if (invited > 0) {
+        // Some succeeded, some failed
+        final failed = results
+            .where((r) => r is Map && r['status'] == 'failed')
+            .map((r) => (r['guestEmail'] ?? 'Unknown').toString())
+            .join(', ');
+        _snackbarController.showInfoMessage(
+          '$invited of ${invitations.length} invitations sent. Failed: $failed',
+        );
+        return false;
+      } else {
+        // All failed
+        error.value = 'Failed to send companion invitations. Please try again.';
+        _snackbarController.showErrorMessage(
+          'Failed to send companion invitations. Please try again.',
+        );
+        return false;
+      }
+    } on FirebaseFunctionsException catch (e) {
+      error.value = 'Failed to send invitations: ${e.message ?? 'Unknown error'}';
+      debugPrint('❌ sendCompanionInvitations FirebaseFunctionsException: $e');
+      _snackbarController.showErrorMessage(
+        'Failed to send invitations: ${e.message ?? 'Unknown error'}',
+      );
+      return false;
+    } catch (e, st) {
+      error.value = 'Failed to send companion invitations. Please try again.';
+      debugPrint('❌ sendCompanionInvitations error: $e\n$st');
+      _snackbarController.showErrorMessage(
+        'Failed to send companion invitations. Please try again.',
+      );
+      return false;
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  /// Gets the count of existing companions for the current invitation
+  /// Used when isInvitingCompanionsByEmail = true to check how many companions already exist
+  /// Returns the number of existing companions, or null if unable to determine
+  Future<int?> getExistingCompanionCount() async {
+    final status = invitationStatus.value;
+    if (status == null) return null;
+
+    final mainGuestId = status.guestId;
+    if (mainGuestId.isEmpty) return null;
+
+    try {
+      // Get groupId for main guest via service layer
+      final groupId = await _firestoreService.getGroupIdForMainGuest(mainGuestId);
+      
+      if (groupId == null || groupId.isEmpty) {
+        return null;
+      }
+
+      // Get companion count by groupId via service layer
+      final existingCompanionsCount = await _firestoreService.getCompanionCountByGroupId(groupId);
+      return existingCompanionsCount;
+    } catch (e) {
+      debugPrint('⚠️ Error getting existing companion count: $e');
+      return null;
+    }
+  }
+
+  /// Gets the latest invitation data from Firestore
+  /// Used for navigation flow state determination
+  /// Returns the invitation data map, or null if not found
+  Future<Map<String, dynamic>?> getLatestInvitationData() async {
+    if (invitationId == null || invitationId!.isEmpty) {
+      return null;
+    }
+
+    try {
+      return await _firestoreService.getInvitationById(invitationId!);
+    } catch (e) {
+      debugPrint('⚠️ Error getting latest invitation data: $e');
+      return null;
+    }
   }
 
   @override
