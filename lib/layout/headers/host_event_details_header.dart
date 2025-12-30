@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/layout/headers/widgets/header_back_button.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
-import 'package:traxx_wepapp/widgets/dialogs/dialogs.dart';
 
 class HostEventDetailsHeader extends StatelessWidget {
   HostEventDetailsHeader({super.key});
@@ -41,7 +40,14 @@ class HostEventDetailsHeader extends StatelessWidget {
             AppSecondaryButton(
               text: idDesktop ? 'Preview Guest Page' : '',
               icon: Icons.remove_red_eye,
-              onPressed: () {},
+              onPressed: () {
+                // Get eventId from route
+                final eventId = GoRouterState.of(context)
+                    .pathParameters[AppRoute.eventDetails.placeholder];
+                if (eventId != null) {
+                  pushRoute(AppRoute.guestSidePreview, context, urlParam: eventId);
+                }
+              },
             ),
             // AppSecondaryButton(text: 'text'),
             AppSpacing.horizontalXs(context),

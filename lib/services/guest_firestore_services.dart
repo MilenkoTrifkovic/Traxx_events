@@ -121,6 +121,91 @@ class GuestFirestoreServices {
     return doc.data();
   }
 
+  /// Fetches menu items by their IDs from the menu document.
+  /// 
+  /// Used for read-only preview mode where we only have item IDs.
+  Future<List<Map<String, dynamic>>> getMenuItemsByIds({
+    required String menuId,
+    required List<String> itemIds,
+  }) async {
+    if (itemIds.isEmpty) return [];
+
+    // Fetch the menu document
+    final menuDoc = await _db.collection('menus').doc(menuId).get();
+    if (!menuDoc.exists) return [];
+
+    final menuData = menuDoc.data();
+    if (menuData == null) return [];
+
+    // Get items from the menu
+    final allItems = (menuData['items'] as List?) ?? [];
+    
+    // Filter to only the selected item IDs
+    final selectedItems = <Map<String, dynamic>>[];
+    for (final item in allItems) {
+      final itemMap = Map<String, dynamic>.from(item as Map);
+      final itemId = itemMap['id']?.toString() ?? '';
+      if (itemIds.contains(itemId)) {
+        selectedItems.add(itemMap);
+      }
+    }
+
+    return selectedItems;
+  }
+
+  /// Fetches menu items directly from the menu_items collection by document IDs.
+  /// 
+  /// This doesn't require a menuId - items are fetched by their document IDs.
+  /// Used for read-only preview when we only have selectedMenuItemIds.
+  Future<List<Map<String, dynamic>>> getMenuItemsDirectlyByIds(
+    List<String> itemIds,
+  ) async {
+    if (itemIds.isEmpty) return [];
+
+    final results = <Map<String, dynamic>>[];
+    
+    // Firestore 'whereIn' supports max 10 items, so batch the queries
+    final batches = <List<String>>[];
+    for (var i = 0; i < itemIds.length; i += 10) {
+      batches.add(itemIds.sublist(i, i + 10 > itemIds.length ? itemIds.length : i + 10));
+    }
+
+    for (final batch in batches) {
+      final snapshot = await _db
+          .collection('menu_items')
+          .where(FieldPath.documentId, whereIn: batch)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['isDisabled'] == true) continue;
+
+        results.add({
+          'id': doc.id,
+          'name': data['name'] ?? data['title'] ?? 'Menu item',
+          'description': (data['description'] ?? '').toString(),
+          'price': data['price'],
+          'category': data['category'] ?? '',
+          'foodType': data['foodType'],
+        });
+      }
+    }
+
+    // Preserve the original order from itemIds
+    final orderedResults = <Map<String, dynamic>>[];
+    for (final id in itemIds) {
+      final item = results.firstWhere(
+        (r) => r['id'] == id,
+        orElse: () => <String, dynamic>{},
+      );
+      if (item.isNotEmpty) {
+        orderedResults.add(item);
+      }
+    }
+
+    return orderedResults;
+  }
+
   // ---------------------------------------------------------------------------
   // Demographic Responses
   // ---------------------------------------------------------------------------

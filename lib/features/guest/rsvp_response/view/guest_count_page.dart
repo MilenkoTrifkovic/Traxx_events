@@ -9,19 +9,27 @@ import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
+/// Guest Count Page - Allows guests to select number of companions
+/// 
+/// When [readOnly] is true, displays the page in preview mode without controllers or business logic
 class GuestCountPage extends StatefulWidget {
   final String invitationId;
   final String? token;
   final String? eventName; // Optional - will use from GuestLayoutController if available
+  final bool readOnly; // If true, displays in preview mode without controllers
+  final Event? event; // Required when readOnly is true
   
   const GuestCountPage({
     super.key,
     required this.invitationId,
     this.token,
     this.eventName,
+    this.readOnly = false,
+    this.event,
   });
 
   @override
@@ -29,9 +37,9 @@ class GuestCountPage extends StatefulWidget {
 }
 
 class _GuestCountPageState extends State<GuestCountPage> {
-  late final RsvpResponseController controller;
-  late final GuestLayoutController guestController;
-  late final SnackbarMessageController snackbarController;
+  RsvpResponseController? controller;
+  GuestLayoutController? guestController;
+  SnackbarMessageController? snackbarController;
   
   int? selectedCompanionCount;
   bool? isInvitingCompanionsByEmail; // null = not answered, true = send emails, false = answer for them
@@ -41,27 +49,59 @@ class _GuestCountPageState extends State<GuestCountPage> {
   void initState() {
     super.initState();
     
-    // Access parent GuestLayoutController (created by GuestPageWrapper)
-    guestController = Get.find<GuestLayoutController>();
+    // Skip ALL controller initialization in read-only mode
+    // Never call Get.find when readOnly is true
+    if (widget.readOnly == true) {
+      // Ensure controllers remain null in read-only mode
+      controller = null;
+      guestController = null;
+      snackbarController = null;
+      
+      // Set preview values
+      if (widget.event != null) {
+        selectedCompanionCount = widget.event!.maxInviteByGuest > 0 ? 1 : 0;
+        if (selectedCompanionCount! > 0) {
+          isInvitingCompanionsByEmail = false; // Preview: first option selected
+        }
+      }
+      debugPrint('✅ GuestCountPage: Read-only mode, skipping controller initialization');
+      return;
+    }
     
-    // Find RSVP controller (created by ShellRoute)
-    controller = Get.find<RsvpResponseController>(tag: widget.invitationId);
-    
-    // Get snackbar controller
-    snackbarController = Get.find<SnackbarMessageController>();
+    // Only access controllers in normal (non-readonly) mode
+    try {
+      // Check if controllers exist before trying to find them
+      if (Get.isRegistered<GuestLayoutController>()) {
+        guestController = Get.find<GuestLayoutController>();
+      }
+      
+      if (Get.isRegistered<RsvpResponseController>(tag: widget.invitationId)) {
+        controller = Get.find<RsvpResponseController>(tag: widget.invitationId);
+      }
+      
+      if (Get.isRegistered<SnackbarMessageController>()) {
+        snackbarController = Get.find<SnackbarMessageController>();
+      }
+    } catch (e) {
+      // If controllers don't exist, set to null (shouldn't happen in normal flow)
+      debugPrint('⚠️ Controllers not found in GuestCountPage: $e');
+      controller = null;
+      guestController = null;
+      snackbarController = null;
+    }
     
     // Set initial value if already submitted
-    if (controller.companionsCount != null) {
-      selectedCompanionCount = controller.companionsCount;
-      isInvitingCompanionsByEmail = controller.invitationStatus.value?.isInvitingCompanionsByEmail;
-    } else if (controller.maxGuestInvite == 0) {
+    if (controller!.companionsCount != null) {
+      selectedCompanionCount = controller!.companionsCount;
+      isInvitingCompanionsByEmail = controller!.invitationStatus.value?.isInvitingCompanionsByEmail;
+    } else if (controller!.maxGuestInvite == 0) {
       // If no companions allowed, auto-select 0
       selectedCompanionCount = 0;
     }
     
     // Validate user has completed RSVP and is attending
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!controller.hasResponded || controller.isAttending != true) {
+      if (!controller!.hasResponded || controller!.isAttending != true) {
         // Redirect to RSVP page
         pushAndRemoveAllRoute(
           AppRoute.guestResponse,
@@ -76,20 +116,22 @@ class _GuestCountPageState extends State<GuestCountPage> {
   }
 
   Future<void> _handleSubmit() async {
+    if (widget.readOnly || controller == null || snackbarController == null) return;
+    
     if (selectedCompanionCount == null) {
-      snackbarController.showErrorMessage('Please select the number of companions');
+      snackbarController!.showErrorMessage('Please select the number of companions');
       return;
     }
 
     // If companions > 0, require the email invitation choice
     if (selectedCompanionCount! > 0 && isInvitingCompanionsByEmail == null) {
-      snackbarController.showErrorMessage('Please specify how you want to handle companion information');
+      snackbarController!.showErrorMessage('Please specify how you want to handle companion information');
       return;
     }
 
     setState(() => isSubmitting = true);
 
-    final success = await controller.submitCompanions(
+    final success = await controller!.submitCompanions(
       selectedCompanionCount!,
       isInvitingCompanionsByEmail: isInvitingCompanionsByEmail,
     );
@@ -116,13 +158,13 @@ class _GuestCountPageState extends State<GuestCountPage> {
       }
       
       // No companions selected, navigate to next step (demographics or menu, but NOT thank you)
-      if (controller.requiresDemographics && !controller.hasDemographics) {
+      if (controller!.requiresDemographics && !controller!.hasDemographics) {
         pushAndRemoveAllRoute(
           AppRoute.demographics,
           context,
           queryParams: queryParams,
         );
-      } else if (!controller.hasMenuSelection) {
+      } else if (!controller!.hasMenuSelection) {
         pushAndRemoveAllRoute(
           AppRoute.menuSelection,
           context,
@@ -131,21 +173,23 @@ class _GuestCountPageState extends State<GuestCountPage> {
       } else {
         // If both are completed, still go to demographics or menu (not thank you)
         pushAndRemoveAllRoute(
-          controller.requiresDemographics ? AppRoute.demographics : AppRoute.menuSelection,
+          controller!.requiresDemographics ? AppRoute.demographics : AppRoute.menuSelection,
           context,
           queryParams: queryParams,
         );
       }
     } else {
-      snackbarController.showErrorMessage(
-        controller.error.value ?? 'Failed to submit. Please try again.',
+      snackbarController!.showErrorMessage(
+        controller!.error.value ?? 'Failed to submit. Please try again.',
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final maxGuests = controller.maxGuestInvite;
+    final maxGuests = widget.readOnly && widget.event != null
+        ? widget.event!.maxInviteByGuest
+        : (controller?.maxGuestInvite ?? 0);
     
     return Center(
       child: Container(
@@ -183,7 +227,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
                 hintText: 'Select number of companions',
                 helperText: 'You can bring up to $maxGuests ${maxGuests == 1 ? 'companion' : 'companions'}',
                 value: selectedCompanionCount,
-                enabled: !isSubmitting,
+                enabled: !widget.readOnly && !isSubmitting,
                 width: double.infinity,
                 items: List.generate(
                   maxGuests + 1,
@@ -198,15 +242,17 @@ class _GuestCountPageState extends State<GuestCountPage> {
                     ),
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCompanionCount = value;
-                    // Reset email invitation choice when count changes
-                    if (value == 0) {
-                      isInvitingCompanionsByEmail = null;
-                    }
-                  });
-                },
+                onChanged: widget.readOnly
+                    ? null
+                    : (value) {
+                        setState(() {
+                          selectedCompanionCount = value;
+                          // Reset email invitation choice when count changes
+                          if (value == 0) {
+                            isInvitingCompanionsByEmail = null;
+                          }
+                        });
+                      },
               ),
               SizedBox(height: AppSpacing.lg(context)),
               
@@ -236,11 +282,13 @@ class _GuestCountPageState extends State<GuestCountPage> {
                               label: 'I\'ll answer for them',
                               description: 'You will fill out all information',
                               isSelected: isInvitingCompanionsByEmail == false,
-                              onTap: () {
-                                setState(() {
-                                  isInvitingCompanionsByEmail = false;
-                                });
-                              },
+                              onTap: widget.readOnly
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        isInvitingCompanionsByEmail = false;
+                                      });
+                                    },
                             ),
                           ),
                           SizedBox(width: AppSpacing.sm(context)),
@@ -250,11 +298,13 @@ class _GuestCountPageState extends State<GuestCountPage> {
                               label: 'Send them email invites',
                               description: 'They will fill out their own information',
                               isSelected: isInvitingCompanionsByEmail == true,
-                              onTap: () {
-                                setState(() {
-                                  isInvitingCompanionsByEmail = true;
-                                });
-                              },
+                              onTap: widget.readOnly
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        isInvitingCompanionsByEmail = true;
+                                      });
+                                    },
                             ),
                           ),
                         ],
@@ -297,28 +347,29 @@ class _GuestCountPageState extends State<GuestCountPage> {
             // Next button
             AppPrimaryButton(
               text: 'Next',
-              onPressed: _handleSubmit,
+              onPressed: widget.readOnly ? null : _handleSubmit,
               isLoading: isSubmitting,
               width: double.infinity,
               height: 48,
               borderRadius: 12,
             ),
             
-            // Error message
-            Obx(() {
-              if (controller.error.value != null) {
-                return Padding(
-                  padding: EdgeInsets.only(top: AppSpacing.md(context)),
-                  child: AppText.styledBodySmall(
-                    context,
-                    controller.error.value!,
-                    color: AppColors.inputError,
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
+            // Error message - only show in non-readonly mode
+            if (!widget.readOnly && controller != null)
+              Obx(() {
+                if (controller!.error.value != null) {
+                  return Padding(
+                    padding: EdgeInsets.only(top: AppSpacing.md(context)),
+                    child: AppText.styledBodySmall(
+                      context,
+                      controller!.error.value!,
+                      color: AppColors.inputError,
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
           ],
         ),
       ),
@@ -330,7 +381,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
     required String label,
     required String description,
     required bool isSelected,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return InkWell(
       onTap: onTap,

@@ -3,76 +3,32 @@ import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/controller/rsvp_response_controller.dart';
-import 'package:traxx_wepapp/features/guest/rsvp_response/widgets/companion_form_widget.dart';
-import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/helper/app_spacing.dart';
-import 'package:traxx_wepapp/helper/validation_helper.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/models/companion_form_data.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/companions_widgets/companions_info_content.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/companions_widgets/companions_info_empty_view.dart';
 import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
-import 'package:traxx_wepapp/theme/app_font_weight.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/enums/genders.dart';
-import 'package:traxx_wepapp/utils/enums/sizes.dart';
+import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
-import 'package:traxx_wepapp/widgets/app_primary_button.dart';
-import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 
-class CompanionFormData {
-  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-  final TextEditingController name = TextEditingController();
-  final TextEditingController email = TextEditingController();
-  final TextEditingController address = TextEditingController();
-  final TextEditingController city = TextEditingController();
-  final RxnString selectedCountry = RxnString();
-  final RxnString selectedState = RxnString();
-  final Rxn<Gender> selectedGender = Rxn<Gender>();
-  String? createdGuestId; // Store the created guest ID
-
-  void dispose() {
-    name.dispose();
-    email.dispose();
-    address.dispose();
-    city.dispose();
-  }
-
-  void clear() {
-    name.clear();
-    email.clear();
-    address.clear();
-    city.clear();
-    selectedCountry.value = null;
-    selectedState.value = null;
-    selectedGender.value = null;
-    createdGuestId = null;
-  }
-
-  bool validate() {
-    // Try form validation first (works if form is in widget tree)
-    final formValid = formKey.currentState?.validate() ?? false;
-    if (formValid) return true;
-    
-    // If form is not in widget tree, manually validate required fields
-    // Required fields: name and email
-    final nameValid = name.text.trim().isNotEmpty;
-    final emailText = email.text.trim();
-    final emailValid = emailText.isNotEmpty && 
-        ValidationHelper.validateEmail(emailText) == null; // null means valid
-    
-    return nameValid && emailValid;
-  }
-}
-
+/// Companions Information Page - Allows guests to enter companion details
+/// 
+/// When [readOnly] is true, displays the page in preview mode without controllers or business logic
 class CompaignonsInfoPage extends StatefulWidget {
   final String? invitationId;
   final String? token;
   final String? eventName;
+  final bool readOnly; // If true, displays in preview mode without controllers
+  final Event? event; // Required when readOnly is true
 
   const CompaignonsInfoPage({
     super.key,
     this.invitationId,
     this.token,
     this.eventName,
+    this.readOnly = false,
+    this.event,
   });
 
   @override
@@ -80,9 +36,9 @@ class CompaignonsInfoPage extends StatefulWidget {
 }
 
 class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
-  late final RsvpResponseController controller;
-  late final GuestLayoutController guestController;
-  late final SnackbarMessageController snackbarController;
+  RsvpResponseController? controller;
+  GuestLayoutController? guestController;
+  SnackbarMessageController? snackbarController;
 
   final List<CompanionFormData> companionForms = [];
   final RxBool isSubmitting = false.obs;
@@ -93,54 +49,104 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   void initState() {
     super.initState();
     
-    // Get invitationId from widget or query params
-    final invitationId = widget.invitationId ?? 
-        Uri.base.queryParameters['invitationId'] ?? '';
-    
-    // Find controller with tag (created by shell route)
-    controller = Get.find<RsvpResponseController>(tag: invitationId);
-    guestController = Get.find<GuestLayoutController>();
-    snackbarController = Get.find<SnackbarMessageController>();
-
-    // Initialize forms asynchronously
-    _initializeForms();
-    
-    // Validate user has completed RSVP, is attending, and has selected companion count
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!controller.hasResponded || controller.isAttending != true) {
-        // Redirect to RSVP page
-        final queryParams = {
-          'invitationId': invitationId,
-          if (widget.token != null) 'token': widget.token!,
-        };
-        pushAndRemoveAllRoute(
-          AppRoute.guestResponse,
-          context,
-          queryParams: queryParams,
-        );
-      } else if (controller.companionsCount == null || controller.companionsCount == 0) {
-        // No companions selected, redirect to guest count page
-        final queryParams = {
-          'invitationId': invitationId,
-          if (widget.token != null) 'token': widget.token!,
-        };
-        pushAndRemoveAllRoute(
-          AppRoute.guestCompanions,
-          context,
-          queryParams: queryParams,
-        );
-      } else if (controller.invitationStatus.value?.isInvitingCompanionsByEmail == true) {
-        // User chose to send email invites, but they still need to come to this page first
-        // TODO: In the future, trigger email sending for companions here
-        // For now, allow them to stay on this page (they can see that companions will be invited)
-        // The page will show that all companions are already handled via email
+    // Skip ALL controller initialization in read-only mode
+    // Never call Get.find when readOnly is true
+    if (widget.readOnly == true) {
+      // Ensure controllers remain null in read-only mode
+      controller = null;
+      guestController = null;
+      snackbarController = null;
+      
+      // Initialize preview forms
+      if (widget.event != null && widget.event!.maxInviteByGuest > 0) {
+        // Create preview forms (e.g., 2 forms for preview)
+        final previewCount = widget.event!.maxInviteByGuest.clamp(1, 3);
+        for (int i = 0; i < previewCount; i++) {
+          companionForms.add(CompanionFormData());
+          // Set preview data
+          companionForms[i].name.text = 'Companion ${i + 1}';
+          companionForms[i].email.text = 'companion${i + 1}@example.com';
+        }
       }
-    });
+      
+      isInitializing.value = false;
+      debugPrint('✅ CompaignonsInfoPage: Read-only mode, skipping controller initialization');
+      return;
+    }
+    
+    // Only access controllers in normal (non-readonly) mode
+    try {
+      // Get invitationId from widget or query params
+      final invitationId = widget.invitationId ?? 
+          Uri.base.queryParameters['invitationId'] ?? '';
+      
+      // Check if controllers exist before trying to find them
+      if (Get.isRegistered<RsvpResponseController>(tag: invitationId)) {
+        controller = Get.find<RsvpResponseController>(tag: invitationId);
+      }
+      
+      if (Get.isRegistered<GuestLayoutController>()) {
+        guestController = Get.find<GuestLayoutController>();
+      }
+      
+      if (Get.isRegistered<SnackbarMessageController>()) {
+        snackbarController = Get.find<SnackbarMessageController>();
+      }
+
+      // Initialize forms asynchronously
+      if (controller != null) {
+        _initializeForms();
+        
+        // Validate user has completed RSVP, is attending, and has selected companion count
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!controller!.hasResponded || controller!.isAttending != true) {
+            // Redirect to RSVP page
+            final queryParams = {
+              'invitationId': invitationId,
+              if (widget.token != null) 'token': widget.token!,
+            };
+            pushAndRemoveAllRoute(
+              AppRoute.guestResponse,
+              context,
+              queryParams: queryParams,
+            );
+          } else if (controller!.companionsCount == null || controller!.companionsCount == 0) {
+            // No companions selected, redirect to guest count page
+            final queryParams = {
+              'invitationId': invitationId,
+              if (widget.token != null) 'token': widget.token!,
+            };
+            pushAndRemoveAllRoute(
+              AppRoute.guestCompanions,
+              context,
+              queryParams: queryParams,
+            );
+          } else if (controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true) {
+            // User chose to send email invites, but they still need to come to this page first
+            // TODO: In the future, trigger email sending for companions here
+            // For now, allow them to stay on this page (they can see that companions will be invited)
+            // The page will show that all companions are already handled via email
+          }
+        });
+      }
+    } catch (e) {
+      // If controllers don't exist, set to null (shouldn't happen in normal flow)
+      debugPrint('⚠️ Controllers not found in CompaignonsInfoPage: $e');
+      controller = null;
+      guestController = null;
+      snackbarController = null;
+      isInitializing.value = false;
+    }
   }
 
   Future<void> _initializeForms() async {
-    final companionsCount = controller.companionsCount ?? 0;
-    final isInvitingByEmail = controller.invitationStatus.value?.isInvitingCompanionsByEmail == true;
+    if (controller == null) {
+      isInitializing.value = false;
+      return;
+    }
+    
+    final companionsCount = controller!.companionsCount ?? 0;
+    final isInvitingByEmail = controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
     
     int remainingCount = companionsCount;
     
@@ -148,7 +154,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     if (isInvitingByEmail && companionsCount > 0) {
       try {
         // Get existing companion count via controller (which uses service layer)
-        final existingCompanionsCount = await controller.getExistingCompanionCount();
+        final existingCompanionsCount = await controller!.getExistingCompanionCount();
         
         if (existingCompanionsCount != null) {
           remainingCount = (companionsCount - existingCompanionsCount).clamp(0, companionsCount);
@@ -157,11 +163,11 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       } catch (e) {
         debugPrint('⚠️ Error checking existing companions: $e');
         // Fall back to using remainingCompanionsToCreate
-        remainingCount = controller.remainingCompanionsToCreate;
+        remainingCount = controller!.remainingCompanionsToCreate;
       }
     } else {
       // For direct creation flow, use existing logic
-      remainingCount = controller.remainingCompanionsToCreate;
+      remainingCount = controller!.remainingCompanionsToCreate;
     }
     
     // Create a form for each remaining companion
@@ -175,7 +181,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     isInitializing.value = false;
     
     // If all companions already exist, navigate to next step
-    if (remainingCount == 0 && companionsCount > 0) {
+    if (remainingCount == 0 && companionsCount > 0 && controller != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateToNextStep();
       });
@@ -192,183 +198,69 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Read-only mode: show static preview
+    if (widget.readOnly) {
+      return _buildReadOnlyPreview(context);
+    }
+    
+    // Normal mode: use reactive controllers
+    if (controller == null || snackbarController == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
     return Obx(() {
       // Show loading while initializing forms
       if (isInitializing.value) {
         return const Center(child: CircularProgressIndicator());
       }
       
-      final totalCompanionsCount = controller.companionsCount ?? 0;
-      final savedCount = controller.savedCompanionsCount;
+      final totalCompanionsCount = controller!.companionsCount ?? 0;
+      final savedCount = controller!.savedCompanionsCount;
       final remainingCount = companionForms.length; // Use actual form count
 
       if (remainingCount == 0 && totalCompanionsCount > 0) {
-        return _buildNoCompanionsView(context);
+        return CompanionsInfoEmptyView(
+          readOnly: widget.readOnly,
+          savedCount: savedCount,
+          totalCount: totalCompanionsCount,
+          onContinue: _navigateToNextStep,
+        );
       }
 
       final currentIndex = currentStep.value;
-      final totalSteps = companionForms.length;
 
-      return SingleChildScrollView(
-        child: Padding(
-          padding: AppPadding.symmetric(
-            context,
-            horizontalPadding: Sizes.xl,
-            verticalPadding: Sizes.lg,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, totalCompanionsCount, savedCount, remainingCount),
-              AppSpacing.verticalLg(context),
-              _buildProgressIndicator(context, currentIndex, totalSteps),
-              AppSpacing.verticalLg(context),
-              _buildCurrentForm(context, currentIndex, savedCount),
-              AppSpacing.verticalXl(context),
-              _buildNavigationButtons(context, currentIndex, totalSteps),
-            ],
-          ),
-        ),
+      return CompanionsInfoContent(
+        companionForms: companionForms,
+        currentIndex: currentIndex,
+        totalCompanionsCount: totalCompanionsCount,
+        savedCount: savedCount,
+        remainingCount: remainingCount,
+        readOnly: widget.readOnly,
+        isSubmitting: isSubmitting.value,
+        onBack: _handleBack,
+        onNext: _handleNext,
+        onSubmitAll: _handleSubmitAll,
       );
     });
   }
 
-  Widget _buildNoCompanionsView(BuildContext context) {
-    final savedCount = controller.savedCompanionsCount;
-    final totalCount = controller.companionsCount ?? 0;
-    
-    return Center(
-      child: Padding(
-        padding: AppPadding.all(context, paddingType: Sizes.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            AppSpacing.verticalMd(context),
-            AppText.styledHeadingMedium(
-              context,
-              savedCount > 0 ? 'All Companions Added' : 'No Companions',
-              weight: AppFontWeight.semiBold,
-            ),
-            AppSpacing.verticalSm(context),
-            AppText.styledBodyMedium(
-              context,
-              savedCount > 0
-                  ? 'You have already added all $totalCount companion${totalCount > 1 ? 's' : ''} for this event.'
-                  : 'You didn\'t select any companions for this event.',
-            ),
-            AppSpacing.verticalLg(context),
-            // Continue button to proceed to next step
-            SizedBox(
-              width: 200,
-              child: AppPrimaryButton(
-                onPressed: () => _navigateToNextStep(),
-                text: 'Continue',
-              ),
-            ),
-          ],
-        ),
-      ),
+  /// Build read-only preview version of the page
+  Widget _buildReadOnlyPreview(BuildContext context) {
+    final totalSteps = companionForms.length;
+    final currentIndex = currentStep.value;
+
+    return CompanionsInfoContent(
+      companionForms: companionForms,
+      currentIndex: currentIndex,
+      totalCompanionsCount: totalSteps,
+      savedCount: 0,
+      remainingCount: totalSteps,
+      readOnly: true,
+      isSubmitting: false,
+      onBack: null,
+      onNext: null,
+      onSubmitAll: null,
     );
-  }
-
-  Widget _buildHeader(BuildContext context, int totalCompanionsCount, int savedCount, int remainingCount) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppText.styledHeadingLarge(
-          context,
-          'Companion Information',
-          weight: AppFontWeight.bold,
-        ),
-        AppSpacing.verticalSm(context),
-        AppText.styledBodyLarge(
-          context,
-          savedCount > 0
-              ? 'You have already added $savedCount companion${savedCount > 1 ? 's' : ''}. '
-                'Please provide information for your remaining $remainingCount companion${remainingCount > 1 ? 's' : ''}.'
-              : 'Please provide information for your $totalCompanionsCount companion${totalCompanionsCount > 1 ? 's' : ''}.',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressIndicator(
-      BuildContext context, int currentIndex, int totalSteps) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppText.styledLabelMedium(
-          context,
-          'Progress: ${currentIndex + 1} of $totalSteps',
-          weight: AppFontWeight.medium,
-        ),
-        AppSpacing.verticalSm(context),
-        LinearProgressIndicator(
-          value: (currentIndex + 1) / totalSteps,
-          backgroundColor: Colors.grey.shade200,
-          minHeight: 8,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCurrentForm(BuildContext context, int index, int savedCount) {
-    if (index >= companionForms.length) return const SizedBox.shrink();
-
-    final formData = companionForms[index];
-
-    return CompanionFormWidget(
-      formKey: formData.formKey,
-      nameController: formData.name,
-      emailController: formData.email,
-      addressController: formData.address,
-      cityController: formData.city,
-      selectedCountry: formData.selectedCountry,
-      selectedState: formData.selectedState,
-      selectedGender: formData.selectedGender,
-      companionNumber: '${savedCount + index + 1}', // Adjust number to account for already saved
-    );
-  }
-
-  Widget _buildNavigationButtons(
-      BuildContext context, int currentIndex, int totalSteps) {
-    final isFirstStep = currentIndex == 0;
-    final isLastStep = currentIndex == totalSteps - 1;
-
-    return Obx(() {
-      final submitting = isSubmitting.value;
-
-      return Row(
-        children: [
-          // Back button (disabled on first step)
-          Expanded(
-            child: AppSecondaryButton(
-              onPressed: (isFirstStep || submitting) ? null : _handleBack,
-              text: 'Back',
-            ),
-          ),
-          AppSpacing.horizontalMd(context),
-          // Next/Submit button
-          Expanded(
-            child: AppPrimaryButton(
-              onPressed: submitting
-                  ? null
-                  : () => isLastStep ? _handleSubmitAll() : _handleNext(),
-              text: submitting
-                  ? 'Saving...'
-                  : isLastStep
-                      ? 'Submit All'
-                      : 'Next',
-            ),
-          ),
-        ],
-      );
-    });
   }
 
   void _handleBack() {
@@ -378,19 +270,23 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   }
 
   Future<void> _handleNext() async {
+    if (widget.readOnly || controller == null || snackbarController == null) {
+      return;
+    }
+    
     final currentIndex = currentStep.value;
     final formData = companionForms[currentIndex];
 
     // Validate current form (UI validation)
     if (!formData.validate()) {
-      snackbarController.showErrorMessage(
+      snackbarController!.showErrorMessage(
         'Please fill in all required fields correctly',
       );
       return;
     }
 
     // Check if user chose to send email invites
-    final isInvitingByEmail = controller.invitationStatus.value?.isInvitingCompanionsByEmail == true;
+    final isInvitingByEmail = controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
 
     if (isInvitingByEmail) {
       // For email invites, we don't save individual companions here
@@ -419,7 +315,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       isSubmitting.value = true;
 
       // Use controller method that handles validation and snackbar messages
-      final guestId = await controller.validateAndCreateCompanion(
+      final guestId = await controller!.validateAndCreateCompanion(
         name: formData.name.text.trim(),
         email: formData.email.text.trim(),
         address: formData.address.text.trim().isEmpty
@@ -441,7 +337,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       }
 
       formData.createdGuestId = guestId;
-      snackbarController.showSuccessMessage(
+      snackbarController!.showSuccessMessage(
         'Companion ${currentIndex + 1} saved successfully!',
       );
     }
@@ -453,17 +349,21 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   }
 
   Future<void> _handleSubmitAll() async {
+    if (widget.readOnly || controller == null || snackbarController == null) {
+      return;
+    }
+    
     final currentIndex = currentStep.value;
     final formData = companionForms[currentIndex];
 
     // Check if user chose to send email invites
-    final isInvitingByEmail = controller.invitationStatus.value?.isInvitingCompanionsByEmail == true;
+    final isInvitingByEmail = controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
 
     if (isInvitingByEmail) {
       // For email invites: Validate all forms are complete (no need to check createdGuestId)
       for (int i = 0; i < companionForms.length; i++) {
         if (!companionForms[i].validate()) {
-          snackbarController.showErrorMessage(
+          snackbarController!.showErrorMessage(
             'Please complete all companion forms (Companion ${i + 1} is incomplete)',
           );
           currentStep.value = i; // Jump to incomplete form
@@ -473,7 +373,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     } else {
       // For direct creation: Validate last form (only if not already saved) - UI validation
       if (formData.createdGuestId == null && !formData.validate()) {
-        snackbarController.showErrorMessage(
+        snackbarController!.showErrorMessage(
           'Please fill in all required fields correctly',
         );
         return;
@@ -488,7 +388,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
         // Only validate forms that haven't been saved yet
         if (!companionForms[i].validate()) {
-          snackbarController.showErrorMessage(
+          snackbarController!.showErrorMessage(
             'Please complete all companion forms (Companion ${i + 1} is incomplete)',
           );
           currentStep.value = i; // Jump to incomplete form
@@ -506,9 +406,9 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     }
 
     // Validate all emails are unique (business logic in controller)
-    final emailValidation = controller.validateAllCompanionEmails(emailsToValidate);
+    final emailValidation = controller!.validateAllCompanionEmails(emailsToValidate);
     if (emailValidation != null) {
-      snackbarController.showErrorMessage(emailValidation.errorMessage);
+      snackbarController!.showErrorMessage(emailValidation.errorMessage);
       // Jump to the form with the duplicate email
       currentStep.value = emailValidation.duplicateIndex;
       return;
@@ -531,12 +431,12 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
           'maxGuestInvite': 0, // Companions can't invite others
         }).toList();
 
-        final success = await controller.sendCompanionInvitations(
+        final success = await controller!.sendCompanionInvitations(
           companionData: companionData,
         );
 
         if (success) {
-          snackbarController.showSuccessMessage(
+          snackbarController!.showSuccessMessage(
             'All companion invitations sent successfully!',
           );
           // Navigate to next step
@@ -571,7 +471,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
           }
 
           // Use controller method that handles validation and snackbar messages
-          final guestId = await controller.validateAndCreateCompanion(
+          final guestId = await controller!.validateAndCreateCompanion(
             name: form.name.text.trim(),
             email: form.email.text.trim(),
             address: form.address.text.trim().isEmpty
@@ -594,25 +494,25 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
         }
 
         if (successCount == companionForms.length) {
-          snackbarController.showSuccessMessage(
+          snackbarController!.showSuccessMessage(
             'All companions added successfully!',
           );
           // Navigate to next step based on invitation requirements
           _navigateToNextStep();
         } else if (successCount > 0) {
-          snackbarController.showInfoMessage(
+          snackbarController!.showInfoMessage(
             '$successCount of ${companionForms.length} companions added. '
             'Failed: ${failedCompanions.join(', ')}',
           );
         } else {
-          snackbarController.showErrorMessage(
+          snackbarController!.showErrorMessage(
             'Failed to add companions. Please try again.',
           );
         }
       }
     } catch (e) {
       debugPrint('❌ Error submitting companions: $e');
-      snackbarController.showErrorMessage(
+      snackbarController?.showErrorMessage(
         'An error occurred. Please try again.',
       );
     } finally {
@@ -624,27 +524,31 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   /// Navigate to the next step after companions are added
   /// Uses ResponseFlowState to determine the next step (alternating demographics/menu per person)
   Future<void> _navigateToNextStep() async {
+    if (widget.readOnly || controller == null) {
+      return; // No navigation in read-only mode
+    }
+    
     try {
       // Fetch the latest invitation document via controller (which uses service layer)
-      final invitationData = await controller.getLatestInvitationData();
+      final invitationData = await controller!.getLatestInvitationData();
       
       if (invitationData == null) {
         debugPrint('⚠️ Invitation not found, using fallback navigation');
         _navigateToFallback();
         return;
       }
-      final token = controller.token ?? '';
+      final token = controller!.token ?? '';
       
       // Create flow state from invitation
       final flowState = ResponseFlowState.fromInvitation(
         invitationData,
         token,
-        invitationIdOverride: controller.invitationId!,
+        invitationIdOverride: controller!.invitationId!,
       );
       
       // Get next step using the new alternating flow
       final nextStep = flowState.getNextStep();
-      final nextUrl = nextStep.buildUrl(controller.invitationId!, token);
+      final nextUrl = nextStep.buildUrl(controller!.invitationId!, token);
       
       debugPrint('✅ Navigating to next step: ${nextStep.step}, '
           'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
@@ -660,19 +564,23 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   
   /// Fallback navigation if flow state cannot be determined
   void _navigateToFallback() {
+    if (widget.readOnly || controller == null) {
+      return; // No navigation in read-only mode
+    }
+    
     // Check demographics (if required)
-    if (controller.requiresDemographics && !controller.hasDemographics) {
-      context.go('/demographics?invitationId=${Uri.encodeComponent(controller.invitationId!)}&token=${Uri.encodeComponent(controller.token ?? '')}');
+    if (controller!.requiresDemographics && !controller!.hasDemographics) {
+      context.go('/demographics?invitationId=${Uri.encodeComponent(controller!.invitationId!)}&token=${Uri.encodeComponent(controller!.token ?? '')}');
       return;
     }
     
     // Check menu selection
-    if (!controller.hasMenuSelection) {
-      context.go('/menu-selection?invitationId=${Uri.encodeComponent(controller.invitationId!)}&token=${Uri.encodeComponent(controller.token ?? '')}');
+    if (!controller!.hasMenuSelection) {
+      context.go('/menu-selection?invitationId=${Uri.encodeComponent(controller!.invitationId!)}&token=${Uri.encodeComponent(controller!.token ?? '')}');
       return;
     }
     
     // All steps completed - go to thank you
-    context.go('/thank-you?invitationId=${Uri.encodeComponent(controller.invitationId!)}');
+    context.go('/thank-you?invitationId=${Uri.encodeComponent(controller!.invitationId!)}');
   }
 }

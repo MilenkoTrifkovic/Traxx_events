@@ -38,6 +38,7 @@ enum AppRoute {
       '/event-details/:eventId/demographic-analyzer', 'eventId'),
   eventMenuAnalyzer('/event-details/:eventId/menu-analyzer', 'eventId'),
   eventGuests('/event-guests'),
+  guestSidePreview('/event-details/:eventId/guest-preview', 'eventId'),
 
   // Public guest response routes
   guestResponse('/guest-response'),

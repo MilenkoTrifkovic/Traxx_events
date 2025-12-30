@@ -20,6 +20,7 @@ class CompanionFormWidget extends StatelessWidget {
   final RxnString selectedState;
   final Rxn<Gender> selectedGender;
   final String? companionNumber;
+  final bool readOnly; // If true, displays form in read-only mode
 
   const CompanionFormWidget({
     super.key,
@@ -32,6 +33,7 @@ class CompanionFormWidget extends StatelessWidget {
     required this.selectedState,
     required this.selectedGender,
     this.companionNumber,
+    this.readOnly = false,
   });
 
   @override
@@ -56,7 +58,8 @@ class CompanionFormWidget extends StatelessWidget {
             label: 'Full Name *',
             controller: nameController,
             hintText: 'Enter companion full name',
-            validator: (value) {
+            readOnly: readOnly,
+            validator: readOnly ? null : (value) {
               if (value == null || value.trim().isEmpty) {
                 return 'Name is required';
               }
@@ -70,7 +73,8 @@ class CompanionFormWidget extends StatelessWidget {
             controller: emailController,
             hintText: 'Enter companion email address',
             keyboardType: TextInputType.emailAddress,
-            validator: ValidationHelper.validateEmail,
+            readOnly: readOnly,
+            validator: readOnly ? null : ValidationHelper.validateEmail,
           ),
 
           // Address (optional)
@@ -78,6 +82,7 @@ class CompanionFormWidget extends StatelessWidget {
             label: 'Address (Optional)',
             controller: addressController,
             hintText: 'Enter street address',
+            readOnly: readOnly,
           ),
 
           // City (optional)
@@ -85,6 +90,7 @@ class CompanionFormWidget extends StatelessWidget {
             label: 'City (Optional)',
             controller: cityController,
             hintText: 'Enter city',
+            readOnly: readOnly,
           ),
 
           // Country dropdown
@@ -93,13 +99,14 @@ class CompanionFormWidget extends StatelessWidget {
               label: 'Country (Optional)',
               value: selectedCountry.value,
               hintText: 'Select country',
+              enabled: !readOnly,
               items: USData.countries.map((String country) {
                 return DropdownMenuItem<String>(
                   value: country,
                   child: Text(country),
                 );
               }).toList(),
-              onChanged: (String? newValue) {
+              onChanged: readOnly ? null : (String? newValue) {
                 selectedCountry.value = newValue;
               },
             );
@@ -110,13 +117,14 @@ class CompanionFormWidget extends StatelessWidget {
                 label: 'State (Optional)',
                 value: selectedState.value,
                 hintText: 'Select state',
+                enabled: !readOnly,
                 items: USData.states.map((String state) {
                   return DropdownMenuItem<String>(
                     value: state,
                     child: Text(state),
                   );
                 }).toList(),
-                onChanged: (String? newValue) {
+                onChanged: readOnly ? null : (String? newValue) {
                   selectedState.value = newValue;
                 },
               )),
@@ -126,6 +134,7 @@ class CompanionFormWidget extends StatelessWidget {
             return AppDropdownMenu<Gender>(
               value: selectedGender.value,
               label: "Gender (Optional)",
+              enabled: !readOnly,
               items: Gender.values
                   .map((gender) => DropdownMenuItem(
                         value: gender,
@@ -136,7 +145,7 @@ class CompanionFormWidget extends StatelessWidget {
                         ),
                       ))
                   .toList(),
-              onChanged: (value) {
+              onChanged: readOnly ? null : (value) {
                 selectedGender.value = value;
               },
             );

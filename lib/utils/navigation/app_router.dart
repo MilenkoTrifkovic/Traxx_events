@@ -50,6 +50,7 @@ import 'package:traxx_wepapp/widgets/event_loader.dart';
 import 'package:traxx_wepapp/layout/guest_layout/guest_page_wrapper.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
+import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -323,7 +324,7 @@ GoRouter buildRouter() {
                   contentColor: isQuestionsPage
                       ? gfBackground // Color(0xFFF4F0FB)
                       : const Color.fromARGB(255, 247, 247, 247),
-                  header: getPageHeader(state),
+                  header: getPageHeader(state, context: context),
                   child: child,
                 ),
               );
@@ -472,6 +473,14 @@ GoRouter buildRouter() {
               return EventMenuAnalyzerPage(eventId: eventId);
             },
           ),
+          GoRoute(
+            path: AppRoute.guestSidePreview.path,
+            builder: (context, state) {
+              final eventId =
+                  state.pathParameters[AppRoute.guestSidePreview.placeholder]!;
+              return GuestSidePreviewPage(eventId: eventId);
+            },
+          ),
 
           GoRoute(
             path: AppRoute.eventGuests.path,
@@ -540,7 +549,7 @@ GoRouter buildRouter() {
                           top: 24,
                           bottom: 8,
                         ),
-                        child: getPageHeader(state),
+                        child: getPageHeader(state, context: context),
                       ),
                       // content area with lavender background + limited-width body
                       Expanded(
@@ -558,7 +567,7 @@ GoRouter buildRouter() {
                 return NavigationRailWrapper(
                   child: ContentWrapper(
                     contentColor: const Color.fromARGB(255, 247, 247, 247),
-                    header: getPageHeader(state),
+                    header: getPageHeader(state, context: context),
                     child: child,
                   ),
                 );

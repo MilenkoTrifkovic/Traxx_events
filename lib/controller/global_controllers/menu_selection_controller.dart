@@ -241,6 +241,41 @@ class MenuSelectionController extends GetxController {
     }
   }
 
+  /// Load menu items only for read-only preview mode.
+  /// 
+  /// This fetches menu items by their IDs without requiring invitation/token.
+  Future<void> loadMenuItemsOnly({
+    required List<String> selectedItemIds,
+  }) async {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      // Fetch menu items directly from menu_items collection
+      final menuItems = await _guestService.getMenuItemsDirectlyByIds(
+        selectedItemIds,
+      );
+
+      items.value = menuItems
+          .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x)))
+          .toList();
+
+      // Mark all as selected for display
+      selectedIds.clear();
+      selectedIds.addAll(selectedItemIds);
+
+      eventName.value = 'Menu Preview';
+
+      debugPrint('MenuSelectionController: Loaded ${items.length} menu items for preview');
+
+    } catch (e) {
+      errorMessage.value = e.toString();
+      debugPrint('MenuSelectionController: Error loading preview - $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   /// Toggle selection of a menu item.
   void toggleItem(String itemId) {
     if (selectedIds.contains(itemId)) {

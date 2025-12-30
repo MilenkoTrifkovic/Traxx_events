@@ -15,6 +15,7 @@ import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 /// - Managing answers
 /// - Submitting to cloud function
 /// - Navigation flow
+/// - Read-only preview mode (when readOnly = true)
 class DemographicResponseController extends GetxController {
   // ---------------------------------------------------------------------------
   // Dependencies
@@ -30,13 +31,21 @@ class DemographicResponseController extends GetxController {
   final int? companionIndex;
   final String? companionName;
   final bool showInvitationInput;
+  
+  /// Read-only mode - just display questions without interaction
+  final bool readOnly;
+  
+  /// Question set ID - used when readOnly = true (no invitation needed)
+  final String? questionSetId;
 
   DemographicResponseController({
-    required this.invitationId,
+    this.invitationId = '',
     this.token = '',
     this.companionIndex,
     this.companionName,
     this.showInvitationInput = false,
+    this.readOnly = false,
+    this.questionSetId,
   });
 
   // ---------------------------------------------------------------------------
@@ -140,8 +149,14 @@ class DemographicResponseController extends GetxController {
     super.onInit();
     debugPrint(
       '*** DemographicResponseController init. invitationId=$invitationId '
-      'companionIndex=$companionIndex',
+      'companionIndex=$companionIndex readOnly=$readOnly questionSetId=$questionSetId',
     );
+
+    // Read-only mode: just load questions by questionSetId
+    if (readOnly && questionSetId != null && questionSetId!.isNotEmpty) {
+      loadQuestionsOnly(questionSetId!);
+      return;
+    }
 
     _currentCompanionIndex = companionIndex ?? _readCompanionIndexFromUrl();
     _activeInvitationId = invitationId.trim();
@@ -484,6 +499,65 @@ class DemographicResponseController extends GetxController {
 
     } catch (e, st) {
       debugPrint('Demographic load error: $e');
+      debugPrint('$st');
+      _setError('Something went wrong',
+          'We could not load the questions right now. Please refresh and try again.');
+    }
+  }
+
+  /// Load questions only (read-only mode) - no invitation needed.
+  /// Used for previewing question sets in admin panel.
+  Future<void> loadQuestionsOnly(String qsId) async {
+    _setLoading();
+
+    // Clear previous text controllers
+    for (final c in textControllers.values) c.dispose();
+    for (final c in freeTextControllers.values) c.dispose();
+    textControllers.clear();
+    freeTextControllers.clear();
+
+    try {
+      // 1) Fetch question set metadata
+      final qs = await _firestoreService.getDemographicQuestionSet(qsId);
+      if (qs == null) {
+        _setError('Question set not found',
+            'The specified question set does not exist.');
+        return;
+      }
+      questionSet.value = qs;
+
+      // 2) Fetch questions
+      final loadedQuestions = await _firestoreService.getDemographicQuestions(qsId);
+      if (loadedQuestions.isEmpty) {
+        questions.clear();
+        isLoading.value = false;
+        return;
+      }
+
+      // 3) Fetch options
+      final questionIds = loadedQuestions.map((q) => q.id).toList();
+      final optionsMap = await _firestoreService.getDemographicOptions(questionIds);
+
+      // 4) Build questions with options (no answers in read-only mode)
+      questions.clear();
+      answers.clear();
+
+      for (final q in loadedQuestions) {
+        q.options = optionsMap[q.id] ?? [];
+        questions.add(q);
+        
+        // Initialize empty answers for display purposes
+        if (q.type == 'checkboxes') {
+          answers[q.id] = <Map<String, dynamic>>[];
+        } else {
+          answers[q.id] = null;
+        }
+      }
+
+      isLoading.value = false;
+
+    } catch (e, st) {
+      debugPrint('Demographic loadQuestionsOnly error: $e');
       debugPrint('$st');
       _setError('Something went wrong',
           'We could not load the questions right now. Please refresh and try again.');

@@ -3,35 +3,49 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:traxx_wepapp/controller/global_controllers/demographic_response_controller.dart';
-import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 
-// ------------------------------------------------------------
-// Styling constants (matches your host UI look)
-// ------------------------------------------------------------
-const Color kAccent = Color(0xFF6C4BFF);
-const Color kBorder = Color(0xFFE5E7EB);
-const Color kTextDark = Color(0xFF111827);
-const Color kTextBody = Color(0xFF374151);
-const Color kGfPurple = Color(0xFF673AB7);
-const Color gfBackground = Color(0xFFF4F0FB);
+import 'demographic_widgets/demographic_constants.dart';
+import 'demographic_widgets/demographic_info_card.dart';
+import 'demographic_widgets/demographic_question_card.dart';
 
 class DemographicResponsePage extends StatefulWidget {
+  /// For interactive mode (guest filling out)
   final String invitationId;
   final String token;
   final int? companionIndex;
   final String? companionName;
   final bool showInvitationInput;
   final bool embedded;
+  
+  /// Read-only mode - just display questions without interaction
+  final bool readOnly;
+  
+  /// Question set ID - used when readOnly = true (no invitation needed)
+  final String? questionSetId;
 
   const DemographicResponsePage({
     super.key,
-    required this.invitationId,
+    this.invitationId = '',
     this.token = '',
     this.companionIndex,
     this.companionName,
     this.showInvitationInput = false,
     this.embedded = false,
+    this.readOnly = false,
+    this.questionSetId,
   });
+  
+  /// Named constructor for read-only preview mode
+  const DemographicResponsePage.preview({
+    super.key,
+    required this.questionSetId,
+  }) : invitationId = '',
+       token = '',
+       companionIndex = null,
+       companionName = null,
+       showInvitationInput = false,
+       embedded = true,
+       readOnly = true;
 
   @override
   State<DemographicResponsePage> createState() => _DemographicResponsePageState();
@@ -47,8 +61,11 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     super.initState();
     _invitationIdCtrl = TextEditingController(text: widget.invitationId);
     
-    // Create controller with unique tag based on invitationId + companionIndex
-    final tag = '${widget.invitationId}_${widget.companionIndex ?? "main"}';
+    // Create controller with unique tag
+    final tag = widget.readOnly 
+        ? 'preview_${widget.questionSetId}'
+        : '${widget.invitationId}_${widget.companionIndex ?? "main"}';
+    
     _controller = Get.put(
       DemographicResponseController(
         invitationId: widget.invitationId,
@@ -56,6 +73,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         companionIndex: widget.companionIndex,
         companionName: widget.companionName,
         showInvitationInput: widget.showInvitationInput,
+        readOnly: widget.readOnly,
+        questionSetId: widget.questionSetId,
       ),
       tag: tag,
     );
@@ -64,6 +83,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void didUpdateWidget(covariant DemographicResponsePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Skip updates in read-only mode
+    if (widget.readOnly) return;
     
     // Check if companion index changed
     if (widget.companionIndex != oldWidget.companionIndex ||
@@ -79,7 +101,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     _listCtrl.dispose();
     
     // Delete controller with tag
-    final tag = '${widget.invitationId}_${widget.companionIndex ?? "main"}';
+    final tag = widget.readOnly 
+        ? 'preview_${widget.questionSetId}'
+        : '${widget.invitationId}_${widget.companionIndex ?? "main"}';
     Get.delete<DemographicResponseController>(tag: tag);
     
     super.dispose();
@@ -115,8 +139,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                         child: Obx(() => Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Progress indicator - show when there are companions
-                            if (_controller.hasCompanions) ...[
+                            // Progress indicator - show when there are companions (not in read-only)
+                            if (!widget.readOnly && _controller.hasCompanions) ...[
                               _buildProgressBanner(),
                               const SizedBox(height: 12),
                             ],
@@ -129,13 +153,16 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            if (widget.showInvitationInput) ...[
+                            // Invitation loader - not in read-only mode
+                            if (!widget.readOnly && widget.showInvitationInput) ...[
                               _buildInvitationLoaderCard(),
                               const SizedBox(height: 16),
                             ],
                             _buildHeaderWithAction(),
                             const SizedBox(height: 14),
-                            if (!_controller.isLoading.value &&
+                            // Helper text - not in read-only mode
+                            if (!widget.readOnly &&
+                                !_controller.isLoading.value &&
                                 _controller.invitation.value != null &&
                                 !_controller.isCurrentPersonDone)
                               Center(
@@ -409,33 +436,36 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
             ),
           ),
         ),
-        const SizedBox(width: 16),
-        Obx(() => SizedBox(
-          height: 44,
-          child: ElevatedButton(
-            onPressed: (!_controller.isLoading.value &&
-                !_controller.isSubmitting.value &&
-                _controller.invitation.value != null &&
-                (_controller.isCurrentPersonDone ||
-                    _controller.questions.isNotEmpty))
-                ? () => _controller.submitAndContinue(context)
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kGfPurple,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        // Hide action button in read-only mode
+        if (!widget.readOnly) ...[
+          const SizedBox(width: 16),
+          Obx(() => SizedBox(
+            height: 44,
+            child: ElevatedButton(
+              onPressed: (!_controller.isLoading.value &&
+                  !_controller.isSubmitting.value &&
+                  _controller.invitation.value != null &&
+                  (_controller.isCurrentPersonDone ||
+                      _controller.questions.isNotEmpty))
+                  ? () => _controller.submitAndContinue(context)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kGfPurple,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              textStyle: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              child: Text(_controller.isCurrentPersonDone ? 'Continue' : 'Next'),
             ),
-            child: Text(_controller.isCurrentPersonDone ? 'Continue' : 'Next'),
-          ),
-        )),
+          )),
+        ],
       ],
     );
   }
@@ -448,9 +478,11 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         );
       }
 
-      if (_controller.invitation.value == null && 
+      // Only show "waiting for invitation" message in interactive mode
+      if (!widget.readOnly &&
+          _controller.invitation.value == null && 
           _controller.activeInvitationId.isEmpty) {
-        return const _InfoCard(
+        return const DemographicInfoCard(
           icon: Icons.info_outline_rounded,
           iconColor: kGfPurple,
           title: 'Waiting for invitation',
@@ -459,7 +491,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       }
 
       if (_controller.hasError) {
-        return _InfoCard(
+        return DemographicInfoCard(
           icon: Icons.error_outline_rounded,
           iconColor: Colors.red.shade600,
           title: _controller.errorTitle.value ?? 'Invalid or expired invitation',
@@ -467,11 +499,12 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         );
       }
 
-      if (_controller.isCurrentPersonDone) {
+      // Only show "already submitted" message in interactive mode
+      if (!widget.readOnly && _controller.isCurrentPersonDone) {
         final name = _controller.currentCompanionIndex == null
             ? 'Your'
             : '${_controller.currentPersonName.value}\'s';
-        return _InfoCard(
+        return DemographicInfoCard(
           icon: Icons.check_circle_outline_rounded,
           iconColor: Colors.green,
           title: 'Already submitted',
@@ -480,7 +513,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       }
 
       if (_controller.questions.isEmpty) {
-        return const _InfoCard(
+        return const DemographicInfoCard(
           icon: Icons.help_outline_rounded,
           iconColor: kGfPurple,
           title: 'No questions in this set',
@@ -505,15 +538,16 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
               
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _QuestionCard(
+                child: DemographicQuestionCard(
                   question: q,
                   isActive: isActive,
                   answer: answer,
-                  textController: _controller.getTextController(q.id),
+                  textController: widget.readOnly ? null : _controller.getTextController(q.id),
                   freeTextCtrls: _controller.freeTextControllers,
                   onTap: () => _controller.setActiveQuestion(q.id),
                   onAnswerChanged: (value) => _controller.updateAnswer(q.id, value),
                   getFreeTextController: _controller.getFreeTextController,
+                  readOnly: widget.readOnly,
                 ),
               );
             });
@@ -521,457 +555,5 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         ),
       );
     });
-  }
-}
-
-// ------------------------------------------------------------
-// Info card widget
-// ------------------------------------------------------------
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String message;
-
-  const _InfoCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 46, color: iconColor),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: kTextDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: kTextBody,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------
-// Question card widget
-// ------------------------------------------------------------
-class _QuestionCard extends StatelessWidget {
-  final DemographicQuestion question;
-  final bool isActive;
-  final dynamic answer;
-  final TextEditingController? textController;
-  final Map<String, TextEditingController> freeTextCtrls;
-  final VoidCallback onTap;
-  final ValueChanged<dynamic> onAnswerChanged;
-  final TextEditingController Function(String key) getFreeTextController;
-
-  const _QuestionCard({
-    required this.question,
-    required this.isActive,
-    required this.answer,
-    required this.textController,
-    required this.freeTextCtrls,
-    required this.onTap,
-    required this.onAnswerChanged,
-    required this.getFreeTextController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final titleText = question.isRequired ? '${question.text} *' : question.text;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isActive ? kAccent : kBorder,
-            width: isActive ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
-              offset: const Offset(0, 4),
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Icon(
-                Icons.drag_indicator_rounded,
-                size: 20,
-                color: Colors.grey.shade500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              titleText,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: kTextDark,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildInput(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInput(BuildContext context) {
-    switch (question.type) {
-      case 'short_answer':
-      case 'paragraph':
-        return TextField(
-          controller: textController,
-          enabled: isActive,
-          maxLines: question.type == 'paragraph' ? 4 : 1,
-          onChanged: (v) => onAnswerChanged(v),
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: kTextDark,
-          ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: kBorder),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: kBorder),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: kAccent, width: 2),
-            ),
-          ),
-        );
-
-      case 'dropdown':
-        final selected = (answer is Map)
-            ? (answer['value'] as String?)
-            : (answer as String?);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<String>(
-              value: selected,
-              isExpanded: true,
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: kBorder),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: kBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: kAccent, width: 2),
-                ),
-              ),
-              hint: Text(
-                'Choose an option',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey,
-                ),
-              ),
-              items: [
-                for (final opt in question.options)
-                  DropdownMenuItem(
-                    value: opt.value,
-                    child: Text(
-                      opt.label,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: kTextDark,
-                      ),
-                    ),
-                  ),
-              ],
-              onChanged: (v) {
-                      // Auto-activate card when selecting
-                      if (!isActive) onTap();
-                      if (v == null) {
-                        onAnswerChanged(null);
-                        return;
-                      }
-                      final opt = question.options.firstWhere(
-                        (o) => o.value == v,
-                      );
-                      if (opt.requiresFreeText) {
-                        final ctrlKey = '${question.id}__${opt.value}';
-                        getFreeTextController(ctrlKey);
-                        onAnswerChanged({
-                          'value': opt.value,
-                          'label': opt.label,
-                          'requiresFreeText': true,
-                          'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                        });
-                      } else {
-                        onAnswerChanged(opt.value);
-                      }
-                    },
-            ),
-            const SizedBox(height: 8),
-            _maybeFreeTextForSingleChoice(),
-          ],
-        );
-
-      case 'checkboxes':
-        final selected = (answer as List?)?.cast<Map<String, dynamic>>() ??
-            <Map<String, dynamic>>[];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final opt in question.options) _checkboxRow(opt, selected),
-          ],
-        );
-
-      case 'multiple_choice':
-      default:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final opt in question.options) _radioRow(opt),
-            _maybeFreeTextForSingleChoice(),
-          ],
-        );
-    }
-  }
-
-  Widget _radioRow(DemographicOption opt) {
-    final selected =
-        (answer is Map) ? (answer['value'] as String?) : answer as String?;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 32,
-            child: Radio<String>(
-              value: opt.value,
-              groupValue: selected,
-              onChanged: (v) {
-                      if (v == null) return;
-                      // Auto-activate card when selecting
-                      if (!isActive) onTap();
-                      if (opt.requiresFreeText) {
-                        final ctrlKey = '${question.id}__${opt.value}';
-                        getFreeTextController(ctrlKey);
-                        onAnswerChanged({
-                          'value': opt.value,
-                          'label': opt.label,
-                          'requiresFreeText': true,
-                          'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                        });
-                      } else {
-                        onAnswerChanged(opt.value);
-                      }
-                    },
-              activeColor: kAccent,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              opt.label,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: kTextDark,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _checkboxRow(DemographicOption opt, List<Map<String, dynamic>> selected) {
-    final isChecked = selected.any((x) => x['value'] == opt.value);
-    final ctrlKey = '${question.id}__${opt.value}';
-    if (opt.requiresFreeText) {
-      getFreeTextController(ctrlKey);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 32,
-                child: Checkbox(
-                  value: isChecked,
-                  onChanged: (v) {
-                          // Auto-activate card when selecting
-                          if (!isActive) onTap();
-                          final next = List<Map<String, dynamic>>.from(selected);
-                          if (v == true) {
-                            if (opt.requiresFreeText) {
-                              next.add({
-                                'value': opt.value,
-                                'label': opt.label,
-                                'requiresFreeText': true,
-                                'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                              });
-                            } else {
-                              next.add({
-                                'value': opt.value,
-                                'label': opt.label,
-                              });
-                            }
-                          } else {
-                            next.removeWhere((x) => x['value'] == opt.value);
-                          }
-                          onAnswerChanged(next);
-                        },
-                  activeColor: kAccent,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  opt.label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: kTextDark,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (opt.requiresFreeText && isChecked)
-          Padding(
-            padding: const EdgeInsets.only(left: 32, bottom: 10),
-            child: TextField(
-              controller: freeTextCtrls[ctrlKey],
-              enabled: isActive,
-              decoration: InputDecoration(
-                labelText: 'Please specify',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: kBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: kAccent, width: 2),
-                ),
-              ),
-              onChanged: (txt) {
-                final next = List<Map<String, dynamic>>.from(selected);
-                final idx = next.indexWhere((x) => x['value'] == opt.value);
-                if (idx >= 0) {
-                  next[idx] = {
-                    ...next[idx],
-                    'requiresFreeText': true,
-                    'freeText': txt,
-                  };
-                  onAnswerChanged(next);
-                }
-              },
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _maybeFreeTextForSingleChoice() {
-    if (answer is! Map) return const SizedBox.shrink();
-    final a = answer as Map;
-    if (a['requiresFreeText'] != true) return const SizedBox.shrink();
-
-    final value = (a['value'] ?? '').toString();
-    if (value.isEmpty) return const SizedBox.shrink();
-
-    final ctrlKey = '${question.id}__$value';
-    final ctrl = getFreeTextController(ctrlKey);
-    if (ctrl.text.isEmpty && a['freeText'] != null) {
-      ctrl.text = a['freeText'].toString();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 32, bottom: 8),
-      child: TextField(
-        controller: ctrl,
-        enabled: isActive,
-        decoration: InputDecoration(
-          labelText: 'Please specify',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: kBorder),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: kAccent, width: 2),
-          ),
-        ),
-        onChanged: (txt) => onAnswerChanged({...a, 'freeText': txt}),
-      ),
-    );
   }
 }
