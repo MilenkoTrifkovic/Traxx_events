@@ -1,5 +1,6 @@
 /// Design system constants for the Traxx application
 class Constants {
+  static String appName = 'Trax';
   static String traxVersion = '1.0.8';
 
   static const double maxContentWidth = 1600;
