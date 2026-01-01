@@ -62,6 +62,7 @@ class AppTextInputField extends StatefulWidget {
   final Color? labelColor;
   final double? width;
   final double? height;
+  final Color? hintTextColor;
 
   const AppTextInputField({
     super.key,
@@ -114,6 +115,7 @@ class AppTextInputField extends StatefulWidget {
     this.labelColor,
     this.width,
     this.height,
+    this.hintTextColor,
   });
 
   @override
@@ -220,6 +222,9 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
               enableInteractiveSelection: widget.enableInteractiveSelection,
               decoration: InputDecoration(
                 hintText: widget.hintText,
+                hintStyle: TextStyle(
+                  color: widget.hintTextColor ?? AppColors.textMuted,
+                ),
                 // Remove helperText and errorText from InputDecoration - render them separately
                 helperText: null,
                 errorText: null,

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
+import 'package:traxx_wepapp/utils/navigation/routes.dart';
 
 class SignInForm extends StatelessWidget {
   final SignInController controller;
@@ -152,7 +156,29 @@ class SignInForm extends StatelessWidget {
             }
           }),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+
+          // Subtle guest login link - only visible if accessed accidentally
+          Center(
+            child: TextButton(
+              onPressed: () {
+                pushRoute(AppRoute.guestLogin, context);
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: AppText.styledBodySmall(
+                context,
+                'Guest login',
+                color: AppColors.textMuted,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
         ],
       ),
     );

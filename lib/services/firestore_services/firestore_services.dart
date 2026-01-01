@@ -1396,4 +1396,95 @@ class FirestoreServices {
       rethrow;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Guest Login Validation
+  // ---------------------------------------------------------------------------
+
+  /// Validates guest login by fetching event and guest simultaneously.
+  /// 
+  /// Returns a map containing both event and guest data if found, or null if either is missing.
+  /// 
+  /// Parameters:
+  /// - [invitationCode]: The invitation code from the event (e.g., "MI9289UL")
+  /// - [batchId]: The batch ID assigned to the guest (e.g., "223322")
+  /// 
+  /// Returns:
+  /// ```dart
+  /// {
+  ///   'event': Event,
+  ///   'guest': GuestModel,
+  /// }
+  /// ```
+  /// or `null` if validation fails.
+  /// 
+  /// Note: Uses a transaction to ensure data consistency if we need to update
+  /// guest/invitation status in the future.
+  Future<Map<String, dynamic>?> validateGuestLogin({
+    required String invitationCode,
+    required String batchId,
+  }) async {
+    try {
+      return await _db.runTransaction<Map<String, dynamic>?>(
+        (transaction) async {
+          // Query event by invitation code
+          final eventQuery = await eventsRef
+              .where('invitationCode', isEqualTo: invitationCode.toUpperCase())
+              .limit(1)
+              .get();
+
+          // Query guest by batch ID
+          final guestQuery = await guestsRef
+              .where('batchId', isEqualTo: batchId)
+              .limit(1)
+              .get();
+
+          // Check if both event and guest were found
+          if (eventQuery.docs.isEmpty) {
+            print('❌ No event found with invitation code: $invitationCode');
+            return null;
+          }
+
+          if (guestQuery.docs.isEmpty) {
+            print('❌ No guest found with batch ID: $batchId');
+            return null;
+          }
+
+          final eventDoc = eventQuery.docs.first;
+          final guestDoc = guestQuery.docs.first;
+
+          // Parse event and guest models
+          final event = Event.fromFirestore(eventDoc);
+          final guest = GuestModel.fromFirestore(guestDoc.data(), guestDoc.id);
+
+          // Additional validation: ensure guest belongs to the event
+          if (guest.eventId != event.eventId) {
+            print('❌ Guest batch ID does not belong to this event');
+            return null;
+          }
+
+          // TODO: Optional - Update guest login timestamp or status within transaction
+          // transaction.update(guestDoc.reference, {
+          //   'lastLoginAt': FieldValue.serverTimestamp(),
+          // });
+
+          print('✅ Guest login validated successfully');
+          print('   Event: ${event.name} (${event.eventId})');
+          print('   Guest: ${guest.name} (${guest.email})');
+
+          return {
+            'event': event,
+            'guest': guest,
+          };
+        },
+        timeout: const Duration(seconds: 10),
+      );
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error during guest login validation: ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Error during guest login validation: $e');
+      rethrow;
+    }
+  }
 }
