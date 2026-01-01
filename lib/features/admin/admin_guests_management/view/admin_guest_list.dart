@@ -92,7 +92,7 @@ class GuestListSection extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Invites are disabled until you select Menu & dishes and Demographic questions for this event.',
+                      'Invites are disabled until you publish the event and complete the following: Menu & dishes selection and Demographic questions.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -295,7 +295,7 @@ class GuestListSection extends StatelessWidget {
                                           tooltip: isDisabledGuest
                                               ? 'Guest is disabled'
                                               : (!canInvite
-                                                  ? 'Select menu + demographic set first'
+                                                  ? 'Publish event and select menu + demographic set first'
                                                   : 'Invite guest'),
                                           onPressed: canInviteThisGuest
                                               ? () async {
@@ -325,7 +325,7 @@ class GuestListSection extends StatelessWidget {
                                                             SnackbarMessageController>();
                                                     snackbarController
                                                         .showInfoMessage(
-                                                      'Before inviting guests, please select Menu & dishes and Demographic questions for this event.',
+                                                      'Before inviting guests, please publish the event and complete: Menu & dishes selection and Demographic questions.',
                                                     );
                                                   }
                                                 },

@@ -5,6 +5,9 @@ enum EventStatus {
   /// Event is saved but not published yet
   draft,
 
+  /// Event is published and visible to guests
+  published,
+
   /// Event is published and accepting RSVPs
   live,
 
@@ -22,6 +25,8 @@ extension EventStatusExtension on EventStatus {
     switch (this) {
       case EventStatus.draft:
         return 'Draft';
+      case EventStatus.published:
+        return 'Published';
       case EventStatus.live:
         return 'Live';
       case EventStatus.upcoming:
@@ -36,6 +41,8 @@ extension EventStatusExtension on EventStatus {
     switch (this) {
       case EventStatus.draft:
         return Colors.grey;
+      case EventStatus.published:
+        return Colors.teal;
       case EventStatus.live:
         return Colors.green;
       case EventStatus.upcoming:

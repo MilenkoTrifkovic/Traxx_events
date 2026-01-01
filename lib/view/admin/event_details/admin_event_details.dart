@@ -13,6 +13,7 @@ import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
@@ -62,10 +63,6 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
   @override
   Widget build(BuildContext context) {
-    final hasDemo =
-        (controller.selectedDemographicSetId.value ?? '').trim().isNotEmpty;
-    final hasMenu = controller.selectedMenuItemIds.isNotEmpty;
-    final canInvite = hasDemo && hasMenu;
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -80,6 +77,13 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
           ),
         );
       }
+
+      // Calculate canInvite based on menu, demographics, and event status
+      final hasDemo =
+          (controller.selectedDemographicSetId.value ?? '').trim().isNotEmpty;
+      final hasMenu = controller.selectedMenuItemIds.isNotEmpty;
+      final isPublished = evt.status == EventStatus.published;
+      final canInvite = hasDemo && hasMenu && isPublished;
 
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),

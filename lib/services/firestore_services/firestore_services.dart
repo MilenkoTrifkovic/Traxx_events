@@ -14,6 +14,7 @@ import 'package:traxx_wepapp/models/menu_old.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/utils/collect_ref.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/input_type.dart';
 
 class FirestoreServices {
@@ -954,6 +955,13 @@ class FirestoreServices {
     }
     fields['updatedAt'] = FieldValue.serverTimestamp();
     await docRef.update(fields);
+  }
+
+  /// Updates the status of an event
+  Future<void> updateEventStatus(String eventId, EventStatus status) async {
+    await updateEventFields(eventId, {
+      'status': status.name,
+    });
   }
 
   // --------------------------

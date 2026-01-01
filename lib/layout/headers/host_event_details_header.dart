@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/layout/headers/widgets/header_back_button.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
@@ -55,13 +56,42 @@ class HostEventDetailsHeader extends StatelessWidget {
             //     text: idDesktop ? 'Edit Details' : '',
             //     icon: Icons.edit_note,
             //     onPressed: () {}),
-            AppSpacing.horizontalXs(context),
-            AppPrimaryButton(
-                // icon: Icons.add,
-                text: idDesktop ? 'Publish Event' : 'Publish',
-                onPressed: () {
-                  // Handle add event action
-                }),
+            // Only show spacing and publish button if event is not already published
+            Obx(() {
+              final event = eventListController.selectedEvent.value;
+              final isPublished = event?.status == EventStatus.published;
+              
+              // If event is published, don't show the spacing or button
+              if (isPublished) {
+                return const SizedBox.shrink();
+              }
+              
+              // Show spacing and publish button if event is not published
+              return Row(
+                children: [
+                  AppSpacing.horizontalXs(context),
+                  AppPrimaryButton(
+                      // icon: Icons.add,
+                      text: idDesktop ? 'Publish Event' : 'Publish',
+                      onPressed: () async {
+                        // Handle publish event action
+                        try {
+                          await eventListController.publishEvent();
+                          if (!context.mounted) return;
+                          snackbarController.showSuccessMessage(
+                            'Event published successfully!',
+                          );
+                        } catch (e) {
+                          print('Error publishing event: $e');
+                          if (!context.mounted) return;
+                          snackbarController.showErrorMessage(
+                            'Failed to publish event. Please try again.',
+                          );
+                        }
+                      }),
+                ],
+              );
+            }),
             // AppSpacing.horizontalXs(context),
             // PopupMenuButton(
             //   icon: Icon(

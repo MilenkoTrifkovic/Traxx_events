@@ -3,6 +3,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 
 /// Base controller for event-related functionality.
@@ -143,6 +144,46 @@ class EventListController extends GetxController {
     } catch (e) {
       print('Error deleting event: $e');
       throw Exception('$e');
+    }
+  }
+
+  /// Publishes an event by updating its status to published
+  /// Updates both Firestore and local state
+  /// Throws Exception if publish operation fails
+  Future<void> publishEvent() async {
+    try {
+      if (selectedEvent.value == null) {
+        throw Exception('No event selected');
+      }
+
+      String eventId = selectedEvent.value!.eventId!;
+
+      // Update status in Firestore
+      await firestoreServices.updateEventStatus(eventId, EventStatus.published);
+
+      // Update local event object
+      Event updatedEvent = selectedEvent.value!.copyWith(
+        status: EventStatus.published,
+      );
+
+      // Update in local lists
+      int index = events.indexWhere((e) => e.eventId == eventId);
+      if (index != -1) {
+        events[index] = updatedEvent;
+      }
+
+      int filteredIndex = filteredEvents.indexWhere((e) => e.eventId == eventId);
+      if (filteredIndex != -1) {
+        filteredEvents[filteredIndex] = updatedEvent;
+      }
+
+      // Update selected event
+      selectedEvent.value = updatedEvent;
+
+      print('Event published successfully');
+    } catch (e) {
+      print('Error publishing event: $e');
+      throw Exception('Failed to publish event: $e');
     }
   }
 
