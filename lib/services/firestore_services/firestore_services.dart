@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
 import 'package:traxx_wepapp/helper/invitation_code_generator.dart';
+import 'package:traxx_wepapp/helper/batch_id_generator.dart';
 import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -199,6 +200,41 @@ class FirestoreServices {
 
     throw Exception(
         'Failed to generate unique invitation code after $maxAttempts attempts');
+  }
+
+  /// Generates a unique batch ID that doesn't exist in Firestore.
+  /// 
+  /// This method will keep generating new 6-digit batch IDs until it finds one
+  /// that is not already used by any guest. Maximum 10 attempts to prevent
+  /// infinite loops in case of issues.
+  /// 
+  /// Returns a unique batch ID in format: 123456 (6 digits)
+  /// Throws [Exception] if unable to generate unique batch ID after max attempts.
+  Future<String> _generateUniqueBatchId() async {
+    const maxAttempts = 10;
+    int attempts = 0;
+
+    while (attempts < maxAttempts) {
+      final batchId = generateBatchId();
+      
+      // Check if this batch ID already exists
+      final existingGuests = await guestsRef
+          .where('batchId', isEqualTo: batchId)
+          .limit(1)
+          .get();
+
+      // If no guests found with this batch ID, it's unique!
+      if (existingGuests.docs.isEmpty) {
+        print('Generated unique batch ID: $batchId');
+        return batchId;
+      }
+
+      print('Batch ID collision detected: $batchId. Generating new one...');
+      attempts++;
+    }
+
+    throw Exception(
+        'Failed to generate unique batch ID after $maxAttempts attempts');
   }
 
   /// Saves a new event to Firestore.
@@ -458,14 +494,20 @@ class FirestoreServices {
           ? guest.guestId!
           : const Uuid().v4();
 
-      final toSave = guest.copyWith(guestId: userFieldId);
+      // Generate unique batch ID if not provided
+      final batchId = guest.batchId ?? await _generateUniqueBatchId();
+
+      final toSave = guest.copyWith(
+        guestId: userFieldId,
+        batchId: batchId,
+      );
 
       // Use userFieldId as Firestore document ID also
       final docRef = guestsRef.doc(userFieldId);
 
       await docRef.set(toSave.toFirestoreCreate());
 
-      print('Guest Saved Successfully');
+      print('Guest Saved Successfully with batch ID: $batchId');
       return toSave;
     } catch (e) {
       print('Failed to save guest: $e');
@@ -1036,21 +1078,25 @@ class FirestoreServices {
         'modifiedAt': FieldValue.serverTimestamp(),
       });
 
-      // Step 2: Create companion guest documents with groupId
+      // Step 2: Create companion guest documents with groupId and batch ID
       // Use UUID v4 for guestId (not Firestore doc ID)
       final List<String> createdGuestIds = [];
 
       for (final companion in companions) {
         // Generate UUID v4 for guestId
         final guestId = uuid.v4();
+        
+        // Generate unique batch ID if not provided
+        final batchId = companion.batchId ?? await _generateUniqueBatchId();
 
-        // Create guest with groupId and UUID v4 guestId
+        // Create guest with groupId, batch ID, and UUID v4 guestId
         // Mark as companion since it's created through companion flow
         final guestWithId = companion.copyWith(
           docId: guestId, // Use guestId as docId too
           guestId: guestId, // UUID v4
           groupId: groupId,
           isCompanion: true, // Mark as companion
+          batchId: batchId, // Unique batch ID
         );
 
         // Use guestId as document ID (following saveGuest pattern)
@@ -1146,16 +1192,20 @@ class FirestoreServices {
         });
       }
 
-      // Step 3: Generate UUID v4 for companion guestId
+      // Step 3: Generate UUID v4 for companion guestId and batch ID
       final uuid = Uuid();
       final guestId = uuid.v4();
       
-      // Create guest with groupId, isCompanion=true, and UUID v4 guestId
+      // Generate unique batch ID if not provided
+      final batchId = guest.batchId ?? await _generateUniqueBatchId();
+      
+      // Create guest with groupId, batch ID, isCompanion=true, and UUID v4 guestId
       final guestWithId = guest.copyWith(
         docId: guestId, // Use guestId as docId
         guestId: guestId, // UUID v4
         groupId: groupId,
         isCompanion: true, // Mark as companion
+        batchId: batchId, // Unique batch ID
       );
       
       // Use guestId as document ID (following saveGuest pattern)

@@ -27,6 +27,7 @@ class GuestModel {
   final int maxGuestInvite;
   final String? groupId; // Optional group ID to link main guest with companions
   final bool isCompanion; // Whether this guest is a companion (not the main guest)
+  final String? batchId; // Optional batch ID (6-digit number) for guest grouping/tracking
 
   GuestModel({
     this.docId = '', // ✅ default, so parsers don't need to pass it
@@ -46,6 +47,7 @@ class GuestModel {
     this.maxGuestInvite = 0,
     this.groupId,
     this.isCompanion = false,
+    this.batchId,
   });
 
   /// Firestore: create (new document)
@@ -70,6 +72,7 @@ class GuestModel {
       'maxGuestInvite': maxGuestInvite,
       if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
       'isCompanion': isCompanion,
+      if (batchId != null && batchId!.trim().isNotEmpty) 'batchId': batchId,
 
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -94,6 +97,7 @@ class GuestModel {
       'maxGuestInvite': maxGuestInvite,
       if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
       'isCompanion': isCompanion,
+      if (batchId != null && batchId!.trim().isNotEmpty) 'batchId': batchId,
       'modifiedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -159,6 +163,7 @@ class GuestModel {
       maxGuestInvite: data['maxGuestInvite'] as int? ?? 0,
       groupId: data['groupId'] as String?,
       isCompanion: data['isCompanion'] as bool? ?? false,
+      batchId: data['batchId'] as String?,
     );
   }
 
@@ -180,6 +185,7 @@ class GuestModel {
     int? maxGuestInvite,
     String? groupId,
     bool? isCompanion,
+    String? batchId,
   }) {
     return GuestModel(
       docId: docId ?? this.docId,
@@ -199,6 +205,7 @@ class GuestModel {
       maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
       groupId: groupId ?? this.groupId,
       isCompanion: isCompanion ?? this.isCompanion,
+      batchId: batchId ?? this.batchId,
     );
   }
 
@@ -221,7 +228,8 @@ class GuestModel {
         'isInvited: $isInvited, '
         'maxGuestInvite: $maxGuestInvite, '
         'groupId: $groupId, '
-        'isCompanion: $isCompanion'
+        'isCompanion: $isCompanion, '
+        'batchId: $batchId'
         ')';
   }
 }

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_xlsx_parser.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
@@ -13,6 +14,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class AdminGuestListController extends GetxController {
   final formKey = GlobalKey<FormState>();
+  
+  // Add FirestoreServices instance
+  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
 
   final name = TextEditingController();
   final email = TextEditingController();
@@ -168,28 +172,23 @@ class AdminGuestListController extends GetxController {
     if (!validateForm()) return false;
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('guests').doc();
-      final guestId = docRef.id;
+      // Create GuestModel and use FirestoreServices to save (which will generate batch ID)
+      final guest = GuestModel(
+        name: name.text.trim(),
+        email: email.text.trim(),
+        eventId: eventId,
+        address: address.text.trim().isNotEmpty ? address.text.trim() : null,
+        city: city.text.trim().isNotEmpty ? city.text.trim() : null,
+        country: selectedCountry.value,
+        state: selectedState.value,
+        gender: selectedGender.value,
+        isDisabled: isDisabled.value,
+        isInvited: false, // Default to not invited
+        maxGuestInvite: maxGuestInvite.value,
+      );
 
-      final data = <String, dynamic>{
-        'guestId': guestId,
-        'name': name.text.trim(),
-        'email': email.text.trim(),
-        'address': address.text.trim(),
-        'city': city.text.trim(),
-        'country': selectedCountry.value,
-        'state': selectedState.value,
-        'gender': selectedGender.value?.name,
-        'isDisabled': isDisabled.value,
-        'isInvited': false, // Default to not invited
-        'maxGuestInvite': maxGuestInvite.value,
-        'eventId': eventId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'modifiedAt': FieldValue.serverTimestamp(),
-      };
-
-      await docRef.set(data);
-      debugPrint('submitForm: guest created, id=$guestId');
+      final savedGuest = await _firestoreServices.saveGuest(guest);
+      debugPrint('submitForm: guest created with batch ID, id=${savedGuest.guestId}, batchId=${savedGuest.batchId}');
       return true;
     } catch (e, st) {
       debugPrint('submitForm error: $e\n$st');
@@ -207,40 +206,25 @@ class AdminGuestListController extends GetxController {
     }
 
     try {
-      final docRef =
-          FirebaseFirestore.instance.collection('guests').doc(_currentGuestId);
+      // Create GuestModel with current form values
+      final guest = GuestModel(
+        guestId: _currentGuestId,
+        name: name.text.trim(),
+        email: email.text.trim(),
+        eventId: eventId,
+        address: address.text.trim().isNotEmpty ? address.text.trim() : null,
+        city: city.text.trim().isNotEmpty ? city.text.trim() : null,
+        country: selectedCountry.value,
+        state: selectedState.value,
+        gender: selectedGender.value,
+        isDisabled: isDisabled.value,
+        maxGuestInvite: maxGuestInvite.value,
+        isInvited: false, // Keep existing or default
+      );
 
-      // Check existence
-      final snapshot = await docRef.get();
-      final data = <String, dynamic>{
-        "name": name.text.trim(),
-        "email": email.text.trim(),
-        "address": address.text.trim(),
-        "city": city.text.trim(),
-        "country": selectedCountry.value,
-        "state": selectedState.value,
-        "gender": selectedGender.value?.name,
-        "isDisabled": isDisabled.value,
-        "maxGuestInvite": maxGuestInvite.value,
-        "modifiedAt": FieldValue.serverTimestamp(),
-      };
-
-      if (snapshot.exists) {
-        await docRef.update(data);
-        debugPrint('updateGuest: updated existing guest id=$_currentGuestId');
-      } else {
-        // Document missing — create with provided id so future updates succeed
-        await docRef.set({
-          ...data,
-          'guestId': _currentGuestId,
-          'isInvited': false, // Default to not invited for new docs
-          'eventId': eventId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        debugPrint(
-            'updateGuest: doc not found — created new guest doc id=$_currentGuestId');
-      }
-
+      // Use FirestoreServices to update (preserves batchId and other fields)
+      await _firestoreServices.updateGuest(guest);
+      debugPrint('updateGuest: updated guest id=$_currentGuestId');
       return true;
     } catch (e, st) {
       debugPrint('updateGuest error: $e\n$st');
@@ -256,10 +240,8 @@ class AdminGuestListController extends GetxController {
     }
 
     try {
-      final docRef =
-          FirebaseFirestore.instance.collection('guests').doc(guest.guestId);
-
-      await docRef.update(guest.toFirestoreUpdate());
+      // Use FirestoreServices to update (preserves batchId and other fields)
+      await _firestoreServices.updateGuest(guest);
       debugPrint('updateGuestDirectly: updated guest id=${guest.guestId}');
       return true;
     } catch (e, st) {
@@ -393,35 +375,21 @@ class AdminGuestListController extends GetxController {
         return {'added': 0, 'skipped': skippedCount};
       }
 
-      // Save all unique guests to Firestore using batch write
-      final batch = FirebaseFirestore.instance.batch();
+      // Save all unique guests to Firestore using the service layer
+      // Note: We can't use batch writes here because batch ID generation requires async queries
       int count = 0;
 
       for (final guest in uniqueGuests) {
-        final docRef = FirebaseFirestore.instance.collection('guests').doc();
-        final guestId = docRef.id;
-
-        final guestWithId = GuestModel(
-          docId: guestId,
-          guestId: guestId,
-          name: guest.name,
-          email: guest.email,
-          eventId: eventId,
-          address: guest.address,
-          city: guest.city,
-          state: guest.state,
-          country: guest.country,
-          gender: guest.gender,
-          maxGuestInvite: guest.maxGuestInvite,
-          isDisabled: false,
-          isInvited: false,
-        );
-
-        batch.set(docRef, guestWithId.toFirestoreCreate());
-        count++;
+        try {
+          // Use FirestoreServices.saveGuest which will generate batch ID
+          await _firestoreServices.saveGuest(guest);
+          count++;
+        } catch (e) {
+          debugPrint('Failed to save guest ${guest.email}: $e');
+          // Continue with next guest even if one fails
+        }
       }
 
-      await batch.commit();
       debugPrint(
           'uploadGuestsFromFile: uploaded $count guests, skipped $skippedCount duplicates');
       return {'added': count, 'skipped': skippedCount};
