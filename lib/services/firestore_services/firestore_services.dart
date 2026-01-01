@@ -4,6 +4,7 @@ import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
+import 'package:traxx_wepapp/helper/invitation_code_generator.dart';
 import 'package:traxx_wepapp/models/guest_dart.dart';
 import 'package:traxx_wepapp/models/event_questions.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -165,6 +166,41 @@ class FirestoreServices {
     }
   }
 
+  /// Generates a unique invitation code that doesn't exist in Firestore.
+  /// 
+  /// This method will keep generating new codes until it finds one that
+  /// is not already used by any event. Maximum 10 attempts to prevent
+  /// infinite loops in case of issues.
+  /// 
+  /// Returns a unique invitation code in format: WE2390RT
+  /// Throws [Exception] if unable to generate unique code after max attempts.
+  Future<String> _generateUniqueInvitationCode() async {
+    const maxAttempts = 10;
+    int attempts = 0;
+
+    while (attempts < maxAttempts) {
+      final code = generateInvitationCode();
+      
+      // Check if this code already exists
+      final existingEvents = await eventsRef
+          .where('invitationCode', isEqualTo: code)
+          .limit(1)
+          .get();
+
+      // If no events found with this code, it's unique!
+      if (existingEvents.docs.isEmpty) {
+        print('Generated unique invitation code: $code');
+        return code;
+      }
+
+      print('Invitation code collision detected: $code. Generating new one...');
+      attempts++;
+    }
+
+    throw Exception(
+        'Failed to generate unique invitation code after $maxAttempts attempts');
+  }
+
   /// Saves a new event to Firestore.
   ///
   /// Throws [FirebaseException] if the save operation fails.
@@ -174,7 +210,14 @@ class FirestoreServices {
       // Assign a new UUID v4 to eventId if not provided
       final uuid = Uuid();
       final id = event.eventId ?? uuid.v4();
-      final eventWithId = event.copyWith(eventId: id);
+      
+      // Generate unique invitation code if not provided
+      final invitationCode = event.invitationCode ?? await _generateUniqueInvitationCode();
+      
+      final eventWithId = event.copyWith(
+        eventId: id,
+        invitationCode: invitationCode,
+      );
 
       // Convert to map and remove nulls (but do NOT rely on client-side timestamps)
       final data = Map<String, dynamic>.from(eventWithId.toJson());

@@ -46,6 +46,9 @@ class Event {
   // Invitation letter fields
   final String? invitationLetterPath; // Storage path for the invitation letter file
   final String? invitationLetterUrl; // Download URL for the invitation letter file
+  
+  // Invitation code field
+  final String? invitationCode; // Unique invitation code (e.g., WE2390RT)
 
   Event({
     this.isDisabled,
@@ -82,6 +85,8 @@ class Event {
     // invitation letter fields
     this.invitationLetterPath,
     this.invitationLetterUrl,
+    // invitation code field
+    this.invitationCode,
   });
 
   /// Creates an Event instance from a Firestore document
@@ -170,6 +175,8 @@ class Event {
       // invitation letter fields
       invitationLetterPath: data['invitationLetterPath'] as String?,
       invitationLetterUrl: data['invitationLetterUrl'] as String?,
+      // invitation code field
+      invitationCode: data['invitationCode'] as String?,
     );
   }
 
@@ -354,6 +361,8 @@ class Event {
       // invitation letter fields
       'invitationLetterPath': invitationLetterPath,
       'invitationLetterUrl': invitationLetterUrl,
+      // invitation code field
+      'invitationCode': invitationCode,
     };
   }
 
@@ -394,6 +403,8 @@ class Event {
     // invitation letter options
     String? invitationLetterPath,
     String? invitationLetterUrl,
+    // invitation code option
+    String? invitationCode,
   }) {
     return Event(
       eventId: eventId ?? this.eventId,
@@ -430,6 +441,7 @@ class Event {
           this.selectedDemographicQuestionSetId,
       invitationLetterPath: invitationLetterPath ?? this.invitationLetterPath,
       invitationLetterUrl: invitationLetterUrl ?? this.invitationLetterUrl,
+      invitationCode: invitationCode ?? this.invitationCode,
     );
   }
 
@@ -438,6 +450,7 @@ class Event {
     return '''
 Event {
   eventId: $eventId
+  invitationCode: $invitationCode
   organisationId: $organisationId
   serviceType: $serviceType
   name: $name
