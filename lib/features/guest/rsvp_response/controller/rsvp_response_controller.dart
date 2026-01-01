@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -580,18 +581,34 @@ class RsvpResponseController extends GetxController {
       
       debugPrint('✅ Created ${createdGuestIds.length} companion(s) with groupId=$groupId');
 
-      // Step 2: Prepare invitations array for Cloud Function
+      // Step 2: Fetch created guests to get their batchId
+      final List<GuestModel> createdGuests = [];
+      for (final guestId in createdGuestIds) {
+        final guestDoc = await FirebaseFirestore.instance
+            .collection('guests')
+            .doc(guestId)
+            .get();
+        if (guestDoc.exists) {
+          createdGuests.add(GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id));
+        }
+      }
+
+      // Step 3: Prepare invitations array for Cloud Function
       final List<Map<String, dynamic>> invitations = [];
-      for (int i = 0; i < companionGuests.length && i < createdGuestIds.length; i++) {
-        final guest = companionGuests[i];
-        final guestId = createdGuestIds[i];
-        
-        invitations.add({
+      for (final guest in createdGuests) {
+        final invitation = {
           'guestEmail': guest.email,
           'guestName': guest.name,
-          'guestId': guestId, // Now we have a guestId!
+          'guestId': guest.guestId,
           'maxGuestInvite': guest.maxGuestInvite,
-        });
+        };
+        
+        // Include batchId if available
+        if (guest.batchId != null && guest.batchId!.trim().isNotEmpty) {
+          invitation['batchId'] = guest.batchId;
+        }
+        
+        invitations.add(invitation);
       }
 
       if (invitations.isEmpty) {
@@ -602,7 +619,24 @@ class RsvpResponseController extends GetxController {
 
       debugPrint('📧 Sending ${invitations.length} companion invitation(s)...');
 
-      // Step 3: Call Cloud Function to send invitations
+      // Step 3: Get invitation code directly from event document
+      String? invitationCode;
+      try {
+        final eventDoc = await FirebaseFirestore.instance
+            .collection('events')
+            .doc(status.eventId)
+            .get();
+        
+        if (eventDoc.exists) {
+          invitationCode = eventDoc.data()?['invitationCode'] as String?;
+          debugPrint('📋 Fetched invitation code from event: $invitationCode');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Failed to fetch invitation code from event: $e');
+        // Continue without invitation code - it's optional
+      }
+
+      // Step 4: Call Cloud Function to send invitations
       final callable = _functions.httpsCallable('sendInvitations');
 
       final cloudFunctionResult = await callable.call(<String, dynamic>{
@@ -610,6 +644,8 @@ class RsvpResponseController extends GetxController {
         'organisationId': status.organisationId,
         'invitations': invitations,
         'demographicQuestionSetId': status.demographicQuestionSetId,
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
       });
 
       final data = cloudFunctionResult.data as Map<String, dynamic>?;

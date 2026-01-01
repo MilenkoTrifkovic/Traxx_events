@@ -1,6 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
@@ -101,6 +100,8 @@ class CloudFunctionsService extends GetxService {
   Future<Map<String, dynamic>> sendInvitationsForEvent(
     Event event, {
     required List<GuestModel> guests,
+    String? invitationCode,
+    String? batchId,
   }) async {
     if (event.eventId == null || event.eventId!.isEmpty) {
       throw ArgumentError('event.eventId is required');
@@ -110,11 +111,13 @@ class CloudFunctionsService extends GetxService {
     }
 
     final invitations = guests
-        .where((g) => (g.email ?? '').trim().isNotEmpty)
+        .where((g) => g.email.trim().isNotEmpty)
         .map((g) => {
-              'guestEmail': g.email!.trim(),
+              'guestEmail': g.email.trim(),
               'guestId': g.guestId,
-              'guestName': g.name, // ✅ add this
+              'guestName': g.name,
+              if (g.batchId != null && g.batchId!.trim().isNotEmpty) 
+                'batchId': g.batchId,
             })
         .toList();
 
@@ -130,6 +133,8 @@ class CloudFunctionsService extends GetxService {
         'organisationId': event.organisationId,
         'invitations': invitations,
         'demographicQuestionSetId': event.selectedDemographicQuestionSetId,
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
       });
 
       final data = result.data;

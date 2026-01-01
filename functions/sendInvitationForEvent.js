@@ -54,6 +54,7 @@ export const sendInvitations = onCall(
         invitations,
         demographicQuestionSetId,
         staticLink,
+        invitationCode,
       } = request.data || {};
 
       if (!eventId) {
@@ -93,6 +94,7 @@ export const sendInvitations = onCall(
         const maxGuestInvite = typeof guest?.maxGuestInvite === 'number' 
           ? guest.maxGuestInvite 
           : 0;
+        const batchId = guest?.batchId || null;
 
         if (!guestEmail) continue;
 
@@ -113,6 +115,8 @@ export const sendInvitations = onCall(
           createdAt,
           expiresAt,
           sent: false,
+          ...(invitationCode && { invitationCode }),
+          ...(batchId && { batchId }),
         });
 
         // const link =
@@ -125,13 +129,33 @@ export const sendInvitations = onCall(
 
         const subject = "Please complete your demographic questions";
 
+        // Build reference information
+        let referenceInfo = "";
+        if (invitationCode || batchId) {
+          referenceInfo = "\n\nReference Information:";
+          if (invitationCode) referenceInfo += `\nInvitation Code: ${invitationCode}`;
+          if (batchId) referenceInfo += `\nBatch ID: ${batchId}`;
+        }
+
         const textBody =
           `Hello${guestName ? " " + guestName : ""},\n\n` +
           `Please open this link to answer the demographic questions:\n${link}\n\n` +
-          `This link expires in ${INV_EXPIRY_DAYS} days.\n` +
-          `— ${FROM_NAME}`;
+          `This link expires in ${INV_EXPIRY_DAYS} days.` +
+          referenceInfo +
+          `\n\n— ${FROM_NAME}`;
 
         const safeName = guestName ? escapeHtml(guestName) : "";
+        
+        // Build HTML reference information
+        let htmlReferenceInfo = "";
+        if (invitationCode || batchId) {
+          htmlReferenceInfo = '<p style="color:#6b7280;font-size:13px;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb">';
+          htmlReferenceInfo += '<strong>Reference Information:</strong><br/>';
+          if (invitationCode) htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(invitationCode)}</strong><br/>`;
+          if (batchId) htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
+          htmlReferenceInfo += '</p>';
+        }
+        
         const htmlBody = `
           <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
             <p>Hello${safeName ? " " + safeName : ""},</p>
@@ -151,6 +175,8 @@ export const sendInvitations = onCall(
             <p style="color:#6b7280;font-size:13px">
               This link expires in ${INV_EXPIRY_DAYS} days.
             </p>
+
+            ${htmlReferenceInfo}
 
             <p>— ${escapeHtml(FROM_NAME)}</p>
           </div>

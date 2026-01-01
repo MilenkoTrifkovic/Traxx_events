@@ -421,6 +421,10 @@ class AdminGuestListController extends GetxController {
       final orgId = (eventMeta['organisationId'] ?? '').toString();
       final setId =
           (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
+      
+      // Get invitation code from EventsController
+      final eventsController = Get.find<EventsController>();
+      final invitationCode = eventsController.getInvitationCodeByEventId(eventId);
 
       final callable =
           FirebaseFunctions.instance.httpsCallable('sendInvitations');
@@ -429,12 +433,16 @@ class AdminGuestListController extends GetxController {
         'eventId': eventId,
         'organisationId': orgId.isEmpty ? null : orgId,
         'demographicQuestionSetId': setId.isEmpty ? null : setId,
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
         'invitations': [
           {
             'guestEmail': guest.email.trim(),
             'guestId': guest.guestId,
             'guestName': guest.name,
             'maxGuestInvite': guest.maxGuestInvite,
+            if (guest.batchId != null && guest.batchId!.trim().isNotEmpty)
+              'batchId': guest.batchId,
           }
         ],
       });
@@ -482,6 +490,10 @@ class AdminGuestListController extends GetxController {
       final orgId = (eventMeta['organisationId'] ?? '').toString();
       final setId =
           (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
+      
+      // Get invitation code from EventsController
+      final eventsController = Get.find<EventsController>();
+      final invitationCode = eventsController.getInvitationCodeByEventId(eventId);
 
       final callable =
           FirebaseFunctions.instance.httpsCallable('sendInvitations');
@@ -490,12 +502,16 @@ class AdminGuestListController extends GetxController {
         'eventId': eventId,
         'organisationId': orgId.isEmpty ? null : orgId,
         'demographicQuestionSetId': setId.isEmpty ? null : setId,
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
         'invitations': guestsToInvite
             .map((g) => {
                   'guestEmail': g.email.trim(),
                   'guestId': g.guestId,
                   'guestName': g.name,
                   'maxGuestInvite': g.maxGuestInvite,
+                  if (g.batchId != null && g.batchId!.trim().isNotEmpty)
+                    'batchId': g.batchId,
                 })
             .toList(),
       });

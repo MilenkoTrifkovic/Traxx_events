@@ -42,6 +42,13 @@ class EventsController extends GetxController {
     }
   }
 
+  /// Gets the invitationCode for an event by ID
+  /// Returns null if event not found or invitationCode is not set
+  String? getInvitationCodeByEventId(String eventId) {
+    final event = getEventById(eventId);
+    return event?.invitationCode;
+  }
+
   /// Fetches an event by ID, tries local list first, then Firestore, and handles errors.
   Future<Event?> fetchEventById(String eventId) async {
     Event? event = getEventById(eventId);
