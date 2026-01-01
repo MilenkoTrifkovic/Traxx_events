@@ -42,6 +42,10 @@ class Event {
   final String? specialNotes;
   final bool hideHostInfo;
   final int maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
+  
+  // Invitation letter fields
+  final String? invitationLetterPath; // Storage path for the invitation letter file
+  final String? invitationLetterUrl; // Download URL for the invitation letter file
 
   Event({
     this.isDisabled,
@@ -75,6 +79,9 @@ class Event {
     this.selectedMenuId,
     this.selectedMenuItemIds,
     this.selectedDemographicQuestionSetId,
+    // invitation letter fields
+    this.invitationLetterPath,
+    this.invitationLetterUrl,
   });
 
   /// Creates an Event instance from a Firestore document
@@ -160,6 +167,9 @@ class Event {
       selectedMenuItemIds: selectedMenuItemIdsList,
       selectedDemographicQuestionSetId:
           data['selectedDemographicQuestionSetId'] as String?,
+      // invitation letter fields
+      invitationLetterPath: data['invitationLetterPath'] as String?,
+      invitationLetterUrl: data['invitationLetterUrl'] as String?,
     );
   }
 
@@ -341,6 +351,9 @@ class Event {
       'selectedMenuItemIds': selectedMenuItemIds ?? [],
       'selectedDemographicQuestionSetId': selectedDemographicQuestionSetId,
       'isDisabled': isDisabled ?? false,
+      // invitation letter fields
+      'invitationLetterPath': invitationLetterPath,
+      'invitationLetterUrl': invitationLetterUrl,
     };
   }
 
@@ -378,6 +391,9 @@ class Event {
     String? selectedMenuId,
     List<String>? selectedMenuItemIds,
     String? selectedDemographicQuestionSetId,
+    // invitation letter options
+    String? invitationLetterPath,
+    String? invitationLetterUrl,
   }) {
     return Event(
       eventId: eventId ?? this.eventId,
@@ -412,6 +428,8 @@ class Event {
       selectedMenuItemIds: selectedMenuItemIds ?? this.selectedMenuItemIds,
       selectedDemographicQuestionSetId: selectedDemographicQuestionSetId ??
           this.selectedDemographicQuestionSetId,
+      invitationLetterPath: invitationLetterPath ?? this.invitationLetterPath,
+      invitationLetterUrl: invitationLetterUrl ?? this.invitationLetterUrl,
     );
   }
 

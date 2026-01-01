@@ -1,6 +1,7 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:traxx_wepapp/models/event.dart';
 
 class StorageServices {
@@ -47,6 +48,94 @@ class StorageServices {
     } catch (e) {
       print('Image loading failed: $e');
       return null; // or throw
+    }
+  }
+
+  /// Uploads an invitation letter file (PDF or image) to Firebase Storage
+  /// 
+  /// Parameters:
+  /// - [file]: The PlatformFile from file picker
+  /// - [eventId]: The event ID to organize files
+  /// 
+  /// Returns a Map with 'path' and 'downloadUrl'
+  /// Throws exception on upload failure
+  Future<Map<String, String>> uploadInvitationLetter(
+    PlatformFile file,
+    String eventId,
+  ) async {
+    try {
+      if (file.bytes == null) {
+        throw Exception('File bytes are null. Cannot upload.');
+      }
+
+      // Determine content type based on file extension
+      String contentType;
+      final extension = file.extension?.toLowerCase();
+      switch (extension) {
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
+        default:
+          contentType = 'application/octet-stream';
+      }
+
+      // Create storage path: invitation_letters/eventId/timestamp_filename
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storagePath = 'invitation_letters/$eventId/${timestamp}_${file.name}';
+
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+      // Upload file with metadata
+      await storageRef.putData(
+        file.bytes!,
+        SettableMetadata(contentType: contentType),
+      );
+
+      // Get download URL
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      print('Invitation letter uploaded successfully');
+      print('Path: $storagePath');
+      print('Download URL: $downloadUrl');
+
+      return {
+        'path': storagePath,
+        'downloadUrl': downloadUrl,
+      };
+    } catch (e) {
+      print('Failed to upload invitation letter: $e');
+      rethrow;
+    }
+  }
+
+  /// Deletes an invitation letter file from Firebase Storage
+  /// 
+  /// Parameters:
+  /// - [path]: The storage path of the file to delete
+  /// 
+  /// Returns true if deletion was successful
+  Future<bool> deleteInvitationLetter(String path) async {
+    try {
+      if (path.isEmpty) {
+        print('No path provided for deletion');
+        return false;
+      }
+
+      final storageRef = FirebaseStorage.instance.ref().child(path);
+      await storageRef.delete();
+
+      print('Invitation letter deleted successfully: $path');
+      return true;
+    } catch (e) {
+      print('Failed to delete invitation letter: $e');
+      return false;
     }
   }
 }

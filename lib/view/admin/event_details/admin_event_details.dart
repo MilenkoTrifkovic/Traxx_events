@@ -21,6 +21,7 @@ import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/event_summary_section.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/invitation_letter/invitation_letter_section.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
@@ -101,7 +102,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
             const SizedBox(height: 24),
 
-            /// Row with Menu card + Demographic card
+            /// Row with Menu card + Demographic column (Demographic + Additional Info)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -110,7 +111,17 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
                 ),
                 const SizedBox(width: 24),
                 Expanded(
-                  child: DemographicSelectionCard(controller: controller),
+                  child: Column(
+                    children: [
+                      DemographicSelectionCard(controller: controller),
+                      const SizedBox(height: 16),
+                      Obx(() {
+                        final event = controller.event.value;
+                        if (event == null) return const SizedBox.shrink();
+                        return InvitationLetterSection(event: event);
+                      }),
+                    ],
+                  ),
                 ),
               ],
             ),
