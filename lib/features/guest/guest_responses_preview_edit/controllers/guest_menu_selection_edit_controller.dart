@@ -35,15 +35,32 @@ class GuestMenuSelectionEditController extends GetxController {
 
   /// 🆕 Initialize with optional guestId (for companion editing)
   void initialize({String? guestId}) {
-    // Prevent re-initialization on widget rebuilds
-    if (_isInitialized) {
-      print('⚠️ Controller already initialized, skipping...');
+    // Check if we're editing a different guest
+    final isDifferentGuest = _editingGuestId != null && _editingGuestId != guestId;
+    
+    // Prevent re-initialization on widget rebuilds for the SAME guest
+    if (_isInitialized && !isDifferentGuest) {
+      print('⚠️ Controller already initialized for same guest, skipping...');
       return;
+    }
+    
+    // If different guest, clear previous state
+    if (isDifferentGuest) {
+      print('🔄 Switching to different guest, clearing state...');
+      _clearState();
     }
     
     _editingGuestId = guestId;
     _isInitialized = true;
     _loadMenuItems();
+  }
+  
+  /// Clear all state when switching guests
+  void _clearState() {
+    menuItems.clear();
+    selectedMenuItemIds.clear();
+    isLoading.value = false;
+    isSaving.value = false;
   }
 
   @override
@@ -151,5 +168,14 @@ class GuestMenuSelectionEditController extends GetxController {
   /// Get list of categories
   List<String> get categories {
     return menuItemsByCategory.keys.toList()..sort();
+  }
+  
+  @override
+  void onClose() {
+    // Clear state when controller is disposed
+    _clearState();
+    _isInitialized = false;
+    _editingGuestId = null;
+    super.onClose();
   }
 }

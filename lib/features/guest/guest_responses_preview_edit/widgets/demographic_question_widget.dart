@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/models/host_questions.dart';
 import 'package:traxx_wepapp/models/host_questions_option.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
 
 /// Widget for rendering a single demographic question input field with proper type handling
 class DemographicQuestionWidget extends StatefulWidget {
@@ -98,42 +100,55 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Question text
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.question.questionText,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.borderSubtle,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Question text
+          Row(
+            children: [
+              Expanded(
+                child: AppText.styledLabelLarge(
+                  context,
+                  widget.question.questionText,
+                  weight: FontWeight.w600,
                 ),
-                if (widget.question.isRequired)
-                  const Text(
-                    '*',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              ),
+              if (widget.question.isRequired)
+                AppText.styledLabelLarge(
+                  context,
+                  '*',
+                  color: AppColors.inputError,
+                  weight: FontWeight.bold,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Input field based on question type
+          _isLoadingOptions 
+              ? const SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Input field based on question type
-            _isLoadingOptions ? const CircularProgressIndicator() : _buildInputField(),
-          ],
-        ),
+                ) 
+              : _buildInputField(),
+        ],
       ),
     );
   }
@@ -144,10 +159,22 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
         return TextField(
           controller: _textController,
           onChanged: widget.onAnswerChanged,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Enter your answer',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.all(12),
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
           maxLines: 1,
         );
@@ -156,10 +183,22 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
         return TextField(
           controller: _textController,
           onChanged: widget.onAnswerChanged,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Enter your answer',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.all(12),
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+            ),
+            contentPadding: const EdgeInsets.all(12),
           ),
           maxLines: 5,
         );
@@ -177,10 +216,22 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
         return TextField(
           controller: _textController,
           onChanged: widget.onAnswerChanged,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Enter your answer',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.all(12),
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
         );
     }
@@ -188,7 +239,11 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
 
   Widget _buildRadioGroup() {
     if (_options.isEmpty) {
-      return const Text('No options available', style: TextStyle(color: Colors.grey));
+      return AppText.styledBodyMedium(
+        context,
+        'No options available',
+        color: AppColors.textMuted,
+      );
     }
 
     final selectedValue = widget.currentAnswer is Map
@@ -204,9 +259,10 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               RadioListTile<String>(
-                title: Text(option.label),
+                title: AppText.styledBodyMedium(context, option.label),
                 value: option.value,
                 groupValue: selectedValue,
+                activeColor: AppColors.primaryAccent,
                 onChanged: (value) {
                   if (value == null) return;
                   if (option.requiresFreeText) {
@@ -224,19 +280,34 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
                 },
                 contentPadding: EdgeInsets.zero,
                 dense: true,
+                visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
               ),
               if (option.requiresFreeText && isSelected)
                 Padding(
-                  padding: const EdgeInsets.only(left: 32, bottom: 12, top: 8),
+                  padding: const EdgeInsets.only(left: 32, bottom: 8, top: 4),
                   child: TextField(
                     controller: _getFreeTextController(
                       '${widget.question.questionId}__${option.value}',
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Please specify',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.all(12),
+                      labelStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      isDense: true,
                     ),
+                    style: const TextStyle(fontSize: 14),
                     onChanged: (text) {
                       widget.onAnswerChanged({
                         'value': option.value,
@@ -256,7 +327,11 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
 
   Widget _buildCheckboxGroup() {
     if (_options.isEmpty) {
-      return const Text('No options available', style: TextStyle(color: Colors.grey));
+      return AppText.styledBodyMedium(
+        context,
+        'No options available',
+        color: AppColors.textMuted,
+      );
     }
 
     final selected = (widget.currentAnswer as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -271,8 +346,9 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CheckboxListTile(
-              title: Text(option.label),
+              title: AppText.styledBodyMedium(context, option.label),
               value: isChecked,
+              activeColor: AppColors.primaryAccent,
               onChanged: (checked) {
                 final next = List<Map<String, dynamic>>.from(selected);
                 if (checked == true) {
@@ -297,17 +373,32 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
               },
               contentPadding: EdgeInsets.zero,
               dense: true,
+              visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
             ),
             if (option.requiresFreeText && isChecked)
               Padding(
-                padding: const EdgeInsets.only(left: 32, bottom: 12, top: 8),
+                padding: const EdgeInsets.only(left: 32, bottom: 8, top: 4),
                 child: TextField(
                   controller: _getFreeTextController(ctrlKey),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Please specify',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.all(12),
+                    labelStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: AppColors.borderSubtle),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: AppColors.borderSubtle),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    isDense: true,
                   ),
+                  style: const TextStyle(fontSize: 14),
                   onChanged: (text) {
                     final next = List<Map<String, dynamic>>.from(selected);
                     final idx = next.indexWhere((x) => x['value'] == option.value);
@@ -330,7 +421,11 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
 
   Widget _buildDropdown() {
     if (_options.isEmpty) {
-      return const Text('No options available', style: TextStyle(color: Colors.grey));
+      return AppText.styledBodyMedium(
+        context,
+        'No options available',
+        color: AppColors.textMuted,
+      );
     }
 
     final selectedValue = widget.currentAnswer is Map
@@ -347,15 +442,34 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
       children: [
         DropdownButtonFormField<String>(
           value: selectedValue,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.all(12),
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             hintText: 'Choose an option',
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            isDense: true,
           ),
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.primary,
+            fontFamily: 'Poppins',
+          ),
+          icon: Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
           items: _options.map((option) {
             return DropdownMenuItem(
               value: option.value,
-              child: Text(option.label),
+              child: AppText.styledBodyMedium(context, option.label),
             );
           }).toList(),
           onChanged: (value) {
@@ -377,16 +491,30 @@ class _DemographicQuestionWidgetState extends State<DemographicQuestionWidget> {
         ),
         if (selectedOption.requiresFreeText)
           Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: 8),
             child: TextField(
               controller: _getFreeTextController(
                 '${widget.question.questionId}__${selectedOption.value}',
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Please specify',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.all(12),
+                labelStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: AppColors.borderSubtle),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: AppColors.borderSubtle),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: AppColors.primaryAccent, width: 1.6),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                isDense: true,
               ),
+              style: const TextStyle(fontSize: 14),
               onChanged: (text) {
                 widget.onAnswerChanged({
                   'value': selectedOption.value,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:traxx_wepapp/models/menu_selection_response_model.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
 
 /// Widget to display menu selection response details in read-only mode
 class MenuSelectionResponseView extends StatelessWidget {
@@ -15,11 +17,12 @@ class MenuSelectionResponseView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (response.selectedMenuItemIds.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Text(
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: AppText.styledBodyMedium(
+          context,
           'No menu items selected yet',
-          style: TextStyle(color: Colors.grey),
+          color: AppColors.textMuted,
         ),
       );
     }
@@ -39,20 +42,22 @@ class MenuSelectionResponseView extends StatelessWidget {
         if (snapshot.hasError) {
           return Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
+            child: AppText.styledBodyMedium(
+              context,
               'Error loading menu items',
-              style: TextStyle(color: Colors.red[700]),
+              color: AppColors.inputError,
             ),
           );
         }
 
         final menuItems = snapshot.data ?? [];
         if (menuItems.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: AppText.styledBodyMedium(
+              context,
               'No menu items found',
-              style: TextStyle(color: Colors.grey),
+              color: AppColors.textMuted,
             ),
           );
         }
@@ -60,81 +65,98 @@ class MenuSelectionResponseView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: menuItems.map((item) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Row(
-                  children: [
-                    // Food type indicator
-                    if (item.foodType != null)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: item.foodType == FoodType.veg
-                              ? Colors.green
-                              : Colors.red,
-                        ),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12.0),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Food type indicator with icon
+                  if (item.foodType != null)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: item.foodType == FoodType.veg
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    
-                    // Item details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.name,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          if (item.category.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              item.category,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                            ),
-                          ],
-                        ],
+                      child: Icon(
+                        item.foodType == FoodType.veg
+                            ? Icons.eco_outlined
+                            : Icons.restaurant_outlined,
+                        size: 20,
+                        color: item.foodType == FoodType.veg
+                            ? Colors.green[700]
+                            : Colors.red[700],
                       ),
                     ),
-                    
-                    // Food type label
-                    if (item.foodType != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                  
+                  if (item.foodType != null) const SizedBox(width: 12),
+                  
+                  // Item details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppText.styledLabelMedium(
+                          context,
+                          item.name,
+                          weight: FontWeight.w600,
                         ),
-                        decoration: BoxDecoration(
-                          color: item.foodType == FoodType.veg
-                              ? Colors.green[50]
-                              : Colors.red[50],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          item.foodType!.label(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: item.foodType == FoodType.veg
-                                ? Colors.green[800]
-                                : Colors.red[800],
+                        if (item.category.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          AppText.styledBodySmall(
+                            context,
+                            item.category,
+                            color: AppColors.textMuted,
                           ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  
+                  // Food type label
+                  if (item.foodType != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: item.foodType == FoodType.veg
+                            ? Colors.green[50]
+                            : Colors.red[50],
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: item.foodType == FoodType.veg
+                              ? Colors.green[200]!
+                              : Colors.red[200]!,
+                          width: 1,
                         ),
                       ),
-                  ],
-                ),
+                      child: AppText.styledMetaSmall(
+                        context,
+                        item.foodType!.label(),
+                        weight: FontWeight.w600,
+                        color: item.foodType == FoodType.veg
+                            ? Colors.green[800]!
+                            : Colors.red[800]!,
+                      ),
+                    ),
+                ],
               ),
             );
           }).toList(),

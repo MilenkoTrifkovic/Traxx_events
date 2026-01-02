@@ -56,6 +56,7 @@ import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.da
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
+import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -154,9 +155,17 @@ GoRouter buildRouter() {
           return null; // Allow access to protected route
         },
         builder: (context, state, child) {
-          // Simple wrapper for guest authenticated pages
-          // Can add common layout elements here if needed
-          return child;
+          // If on login page, don't show navigation rail
+          if (state.matchedLocation == AppRoute.guestLogin.path) {
+            return child;
+          }
+          
+          // For authenticated routes, show navigation rail and content wrapper
+          return GuestNavigationRailWrapper(
+            child: ContentWrapper(
+              child: child,
+            ),
+          );
         },
         routes: [
           // Public guest login route

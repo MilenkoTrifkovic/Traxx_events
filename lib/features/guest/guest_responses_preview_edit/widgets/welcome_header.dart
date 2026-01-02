@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
 
 /// Welcome header widget displaying guest name
 class WelcomeHeader extends StatelessWidget {
@@ -11,9 +12,9 @@ class WelcomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return AppText.styledHeadingMedium(
+      context,
       'Welcome back, $guestName!',
-      style: Theme.of(context).textTheme.headlineSmall,
     );
   }
 }

@@ -6,6 +6,8 @@ import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/control
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/menu_item_selection_card.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
+import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
 
 /// Page for editing menu selection responses
 class GuestMenuSelectionEditPage extends StatefulWidget {
@@ -35,165 +37,245 @@ class _GuestMenuSelectionEditPageState extends State<GuestMenuSelectionEditPage>
 
   @override
   Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Select Menu Items'),
-        backgroundColor: AppColors.primaryAccent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => controller.cancel(context),
-        ),
-      ),
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
+      if (controller.menuItems.isEmpty) {
+        return Center(
+          child: AppText.styledBodyMedium(
+            context,
+            'No menu items available',
+            color: AppColors.textMuted,
+          ),
+        );
+      }
 
-        if (controller.menuItems.isEmpty) {
-          return const Center(
-            child: Text('No menu items available'),
-          );
-        }
-
-        return Column(
+      return Column(
           children: [
-            // Selection count header
+            // Compact header with title and counter
             Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.white,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Select your meal preferences',
-                    style: Theme.of(context).textTheme.titleMedium,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.borderSubtle,
+                    width: 1,
                   ),
-                  Obx(() => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.restaurant_menu,
+                        color: AppColors.primaryAccent,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppText.styledHeadingSmall(
+                          context,
+                          'Select Your Meals',
+                          weight: FontWeight.bold,
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          '${controller.selectedMenuItemIds.length} selected',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryAccent,
-                          ),
-                        ),
-                      )),
-                ],
+                      ),
+                      // Compact selection counter
+                      Obx(() => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryAccent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.primaryAccent.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.primaryAccent,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                AppText.styledLabelMedium(
+                                  context,
+                                  '${controller.selectedMenuItemIds.length}',
+                                  weight: FontWeight.w600,
+                                  color: AppColors.primaryAccent,
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
               ),
             ),
 
-            // Menu items list
+            // Menu items list with compact spacing
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Group by category
-                        ...controller.categories.map((category) {
-                          final items = controller.menuItemsByCategory[category]!;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Category header
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12, top: 8),
-                                child: Text(
-                                  category,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
+              child: Container(
+                color: Colors.grey[50],
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 900),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Group by category
+                          ...controller.categories.map((category) {
+                            final items = controller.menuItemsByCategory[category]!;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Compact category header
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _getCategoryIcon(category),
+                                          color: AppColors.primaryAccent,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: AppText.styledLabelLarge(
+                                            context,
+                                            category,
+                                            weight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        AppText.styledMetaSmall(
+                                          context,
+                                          '${items.length}',
+                                          color: AppColors.textMuted,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Items in this category
+                                  ...items.map((item) {
+                                    return Obx(() => MenuItemSelectionCard(
+                                          menuItem: item,
+                                          isSelected: controller.isMenuItemSelected(item.menuItemId!),
+                                          onToggle: () => controller.toggleMenuItem(item.menuItemId!),
+                                        ));
+                                  }).toList(),
+                                ],
                               ),
-
-                              // Items in this category
-                              ...items.map((item) {
-                                return Obx(() => MenuItemSelectionCard(
-                                      menuItem: item,
-                                      isSelected: controller.isMenuItemSelected(item.menuItemId!),
-                                      onToggle: () => controller.toggleMenuItem(item.menuItemId!),
-                                    ));
-                              }).toList(),
-
-                              const SizedBox(height: 16),
-                            ],
-                          );
-                        }).toList(),
-                      ],
+                            );
+                          }).toList(),
+                          
+                          const SizedBox(height: 80), // Space for floating button
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
 
-            // Action buttons
+            // Compact action bar
             Container(
-              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
+                border: Border(
+                  top: BorderSide(
+                    color: AppColors.borderSubtle,
+                    width: 1,
                   ),
-                ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: controller.isSaving.value
-                          ? null
-                          : () => controller.cancel(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Cancel'),
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: AppSecondaryButton(
+                            text: 'Cancel',
+                            onPressed: controller.isSaving.value
+                                ? null
+                                : () => controller.cancel(context),
+                            height: 44,
+                            borderRadius: 8,
+                            enabled: !controller.isSaving.value,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: Obx(() => AppPrimaryButton(
+                                text: controller.isSaving.value
+                                    ? 'Saving...'
+                                    : 'Save Selection',
+                                icon: controller.isSaving.value
+                                    ? null
+                                    : Icons.check_circle_outline,
+                                height: 44,
+                                borderRadius: 8,
+                                isLoading: controller.isSaving.value,
+                                onPressed: controller.isSaving.value
+                                    ? null
+                                    : () async {
+                                        final success = await controller.saveResponses();
+                                        if (context.mounted) {
+                                          if (success) {
+                                            snackbarController.showSuccessMessage(
+                                                'Menu selection saved successfully');
+                                            Navigator.of(context).pop();
+                                          } else {
+                                            snackbarController.showErrorMessage(
+                                                'Error saving menu selection');
+                                          }
+                                        }
+                                      },
+                              )),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: Obx(() => AppPrimaryButton(
-                          text: controller.isSaving.value
-                              ? 'Saving...'
-                              : 'Save Selection',
-                          onPressed: controller.isSaving.value
-                              ? () {}
-                              : () async {
-                                  final success = await controller.saveResponses();
-                                  if (context.mounted) {
-                                    if (success) {
-                                      snackbarController.showSuccessMessage(
-                                          'Menu selection saved successfully');
-                                      Navigator.of(context).pop();
-                                    } else {
-                                      snackbarController.showErrorMessage(
-                                          'Error saving menu selection');
-                                    }
-                                  }
-                                },
-                        )),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
         );
-      }),
-    );
+      });
+  }
+
+  IconData _getCategoryIcon(String category) {
+    final categoryLower = category.toLowerCase();
+    if (categoryLower.contains('appetizer') || categoryLower.contains('starter')) {
+      return Icons.local_dining;
+    } else if (categoryLower.contains('main') || categoryLower.contains('entree')) {
+      return Icons.restaurant;
+    } else if (categoryLower.contains('dessert') || categoryLower.contains('sweet')) {
+      return Icons.cake;
+    } else if (categoryLower.contains('drink') || categoryLower.contains('beverage')) {
+      return Icons.local_cafe;
+    } else if (categoryLower.contains('salad')) {
+      return Icons.eco;
+    }
+    return Icons.fastfood;
   }
 }
