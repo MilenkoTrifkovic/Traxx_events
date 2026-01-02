@@ -42,6 +42,7 @@ enum AppRoute {
 
   // Public guest response routes
   guestLogin('/guest-login'),
+  guestResponsesPreview('/guest-responses-preview'),
   guestResponse('/guest-response'),
   guestCompanions('/guest-companions'),
   guestCompanionsInfo('/guest-companions-info'),

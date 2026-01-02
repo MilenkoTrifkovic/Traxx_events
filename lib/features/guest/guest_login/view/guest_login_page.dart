@@ -49,6 +49,7 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     await controller.handleNext(
       invitationCode: _invitationCodeController.text.trim(),
       batchId: _batchIdController.text.trim(),
+      context: context,
     );
   }
 

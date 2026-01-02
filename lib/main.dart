@@ -9,6 +9,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -56,6 +57,11 @@ Future<void> main() async {
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
 
   Get.put<EventController>(EventController(), permanent: true);
+
+  // Initialize GuestSessionController to restore session if exists
+  // This must happen BEFORE router is created so redirect guards can check authentication
+  // Using putAsync ensures async session restoration completes before routing starts
+  await Get.putAsync(() => GuestSessionController().init(), permanent: true);
 
   final authController = Get.find<AuthController>();
 

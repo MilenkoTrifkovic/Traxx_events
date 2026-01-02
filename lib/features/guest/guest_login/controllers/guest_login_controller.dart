@@ -1,11 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
+import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
-import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/models/guest_model.dart';
-import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 
 /// Controller for guest login functionality
-/// Handles business logic for guest authentication
+/// Handles UI logic for guest authentication
 class GuestLoginController extends GetxController {
   // Observable state
   final isLoading = false.obs;
@@ -20,47 +21,42 @@ class GuestLoginController extends GetxController {
   // Batch ID: exactly 6 digits
   final batchIdPattern = RegExp(r'^\d{6}$');
 
-  // Services
-  final _firestoreServices = FirestoreServices();
+  // Controllers
+  final _guestSessionController = Get.find<GuestSessionController>();
   final _snackbarController = Get.find<SnackbarMessageController>();
 
   /// Handles the next button action
-  /// Validates invitation code and batch ID, then navigates to RSVP page
+  /// Validates invitation code and batch ID, then navigates to appropriate page
   Future<void> handleNext({
     required String invitationCode,
     required String batchId,
+    required BuildContext context,
   }) async {
     try {
       isLoading.value = true;
 
-      // Validate invitation code and batch ID combination
-      final result = await _firestoreServices.validateGuestLogin(
+      // Authenticate through global session controller
+      final success = await _guestSessionController.authenticate(
         invitationCode: invitationCode,
         batchId: batchId,
       );
 
-      if (result == null) {
+      if (!success) {
         _snackbarController.showErrorMessage(
           'Invalid invitation code or batch ID. Please check your details.',
         );
         return;
       }
 
-      // Extract event and guest from result
-      // Note: Service layer already validated that guest.eventId matches event.eventId
-      final event = result['event'] as Event;
-      final guest = result['guest'] as GuestModel;
+      // Success - get guest and event from session controller
+      final guest = _guestSessionController.guest.value!;
 
-      // Success - show confirmation message
       _snackbarController.showSuccessMessage(
-        'Login successful! Guest ${guest.name} authenticated for event ${event.name}.',
+        'Login successful! Welcome ${guest.name}.',
       );
 
-      // TODO: Navigate to RSVP page
-      // pushRoute(AppRoute.guestResponse, context, queryParams: {
-      //   'invitationId': guest.docId,
-      //   'eventId': event.eventId,
-      // });
+      // Navigate to guest responses preview page
+      context.push(AppRoute.guestResponsesPreview.path);
       
     } catch (e) {
       _snackbarController.showErrorMessage(

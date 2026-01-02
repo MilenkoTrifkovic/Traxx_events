@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
@@ -52,6 +53,7 @@ import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -60,6 +62,8 @@ import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.da
 /// Key for the host section's nested navigation
 final GlobalKey<NavigatorState> hostNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestNavigationKey =
+    GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> guestAuthNavigatorKey =
     GlobalKey<NavigatorState>();
 
 ///
@@ -120,11 +124,58 @@ GoRouter buildRouter() {
         builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
-      // GUEST LOGIN ROUTE
-      // Public route for guests to log in with invitation code
-      GoRoute(
-        path: AppRoute.guestLogin.path,
-        builder: (context, state) => const GuestLoginPage(),
+      // GUEST AUTHENTICATED SHELL ROUTE
+      // Handles guest authentication and session management
+      // All guest routes that require authentication go here
+      ShellRoute(
+        navigatorKey: guestAuthNavigatorKey,
+        redirect: (context, state) {
+          final guestSession = Get.find<GuestSessionController>();
+          
+          // If on login page and already authenticated, redirect to responses preview
+          if (state.matchedLocation == AppRoute.guestLogin.path) {
+            if (guestSession.isAuthenticated) {
+              print('✅ Guest already authenticated, redirecting to responses preview');
+              return AppRoute.guestResponsesPreview.path;
+            }
+            // Not authenticated, allow access to login page
+            return null;
+          }
+          
+          // For all other guest routes, check if authenticated
+          if (!guestSession.isAuthenticated) {
+            print('🔒 Guest not authenticated, redirecting to login');
+            return AppRoute.guestLogin.path;
+          }
+          
+          print('✅ Guest authenticated, allowing access');
+          return null; // Allow access to protected route
+        },
+        builder: (context, state, child) {
+          // Simple wrapper for guest authenticated pages
+          // Can add common layout elements here if needed
+          return child;
+        },
+        routes: [
+          // Public guest login route
+          GoRoute(
+            path: AppRoute.guestLogin.path,
+            builder: (context, state) => const GuestLoginPage(),
+          ),
+          
+          // Guest responses preview page (authenticated)
+          GoRoute(
+            path: AppRoute.guestResponsesPreview.path,
+            builder: (context, state) => const GuestResponsesPreviewPage(),
+          ),
+          
+          // TODO: Add more authenticated guest routes here
+          // Example:
+          // GoRoute(
+          //   path: AppRoute.guestDashboard.path,
+          //   builder: (context, state) => const GuestDashboardPage(),
+          // ),
+        ],
       ),
 
       // GUEST RESPONSE SHELL ROUTE
