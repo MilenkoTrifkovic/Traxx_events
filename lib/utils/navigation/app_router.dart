@@ -157,6 +157,7 @@ GoRouter buildRouter() {
         builder: (context, state, child) {
           // If on login page, don't show navigation rail
           if (state.matchedLocation == AppRoute.guestLogin.path) {
+            print('ONLY CHILD RETURNED');
             return child;
           }
           

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
+import 'package:traxx_wepapp/utils/navigation/routes.dart';
 
 /// Controller for guest login functionality
 /// Handles UI logic for guest authentication
@@ -56,8 +57,8 @@ class GuestLoginController extends GetxController {
       );
 
       // Navigate to guest responses preview page
-      context.push(AppRoute.guestResponsesPreview.path);
-      
+      // context.push(AppRoute.guestResponsesPreview.path);
+      pushAndRemoveAllRoute(AppRoute.guestResponsesPreview, context);
     } catch (e) {
       _snackbarController.showErrorMessage(
         'An error occurred during login. Please try again.',
