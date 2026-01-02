@@ -54,6 +54,8 @@ import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.d
 import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -167,6 +169,18 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.guestResponsesPreview.path,
             builder: (context, state) => const GuestResponsesPreviewPage(),
+          ),
+
+          // Guest demographics edit page (authenticated)
+          GoRoute(
+            path: AppRoute.guestDemographicsEdit.path,
+            builder: (context, state) => const GuestDemographicsEditPage(),
+          ),
+
+          // Guest menu selection edit page (authenticated)
+          GoRoute(
+            path: AppRoute.guestMenuSelectionEdit.path,
+            builder: (context, state) => const GuestMenuSelectionEditPage(),
           ),
           
           // TODO: Add more authenticated guest routes here
