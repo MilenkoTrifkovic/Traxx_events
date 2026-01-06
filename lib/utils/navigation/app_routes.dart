@@ -45,6 +45,7 @@ enum AppRoute {
   guestResponsesPreview('/guest-responses-preview'),
   guestDemographicsEdit('/guest-demographics-edit'),
   guestMenuSelectionEdit('/guest-menu-selection-edit'),
+  guestFeed('/guest-feed'),
   guestResponse('/guest-response'),
   guestCompanions('/guest-companions'),
   guestCompanionsInfo('/guest-companions-info'),
