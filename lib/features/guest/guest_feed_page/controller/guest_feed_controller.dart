@@ -27,9 +27,9 @@ class GuestFeedController extends GetxController {
   final FocusNode messageFocusNode = FocusNode();
 
   // File upload state
-  final Rx<PlatformFile?> selectedFile = Rx<PlatformFile?>(null);
-  final RxString selectedFileName = ''.obs;
-  final RxString selectedFileType = ''.obs;
+  final RxList<PlatformFile> selectedFiles = <PlatformFile>[].obs;
+  final RxList<String> selectedFileNames = <String>[].obs;
+  final RxList<String> selectedFileTypes = <String>[].obs;
 
   // Message list state
   final RxList<Message> messages = <Message>[].obs;
@@ -127,12 +127,12 @@ class GuestFeedController extends GetxController {
     }
   }
 
-  /// Sends a message with text and optional file attachment
+  /// Sends a message with text and optional file attachments
   Future<void> sendMessage() async {
     final text = messageTextController.text.trim();
 
     // Validate input
-    if (text.isEmpty && selectedFile.value == null) {
+    if (text.isEmpty && selectedFiles.isEmpty) {
       print('Cannot send empty message');
       return;
     }
@@ -154,42 +154,47 @@ class GuestFeedController extends GetxController {
       final userName = currentGuest.name;
       final String? userPhoto = null; // GuestModel doesn't have profile photo
 
-      // Create message attachments if file is selected
+      // Create message attachments if files are selected
       final attachments = <MessageAttachment>[];
-      if (selectedFile.value != null) {
-        print('📤 Uploading file to Firebase Storage...');
-        
-        final file = selectedFile.value!;
+      if (selectedFiles.isNotEmpty) {
+        print('📤 Uploading ${selectedFiles.length} file(s) to Firebase Storage...');
         
         // Create a temporary message ID for storage organization
         final tempMessageId = DateTime.now().millisecondsSinceEpoch.toString();
         
         try {
-          // Upload file to Firebase Storage
-          final uploadResult = await _storageServices.uploadMessageAttachment(
-            file,
-            eventId,
-            tempMessageId,
-          );
-          
-          print('✅ File uploaded successfully');
-          print('Storage path: ${uploadResult['path']}');
-          print('Download URL: ${uploadResult['downloadUrl']}');
-          
-          // Determine attachment type
-          final attachmentType = selectedFileType.value == 'pdf' 
-              ? AttachmentType.pdf 
-              : AttachmentType.image;
-          
-          // Create attachment with Firebase Storage URL
-          final attachment = MessageAttachment(
-            url: uploadResult['downloadUrl']!, // Use Firebase Storage download URL
-            name: file.name,
-            type: attachmentType,
-          );
-          attachments.add(attachment);
+          // Upload each file to Firebase Storage
+          for (int i = 0; i < selectedFiles.length; i++) {
+            final file = selectedFiles[i];
+            final fileType = selectedFileTypes[i];
+            
+            print('Uploading file ${i + 1}/${selectedFiles.length}: ${file.name}');
+            
+            final uploadResult = await _storageServices.uploadMessageAttachment(
+              file,
+              eventId,
+              tempMessageId,
+            );
+            
+            print('✅ File uploaded successfully');
+            print('Storage path: ${uploadResult['path']}');
+            print('Download URL: ${uploadResult['downloadUrl']}');
+            
+            // Determine attachment type
+            final attachmentType = fileType == 'pdf' 
+                ? AttachmentType.pdf 
+                : AttachmentType.image;
+            
+            // Create attachment with Firebase Storage URL
+            final attachment = MessageAttachment(
+              url: uploadResult['downloadUrl']!, // Use Firebase Storage download URL
+              name: file.name,
+              type: attachmentType,
+            );
+            attachments.add(attachment);
+          }
         } catch (uploadError) {
-          print('❌ Error uploading file: $uploadError');
+          print('❌ Error uploading files: $uploadError');
           // TODO: Show error to user
           isSending.value = false;
           return; // Don't send message if file upload fails
@@ -225,41 +230,54 @@ class GuestFeedController extends GetxController {
     }
   }
 
-  /// Selects a file (image or PDF) for upload
+  /// Selects files (images or PDFs) for upload
   Future<void> selectPhoto() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-        allowMultiple: false,
+        allowMultiple: true, // Enable multiple file selection
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        selectedFile.value = file;
-        selectedFileName.value = file.name;
-        
-        // Determine file type
-        final extension = file.extension?.toLowerCase() ?? '';
-        if (extension == 'pdf') {
-          selectedFileType.value = 'pdf';
-        } else if (['jpg', 'jpeg', 'png'].contains(extension)) {
-          selectedFileType.value = 'image';
+        // Add all selected files
+        for (var file in result.files) {
+          selectedFiles.add(file);
+          selectedFileNames.add(file.name);
+          
+          // Determine file type
+          final extension = file.extension?.toLowerCase() ?? '';
+          if (extension == 'pdf') {
+            selectedFileTypes.add('pdf');
+          } else if (['jpg', 'jpeg', 'png'].contains(extension)) {
+            selectedFileTypes.add('image');
+          } else {
+            selectedFileTypes.add('unknown');
+          }
         }
         
-        print('File selected: ${file.name} (${file.size} bytes)');
+        print('${result.files.length} file(s) selected');
       }
     } catch (e) {
-      print('Error selecting file: $e');
+      print('Error selecting files: $e');
       // TODO: Show error to user
     }
   }
 
-  /// Removes the selected file
+  /// Removes a specific file by index
+  void removeFileAt(int index) {
+    if (index >= 0 && index < selectedFiles.length) {
+      selectedFiles.removeAt(index);
+      selectedFileNames.removeAt(index);
+      selectedFileTypes.removeAt(index);
+    }
+  }
+
+  /// Removes all selected files
   void removePhoto() {
-    selectedFile.value = null;
-    selectedFileName.value = '';
-    selectedFileType.value = '';
+    selectedFiles.clear();
+    selectedFileNames.clear();
+    selectedFileTypes.clear();
   }
 
   /// Updates an existing message

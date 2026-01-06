@@ -66,99 +66,121 @@ class _MessageBubbleState extends State<MessageBubble> {
     bool isPhone,
     double avatarSize,
   ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Avatar
-        CircleAvatar(
-          radius: avatarSize / 2,
-          backgroundColor: AppColors.primaryAccent.withOpacity(0.1),
-          backgroundImage: widget.message.userPhoto != null
-              ? NetworkImage(widget.message.userPhoto!)
-              : null,
-          child: widget.message.userPhoto == null
-              ? Icon(
-                  Icons.person,
-                  size: avatarSize / 2,
-                  color: AppColors.primaryAccent,
-                )
-              : null,
-        ),
-        AppSpacing.horizontalSm(context),
-        // Message bubble
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Name and timestamp
-              Row(
-                children: [
-                  AppText.styledLabelMedium(
-                    context,
-                    widget.message.userName,
-                    color: AppColors.primary,
-                    weight: FontWeight.w600,
-                  ),
-                  AppSpacing.horizontalXxs(context),
-                  AppText.styledBodySmall(
-                    context,
-                    _formatTimestamp(widget.message.createdAt),
-                    color: AppColors.textMuted,
-                  ),
-                ],
-              ),
-              AppSpacing.verticalXxs(context),
-              // Message content
-              Container(
-                padding: EdgeInsets.all(AppSpacing.sm(context)),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(isPhone ? 2 : 4),
-                    topRight: Radius.circular(isPhone ? 12 : 16),
-                    bottomLeft: Radius.circular(isPhone ? 12 : 16),
-                    bottomRight: Radius.circular(isPhone ? 12 : 16),
-                  ),
-                  border: Border.all(
-                    color: AppColors.borderSubtle,
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xs(context)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: avatarSize / 2,
+            backgroundColor: AppColors.primaryAccent.withOpacity(0.1),
+            backgroundImage: widget.message.userPhoto != null
+                ? NetworkImage(widget.message.userPhoto!)
+                : null,
+            child: widget.message.userPhoto == null
+                ? Icon(
+                    Icons.person,
+                    size: avatarSize / 2,
+                    color: AppColors.primaryAccent,
+                  )
+                : null,
+          ),
+          AppSpacing.horizontalSm(context),
+          // Message bubble
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name and timestamp row with small avatar
+                Row(
                   children: [
-                    if (widget.message.text.isNotEmpty)
-                      AppText.styledBodyMedium(
-                        context,
-                        widget.message.text,
-                        color: AppColors.primary,
+                    AppText.styledLabelMedium(
+                      context,
+                      widget.message.userName,
+                      color: AppColors.primary,
+                      weight: FontWeight.w600,
+                    ),
+                    AppSpacing.horizontalXxs(context),
+                    // Small user photo next to timestamp
+                    if (widget.message.userPhoto != null) ...[
+                      CircleAvatar(
+                        radius: isPhone ? 6.0 : 7.0,
+                        backgroundColor: AppColors.primaryAccent.withOpacity(0.1),
+                        backgroundImage: NetworkImage(widget.message.userPhoto!),
                       ),
-                    // Attachments
-                    if (widget.message.attachments.isNotEmpty) ...[
-                      if (widget.message.text.isNotEmpty)
-                        AppSpacing.verticalSm(context),
-                      Wrap(
-                        spacing: AppSpacing.xs(context),
-                        runSpacing: AppSpacing.xs(context),
-                        children: widget.message.attachments.map((attachment) {
-                          return AttachmentChip(
-                            fileName: attachment.name,
-                            type: attachment.type.displayName,
-                            attachmentUrl: attachment.url,
-                            attachmentType: attachment.type,
-                          );
-                        }).toList(),
-                      ),
+                      AppSpacing.horizontalXxxs(context),
                     ],
+                    AppText.styledBodySmall(
+                      context,
+                      _formatTimestamp(widget.message.createdAt),
+                      color: AppColors.textMuted,
+                    ),
                   ],
                 ),
-              ),
-            ],
+                AppSpacing.verticalXxs(context),
+                // Message content with improved shadow
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md(context),
+                    vertical: AppSpacing.sm(context),
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(isPhone ? 4 : 6),
+                      topRight: Radius.circular(isPhone ? 16 : 20),
+                      bottomLeft: Radius.circular(isPhone ? 16 : 20),
+                      bottomRight: Radius.circular(isPhone ? 16 : 20),
+                    ),
+                    border: Border.all(
+                      color: AppColors.borderSubtle,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.black.withOpacity(0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (widget.message.text.isNotEmpty)
+                        AppText.styledBodyMedium(
+                          context,
+                          widget.message.text,
+                          color: AppColors.primary,
+                        ),
+                      // Attachments
+                      if (widget.message.attachments.isNotEmpty) ...[
+                        if (widget.message.text.isNotEmpty)
+                          AppSpacing.verticalSm(context),
+                        Wrap(
+                          spacing: AppSpacing.xs(context),
+                          runSpacing: AppSpacing.xs(context),
+                          children: widget.message.attachments.map((attachment) {
+                            return AttachmentChip(
+                              fileName: attachment.name,
+                              type: attachment.type.displayName,
+                              attachmentUrl: attachment.url,
+                              attachmentType: attachment.type,
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        // Add spacing for alignment
-        SizedBox(width: isPhone ? 40 : 60),
-      ],
+          // Add spacing for alignment
+          SizedBox(width: isPhone ? 40 : 60),
+        ],
+      ),
     );
   }
 
@@ -168,122 +190,143 @@ class _MessageBubbleState extends State<MessageBubble> {
     bool isPhone,
     double avatarSize,
   ) {
-    return MouseRegion(
-      // Temporarily commented out with delete button
-      // onEnter: (_) => setState(() => _isHovering = true),
-      // onExit: (_) => setState(() => _isHovering = false),
-      child: GestureDetector(
-        onLongPress: () => _showDeleteConfirmation(context),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Add spacing for alignment
-            SizedBox(width: isPhone ? 40 : 60),
-            // Message bubble
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // Timestamp and delete button row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // Delete button (visible on hover for desktop)
-                      // Temporarily hidden - uncomment to enable
-                      // AnimatedOpacity(
-                      //   opacity: _isHovering ? 1.0 : 0.0,
-                      //   duration: Duration(milliseconds: 200),
-                      //   child: InkWell(
-                      //     onTap: _isHovering
-                      //         ? () => _showDeleteConfirmation(context)
-                      //         : null,
-                      //     borderRadius: BorderRadius.circular(4),
-                      //     child: Padding(
-                      //       padding: EdgeInsets.symmetric(
-                      //         horizontal: AppSpacing.xs(context),
-                      //         vertical: 2,
-                      //       ),
-                      //       child: Icon(
-                      //         Icons.delete_outline,
-                      //         size: isPhone ? 16 : 18,
-                      //         color: AppColors.inputError,
-                      //       ),
-                      //     ),
-                      //   ),
-                      // ),
-                      // if (_isHovering) AppSpacing.horizontalXxxs(context),
-                      // Timestamp
-                      AppText.styledBodySmall(
-                        context,
-                        _formatTimestamp(widget.message.createdAt),
-                        color: AppColors.textMuted,
-                      ),
-                    ],
-                  ),
-                  AppSpacing.verticalXxs(context),
-                  // Message content
-                  Container(
-                    padding: EdgeInsets.all(AppSpacing.sm(context)),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryAccent,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(isPhone ? 12 : 16),
-                        topRight: Radius.circular(isPhone ? 2 : 4),
-                        bottomLeft: Radius.circular(isPhone ? 12 : 16),
-                        bottomRight: Radius.circular(isPhone ? 12 : 16),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xs(context)),
+      child: MouseRegion(
+        // Temporarily commented out with delete button
+        // onEnter: (_) => setState(() => _isHovering = true),
+        // onExit: (_) => setState(() => _isHovering = false),
+        child: GestureDetector(
+          onLongPress: () => _showDeleteConfirmation(context),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Add spacing for alignment
+              SizedBox(width: isPhone ? 40 : 60),
+              // Message bubble
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Timestamp row with small user photo
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        if (widget.message.text.isNotEmpty)
-                          AppText.styledBodyMedium(
-                            context,
-                            widget.message.text,
-                            color: AppColors.white,
-                          ),
-                        // Attachments
-                        if (widget.message.attachments.isNotEmpty) ...[
-                          if (widget.message.text.isNotEmpty)
-                            AppSpacing.verticalSm(context),
-                          Wrap(
-                            spacing: AppSpacing.xs(context),
-                            runSpacing: AppSpacing.xs(context),
-                            children:
-                                widget.message.attachments.map((attachment) {
-                              return AttachmentChip(
-                                fileName: attachment.name,
-                                type: attachment.type.displayName,
-                                attachmentUrl: attachment.url,
-                                attachmentType: attachment.type,
-                                isOwnMessage: true,
-                              );
-                            }).toList(),
+                        // Delete button (visible on hover for desktop)
+                        // Temporarily hidden - uncomment to enable
+                        // AnimatedOpacity(
+                        //   opacity: _isHovering ? 1.0 : 0.0,
+                        //   duration: Duration(milliseconds: 200),
+                        //   child: InkWell(
+                        //     onTap: _isHovering
+                        //         ? () => _showDeleteConfirmation(context)
+                        //         : null,
+                        //     borderRadius: BorderRadius.circular(4),
+                        //     child: Padding(
+                        //       padding: EdgeInsets.symmetric(
+                        //         horizontal: AppSpacing.xs(context),
+                        //         vertical: 2,
+                        //       ),
+                        //       child: Icon(
+                        //         Icons.delete_outline,
+                        //         size: isPhone ? 16 : 18,
+                        //         color: AppColors.inputError,
+                        //       ),
+                        //     ),
+                        //   ),
+                        // ),
+                        // if (_isHovering) AppSpacing.horizontalXxxs(context),
+                        AppText.styledBodySmall(
+                          context,
+                          _formatTimestamp(widget.message.createdAt),
+                          color: AppColors.textMuted,
+                        ),
+                        // Small user photo next to timestamp
+                        if (widget.message.userPhoto != null) ...[
+                          AppSpacing.horizontalXxxs(context),
+                          CircleAvatar(
+                            radius: isPhone ? 6.0 : 7.0,
+                            backgroundColor: AppColors.primaryAccent.withOpacity(0.2),
+                            backgroundImage: NetworkImage(widget.message.userPhoto!),
                           ),
                         ],
                       ],
                     ),
-                  ),
-                ],
+                    AppSpacing.verticalXxs(context),
+                    // Message content with improved shadow
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md(context),
+                        vertical: AppSpacing.sm(context),
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryAccent,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(isPhone ? 16 : 20),
+                          topRight: Radius.circular(isPhone ? 4 : 6),
+                          bottomLeft: Radius.circular(isPhone ? 16 : 20),
+                          bottomRight: Radius.circular(isPhone ? 16 : 20),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryAccent.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (widget.message.text.isNotEmpty)
+                            AppText.styledBodyMedium(
+                              context,
+                              widget.message.text,
+                              color: AppColors.white,
+                            ),
+                          // Attachments
+                          if (widget.message.attachments.isNotEmpty) ...[
+                            if (widget.message.text.isNotEmpty)
+                              AppSpacing.verticalSm(context),
+                            Wrap(
+                              spacing: AppSpacing.xs(context),
+                              runSpacing: AppSpacing.xs(context),
+                              children:
+                                  widget.message.attachments.map((attachment) {
+                                return AttachmentChip(
+                                  fileName: attachment.name,
+                                  type: attachment.type.displayName,
+                                  attachmentUrl: attachment.url,
+                                  attachmentType: attachment.type,
+                                  isOwnMessage: true,
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            AppSpacing.horizontalSm(context),
-            // Avatar
-            CircleAvatar(
-              radius: avatarSize / 2,
-              backgroundColor: AppColors.primaryAccent.withOpacity(0.2),
-              backgroundImage: widget.message.userPhoto != null
-                  ? NetworkImage(widget.message.userPhoto!)
-                  : null,
-              child: widget.message.userPhoto == null
-                  ? Icon(
-                      Icons.person,
-                      size: avatarSize / 2,
-                      color: AppColors.primaryAccent,
-                    )
-                  : null,
-            ),
-          ],
+              AppSpacing.horizontalSm(context),
+              // Avatar
+              CircleAvatar(
+                radius: avatarSize / 2,
+                backgroundColor: AppColors.primaryAccent.withOpacity(0.2),
+                backgroundImage: widget.message.userPhoto != null
+                    ? NetworkImage(widget.message.userPhoto!)
+                    : null,
+                child: widget.message.userPhoto == null
+                    ? Icon(
+                        Icons.person,
+                        size: avatarSize / 2,
+                        color: AppColors.primaryAccent,
+                      )
+                    : null,
+              ),
+            ],
+          ),
         ),
       ),
     );

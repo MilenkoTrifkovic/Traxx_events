@@ -46,10 +46,12 @@ class _AppMultilineTextFieldState extends State<AppMultilineTextField> {
           style: widget.style,
           cursorColor: Colors.blue,
           backgroundCursorColor: Colors.black,
+          selectionColor: Colors.blue.withOpacity(0.3),
           maxLines: null,
           keyboardType: TextInputType.multiline,
           onChanged: widget.onChanged,
           scrollController: _scrollController,
+          selectionControls: MaterialTextSelectionControls(),
         ),
       ),
     );
