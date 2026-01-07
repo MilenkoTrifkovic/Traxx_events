@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Service for guest-facing Firestore operations.
-/// 
+///
 /// This service handles all Firestore reads/writes for guest flows:
 /// - RSVP responses
 /// - Demographic submissions
@@ -18,7 +18,7 @@ class GuestFirestoreServices {
   // ---------------------------------------------------------------------------
 
   /// Fetches an invitation by ID.
-  /// 
+  ///
   /// Returns the invitation data map or null if not found.
   /// Optionally force server fetch to get latest data.
   Future<Map<String, dynamic>?> getInvitation(
@@ -29,7 +29,7 @@ class GuestFirestoreServices {
         .collection('invitations')
         .doc(invitationId)
         .get(forceServer ? const GetOptions(source: Source.server) : null);
-    
+
     if (!doc.exists) return null;
     return doc.data();
   }
@@ -43,7 +43,7 @@ class GuestFirestoreServices {
   }
 
   /// Validates invitation token and expiry.
-  /// 
+  ///
   /// Returns a validation result with success status and error message if any.
   InvitationValidation validateInvitation(
     Map<String, dynamic> invitation,
@@ -67,7 +67,7 @@ class GuestFirestoreServices {
       } else if (expiresAt is DateTime) {
         expiryDate = expiresAt;
       }
-      
+
       if (expiryDate != null && expiryDate.isBefore(DateTime.now())) {
         return InvitationValidation(
           isValid: false,
@@ -84,7 +84,7 @@ class GuestFirestoreServices {
   // ---------------------------------------------------------------------------
 
   /// Checks if a menu response document exists for an invitation/companion.
-  /// 
+  ///
   /// For main guest: docId = invitationId
   /// For companion: docId = invitationId_companion_{index}
   Future<bool> menuResponseExists(
@@ -94,12 +94,10 @@ class GuestFirestoreServices {
     final docId = companionIndex == null
         ? invitationId
         : '${invitationId}_companion_$companionIndex';
-    
-    final doc = await _db
-        .collection('menuSelectedItemsResponses')
-        .doc(docId)
-        .get();
-    
+
+    final doc =
+        await _db.collection('menuSelectedItemsResponses').doc(docId).get();
+
     return doc.exists;
   }
 
@@ -111,18 +109,16 @@ class GuestFirestoreServices {
     final docId = companionIndex == null
         ? invitationId
         : '${invitationId}_companion_$companionIndex';
-    
-    final doc = await _db
-        .collection('menuSelectedItemsResponses')
-        .doc(docId)
-        .get();
-    
+
+    final doc =
+        await _db.collection('menuSelectedItemsResponses').doc(docId).get();
+
     if (!doc.exists) return null;
     return doc.data();
   }
 
   /// Fetches menu items by their IDs from the menu document.
-  /// 
+  ///
   /// Used for read-only preview mode where we only have item IDs.
   Future<List<Map<String, dynamic>>> getMenuItemsByIds({
     required String menuId,
@@ -139,7 +135,7 @@ class GuestFirestoreServices {
 
     // Get items from the menu
     final allItems = (menuData['items'] as List?) ?? [];
-    
+
     // Filter to only the selected item IDs
     final selectedItems = <Map<String, dynamic>>[];
     for (final item in allItems) {
@@ -154,7 +150,7 @@ class GuestFirestoreServices {
   }
 
   /// Fetches menu items directly from the menu_items collection by document IDs.
-  /// 
+  ///
   /// This doesn't require a menuId - items are fetched by their document IDs.
   /// Used for read-only preview when we only have selectedMenuItemIds.
   Future<List<Map<String, dynamic>>> getMenuItemsDirectlyByIds(
@@ -163,11 +159,12 @@ class GuestFirestoreServices {
     if (itemIds.isEmpty) return [];
 
     final results = <Map<String, dynamic>>[];
-    
+
     // Firestore 'whereIn' supports max 10 items, so batch the queries
     final batches = <List<String>>[];
     for (var i = 0; i < itemIds.length; i += 10) {
-      batches.add(itemIds.sublist(i, i + 10 > itemIds.length ? itemIds.length : i + 10));
+      batches.add(itemIds.sublist(
+          i, i + 10 > itemIds.length ? itemIds.length : i + 10));
     }
 
     for (final batch in batches) {
@@ -238,7 +235,7 @@ class GuestFirestoreServices {
         .collection('demographicQuestionSets')
         .doc(questionSetId)
         .get();
-    
+
     if (!doc.exists) return null;
     return doc.data();
   }
@@ -246,8 +243,7 @@ class GuestFirestoreServices {
   /// Gets all demographic questions for a question set.
   /// Questions are returned ordered by displayOrder.
   Future<List<DemographicQuestion>> getDemographicQuestions(
-    String questionSetId,
-  ) async {
+      String questionSetId) async {
     final snap = await _db
         .collection('demographicQuestions')
         .where('questionSetId', isEqualTo: questionSetId)
@@ -257,12 +253,18 @@ class GuestFirestoreServices {
 
     return snap.docs.map((doc) {
       final data = doc.data();
+
+      final parent = (data['parentQuestionId'] ?? '').toString().trim();
+      final trigger = (data['triggerOptionId'] ?? '').toString().trim();
+
       return DemographicQuestion(
         id: doc.id,
         text: (data['questionText'] ?? '').toString(),
         type: _normalizeQuestionType((data['questionType'] ?? '').toString()),
         isRequired: _asBool(data['isRequired']),
         displayOrder: _asInt(data['displayOrder']),
+        parentQuestionId: parent.isEmpty ? null : parent, // ✅
+        triggerOptionId: trigger.isEmpty ? null : trigger, // ✅
       );
     }).toList();
   }
@@ -416,9 +418,10 @@ class GuestFirestoreServices {
 
   /// Gets the companion's display name.
   String getCompanionName(Map<String, dynamic> companion, int index) {
-    return (companion['guestName'] ?? 
-            companion['name'] ?? 
-            'Companion ${index + 1}').toString();
+    return (companion['guestName'] ??
+            companion['name'] ??
+            'Companion ${index + 1}')
+        .toString();
   }
 
   /// Gets the main guest's display name.
@@ -478,13 +481,15 @@ class InvitationValidation {
   });
 }
 
-/// Demographic question model.
+/// Demographic question model (supports conditional "Question rules")
 class DemographicQuestion {
   final String id;
   final String text;
   final String type;
   final bool isRequired;
   final int displayOrder;
+  final String? parentQuestionId;
+  final String? triggerOptionId;
   List<DemographicOption> options;
 
   DemographicQuestion({
@@ -493,8 +498,43 @@ class DemographicQuestion {
     required this.type,
     required this.isRequired,
     required this.displayOrder,
+    this.parentQuestionId,
+    this.triggerOptionId,
     this.options = const [],
   });
+
+  /// Convenience getters
+  bool get isBaseQuestion =>
+      parentQuestionId == null || parentQuestionId!.trim().isEmpty;
+
+  bool get isSubQuestion =>
+      parentQuestionId != null &&
+      parentQuestionId!.trim().isNotEmpty &&
+      triggerOptionId != null &&
+      triggerOptionId!.trim().isNotEmpty;
+
+  /// Optional: clone with changes (handy in controllers)
+  DemographicQuestion copyWith({
+    String? id,
+    String? text,
+    String? type,
+    bool? isRequired,
+    int? displayOrder,
+    String? parentQuestionId,
+    String? triggerOptionId,
+    List<DemographicOption>? options,
+  }) {
+    return DemographicQuestion(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      type: type ?? this.type,
+      isRequired: isRequired ?? this.isRequired,
+      displayOrder: displayOrder ?? this.displayOrder,
+      parentQuestionId: parentQuestionId ?? this.parentQuestionId,
+      triggerOptionId: triggerOptionId ?? this.triggerOptionId,
+      options: options ?? this.options,
+    );
+  }
 }
 
 /// Demographic option model.

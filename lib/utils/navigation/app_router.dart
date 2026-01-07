@@ -28,6 +28,7 @@ import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage_re
 import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage_refactored.dart';
 import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
+import 'package:traxx_wepapp/view/admin/questions/host_questions_rules_screen.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -135,23 +136,24 @@ GoRouter buildRouter() {
         navigatorKey: guestAuthNavigatorKey,
         redirect: (context, state) {
           final guestSession = Get.find<GuestSessionController>();
-          
+
           // If on login page and already authenticated, redirect to responses preview
           if (state.matchedLocation == AppRoute.guestLogin.path) {
             if (guestSession.isAuthenticated) {
-              print('✅ Guest already authenticated, redirecting to responses preview');
+              print(
+                  '✅ Guest already authenticated, redirecting to responses preview');
               return AppRoute.guestResponsesPreview.path;
             }
             // Not authenticated, allow access to login page
             return null;
           }
-          
+
           // For all other guest routes, check if authenticated
           if (!guestSession.isAuthenticated) {
             print('🔒 Guest not authenticated, redirecting to login');
             return AppRoute.guestLogin.path;
           }
-          
+
           print('✅ Guest authenticated, allowing access');
           return null; // Allow access to protected route
         },
@@ -161,7 +163,7 @@ GoRouter buildRouter() {
             print('ONLY CHILD RETURNED');
             return child;
           }
-          
+
           // For authenticated routes, show navigation rail and content wrapper
           return GuestNavigationRailWrapper(
             child: ContentWrapper(
@@ -175,7 +177,7 @@ GoRouter buildRouter() {
             path: AppRoute.guestLogin.path,
             builder: (context, state) => const GuestLoginPage(),
           ),
-          
+
           // Guest responses preview page (authenticated)
           GoRoute(
             path: AppRoute.guestResponsesPreview.path,
@@ -201,14 +203,14 @@ GoRouter buildRouter() {
               final guestSession = Get.find<GuestSessionController>();
               final eventId = guestSession.event.value?.eventId ?? '';
               final eventName = guestSession.event.value?.name;
-              
+
               return GuestFeedPage(
                 eventId: eventId,
                 eventName: eventName,
               );
             },
           ),
-          
+
           // TODO: Add more authenticated guest routes here
           // Example:
           // GoRoute(
@@ -494,6 +496,11 @@ GoRouter buildRouter() {
               );
             },
           ),
+          GoRoute(
+            path: AppRoute.hostQuestionRules.path,
+            builder: (context, state) => const QuestionRulesScreen(),
+          ),
+
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {

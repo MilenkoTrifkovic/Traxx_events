@@ -20,6 +20,7 @@ class HostQuestionsController {
   /// Live stream of all questions + options for a given set
   Stream<List<DemographicQuestionWithOptions>> streamQuestions({
     required String questionSetId,
+    bool includeConditional = false,
   }) {
     final questionsQuery = _db
         .collection('demographicQuestions')
@@ -35,17 +36,31 @@ class HostQuestionsController {
     QuerySnapshot<Map<String, dynamic>>? latestQuestionsSnap;
     final Map<String, DemographicQuestionOption> optionById = {};
 
+    bool isBaseDoc(Map<String, dynamic> data) {
+      // ✅ base if parentQuestionId missing/empty
+      final p = (data['parentQuestionId'] ?? '').toString().trim();
+      return p.isEmpty;
+    }
+
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleDocs() {
+      if (latestQuestionsSnap == null) return const [];
+      final docs = latestQuestionsSnap!.docs;
+      if (includeConditional) return docs;
+      return docs.where((d) => isBaseDoc(d.data())).toList();
+    }
+
     void emitCombined() {
       if (latestQuestionsSnap == null) return;
 
-      final questions = latestQuestionsSnap!.docs
-          .map((doc) => DemographicQuestion.fromDoc(doc))
-          .toList();
+      final vDocs = visibleDocs();
 
-      if (questions.isEmpty) {
+      if (vDocs.isEmpty) {
         controller.add(<DemographicQuestionWithOptions>[]);
         return;
       }
+
+      final questions =
+          vDocs.map((d) => DemographicQuestion.fromDoc(d)).toList();
 
       // group options by questionId
       final Map<String, List<DemographicQuestionOption>> byQuestionId = {};
@@ -72,7 +87,11 @@ class HostQuestionsController {
       optionSubs.clear();
       optionById.clear();
 
-      // Firestore whereIn limit: use chunks (safe: 30)
+      if (questionIds.isEmpty) {
+        emitCombined();
+        return;
+      }
+
       const chunkSize = 30;
       for (int i = 0; i < questionIds.length; i += chunkSize) {
         final chunk = questionIds.sublist(
@@ -101,8 +120,11 @@ class HostQuestionsController {
 
     questionsSub = questionsQuery.snapshots().listen((qsnap) {
       latestQuestionsSnap = qsnap;
-      final questionIds = qsnap.docs.map((d) => d.id).toList();
-      resetOptionStreams(questionIds);
+
+      // subscribe options only for visible questions
+      final ids = visibleDocs().map((d) => d.id).toList();
+      resetOptionStreams(ids);
+
       emitCombined();
     });
 
@@ -262,6 +284,61 @@ class HostQuestionsController {
 
     for (final doc in optsSnap.docs) {
       batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> createConditionalQuestionWithOptions({
+    required String questionSetId,
+    required String parentQuestionId,
+    required String triggerOptionId,
+    required String questionText,
+    required String questionType,
+    required bool isRequired,
+    required List<NewOptionInput> options,
+  }) async {
+    if (_uid == null) throw Exception('User not authenticated');
+
+    final batch = _db.batch();
+    final questionsCol = _db.collection('demographicQuestions');
+    final optionsCol = _db.collection('demographicQuestionOptions');
+
+    final questionDoc = questionsCol.doc();
+    final String questionId = questionDoc.id;
+    final now = FieldValue.serverTimestamp();
+
+    batch.set(questionDoc, {
+      'questionId': questionId,
+      'questionSetId': questionSetId,
+      'questionText': questionText,
+      'questionType': questionType,
+      'userId': _uid,
+      'displayOrder': 9999, // sub-question order not used in base editor
+      'isRequired': isRequired,
+      'isDisabled': false,
+      'createdDate': now,
+      'modifiedDate': now,
+
+      // ✅ rule fields
+      'parentQuestionId': parentQuestionId,
+      'triggerOptionId': triggerOptionId,
+    });
+
+    for (int i = 0; i < options.length; i++) {
+      final opt = options[i];
+      final optDoc = optionsCol.doc();
+      batch.set(optDoc, {
+        'questionId': questionId,
+        'label': opt.label,
+        'value': opt.value,
+        'optionType': opt.requiresFreeText ? 'other_with_text' : 'choice',
+        'requiresFreeText': opt.requiresFreeText,
+        'displayOrder': i + 1,
+        'isDisabled': false,
+        'createdDate': now,
+        'modifiedDate': now,
+      });
     }
 
     await batch.commit();

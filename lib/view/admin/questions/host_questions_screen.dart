@@ -513,7 +513,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
-      stream: _controller.streamQuestions(questionSetId: widget.questionSetId),
+      stream: _controller.streamQuestions(
+        questionSetId: widget.questionSetId,
+        includeConditional: true,
+      ),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final err = snapshot.error;
@@ -533,11 +536,46 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         // Once we HAVE data (even empty), show empty state correctly
         if (items.isEmpty) return _buildEmptyState();
 
-        final questions = List<DemographicQuestionWithOptions>.from(items);
+        final all = List<DemographicQuestionWithOptions>.from(items);
 
-        if (_pendingFocusNew && questions.isNotEmpty) {
+        final base = all.where((x) {
+          final p = x.question.parentQuestionId?.trim() ?? '';
+          return p.isEmpty;
+        }).toList();
+
+        final subs = all.where((x) {
+          final p = x.question.parentQuestionId?.trim() ?? '';
+          return p.isNotEmpty;
+        }).toList();
+
+// group subs by parentQuestionId
+        final Map<String, List<DemographicQuestionWithOptions>> subsByParent =
+            {};
+        for (final s in subs) {
+          final parentId = s.question.parentQuestionId!.trim();
+          subsByParent.putIfAbsent(parentId, () => []).add(s);
+        }
+
+// sort subs by displayOrder
+        for (final entry in subsByParent.entries) {
+          entry.value.sort((a, b) =>
+              a.question.displayOrder.compareTo(b.question.displayOrder));
+        }
+
+// Build a "render list": base question + its subs underneath
+        final renderList = <_HostRenderRow>[];
+
+        for (final b in base) {
+          renderList.add(_HostRenderRow(item: b, isSub: false));
+          final children = subsByParent[b.question.questionId] ?? const [];
+          for (final c in children) {
+            renderList.add(_HostRenderRow(item: c, isSub: true));
+          }
+        }
+
+        if (_pendingFocusNew && all.isNotEmpty) {
           _pendingFocusNew = false;
-          final newId = questions.last.question.id;
+          final newId = all.last.question.id;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _setActiveQuestion(newId);
           });
@@ -551,18 +589,17 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
               buildDefaultDragHandles: false,
               physics: const ClampingScrollPhysics(),
               padding: EdgeInsets.zero,
-              itemCount: questions.length,
               onReorder: (oldIndex, newIndex) async {
                 if (newIndex > oldIndex) newIndex--;
-                final item = questions.removeAt(oldIndex);
-                questions.insert(newIndex, item);
+                final item = all.removeAt(oldIndex);
+                all.insert(newIndex, item);
 
                 _setProcessing(true);
                 try {
                   await Future.wait([
-                    for (int i = 0; i < questions.length; i++)
+                    for (int i = 0; i < all.length; i++)
                       _controller.updateQuestion(
-                        questionDocId: questions[i].question.id,
+                        questionDocId: all[i].question.id,
                         data: {'displayOrder': i + 1},
                       ),
                   ]);
@@ -580,31 +617,77 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                   _setProcessing(false);
                 }
               },
+              itemCount: renderList.length,
               itemBuilder: (context, index) {
-                final item = questions[index];
+                final row = renderList[index];
+                final item = row.item;
+
                 return Padding(
                   key: ValueKey(item.question.id),
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _GoogleFormsQuestionCard(
-                    index: index,
-                    item: item,
-                    isActive: item.question.id == _activeQuestionId,
-                    onTap: () => _setActiveQuestion(item.question.id),
-                    onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
-                      item.question.id,
-                      {'questionText': text},
-                    ),
-                    onQuestionTypeChanged: (type) =>
-                        _updateQuestionType(item.question.id, type),
-                    onRequiredChanged: (required) =>
-                        _updateRequired(item.question.id, required),
-                    onDelete: () => _confirmDeleteQuestion(item),
-                    onRemoveOption: (opt) => _removeOption(item, opt),
-                    onAddOption: () => _addOption(item),
-                    onOptionLabelChanged: (opt, newLabel) {
-                      if (opt.id.isEmpty) return;
-                      _debouncedUpdateOption(opt.id, {'label': newLabel});
-                    },
+                  padding: EdgeInsets.only(
+                    bottom: 12,
+                    left: row.isSub ? 28 : 0, // ✅ indent subs
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (row.isSub)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.06),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Follow-up',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Shown when option: ${item.question.triggerOptionId ?? ""}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12, color: Colors.black54),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      _GoogleFormsQuestionCard(
+                        index:
+                            index, // reorder will be disabled anyway in grouped view
+                        item: item,
+                        isActive: item.question.id == _activeQuestionId,
+                        onTap: () => _setActiveQuestion(item.question.id),
+                        onQuestionTextChanged: (text) =>
+                            _debouncedUpdateQuestion(
+                          item.question.id,
+                          {'questionText': text},
+                        ),
+                        onQuestionTypeChanged: (type) =>
+                            _updateQuestionType(item.question.id, type),
+                        onRequiredChanged: (required) =>
+                            _updateRequired(item.question.id, required),
+                        onDelete: () => _confirmDeleteQuestion(item),
+                        onRemoveOption: (opt) => _removeOption(item, opt),
+                        onAddOption: () => _addOption(item),
+                        onOptionLabelChanged: (opt, newLabel) {
+                          if (opt.id.isEmpty) return;
+                          _debouncedUpdateOption(opt.id, {'label': newLabel});
+                        },
+                      ),
+                    ],
                   ),
                 );
               },
@@ -1260,4 +1343,10 @@ class _QuestionBody extends StatelessWidget {
       ],
     );
   }
+}
+
+class _HostRenderRow {
+  final DemographicQuestionWithOptions item;
+  final bool isSub;
+  const _HostRenderRow({required this.item, required this.isSub});
 }

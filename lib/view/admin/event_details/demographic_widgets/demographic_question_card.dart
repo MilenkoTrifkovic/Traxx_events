@@ -5,9 +5,10 @@ import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 
 import 'demographic_constants.dart';
 
-// ------------------------------------------------------------
-// Question card widget
-// ------------------------------------------------------------
+// ✅ Your DemographicQuestionCard is already correctly updated to opt.id.
+// Keeping it here as-is (same as your latest version) so you can copy/paste
+// the full file in one shot.
+
 class DemographicQuestionCard extends StatelessWidget {
   final DemographicQuestion question;
   final bool isActive;
@@ -17,7 +18,7 @@ class DemographicQuestionCard extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<dynamic> onAnswerChanged;
   final TextEditingController Function(String key) getFreeTextController;
-  
+
   /// Read-only mode - disables all interactions
   final bool readOnly;
 
@@ -34,9 +35,60 @@ class DemographicQuestionCard extends StatelessWidget {
     this.readOnly = false,
   });
 
+  String? _selectedOptionId() {
+    if (answer is String) {
+      final s = (answer as String).trim();
+      if (s.isEmpty) return null;
+      if (question.options.any((o) => o.id == s)) return s;
+      final byValue = question.options.where((o) => o.value == s);
+      if (byValue.isNotEmpty) return byValue.first.id;
+      return null;
+    }
+
+    if (answer is Map) {
+      final m = answer as Map;
+      final optId = (m['optionId'] ?? '').toString().trim();
+      if (optId.isNotEmpty && question.options.any((o) => o.id == optId)) {
+        return optId;
+      }
+      final legacyVal = (m['value'] ?? '').toString().trim();
+      if (legacyVal.isNotEmpty) {
+        final byValue = question.options.where((o) => o.value == legacyVal);
+        if (byValue.isNotEmpty) return byValue.first.id;
+      }
+    }
+
+    return null;
+  }
+
+  List<Map<String, dynamic>> _selectedCheckboxItems() {
+    if (answer is! List) return <Map<String, dynamic>>[];
+
+    final out = <Map<String, dynamic>>[];
+    for (final item in (answer as List)) {
+      if (item is Map) {
+        out.add(Map<String, dynamic>.from(item as Map));
+      } else if (item is String) {
+        out.add({'optionId': item});
+      }
+    }
+    return out;
+  }
+
+  bool _isChecked(DemographicOption opt, List<Map<String, dynamic>> selected) {
+    return selected.any((x) {
+      final optId = (x['optionId'] ?? '').toString();
+      if (optId.isNotEmpty) return optId == opt.id;
+
+      final legacyVal = (x['value'] ?? '').toString();
+      return legacyVal.isNotEmpty && legacyVal == opt.value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final titleText = question.isRequired ? '${question.text} *' : question.text;
+    final titleText =
+        question.isRequired ? '${question.text} *' : question.text;
 
     return InkWell(
       onTap: readOnly ? null : onTap,
@@ -52,7 +104,8 @@ class DemographicQuestionCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isActive && !readOnly ? 0.08 : 0.04),
+              color:
+                  Colors.black.withOpacity(isActive && !readOnly ? 0.08 : 0.04),
               offset: const Offset(0, 4),
               blurRadius: 10,
             ),
@@ -87,9 +140,8 @@ class DemographicQuestionCard extends StatelessWidget {
   }
 
   Widget _buildInput(BuildContext context) {
-    // In read-only mode, show disabled inputs
     final effectiveEnabled = !readOnly && isActive;
-    
+
     switch (question.type) {
       case 'short_answer':
       case 'paragraph':
@@ -113,10 +165,8 @@ class DemographicQuestionCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
               color: Colors.grey.shade400,
             ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: kBorder),
@@ -137,32 +187,30 @@ class DemographicQuestionCard extends StatelessWidget {
         );
 
       case 'dropdown':
-        final selected = (answer is Map)
-            ? (answer['value'] as String?)
-            : (answer as String?);
+        final selectedId = _selectedOptionId();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             IgnorePointer(
               ignoring: readOnly,
               child: DropdownButtonFormField<String>(
-                value: selected,
+                value: selectedId,
                 isExpanded: true,
                 decoration: InputDecoration(
                   isDense: true,
                   filled: true,
                   fillColor: readOnly ? Colors.grey.shade50 : Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: kBorder),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : kBorder),
+                    borderSide: BorderSide(
+                      color: readOnly ? Colors.grey.shade300 : kBorder,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -180,7 +228,7 @@ class DemographicQuestionCard extends StatelessWidget {
                 items: [
                   for (final opt in question.options)
                     DropdownMenuItem(
-                      value: opt.value,
+                      value: opt.id,
                       child: Text(
                         opt.label,
                         overflow: TextOverflow.ellipsis,
@@ -192,29 +240,30 @@ class DemographicQuestionCard extends StatelessWidget {
                       ),
                     ),
                 ],
-                onChanged: readOnly ? null : (v) {
-                  // Auto-activate card when selecting
-                  if (!isActive) onTap();
-                  if (v == null) {
-                    onAnswerChanged(null);
-                    return;
-                  }
-                  final opt = question.options.firstWhere(
-                    (o) => o.value == v,
-                  );
-                  if (opt.requiresFreeText) {
-                    final ctrlKey = '${question.id}__${opt.value}';
-                    getFreeTextController(ctrlKey);
-                    onAnswerChanged({
-                      'value': opt.value,
-                      'label': opt.label,
-                      'requiresFreeText': true,
-                      'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                    });
-                  } else {
-                    onAnswerChanged(opt.value);
-                  }
-                },
+                onChanged: readOnly
+                    ? null
+                    : (optId) {
+                        if (!isActive) onTap();
+                        if (optId == null) {
+                          onAnswerChanged(null);
+                          return;
+                        }
+                        final opt =
+                            question.options.firstWhere((o) => o.id == optId);
+                        if (opt.requiresFreeText) {
+                          final ctrlKey = '${question.id}__${opt.id}';
+                          getFreeTextController(ctrlKey);
+                          onAnswerChanged({
+                            'optionId': opt.id,
+                            'value': opt.value,
+                            'label': opt.label,
+                            'requiresFreeText': true,
+                            'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
+                          });
+                        } else {
+                          onAnswerChanged(opt.id);
+                        }
+                      },
               ),
             ),
             const SizedBox(height: 8),
@@ -223,8 +272,7 @@ class DemographicQuestionCard extends StatelessWidget {
         );
 
       case 'checkboxes':
-        final selected = (answer as List?)?.cast<Map<String, dynamic>>() ??
-            <Map<String, dynamic>>[];
+        final selected = _selectedCheckboxItems();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -245,8 +293,7 @@ class DemographicQuestionCard extends StatelessWidget {
   }
 
   Widget _radioRow(DemographicOption opt) {
-    final selected =
-        (answer is Map) ? (answer['value'] as String?) : answer as String?;
+    final selectedId = _selectedOptionId();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -255,25 +302,27 @@ class DemographicQuestionCard extends StatelessWidget {
           SizedBox(
             width: 32,
             child: Radio<String>(
-              value: opt.value,
-              groupValue: selected,
-              onChanged: readOnly ? null : (v) {
-                if (v == null) return;
-                // Auto-activate card when selecting
-                if (!isActive) onTap();
-                if (opt.requiresFreeText) {
-                  final ctrlKey = '${question.id}__${opt.value}';
-                  getFreeTextController(ctrlKey);
-                  onAnswerChanged({
-                    'value': opt.value,
-                    'label': opt.label,
-                    'requiresFreeText': true,
-                    'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                  });
-                } else {
-                  onAnswerChanged(opt.value);
-                }
-              },
+              value: opt.id,
+              groupValue: selectedId,
+              onChanged: readOnly
+                  ? null
+                  : (v) {
+                      if (v == null) return;
+                      if (!isActive) onTap();
+                      if (opt.requiresFreeText) {
+                        final ctrlKey = '${question.id}__${opt.id}';
+                        getFreeTextController(ctrlKey);
+                        onAnswerChanged({
+                          'optionId': opt.id,
+                          'value': opt.value,
+                          'label': opt.label,
+                          'requiresFreeText': true,
+                          'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
+                        });
+                      } else {
+                        onAnswerChanged(opt.id);
+                      }
+                    },
               activeColor: kAccent,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
@@ -294,9 +343,11 @@ class DemographicQuestionCard extends StatelessWidget {
     );
   }
 
-  Widget _checkboxRow(DemographicOption opt, List<Map<String, dynamic>> selected) {
-    final isChecked = selected.any((x) => x['value'] == opt.value);
-    final ctrlKey = '${question.id}__${opt.value}';
+  Widget _checkboxRow(
+      DemographicOption opt, List<Map<String, dynamic>> selected) {
+    final isChecked = _isChecked(opt, selected);
+    final ctrlKey = '${question.id}__${opt.id}';
+
     if (opt.requiresFreeText && !readOnly) {
       getFreeTextController(ctrlKey);
     }
@@ -312,29 +363,39 @@ class DemographicQuestionCard extends StatelessWidget {
                 width: 32,
                 child: Checkbox(
                   value: isChecked,
-                  onChanged: readOnly ? null : (v) {
-                    // Auto-activate card when selecting
-                    if (!isActive) onTap();
-                    final next = List<Map<String, dynamic>>.from(selected);
-                    if (v == true) {
-                      if (opt.requiresFreeText) {
-                        next.add({
-                          'value': opt.value,
-                          'label': opt.label,
-                          'requiresFreeText': true,
-                          'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
-                        });
-                      } else {
-                        next.add({
-                          'value': opt.value,
-                          'label': opt.label,
-                        });
-                      }
-                    } else {
-                      next.removeWhere((x) => x['value'] == opt.value);
-                    }
-                    onAnswerChanged(next);
-                  },
+                  onChanged: readOnly
+                      ? null
+                      : (v) {
+                          if (!isActive) onTap();
+                          final next =
+                              List<Map<String, dynamic>>.from(selected);
+                          if (v == true) {
+                            if (opt.requiresFreeText) {
+                              next.add({
+                                'optionId': opt.id,
+                                'value': opt.value,
+                                'label': opt.label,
+                                'requiresFreeText': true,
+                                'freeText': freeTextCtrls[ctrlKey]?.text ?? '',
+                              });
+                            } else {
+                              next.add({
+                                'optionId': opt.id,
+                                'value': opt.value,
+                                'label': opt.label,
+                              });
+                            }
+                          } else {
+                            next.removeWhere((x) {
+                              final oid = (x['optionId'] ?? '').toString();
+                              if (oid.isNotEmpty) return oid == opt.id;
+                              final legacyVal = (x['value'] ?? '').toString();
+                              return legacyVal.isNotEmpty &&
+                                  legacyVal == opt.value;
+                            });
+                          }
+                          onAnswerChanged(next);
+                        },
                   activeColor: kAccent,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
@@ -370,18 +431,22 @@ class DemographicQuestionCard extends StatelessWidget {
                   borderSide: const BorderSide(color: kAccent, width: 2),
                 ),
               ),
-              onChanged: readOnly ? null : (txt) {
-                final next = List<Map<String, dynamic>>.from(selected);
-                final idx = next.indexWhere((x) => x['value'] == opt.value);
-                if (idx >= 0) {
-                  next[idx] = {
-                    ...next[idx],
-                    'requiresFreeText': true,
-                    'freeText': txt,
-                  };
-                  onAnswerChanged(next);
-                }
-              },
+              onChanged: readOnly
+                  ? null
+                  : (txt) {
+                      final next = List<Map<String, dynamic>>.from(selected);
+                      final idx =
+                          next.indexWhere((x) => x['optionId'] == opt.id);
+                      if (idx >= 0) {
+                        next[idx] = {
+                          ...next[idx],
+                          'optionId': opt.id,
+                          'requiresFreeText': true,
+                          'freeText': txt,
+                        };
+                        onAnswerChanged(next);
+                      }
+                    },
             ),
           ),
       ],
@@ -391,14 +456,16 @@ class DemographicQuestionCard extends StatelessWidget {
   Widget _maybeFreeTextForSingleChoice() {
     if (readOnly) return const SizedBox.shrink();
     if (answer is! Map) return const SizedBox.shrink();
+
     final a = answer as Map;
     if (a['requiresFreeText'] != true) return const SizedBox.shrink();
 
-    final value = (a['value'] ?? '').toString();
-    if (value.isEmpty) return const SizedBox.shrink();
+    final optId = (a['optionId'] ?? '').toString().trim();
+    if (optId.isEmpty) return const SizedBox.shrink();
 
-    final ctrlKey = '${question.id}__$value';
+    final ctrlKey = '${question.id}__${optId}';
     final ctrl = getFreeTextController(ctrlKey);
+
     if (ctrl.text.isEmpty && a['freeText'] != null) {
       ctrl.text = a['freeText'].toString();
     }

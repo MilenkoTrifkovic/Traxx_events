@@ -50,11 +50,19 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
       return 4;
     }
 
+    // if (location.startsWith(AppRoute.hostQuestionSets.path) ||
+    //     location.startsWith(AppRoute.hostQuestions.path) ||
+    //     location.startsWith(AppRoute.hostQuestionSetQuestions.path)) {
+    //   return 4;
+    // }
+
+    if (location.startsWith(AppRoute.hostQuestionRules.path)) return 5;
+
     // ✅ Users
-    if (location.startsWith(AppRoute.hostRoleSelection.path)) return 5;
+    if (location.startsWith(AppRoute.hostRoleSelection.path)) return 6;
 
     // ✅ Settings
-    if (location.startsWith(AppRoute.hostSettings.path)) return 6;
+    if (location.startsWith(AppRoute.hostSettings.path)) return 7;
 
     return 0;
   }
@@ -76,13 +84,24 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
       case 4:
         pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
         return;
+
+      // ✅ Question rules
       case 5:
+        pushAndRemoveAllRoute(AppRoute.hostQuestionRules, context);
+        return;
+
+      // ✅ Users
+      case 6:
         pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
         return;
-      case 6:
+
+      // ✅ Settings
+      case 7:
         pushAndRemoveAllRoute(AppRoute.hostSettings, context);
         return;
-      case 7:
+
+      // ✅ Logout
+      case 8:
         try {
           await authController.logout();
         } catch (_) {}
@@ -178,6 +197,11 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
         label: 'Questions',
         icon: Icons.quiz_outlined,
         selectedIcon: Icons.quiz,
+      ),
+      const NavItemData(
+        label: 'Question rules',
+        icon: Icons.rule_outlined,
+        selectedIcon: Icons.rule,
       ),
       const NavItemData(
         label: 'Users',

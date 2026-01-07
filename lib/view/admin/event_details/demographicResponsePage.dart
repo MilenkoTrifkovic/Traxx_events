@@ -67,10 +67,10 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
   /// Current companion index (null = main guest, 0+ = companion)
   int? _companionIndex;
-  
+
   /// Display name for current person (main guest name or companion name)
   String _currentPersonName = '';
-  
+
   /// Flow state for navigation decisions
   ResponseFlowState? _flowState;
 
@@ -90,7 +90,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     );
     super.initState();
     _invitationIdCtrl = TextEditingController(text: widget.invitationId);
-    
+
     // Initialize companion index from widget or URL
     _companionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
 
@@ -107,14 +107,16 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void didUpdateWidget(covariant DemographicResponsePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Check if companion index changed (navigation to same page with different params)
-    final newCompanionIndex = widget.companionIndex ?? _readCompanionIndexFromUrl();
+    final newCompanionIndex =
+        widget.companionIndex ?? _readCompanionIndexFromUrl();
     final oldCompanionIndex = _companionIndex;
-    
-    debugPrint('didUpdateWidget: old companionIndex=$oldCompanionIndex, new=$newCompanionIndex');
-    
-    if (newCompanionIndex != oldCompanionIndex || 
+
+    debugPrint(
+        'didUpdateWidget: old companionIndex=$oldCompanionIndex, new=$newCompanionIndex');
+
+    if (newCompanionIndex != oldCompanionIndex ||
         widget.invitationId != oldWidget.invitationId) {
       debugPrint('*** Companion index or invitation changed, reloading...');
       _companionIndex = newCompanionIndex;
@@ -138,7 +140,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   /// Check if current person (main or companion) has already submitted demographics
   bool get _isCurrentPersonDone {
     if (_invitation == null) return false;
-    
+
     if (_companionIndex == null) {
       // Main guest
       return _invitation?['used'] == true;
@@ -385,16 +387,17 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       // -----------------------------
       // 3) Build flow state and check completion status
       // -----------------------------
-      final tokenToUse = tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite;
+      final tokenToUse =
+          tokenFromLink.isNotEmpty ? tokenFromLink : tokenInInvite;
       _flowState = ResponseFlowState.fromInvitation(
-        _invitation!, 
+        _invitation!,
         tokenToUse,
         invitationIdOverride: _activeInvitationId, // Use the doc ID we know
       );
-      
+
       // Get companions list
       final companions = (_invitation?['companions'] as List?) ?? [];
-      
+
       // Validate companion index if specified
       if (_companionIndex != null) {
         if (_companionIndex! < 0 || _companionIndex! >= companions.length) {
@@ -404,11 +407,13 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           );
           return;
         }
-        
+
         // Set current person name for companion
         final companion = companions[_companionIndex!] as Map<String, dynamic>;
-        _currentPersonName = (companion['name'] ?? 'Companion ${_companionIndex! + 1}').toString();
-        
+        _currentPersonName =
+            (companion['name'] ?? 'Companion ${_companionIndex! + 1}')
+                .toString();
+
         // Check if this companion already submitted demographics
         if (companion['demographicSubmitted'] == true) {
           // Already submitted - redirect to next step
@@ -421,7 +426,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       } else {
         // Main guest
         _currentPersonName = (_invitation?['guestName'] ?? 'Guest').toString();
-        
+
         // Check if main guest already submitted demographics
         if (_asBool(_invitation?['used'], fallback: false)) {
           // Already submitted - redirect to next step
@@ -432,14 +437,15 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
           return;
         }
       }
-      
+
       // -----------------------------
       // 4) Check if entire flow is complete
       // -----------------------------
       if (_flowState!.isComplete) {
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/thank-you?invitationId=${Uri.encodeComponent(_activeInvitationId)}');
+          context.go(
+              '/thank-you?invitationId=${Uri.encodeComponent(_activeInvitationId)}');
         });
         return;
       }
@@ -714,7 +720,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         invitationId: _activeInvitationId,
         token: tokenToUse,
         answers: payloadAnswers,
-        companionIndex: _companionIndex, // ✅ Pass companion index (null for main guest)
+        companionIndex:
+            _companionIndex, // ✅ Pass companion index (null for main guest)
       );
 
       // Update local state based on who submitted
@@ -724,11 +731,13 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       } else {
         // Companion - update their status in local state
         final companions = List<Map<String, dynamic>>.from(
-          (_invitation?['companions'] as List? ?? []).map((c) => Map<String, dynamic>.from(c as Map)),
+          (_invitation?['companions'] as List? ?? [])
+              .map((c) => Map<String, dynamic>.from(c as Map)),
         );
         if (_companionIndex! < companions.length) {
           companions[_companionIndex!]['demographicSubmitted'] = true;
-          setState(() => _invitation = {...?_invitation, 'companions': companions});
+          setState(
+              () => _invitation = {...?_invitation, 'companions': companions});
         }
       }
 
@@ -739,7 +748,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
       // Navigate to next step
       _navigateToNextStep(tokenToUse);
-      
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -777,13 +785,13 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   void _navigateToNextStep(String token) {
     // Rebuild flow state from latest invitation data, with invitationId override
     final flowState = ResponseFlowState.fromInvitation(
-      _invitation!, 
+      _invitation!,
       token,
       invitationIdOverride: _activeInvitationId,
     );
     final nextStep = flowState.getNextStep();
     final nextUrl = nextStep.buildUrl(_activeInvitationId, token);
-    
+
     debugPrint('Demographics: Navigating to next step: ${nextStep.step}, '
         'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
     context.go(nextUrl);
@@ -797,11 +805,11 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     // Build dynamic page title based on who is filling
     final String pageTitle;
     final String fillingForLabel;
-    
+
     if (_companionIndex != null) {
       // Companion - use their actual name
-      final name = _currentPersonName.isNotEmpty 
-          ? _currentPersonName 
+      final name = _currentPersonName.isNotEmpty
+          ? _currentPersonName
           : 'Companion ${_companionIndex! + 1}';
       pageTitle = 'Demographics';
       fillingForLabel = 'Filling for: $name';
@@ -844,8 +852,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // Progress indicator - show when there are companions
-                            if (_invitation != null && 
-                                ((_invitation?['companions'] as List?) ?? []).isNotEmpty) ...[
+                            if (_invitation != null &&
+                                ((_invitation?['companions'] as List?) ?? [])
+                                    .isNotEmpty) ...[
                               _buildProgressBanner(fillingForLabel),
                               const SizedBox(height: 12),
                             ],
@@ -888,7 +897,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                             _HeaderWithAction(
                               title: title,
                               description: description,
-                              actionLabel: _isCurrentPersonDone ? 'Continue' : 'Next',
+                              actionLabel:
+                                  _isCurrentPersonDone ? 'Continue' : 'Next',
                               actionEnabled: !_loading &&
                                   !_submitting &&
                                   _invitation != null &&
@@ -898,7 +908,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                               onAction: _submitAndGoNext,
                             ),
                             const SizedBox(height: 14),
-                            if (!_loading && _invitation != null && !_isCurrentPersonDone)
+                            if (!_loading &&
+                                _invitation != null &&
+                                !_isCurrentPersonDone)
                               Center(
                                 child: Text(
                                   'Click on a question to answer',
@@ -948,17 +960,18 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   Widget _buildProgressBanner(String fillingForLabel) {
     final companions = (_invitation?['companions'] as List?) ?? [];
     final totalPeople = 1 + companions.length; // main guest + companions
-    
+
     // Calculate how many demographics are complete
     int completedCount = 0;
     if (_asBool(_invitation?['used'], fallback: false)) completedCount++;
     for (final c in companions) {
       if ((c as Map)['demographicSubmitted'] == true) completedCount++;
     }
-    
+
     // Current person number (1-based)
-    final currentPersonNum = _companionIndex == null ? 1 : (_companionIndex! + 2);
-    
+    final currentPersonNum =
+        _companionIndex == null ? 1 : (_companionIndex! + 2);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -1042,14 +1055,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
 
     // Check if current person (main or companion) already submitted
     if (_isCurrentPersonDone) {
-      final name = _companionIndex == null 
-          ? 'Your' 
-          : '${_currentPersonName}\'s';
+      final name =
+          _companionIndex == null ? 'Your' : '${_currentPersonName}\'s';
       return _InfoCard(
         icon: Icons.check_circle_outline_rounded,
         iconColor: Colors.green,
         title: 'Already submitted',
-        message: '$name responses were already submitted. Click Continue to proceed.',
+        message:
+            '$name responses were already submitted. Click Continue to proceed.',
       );
     }
 
@@ -1415,21 +1428,83 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
     required this.onAnswerChanged,
   });
 
-  String _typeLabel(String t) {
-    switch (t) {
-      case 'short_answer':
-        return 'Short answer';
-      case 'paragraph':
-        return 'Paragraph';
-      case 'checkboxes':
-        return 'Checkboxes';
-      case 'dropdown':
-        return 'Dropdown';
-      case 'multiple_choice':
-      default:
-        return 'Multiple choice';
+  // -----------------------------
+  // Helpers (optionId based)
+  // -----------------------------
+
+  /// Returns selected optionId for single-choice/dropdown.
+  /// Supports:
+  /// - String => optionId (new) OR opt.value (legacy)
+  /// - Map => { optionId: ... } (new) OR { value: ... } (legacy)
+  String? _selectedOptionId() {
+    if (answer is String) {
+      final s = (answer as String).trim();
+      if (s.isEmpty) return null;
+
+      // New: stored as optionId
+      if (question.options.any((o) => o.id == s)) return s;
+
+      // Legacy: stored as opt.value -> convert to optionId
+      final byValue = question.options.where((o) => o.value == s);
+      if (byValue.isNotEmpty) return byValue.first.id;
+
+      return null;
     }
+
+    if (answer is Map) {
+      final m = answer as Map;
+
+      final optId = (m['optionId'] ?? '').toString().trim();
+      if (optId.isNotEmpty && question.options.any((o) => o.id == optId)) {
+        return optId;
+      }
+
+      final legacyVal = (m['value'] ?? '').toString().trim();
+      if (legacyVal.isNotEmpty) {
+        final byValue = question.options.where((o) => o.value == legacyVal);
+        if (byValue.isNotEmpty) return byValue.first.id;
+      }
+    }
+
+    return null;
   }
+
+  /// Returns selected checkbox items as list of maps.
+  /// Supports legacy entries that had "value" instead of "optionId".
+  List<Map<String, dynamic>> _selectedCheckboxItems() {
+    if (answer is! List) return <Map<String, dynamic>>[];
+
+    final out = <Map<String, dynamic>>[];
+    for (final item in (answer as List)) {
+      if (item is Map) {
+        out.add(Map<String, dynamic>.from(item as Map));
+      } else if (item is String) {
+        // Accept list of optionIds (or legacy values) as strings
+        out.add({'optionId': item});
+      }
+    }
+    return out;
+  }
+
+  bool _isChecked(_GuestOption opt, List<Map<String, dynamic>> selected) {
+    return selected.any((x) {
+      final optId = (x['optionId'] ?? '').toString().trim();
+      if (optId.isNotEmpty) {
+        if (optId == opt.id) return true;
+
+        // Legacy: if stored as value string in optionId slot
+        if (optId == opt.value) return true;
+      }
+
+      // Legacy: old key
+      final legacyVal = (x['value'] ?? '').toString().trim();
+      return legacyVal.isNotEmpty && legacyVal == opt.value;
+    });
+  }
+
+  // -----------------------------
+  // UI
+  // -----------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -1468,8 +1543,6 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-
-            // ✅ Only the question text now (no questionType pill)
             Text(
               titleText,
               style: GoogleFonts.poppins(
@@ -1478,7 +1551,6 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                 color: kTextDark,
               ),
             ),
-
             const SizedBox(height: 12),
             _buildInput(context),
           ],
@@ -1504,10 +1576,8 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: kBorder),
@@ -1524,23 +1594,19 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
         );
 
       case 'dropdown':
-        final selected = (answer is Map)
-            ? (answer['value'] as String?)
-            : (answer as String?);
+        final selectedId = _selectedOptionId();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DropdownButtonFormField<String>(
-              value: selected,
+              value: selectedId,
               isExpanded: true,
               decoration: InputDecoration(
                 isDense: true,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: kBorder),
@@ -1565,7 +1631,7 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
               items: [
                 for (final opt in question.options)
                   DropdownMenuItem(
-                    value: opt.value,
+                    value: opt.id, // ✅ optionId
                     child: Text(
                       opt.label,
                       overflow: TextOverflow.ellipsis,
@@ -1579,28 +1645,28 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
               ],
               onChanged: !isActive
                   ? null
-                  : (v) {
-                      if (v == null) {
+                  : (optId) {
+                      if (optId == null) {
                         onAnswerChanged(null);
                         return;
                       }
-                      final opt = question.options.firstWhere(
-                        (o) => o.value == v,
-                      );
+                      final opt =
+                          question.options.firstWhere((o) => o.id == optId);
+
                       if (opt.requiresFreeText) {
-                        final ctrlKey = '${question.id}__${opt.value}';
+                        final ctrlKey = '${question.id}__${opt.id}';
                         freeTextCtrls.putIfAbsent(
-                          ctrlKey,
-                          () => TextEditingController(),
-                        );
+                            ctrlKey, () => TextEditingController());
+
                         onAnswerChanged({
-                          'value': opt.value,
+                          'optionId': opt.id, // ✅ rule matching
+                          'value': opt.value, // optional legacy/debug
                           'label': opt.label,
                           'requiresFreeText': true,
                           'freeText': freeTextCtrls[ctrlKey]!.text,
                         });
                       } else {
-                        onAnswerChanged(opt.value);
+                        onAnswerChanged(opt.id); // ✅ simplest
                       }
                     },
             ),
@@ -1610,8 +1676,7 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
         );
 
       case 'checkboxes':
-        final selected = (answer as List?)?.cast<Map<String, dynamic>>() ??
-            <Map<String, dynamic>>[];
+        final selected = _selectedCheckboxItems();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1632,8 +1697,7 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
   }
 
   Widget _radioRow(_GuestOption opt) {
-    final selected =
-        (answer is Map) ? (answer['value'] as String?) : answer as String?;
+    final selectedId = _selectedOptionId();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1642,26 +1706,27 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
           SizedBox(
             width: 32,
             child: Radio<String>(
-              value: opt.value,
-              groupValue: selected,
+              value: opt.id, // ✅ optionId
+              groupValue: selectedId,
               onChanged: !isActive
                   ? null
                   : (v) {
                       if (v == null) return;
+
                       if (opt.requiresFreeText) {
-                        final ctrlKey = '${question.id}__${opt.value}';
+                        final ctrlKey = '${question.id}__${opt.id}';
                         freeTextCtrls.putIfAbsent(
-                          ctrlKey,
-                          () => TextEditingController(),
-                        );
+                            ctrlKey, () => TextEditingController());
+
                         onAnswerChanged({
+                          'optionId': opt.id, // ✅ rule matching
                           'value': opt.value,
                           'label': opt.label,
                           'requiresFreeText': true,
                           'freeText': freeTextCtrls[ctrlKey]!.text,
                         });
                       } else {
-                        onAnswerChanged(opt.value);
+                        onAnswerChanged(opt.id); // ✅ simplest
                       }
                     },
               activeColor: kAccent,
@@ -1685,8 +1750,9 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
   }
 
   Widget _checkboxRow(_GuestOption opt, List<Map<String, dynamic>> selected) {
-    final isChecked = selected.any((x) => x['value'] == opt.value);
-    final ctrlKey = '${question.id}__${opt.value}';
+    final isChecked = _isChecked(opt, selected);
+    final ctrlKey = '${question.id}__${opt.id}';
+
     if (opt.requiresFreeText) {
       freeTextCtrls.putIfAbsent(ctrlKey, () => TextEditingController());
     }
@@ -1705,12 +1771,13 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                   onChanged: !isActive
                       ? null
                       : (v) {
-                          final next = List<Map<String, dynamic>>.from(
-                            selected,
-                          );
+                          final next =
+                              List<Map<String, dynamic>>.from(selected);
+
                           if (v == true) {
                             if (opt.requiresFreeText) {
                               next.add({
+                                'optionId': opt.id, // ✅ rule matching
                                 'value': opt.value,
                                 'label': opt.label,
                                 'requiresFreeText': true,
@@ -1718,13 +1785,31 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
                               });
                             } else {
                               next.add({
+                                'optionId': opt.id, // ✅ rule matching
                                 'value': opt.value,
                                 'label': opt.label,
                               });
                             }
                           } else {
-                            next.removeWhere((x) => x['value'] == opt.value);
+                            next.removeWhere((x) {
+                              final oid =
+                                  (x['optionId'] ?? '').toString().trim();
+                              if (oid.isNotEmpty) {
+                                // normal remove by optionId
+                                if (oid == opt.id) return true;
+
+                                // legacy: stored as opt.value in optionId slot
+                                if (oid == opt.value) return true;
+                              }
+
+                              // legacy remove by value
+                              final legacyVal =
+                                  (x['value'] ?? '').toString().trim();
+                              return legacyVal.isNotEmpty &&
+                                  legacyVal == opt.value;
+                            });
                           }
+
                           onAnswerChanged(next);
                         },
                   activeColor: kAccent,
@@ -1764,10 +1849,18 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
               ),
               onChanged: (txt) {
                 final next = List<Map<String, dynamic>>.from(selected);
-                final idx = next.indexWhere((x) => x['value'] == opt.value);
+                final idx = next.indexWhere((x) {
+                  final oid = (x['optionId'] ?? '').toString().trim();
+                  if (oid.isNotEmpty) return oid == opt.id || oid == opt.value;
+
+                  final legacyVal = (x['value'] ?? '').toString().trim();
+                  return legacyVal.isNotEmpty && legacyVal == opt.value;
+                });
+
                 if (idx >= 0) {
                   next[idx] = {
                     ...next[idx],
+                    'optionId': opt.id,
                     'requiresFreeText': true,
                     'freeText': txt,
                   };
@@ -1785,10 +1878,10 @@ class _GuestGoogleFormsQuestionCard extends StatelessWidget {
     final a = answer as Map;
     if (a['requiresFreeText'] != true) return const SizedBox.shrink();
 
-    final value = (a['value'] ?? '').toString();
-    if (value.isEmpty) return const SizedBox.shrink();
+    final optId = (a['optionId'] ?? '').toString().trim();
+    if (optId.isEmpty) return const SizedBox.shrink();
 
-    final ctrlKey = '${question.id}__$value';
+    final ctrlKey = '${question.id}__${optId}';
     freeTextCtrls.putIfAbsent(
       ctrlKey,
       () => TextEditingController(text: (a['freeText'] ?? '').toString()),

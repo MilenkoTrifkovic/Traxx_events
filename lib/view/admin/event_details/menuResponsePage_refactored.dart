@@ -5,37 +5,40 @@ import 'package:go_router/go_router.dart';
 
 import 'menus_widgets/menu_widgets.dart';
 
+// assumes MenuSelectionController, MenuGroupDto, MenuItemDto are imported
+// import 'menu_selection_controller.dart';
+
 class GuestMenuSelectionPage extends StatefulWidget {
   final String? invitationId;
-  
+
   /// Companion index: null = main guest, 0+ = companion
   final int? companionIndex;
-  
+
   /// Display name for companion (optional, for UI)
   final String? companionName;
-  
+
   /// Whether the page is in read-only preview mode
   final bool readOnly;
-  
+
   /// Pre-selected item IDs to display in read-only mode
   final List<String>? selectedMenuItemIds;
-  
+
   const GuestMenuSelectionPage({
-    super.key, 
+    super.key,
     required String this.invitationId,
     this.companionIndex,
     this.companionName,
-  }) : readOnly = false,
-       selectedMenuItemIds = null;
-  
+  })  : readOnly = false,
+        selectedMenuItemIds = null;
+
   /// Creates a read-only preview of menu items
   const GuestMenuSelectionPage.preview({
     super.key,
     required List<String> this.selectedMenuItemIds,
-  }) : invitationId = null,
-       companionIndex = null,
-       companionName = null,
-       readOnly = true;
+  })  : invitationId = null,
+        companionIndex = null,
+        companionName = null,
+        readOnly = true;
 
   @override
   State<GuestMenuSelectionPage> createState() => _GuestMenuSelectionPageState();
@@ -55,36 +58,35 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   }
 
   void _initController() {
-    final tag = _isReadOnly 
+    final tag = _isReadOnly
         ? 'menu_preview_${widget.selectedMenuItemIds?.hashCode}'
         : 'menu_${widget.invitationId}_${widget.companionIndex}';
-    
+
     if (Get.isRegistered<MenuSelectionController>(tag: tag)) {
       Get.delete<MenuSelectionController>(tag: tag);
     }
-    
+
     _controller = Get.put(MenuSelectionController(), tag: tag);
-    
+
     if (_isReadOnly) {
-      // Load only menu items for preview
       _controller.loadMenuItemsOnly(
-        selectedItemIds: widget.selectedMenuItemIds!,
-      );
+          selectedItemIds: widget.selectedMenuItemIds!);
     } else {
-      // Normal flow
-      _controller.initialize(
-        invitationId: widget.invitationId!,
-        token: _token,
-        companionIdx: widget.companionIndex,
-      ).then((_) => _checkNavigationAfterLoad());
+      _controller
+          .initialize(
+            invitationId: widget.invitationId!,
+            token: _token,
+            companionIdx: widget.companionIndex,
+          )
+          .then((_) => _checkNavigationAfterLoad());
     }
   }
 
   void _checkNavigationAfterLoad() {
     if (!mounted || _isReadOnly) return;
-    
+
     if (_controller.isCurrentPersonDone) return;
-    
+
     if (!_controller.isDemographicsComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Demographics must be completed first')),
@@ -92,16 +94,18 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       _navigateToDemographics();
       return;
     }
-    
+
     if (_controller.isFlowComplete) {
-      context.go('/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId!)}');
+      context.go(
+          '/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId!)}');
     }
   }
 
   void _navigateToDemographics() {
     if (_isReadOnly) return;
     final compIdx = widget.companionIndex;
-    var url = '/demographics?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+    var url =
+        '/demographics?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
         '&token=${Uri.encodeComponent(_token)}';
     if (compIdx != null) url += '&companionIndex=$compIdx';
     context.go(url);
@@ -110,17 +114,19 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   @override
   void didUpdateWidget(covariant GuestMenuSelectionPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     if (_isReadOnly) return;
-    
+
     if (widget.companionIndex != oldWidget.companionIndex ||
         widget.invitationId != oldWidget.invitationId) {
       _controller.clearSelections();
-      _controller.initialize(
-        invitationId: widget.invitationId!,
-        token: _token,
-        companionIdx: widget.companionIndex,
-      ).then((_) => _checkNavigationAfterLoad());
+      _controller
+          .initialize(
+            invitationId: widget.invitationId!,
+            token: _token,
+            companionIdx: widget.companionIndex,
+          )
+          .then((_) => _checkNavigationAfterLoad());
     }
   }
 
@@ -132,7 +138,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   Future<void> _handleSubmit() async {
     if (_isReadOnly) return;
-    
+
     final result = await _controller.submitSelection(
       invitationId: widget.invitationId!,
       token: _token,
@@ -152,7 +158,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   void _handleContinue() {
     if (_isReadOnly) return;
-    
+
     final nextStep = _controller.getNextStep();
     if (nextStep != null) {
       final nextUrl = nextStep.buildUrl(widget.invitationId!, _token);
@@ -162,11 +168,11 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   Widget _buildMenuList() {
     return Obx(() {
-      final list = _controller.filteredItems;
-      
+      final ungrouped = _controller.filteredItems;
+      final groups = _controller.groups;
+
       return Column(
         children: [
-          // Hide search/filters in read-only mode
           if (!_isReadOnly) ...[
             MenuSearchFilters(
               searchController: _searchController,
@@ -175,16 +181,28 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
             const SizedBox(height: 12),
           ],
           Expanded(
-            child: ListView.builder(
-              itemCount: list.length,
-              itemBuilder: (_, i) => MenuItemCardWidget(
-                item: list[i],
-                controller: _controller,
-                readOnly: _isReadOnly,
-              ),
+            child: ListView(
+              children: [
+                // ✅ GROUPS (radio pick 1)
+                if (!_isReadOnly && groups.isNotEmpty) ...[
+                  for (final g in groups) ...[
+                    MenuGroupCard(group: g, controller: _controller),
+                    const SizedBox(height: 12),
+                  ],
+                  const SizedBox(height: 6),
+                ],
+
+                // ✅ UNGROUPED (multi-select cards)
+                for (final it in ungrouped) ...[
+                  MenuItemCardWidget(
+                    item: it,
+                    controller: _controller,
+                    readOnly: _isReadOnly,
+                  ),
+                ],
+              ],
             ),
           ),
-          // Hide summary pill in read-only mode
           if (!_isReadOnly) ...[
             const SizedBox(height: 10),
             Row(
@@ -213,12 +231,12 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         return MenuErrorCard(message: _controller.errorMessage.value);
       }
 
-      // Skip "already submitted" in read-only mode
       if (!_isReadOnly && _controller.isCurrentPersonDone) {
         return MenuAlreadySubmittedCard(onContinue: _handleContinue);
       }
 
-      if (_controller.items.isEmpty) {
+      // ✅ Empty only if BOTH lists are empty
+      if (_controller.items.isEmpty && _controller.groups.isEmpty) {
         return const MenuEmptyCard();
       }
 
@@ -249,15 +267,15 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1040),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Hide progress banner in read-only mode
                             if (!_isReadOnly) ...[
                               MenuProgressBanner(controller: _controller),
-                              Obx(() => _controller.hasCompanions 
-                                  ? const SizedBox(height: 12) 
+                              Obx(() => _controller.hasCompanions
+                                  ? const SizedBox(height: 12)
                                   : const SizedBox.shrink()),
                             ],
                             Text(
@@ -269,7 +287,6 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            // Hide header card with action button in read-only mode
                             if (!_isReadOnly) ...[
                               MenuHeaderCard(
                                 controller: _controller,
@@ -287,25 +304,96 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                   ),
                 ),
               ),
-              // Hide loading overlay in read-only mode
               if (!_isReadOnly)
                 Obx(() => _controller.isSubmitting.value
                     ? Positioned.fill(
-                      child: Container(
-                        color: gfBackground.withOpacity(0.35),
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: kGfPurple,
+                        child: Container(
+                          color: gfBackground.withOpacity(0.35),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: kGfPurple,
+                            ),
                           ),
                         ),
-                      ),
-                    )
-                  : const SizedBox.shrink()),
+                      )
+                    : const SizedBox.shrink()),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// ✅ Radio group card (guest must pick 1)
+class MenuGroupCard extends StatelessWidget {
+  final MenuGroupDto group;
+  final MenuSelectionController controller;
+
+  const MenuGroupCard({
+    super.key,
+    required this.group,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: kBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Obx(() {
+          final picked = controller.groupPick[group.groupId];
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                group.name,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: kTextDark,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose 1 item',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: kTextBody,
+                ),
+              ),
+              const SizedBox(height: 10),
+              for (final it in group.items) ...[
+                RadioListTile<String>(
+                  value: it.id,
+                  groupValue: picked,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (v) {
+                    if (v == null) return;
+                    controller.pickFromGroup(group.groupId, v);
+                  },
+                  title: Text(
+                    it.name,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    '${it.categoryLabel}${it.price != null ? " • ${it.price}" : ""}',
+                    style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
+                  ),
+                ),
+                const Divider(height: 1),
+              ],
+            ],
+          );
+        }),
+      ),
     );
   }
 }

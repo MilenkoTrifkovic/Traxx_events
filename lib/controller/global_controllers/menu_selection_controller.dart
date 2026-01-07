@@ -4,13 +4,6 @@ import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
-/// Controller for the Guest Menu Selection page.
-/// 
-/// Handles all business logic:
-/// - Loading invitation and menu items
-/// - Managing selected items
-/// - Submitting menu selection
-/// - Flow navigation logic
 class MenuSelectionController extends GetxController {
   final GuestFirestoreServices _guestService;
   final CloudFunctionsService _cloudFunctions;
@@ -28,18 +21,28 @@ class MenuSelectionController extends GetxController {
   final RxBool isLoading = true.obs;
   final RxBool isSubmitting = false.obs;
   final RxString errorMessage = ''.obs;
-  
+
   final RxString eventName = 'Menu Selection'.obs;
+
+  /// ✅ Ungrouped items (multi-select)
   final RxList<MenuItemDto> items = <MenuItemDto>[].obs;
+
+  /// ✅ Grouped items (radio pick 1)
+  final RxList<MenuGroupDto> groups = <MenuGroupDto>[].obs;
+
+  /// ✅ Ungrouped selections
   final RxSet<String> selectedIds = <String>{}.obs;
-  
+
+  /// ✅ Group picks: groupId -> chosen itemId (radio)
+  final RxMap<String, String?> groupPick = <String, String?>{}.obs;
+
   final Rx<Map<String, dynamic>?> invitation = Rx<Map<String, dynamic>?>(null);
   final Rx<ResponseFlowState?> flowState = Rx<ResponseFlowState?>(null);
-  
+
   final RxString currentPersonName = ''.obs;
   final RxnInt companionIndex = RxnInt(null);
-  
-  // Filters
+
+  // Filters (apply only to ungrouped list)
   final RxString searchQuery = ''.obs;
   final RxnBool vegFilter = RxnBool(null); // null=all, true=veg, false=non-veg
 
@@ -47,7 +50,7 @@ class MenuSelectionController extends GetxController {
   // Computed Properties
   // ---------------------------------------------------------------------------
 
-  /// Filtered items based on search and veg filter.
+  /// Filtered ungrouped items based on search and veg filter.
   List<MenuItemDto> get filteredItems {
     var list = [...items];
 
@@ -68,7 +71,35 @@ class MenuSelectionController extends GetxController {
 
   int get vegCount => items.where((x) => x.isVeg == true).length;
   int get nonVegCount => items.where((x) => x.isVeg == false).length;
-  int get selectedCount => selectedIds.length;
+
+  /// ✅ total selected count = ungrouped + group picks
+  int get selectedCount => finalSelectedIds.length;
+
+  /// ✅ final selected IDs to submit (ungrouped + chosen radio)
+  List<String> get finalSelectedIds {
+    final out = <String>{};
+
+    // ungrouped selections
+    out.addAll(selectedIds);
+
+    // group picks
+    for (final v in groupPick.values) {
+      final id = (v ?? '').trim();
+      if (id.isNotEmpty) out.add(id);
+    }
+
+    return out.toList();
+  }
+
+  /// ✅ enforce group picks before submit
+  List<String> get missingGroupNames {
+    final missing = <String>[];
+    for (final g in groups) {
+      final picked = (groupPick[g.groupId] ?? '').trim();
+      if (picked.isEmpty) missing.add(g.name);
+    }
+    return missing;
+  }
 
   /// Check if current person has already submitted menu.
   bool get isCurrentPersonDone {
@@ -120,12 +151,12 @@ class MenuSelectionController extends GetxController {
 
     int count = 0;
     if (_guestService.isMainMenuComplete(inv)) count++;
-    
+
     final companions = _guestService.getCompanions(inv);
     for (final c in companions) {
       if (_guestService.isCompanionMenuComplete(c)) count++;
     }
-    
+
     return count;
   }
 
@@ -155,19 +186,15 @@ class MenuSelectionController extends GetxController {
 
   /// Dynamic button text based on flow state.
   String get buttonText {
-    if (isCurrentPersonDone) {
-      return 'Continue';
-    }
-    
+    if (isCurrentPersonDone) return 'Continue';
+
     final fs = flowState.value;
     if (fs != null && !fs.isComplete) {
       final nextStep = fs.getNextStep();
-      if (nextStep.step == ResponseStep.thankYou) {
-        return 'Finish';
-      }
+      if (nextStep.step == ResponseStep.thankYou) return 'Finish';
       return 'Save & Continue';
     }
-    
+
     return 'Finish';
   }
 
@@ -188,15 +215,12 @@ class MenuSelectionController extends GetxController {
     try {
       // Fetch invitation
       final inv = await _guestService.getInvitation(invitationId);
-      if (inv == null) {
-        throw Exception('Invitation not found');
-      }
+      if (inv == null) throw Exception('Invitation not found');
 
       // Validate token
       final validation = _guestService.validateInvitation(inv, token);
-      if (!validation.isValid) {
+      if (!validation.isValid)
         throw Exception(validation.error ?? 'Invalid invitation');
-      }
 
       invitation.value = inv;
 
@@ -210,29 +234,45 @@ class MenuSelectionController extends GetxController {
       // Set current person name
       if (companionIdx != null) {
         final companion = _guestService.getCompanion(inv, companionIdx);
-        if (companion == null) {
-          throw Exception('Invalid companion index');
-        }
-        currentPersonName.value = _guestService.getCompanionName(companion, companionIdx);
+        if (companion == null) throw Exception('Invalid companion index');
+        currentPersonName.value =
+            _guestService.getCompanionName(companion, companionIdx);
       } else {
         currentPersonName.value = _guestService.getMainGuestName(inv);
       }
 
-      // Load menu items from Cloud Function
+      // ✅ Load menu items + groups from Cloud Function
       final res = await _cloudFunctions.getSelectedMenuItemsForInvitation(
         invitationId: invitationId,
         token: token,
       );
 
       eventName.value = (res['eventName'] ?? 'Menu Selection').toString();
-      
+
+      // items (ungrouped)
       final rawItems = (res['items'] as List?) ?? [];
       items.value = rawItems
-          .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x as Map)))
+          .whereType<Map>()
+          .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x)))
           .toList();
 
-      debugPrint('MenuSelectionController: Loaded ${items.length} menu items');
+      // groups (radio)
+      final rawGroups = (res['groups'] as List?) ?? [];
+      groups.value = rawGroups
+          .whereType<Map>()
+          .map((x) => MenuGroupDto.fromMap(Map<String, dynamic>.from(x)))
+          .toList();
 
+      // reset selections
+      selectedIds.clear();
+      groupPick.clear();
+      for (final g in groups) {
+        groupPick[g.groupId] = null; // not picked yet
+      }
+
+      debugPrint(
+        'MenuSelectionController: Loaded items=${items.length}, groups=${groups.length}',
+      );
     } catch (e) {
       errorMessage.value = e.toString();
       debugPrint('MenuSelectionController: Error loading - $e');
@@ -242,7 +282,6 @@ class MenuSelectionController extends GetxController {
   }
 
   /// Load menu items only for read-only preview mode.
-  /// 
   /// This fetches menu items by their IDs without requiring invitation/token.
   Future<void> loadMenuItemsOnly({
     required List<String> selectedItemIds,
@@ -251,7 +290,10 @@ class MenuSelectionController extends GetxController {
     errorMessage.value = '';
 
     try {
-      // Fetch menu items directly from menu_items collection
+      // Preview only shows a list (no groups)
+      groups.clear();
+      groupPick.clear();
+
       final menuItems = await _guestService.getMenuItemsDirectlyByIds(
         selectedItemIds,
       );
@@ -260,14 +302,10 @@ class MenuSelectionController extends GetxController {
           .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x)))
           .toList();
 
-      // Mark all as selected for display
       selectedIds.clear();
       selectedIds.addAll(selectedItemIds);
 
       eventName.value = 'Menu Preview';
-
-      debugPrint('MenuSelectionController: Loaded ${items.length} menu items for preview');
-
     } catch (e) {
       errorMessage.value = e.toString();
       debugPrint('MenuSelectionController: Error loading preview - $e');
@@ -276,7 +314,7 @@ class MenuSelectionController extends GetxController {
     }
   }
 
-  /// Toggle selection of a menu item.
+  /// Toggle selection of an ungrouped menu item.
   void toggleItem(String itemId) {
     if (selectedIds.contains(itemId)) {
       selectedIds.remove(itemId);
@@ -285,18 +323,20 @@ class MenuSelectionController extends GetxController {
     }
   }
 
-  /// Check if an item is selected.
+  /// Check if an item is selected (ungrouped).
   bool isSelected(String itemId) => selectedIds.contains(itemId);
 
-  /// Set search query.
-  void setSearchQuery(String query) {
-    searchQuery.value = query;
+  /// ✅ Radio pick in a group (one item only)
+  void pickFromGroup(String groupId, String itemId) {
+    groupPick[groupId] = itemId;
+    groupPick.refresh();
   }
 
+  /// Set search query.
+  void setSearchQuery(String query) => searchQuery.value = query;
+
   /// Set veg filter.
-  void setVegFilter(bool? filter) {
-    vegFilter.value = filter;
-  }
+  void setVegFilter(bool? filter) => vegFilter.value = filter;
 
   /// Clear all filters.
   void clearFilters() {
@@ -304,14 +344,16 @@ class MenuSelectionController extends GetxController {
     vegFilter.value = null;
   }
 
-  /// Clear selections (for when navigating to different person).
+  /// Clear selections (when navigating to different person).
   void clearSelections() {
     selectedIds.clear();
+    groupPick.clear();
+    for (final g in groups) {
+      groupPick[g.groupId] = null;
+    }
   }
 
   /// Submit menu selection.
-  /// 
-  /// Returns a [SubmitResult] with next navigation info.
   Future<SubmitResult> submitSelection({
     required String invitationId,
     required String token,
@@ -320,7 +362,6 @@ class MenuSelectionController extends GetxController {
       return SubmitResult(success: false, error: 'Already submitting');
     }
 
-    // If already done, just return next step
     if (isCurrentPersonDone) {
       return SubmitResult(
         success: true,
@@ -328,22 +369,28 @@ class MenuSelectionController extends GetxController {
       );
     }
 
+    // ✅ Require a pick from each group (radio)
+    final missing = missingGroupNames;
+    if (missing.isNotEmpty) {
+      return SubmitResult(
+        success: false,
+        error: 'Please choose 1 item from: ${missing.join(", ")}',
+      );
+    }
+
     isSubmitting.value = true;
     errorMessage.value = '';
 
     try {
-      // Submit via Cloud Function
       await _cloudFunctions.submitMenuSelection(
         invitationId: invitationId,
         token: token,
-        selectedMenuItemIds: selectedIds.toList(),
+        selectedMenuItemIds: finalSelectedIds, // ✅ combined
         companionIndex: companionIndex.value,
       );
 
-      // Update local state
       _updateLocalStateAfterSubmit();
 
-      // Rebuild flow state
       final updatedFlowState = ResponseFlowState.fromInvitation(
         invitation.value!,
         token,
@@ -351,36 +398,18 @@ class MenuSelectionController extends GetxController {
       );
       flowState.value = updatedFlowState;
 
-      // Get next step
       final nextStep = updatedFlowState.getNextStep();
-      
-      debugPrint('MenuSelectionController: Submitted successfully, next step: ${nextStep.step}');
 
-      return SubmitResult(
-        success: true,
-        nextStep: nextStep,
-      );
-
+      return SubmitResult(success: true, nextStep: nextStep);
     } catch (e) {
       errorMessage.value = e.toString();
-      debugPrint('MenuSelectionController: Submit error - $e');
-      return SubmitResult(
-        success: false,
-        error: e.toString(),
-      );
+      return SubmitResult(success: false, error: e.toString());
     } finally {
       isSubmitting.value = false;
     }
   }
 
-  /// Get next navigation step (for "Continue" button when already done).
-  NextStepInfo? getNextStep() {
-    return flowState.value?.getNextStep();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Private Helpers
-  // ---------------------------------------------------------------------------
+  NextStepInfo? getNextStep() => flowState.value?.getNextStep();
 
   void _updateLocalStateAfterSubmit() {
     final inv = invitation.value;
@@ -389,10 +418,8 @@ class MenuSelectionController extends GetxController {
     final updated = Map<String, dynamic>.from(inv);
 
     if (companionIndex.value == null) {
-      // Main guest
       updated['menuSelectionSubmitted'] = true;
     } else {
-      // Companion
       final companions = _guestService.getCompanions(inv);
       if (companionIndex.value! < companions.length) {
         companions[companionIndex.value!]['menuSubmitted'] = true;
@@ -415,6 +442,40 @@ class SubmitResult {
     this.error,
     this.nextStep,
   });
+}
+
+/// ✅ Group DTO returned by Cloud Function
+class MenuGroupDto {
+  final String groupId;
+  final String name;
+  final int maxPick;
+  final String categoryKey;
+  final String categoryLabel;
+  final List<MenuItemDto> items;
+
+  MenuGroupDto({
+    required this.groupId,
+    required this.name,
+    required this.maxPick,
+    required this.categoryKey,
+    required this.categoryLabel,
+    required this.items,
+  });
+
+  factory MenuGroupDto.fromMap(Map<String, dynamic> m) {
+    final rawItems = (m['items'] as List? ?? []);
+    return MenuGroupDto(
+      groupId: (m['groupId'] ?? '').toString(),
+      name: (m['name'] ?? '').toString(),
+      maxPick: (m['maxPick'] is num) ? (m['maxPick'] as num).toInt() : 1,
+      categoryKey: (m['categoryKey'] ?? '').toString(),
+      categoryLabel: (m['categoryLabel'] ?? '').toString(),
+      items: rawItems
+          .whereType<Map>()
+          .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x)))
+          .toList(),
+    );
+  }
 }
 
 /// DTO for menu items displayed in the UI.
@@ -455,7 +516,8 @@ class MenuItemDto {
       id: (m['id'] ?? '').toString(),
       name: (m['name'] ?? 'Menu item').toString(),
       description: (m['description'] ?? '').toString(),
-      categoryLabel: labelFromCf.isNotEmpty ? labelFromCf : _prettyCategory(rawCategory),
+      categoryLabel:
+          labelFromCf.isNotEmpty ? labelFromCf : _prettyCategory(rawCategory),
       isVeg: derivedIsVeg,
       foodType: rawFoodType.trim().isEmpty ? null : rawFoodType.trim(),
       price: asDouble(m['price']),
@@ -486,26 +548,19 @@ class MenuItemDto {
     if (s.isEmpty) return 'Other';
 
     final lower = s.toLowerCase();
-
-    // Fix common old values
     if (lower == 'dessert') return 'Desserts';
     if (lower == 'entree') return 'Entrees';
     if (lower == 'appetizer') return 'Appetizers';
     if (lower == 'drink') return 'Beverages';
 
-    // Already plural lowercase
-    if (lower == 'desserts') return 'Desserts';
-    if (lower == 'entrees') return 'Entrees';
-
-    // CamelCase enum keys (foodStations -> Food Stations)
-    final spaced = s.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}').trim();
+    final spaced =
+        s.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}').trim();
     final title = spaced.split(' ').where((w) => w.isNotEmpty).map((w) {
       final t = w.toLowerCase();
       if (t == 'bbq') return 'BBQ';
       return t[0].toUpperCase() + t.substring(1);
     }).join(' ');
 
-    // Special labels
     if (s == 'lateNightSnacks') return 'Late-Night Snacks';
     if (s == 'kidsMenu') return 'Kids Menu';
     if (s == 'culturalRegional') return 'Cultural / Regional';

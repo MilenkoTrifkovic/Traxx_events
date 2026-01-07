@@ -9,12 +9,14 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/menu_item_group.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/utils/menu_cateogory_utils.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'dart:math' as math;
 
@@ -25,21 +27,24 @@ class AdminEventDetailsController {
 
   final Rxn<Event> event = Rxn<Event>();
   final Rxn<Venue> venue = Rxn<Venue>();
-  // Venue? venue;
   Organisation? organisation;
 
   /// Menus are ONLY for browsing in popup
   final availableMenus = <MenuModel>[].obs;
 
-  /// Selected items are mixed across menus
+  /// UI: ALL selected ids (ungrouped + grouped)
   final selectedMenuItemIds = <String>[].obs;
 
   /// Cached selected item docs (for Event details card)
   final selectedMenuItems = <MenuItem>[].obs;
 
+  /// Grouping config stored on event
+  final menuItemGroups = <MenuItemGroup>[].obs;
+
   /// Remember which menu user last browsed in popup (NOT persisted)
   final lastBrowsedMenuId = RxnString();
 
+  /// Demographic sets
   final availableQuestionSets = <QuestionSet>[].obs;
   final selectedDemographicSetId = RxnString();
 
@@ -59,20 +64,39 @@ class AdminEventDetailsController {
 
   AdminEventDetailsController();
 
+  // =============================================================
+  // Dispose
+  // =============================================================
+  void dispose() {
+    _eventSubscription?.cancel();
+  }
+
+  // =============================================================
+  // Helpers
+  // =============================================================
+
+  List<String> _normalizeIds(List<String> ids) {
+    final out = <String>[];
+    final seen = <String>{};
+    for (final raw in ids) {
+      final id = raw.trim();
+      if (id.isEmpty) continue;
+      if (seen.add(id)) out.add(id);
+    }
+    return out;
+  }
+
   FoodType? _parseFoodType(dynamic v) {
     if (v == null) return null;
     final raw = v.toString().trim();
-    final last = raw.split('.').last; // handles "FoodType.nonVeg"
-    final norm = last
-        .replaceAll(RegExp(r'[\s_\-]'), '')
-        .toLowerCase(); // non-veg/nonVeg/non veg -> nonveg
+    final last = raw.split('.').last;
+    final norm = last.replaceAll(RegExp(r'[\s_\-]'), '').toLowerCase();
     if (norm == 'veg') return FoodType.veg;
     if (norm == 'nonveg') return FoodType.nonVeg;
     return null;
   }
 
   MenuItem _hydrateFoodType(MenuItem item, Map<String, dynamic> data) {
-    // Prefer model value if it already exists
     final current = item.foodType;
 
     final fromFoodType = _parseFoodType(data['foodType']);
@@ -81,24 +105,110 @@ class AdminEventDetailsController {
         : null;
 
     final resolved = current ?? fromFoodType ?? fromIsVeg;
-
     if (resolved == null || current == resolved) return item;
 
-    // MenuItem in your codebase has copyWith (you use it elsewhere)
     return item.copyWith(foodType: resolved);
   }
 
-  @visibleForTesting
-  void setEventDocIdForTest(String id) => _eventDocId = id;
+  List<MenuItemGroup> _parseGroups(dynamic raw) {
+    final list = <MenuItemGroup>[];
+    if (raw is! List) return list;
 
-  void dispose() {
-    _eventSubscription?.cancel();
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final g = MenuItemGroup.fromMap(m);
+
+      if (g.groupId.trim().isEmpty) continue;
+      if (g.name.trim().isEmpty) continue;
+      if (g.itemIds.isEmpty) continue;
+
+      list.add(
+        g.copyWith(categoryKey: normalizeCategoryKey(g.categoryKey)),
+      );
+    }
+    return list;
+  }
+
+  /// allowedSet here is the union (ungrouped ids + group item ids)
+  List<MenuItemGroup> _sanitizeGroups({
+    required List<MenuItemGroup> groups,
+    required Set<String> allowedSet,
+  }) {
+    final used = <String>{};
+    final out = <MenuItemGroup>[];
+
+    for (final g in groups) {
+      final gid = g.groupId.trim();
+      final name = g.name.trim();
+      if (gid.isEmpty || name.isEmpty) continue;
+
+      final cat = normalizeCategoryKey(g.categoryKey);
+
+      final cleaned = <String>[];
+      for (final id in g.itemIds) {
+        final x = id.trim();
+        if (x.isEmpty) continue;
+        if (!allowedSet.contains(x)) continue;
+        if (used.contains(x)) continue;
+        used.add(x);
+        cleaned.add(x);
+      }
+
+      if (cleaned.isEmpty) continue;
+
+      out.add(g.copyWith(
+        name: name,
+        categoryKey: cat,
+        maxPick: math.max(1, g.maxPick),
+        itemIds: cleaned,
+      ));
+    }
+
+    return out;
+  }
+
+  /// UI list = ungrouped first + then grouped (preserve group order)
+  List<String> _composeAllIds({
+    required List<String> ungroupedIds,
+    required List<MenuItemGroup> groups,
+  }) {
+    final out = <String>[];
+    final seen = <String>{};
+
+    for (final id in ungroupedIds) {
+      final x = id.trim();
+      if (x.isEmpty) continue;
+      if (seen.add(x)) out.add(x);
+    }
+
+    for (final g in groups) {
+      for (final id in g.itemIds) {
+        final x = id.trim();
+        if (x.isEmpty) continue;
+        if (seen.add(x)) out.add(x);
+      }
+    }
+
+    return out;
+  }
+
+  bool _sameList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   // =============================================================
-  // LOAD EVENT + REALTIME LISTENER
+  // Load Event + realtime listener (NEW SCHEMA)
+  // Firestore:
+  //   selectedMenuItemIds => ONLY ungrouped
+  //   menuItemGroups      => grouped (radio)
+  // UI:
+  //   selectedMenuItemIds Rx => ALL (ungrouped + grouped)
   // =============================================================
-
   Future<void> loadEvent(String publicEventId) async {
     isLoading.value = true;
     try {
@@ -115,26 +225,18 @@ class AdminEventDetailsController {
       final doc = snap.docs.first;
       _eventDocId = doc.id;
 
+      // Base event
       event.value = Event.fromFirestore(doc);
-      // Load event image URL (with error handling to not lose event data)
+
+      // Optional: load cover image download URL if you use it
       try {
-        final e = await _loadEventImageUrl(event.value!);
-        print(
-            'LOADED event image URL for event ID: ${e.coverImageDownloadUrl}');
-        event.value = e;
-        print(
-            'Event after loading image URL: ${event.value!.coverImageDownloadUrl}');
-      } catch (e, st) {
-        debugPrint(
-            'Failed to load event image URL, continuing without it: $e\n$st');
-        // Event remains with the data from Firestore, just without download URL
-      }
+        event.value = await _loadEventImageUrl(event.value!);
+      } catch (_) {}
 
       await _loadVenue(event.value!.venueId);
       await _loadOrganisation(event.value!.organisationId);
       await _loadAvailableMenus();
 
-      // default browse menu
       lastBrowsedMenuId.value ??=
           availableMenus.isNotEmpty ? availableMenus.first.id : null;
 
@@ -142,17 +244,30 @@ class AdminEventDetailsController {
         await _loadAvailableDemographicQuestionSets();
       } catch (_) {}
 
-      // ✅ load selected item ids + cache the items
-      selectedMenuItemIds
-          .assignAll(event.value?.selectedMenuItemIds ?? const []);
-      await _refreshSelectedMenuItems(ids: selectedMenuItemIds.toList());
-
       selectedDemographicSetId.value =
           event.value?.selectedDemographicQuestionSetId;
 
-      _eventSubscription?.cancel();
+      // NEW schema read
+      final ungrouped =
+          _normalizeIds(event.value?.selectedMenuItemIds ?? const <String>[]);
 
-      // Track if this is the first snapshot (which fires immediately)
+      final parsedGroups = _parseGroups(doc.data()['menuItemGroups']);
+      final allowed = <String>{...ungrouped};
+      for (final g in parsedGroups) {
+        allowed.addAll(g.itemIds);
+      }
+
+      final safeGroups =
+          _sanitizeGroups(groups: parsedGroups, allowedSet: allowed);
+      menuItemGroups.assignAll(safeGroups);
+
+      final allIds =
+          _composeAllIds(ungroupedIds: ungrouped, groups: safeGroups);
+      selectedMenuItemIds.assignAll(allIds);
+      await _refreshSelectedMenuItems(ids: allIds);
+
+      // Realtime updates
+      _eventSubscription?.cancel();
       bool isFirstSnapshot = true;
 
       _eventSubscription = firestore.eventsRef
@@ -163,23 +278,32 @@ class AdminEventDetailsController {
 
         if (isFirstSnapshot) {
           isFirstSnapshot = false;
-          debugPrint(
-              'Skipping initial snapshot - event already loaded with image');
           return;
         }
 
         final next = Event.fromFirestore(docSnap);
         event.value = next;
-
         selectedDemographicSetId.value = next.selectedDemographicQuestionSetId;
 
-        final nextIds = List<String>.from(next.selectedMenuItemIds ?? const []);
-        final prevIds = selectedMenuItemIds.toList();
+        final ungrouped2 =
+            _normalizeIds(next.selectedMenuItemIds ?? const <String>[]);
 
-        if (!_sameList(prevIds, nextIds)) {
-          selectedMenuItemIds.assignAll(nextIds);
+        final parsed2 = _parseGroups(docSnap.data()?['menuItemGroups']);
+        final allowed2 = <String>{...ungrouped2};
+        for (final g in parsed2) {
+          allowed2.addAll(g.itemIds);
+        }
+
+        final safe2 = _sanitizeGroups(groups: parsed2, allowedSet: allowed2);
+        menuItemGroups.assignAll(safe2);
+        menuItemGroups.refresh();
+
+        final all2 = _composeAllIds(ungroupedIds: ungrouped2, groups: safe2);
+
+        if (!_sameList(selectedMenuItemIds.toList(), all2)) {
+          selectedMenuItemIds.assignAll(all2);
           selectedMenuItemIds.refresh();
-          await _refreshSelectedMenuItems(ids: nextIds);
+          await _refreshSelectedMenuItems(ids: all2);
         }
       }, onError: (e) {
         debugPrint('Event subscription error: $e');
@@ -191,75 +315,9 @@ class AdminEventDetailsController {
     }
   }
 
-  bool _sameList(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
-
   // =============================================================
-  // DEMOGRAPHIC SETS
+  // Menus
   // =============================================================
-
-  Future<void> _loadAvailableDemographicQuestionSets() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        availableQuestionSets.clear();
-        return;
-      }
-
-      final uid = user.uid;
-      final snap = await FirebaseFirestore.instance
-          .collection('demographicQuestionSets')
-          .where('userId', isEqualTo: uid)
-          .where('isDisabled', isEqualTo: false)
-          .get();
-
-      final list = <QuestionSet>[];
-      for (final d in snap.docs) {
-        try {
-          final qs =
-              QuestionSet.fromDoc(d as DocumentSnapshot<Map<String, dynamic>>);
-          if (qs.questionSetId.trim().isEmpty) continue;
-          list.add(qs);
-        } catch (_) {}
-      }
-
-      availableQuestionSets.assignAll(list);
-    } catch (e, st) {
-      debugPrint("Error loading demographic sets: $e\n$st");
-      availableQuestionSets.clear();
-    }
-  }
-
-  // =============================================================
-  // VENUE / ORG
-  // =============================================================
-
-  Future<void> _loadVenue(String venueId) async {
-    try {
-      venue.value = await _venuesController.fetchVenueById(venueId);
-    } catch (e) {
-      debugPrint('Error loading venue: $e');
-      venue.value = null;
-    }
-  }
-
-  Future<void> _loadOrganisation(String organisationId) async {
-    try {
-      organisation = _organisationController.getOrganisation();
-    } catch (_) {
-      organisation = null;
-    }
-  }
-
-  // =============================================================
-  // MENUS (browse) + ITEMS FETCH HELPERS
-  // =============================================================
-
   Future<void> _loadAvailableMenus() async {
     isMenusLoading.value = true;
     try {
@@ -285,7 +343,6 @@ class AdminEventDetailsController {
     }
   }
 
-  /// Popup browsing: items for one menu
   Future<List<MenuItem>> fetchMenuItemsForMenu(String menuId) async {
     final snap = await FirebaseFirestore.instance
         .collection('menu_items')
@@ -301,41 +358,6 @@ class AdminEventDetailsController {
     }).toList();
   }
 
-  Future<Event> _loadEventImageUrl(Event event) async {
-    try {
-      // Only attempt to load if there's a path and no download URL yet
-      print('Event coverImageUrl: ${event.coverImageUrl}');
-      if ((event.coverImageUrl != null && event.coverImageUrl!.isNotEmpty) ||
-          (event.coverImageDownloadUrl == null ||
-              event.coverImageDownloadUrl!.isEmpty)) {
-        print('Loading image for event ID: ${event.eventId}');
-        return await _storageServices.loadImage(event);
-      }
-      print('image URL is ${event.coverImageDownloadUrl}');
-      return event;
-    } catch (e) {
-      debugPrint('Error loading event image URL: $e');
-      // Return event as-is if loading fails
-      return event;
-    }
-  }
-
-  Future<void> updateEvent(Event updatedEvent) async {
-    try {
-      // Load image URL before assigning
-      final eventWithImage = await _loadEventImageUrl(updatedEvent);
-      event.value = eventWithImage;
-      debugPrint(
-          'Event updated in reactive variable: ${eventWithImage.eventId}');
-    } catch (e, st) {
-      debugPrint(
-          'Error loading image in updateEvent, using event without image: $e\n$st');
-      // Fallback: assign event without image URL if loading fails
-      event.value = updatedEvent;
-    }
-  }
-
-  /// ✅ Needed by popup (single id)
   Future<MenuItem?> fetchMenuItemById(String menuItemId) async {
     final id = menuItemId.trim();
     if (id.isEmpty) return null;
@@ -357,7 +379,6 @@ class AdminEventDetailsController {
     }
   }
 
-  /// ✅ Needed by popup + event card (batch ids, preserves order)
   Future<List<MenuItem>> fetchMenuItemsByIds(List<String> menuItemIds) async {
     final ids = _normalizeIds(menuItemIds);
     if (ids.isEmpty) return const [];
@@ -391,17 +412,6 @@ class AdminEventDetailsController {
     return out;
   }
 
-  List<String> _normalizeIds(List<String> ids) {
-    final out = <String>[];
-    final seen = <String>{};
-    for (final raw in ids) {
-      final id = raw.trim();
-      if (id.isEmpty) continue;
-      if (seen.add(id)) out.add(id);
-    }
-    return out;
-  }
-
   Future<void> _refreshSelectedMenuItems({required List<String> ids}) async {
     final cleaned = _normalizeIds(ids);
     if (cleaned.isEmpty) {
@@ -409,38 +419,97 @@ class AdminEventDetailsController {
       selectedMenuItems.refresh();
       return;
     }
-
     final list = await fetchMenuItemsByIds(cleaned);
     selectedMenuItems.assignAll(list);
     selectedMenuItems.refresh();
   }
 
   // =============================================================
-  // ✅ APPLY SELECTION (NO selectedMenuId ANYMORE)
+  // Apply Menu Selection + Groups (NEW SCHEMA)
+  // Firestore:
+  //   selectedMenuItemIds => ONLY ungrouped
+  //   menuItemGroups      => grouped items
+  // UI:
+  //   selectedMenuItemIds Rx => ALL items
   // =============================================================
-
-  Future<void> applyMenuSelection(List<String> newItemIds) async {
+  Future<void> applyMenuSelectionAndGroups({
+    required List<String> newItemIds, // ALL selected ids
+    required List<MenuItemGroup> groups,
+  }) async {
     if (_eventDocId.isEmpty) return;
 
-    final cleaned = _normalizeIds(newItemIds);
+    final cleanedAll = _normalizeIds(newItemIds);
+    final allSet = cleanedAll.toSet();
 
-    // optimistic UI update
-    selectedMenuItemIds.assignAll(cleaned);
+    final safeGroups = _sanitizeGroups(groups: groups, allowedSet: allSet);
+
+    final groupedSet = <String>{};
+    for (final g in safeGroups) {
+      groupedSet.addAll(g.itemIds);
+    }
+
+    // ✅ Firestore will store ONLY ungrouped
+    final ungroupedIds =
+        cleanedAll.where((id) => !groupedSet.contains(id)).toList();
+
+    // UI keeps ALL
+    selectedMenuItemIds.assignAll(cleanedAll);
     selectedMenuItemIds.refresh();
-    await _refreshSelectedMenuItems(ids: cleaned);
+
+    menuItemGroups.assignAll(safeGroups);
+    menuItemGroups.refresh();
+
+    await _refreshSelectedMenuItems(ids: cleanedAll);
 
     await firestore.updateEventFields(_eventDocId, {
-      'selectedMenuItemIds': cleaned,
-
-      // delete legacy fields
+      'selectedMenuItemIds': ungroupedIds,
+      'menuItemGroups': safeGroups.map((g) => g.toMap()).toList(),
       'selectedMenuId': FieldValue.delete(),
       'selectedMenus': FieldValue.delete(),
     });
   }
 
+  Future<void> applyMenuSelection(List<String> newItemIds) async {
+    await applyMenuSelectionAndGroups(
+      newItemIds: newItemIds,
+      groups: menuItemGroups.toList(),
+    );
+  }
+
   // =============================================================
-  // DEMOGRAPHIC METHODS (unchanged from your existing)
+  // Demographic methods (✅ THESE FIX YOUR COMPILER ERRORS)
   // =============================================================
+  Future<void> _loadAvailableDemographicQuestionSets() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        availableQuestionSets.clear();
+        return;
+      }
+
+      final uid = user.uid;
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestionSets')
+          .where('userId', isEqualTo: uid)
+          .where('isDisabled', isEqualTo: false)
+          .get();
+
+      final list = <QuestionSet>[];
+      for (final d in snap.docs) {
+        try {
+          final qs =
+              QuestionSet.fromDoc(d as DocumentSnapshot<Map<String, dynamic>>);
+          if (qs.questionSetId.trim().isEmpty) continue;
+          list.add(qs);
+        } catch (_) {}
+      }
+
+      availableQuestionSets.assignAll(list);
+    } catch (e, st) {
+      debugPrint('Error loading demographic sets: $e\n$st');
+      availableQuestionSets.clear();
+    }
+  }
 
   Future<bool> _confirmDialog(
     BuildContext context, {
@@ -468,11 +537,14 @@ class AdminEventDetailsController {
   }
 
   Future<void> toggleDemographicSet(
-      BuildContext context, String questionSetId) async {
+    BuildContext context,
+    String questionSetId,
+  ) async {
     if (_eventDocId.isEmpty) return;
 
     final currentlySelected = selectedDemographicSetId.value;
 
+    // Tap again = remove
     if (currentlySelected != null && currentlySelected == questionSetId) {
       final confirmed = await _confirmDialog(
         context,
@@ -489,6 +561,7 @@ class AdminEventDetailsController {
       return;
     }
 
+    // Select new
     selectedDemographicSetId.value = questionSetId;
     await firestore.chooseDemographicSetForEvent(_eventDocId, questionSetId);
   }
@@ -517,6 +590,9 @@ class AdminEventDetailsController {
     );
   }
 
+  // =============================================================
+  // Event core updates (✅ FIXES updateEventCoreDetails error)
+  // =============================================================
   Future<void> updateEventCoreDetails({
     required String name,
     required String serviceType,
@@ -525,23 +601,41 @@ class AdminEventDetailsController {
   }) async {
     if (_eventDocId.isEmpty) return;
 
-    final payload = <String, dynamic>{
+    await firestore.updateEventFields(_eventDocId, {
       'name': name,
       'serviceType': serviceType,
       'maxInviteByGuest': maxInviteByGuest,
       'address': address,
-    };
-
-    await firestore.updateEventFields(_eventDocId, payload);
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<void> updateEventVenueAndPhotos({
-    required String venueId,
-  }) async {
+  // =============================================================
+  // Venue / Org
+  // =============================================================
+  Future<void> _loadVenue(String venueId) async {
+    try {
+      venue.value = await _venuesController.fetchVenueById(venueId);
+    } catch (e) {
+      debugPrint('Error loading venue: $e');
+      venue.value = null;
+    }
+  }
+
+  Future<void> _loadOrganisation(String organisationId) async {
+    try {
+      organisation = _organisationController.getOrganisation();
+    } catch (_) {
+      organisation = null;
+    }
+  }
+
+  Future<void> updateEventVenueAndPhotos({required String venueId}) async {
     if (_eventDocId.isEmpty) return;
 
     await firestore.updateEventFields(_eventDocId, {
       'venueId': venueId,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     if (event.value != null) {
@@ -551,45 +645,56 @@ class AdminEventDetailsController {
     await _loadVenue(venueId);
   }
 
+  // =============================================================
+  // Cover Image
+  // =============================================================
+  Future<Event> _loadEventImageUrl(Event e) async {
+    try {
+      // Only attempt if there is a path and no download URL yet
+      if ((e.coverImageUrl != null && e.coverImageUrl!.isNotEmpty) &&
+          (e.coverImageDownloadUrl == null ||
+              e.coverImageDownloadUrl!.isEmpty)) {
+        return await _storageServices.loadImage(e);
+      }
+      return e;
+    } catch (err) {
+      debugPrint('Error loading event image URL: $err');
+      return e;
+    }
+  }
+
   Future<void> pickAndUploadCoverImage() async {
     if (_eventDocId.isEmpty) return;
 
     try {
-      final ImagePicker picker = ImagePicker();
+      final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1920,
         maxHeight: 1080,
         imageQuality: 85,
       );
-
-      if (image == null) {
-        // User cancelled the picker
-        return;
-      }
+      if (image == null) return;
 
       _snackbarController.showInfoMessage('Uploading cover image...');
 
-      // Upload image to Firebase Storage and get the storage path
       final storagePath = await _storageServices.uploadImage(image);
 
-      // Update Firestore with the storage path
       await firestore.updateEventFields(_eventDocId, {
         'coverImageUrl': storagePath,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Load the download URL
       final downloadUrl = await _storageServices.loadImageURL(storagePath);
 
-      // Update local event object
-      if (event.value != null) {
-        event.value = event.value!.copyWith(
+      final current = event.value;
+      if (current != null) {
+        event.value = current.copyWith(
           coverImageUrl: storagePath,
           coverImageDownloadUrl: downloadUrl,
         );
       }
 
-      debugPrint('Cover image uploaded successfully: $storagePath');
       _snackbarController
           .showSuccessMessage('Cover image uploaded successfully!');
     } catch (e, st) {

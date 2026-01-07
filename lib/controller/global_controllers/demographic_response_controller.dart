@@ -2,26 +2,18 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
-/// Controller for demographic response page.
-/// 
-/// Handles all business logic:
-/// - Loading invitation & questions
-/// - Validating tokens
-/// - Managing answers
-/// - Submitting to cloud function
-/// - Navigation flow
-/// - Read-only preview mode (when readOnly = true)
 class DemographicResponseController extends GetxController {
   // ---------------------------------------------------------------------------
   // Dependencies
   // ---------------------------------------------------------------------------
-  final GuestFirestoreServices _firestoreService = Get.find<GuestFirestoreServices>();
-  final CloudFunctionsService _cloudFunctions = Get.find<CloudFunctionsService>();
+  final GuestFirestoreServices _firestoreService =
+      Get.find<GuestFirestoreServices>();
+  final CloudFunctionsService _cloudFunctions =
+      Get.find<CloudFunctionsService>();
 
   // ---------------------------------------------------------------------------
   // Constructor parameters
@@ -31,10 +23,10 @@ class DemographicResponseController extends GetxController {
   final int? companionIndex;
   final String? companionName;
   final bool showInvitationInput;
-  
+
   /// Read-only mode - just display questions without interaction
   final bool readOnly;
-  
+
   /// Question set ID - used when readOnly = true (no invitation needed)
   final String? questionSetId;
 
@@ -55,11 +47,23 @@ class DemographicResponseController extends GetxController {
   final isSubmitting = false.obs;
   final errorTitle = RxnString();
   final errorMessage = RxnString();
-  
+
   final invitation = Rxn<Map<String, dynamic>>();
   final questionSet = Rxn<Map<String, dynamic>>();
+
+  /// ✅ All questions from Firestore (base + conditional)
+  final allQuestions = <DemographicQuestion>[].obs;
+
+  /// ✅ Visible questions (base + triggered conditional) used by UI and submit
   final questions = <DemographicQuestion>[].obs;
+
+  /// Answers keyed by questionId.
+  /// IMPORTANT for rules:
+  /// - single select should store optionDocId as String
+  /// - or Map { optionId: <docId>, ... } if freeText is involved
+  /// - checkboxes can store List<String> or List<Map> containing optionId
   final answers = <String, dynamic>{}.obs;
+
   final activeQuestionId = RxnString();
   final currentPersonName = ''.obs;
 
@@ -81,26 +85,26 @@ class DemographicResponseController extends GetxController {
   // ---------------------------------------------------------------------------
   // Computed Properties
   // ---------------------------------------------------------------------------
-  
   bool get hasError => errorTitle.value != null;
-  
+
   bool get isCurrentPersonDone {
     final inv = invitation.value;
     if (inv == null) return false;
-    
+
     if (_currentCompanionIndex == null) {
       return inv['used'] == true;
     } else {
       final companions = (inv['companions'] as List?) ?? [];
       if (_currentCompanionIndex! >= companions.length) return false;
-      final companion = companions[_currentCompanionIndex!] as Map<String, dynamic>?;
+      final companion =
+          companions[_currentCompanionIndex!] as Map<String, dynamic>?;
       return companion?['demographicSubmitted'] == true;
     }
   }
 
-  String get questionSetTitle => 
+  String get questionSetTitle =>
       (questionSet.value?['title'] ?? 'Demographics').toString();
-  
+
   String get questionSetDescription =>
       (questionSet.value?['description'] ?? '').toString();
 
@@ -112,10 +116,10 @@ class DemographicResponseController extends GetxController {
   int get completedCount {
     final inv = invitation.value;
     if (inv == null) return 0;
-    
+
     int count = 0;
     if (inv['used'] == true) count++;
-    
+
     final companions = (inv['companions'] as List?) ?? [];
     for (final c in companions) {
       if ((c as Map)['demographicSubmitted'] == true) count++;
@@ -140,10 +144,21 @@ class DemographicResponseController extends GetxController {
     }
   }
 
+  bool _isRuleSub(DemographicQuestion q) {
+    final p = q.parentQuestionId?.trim() ?? '';
+    final t = q.triggerOptionId?.trim() ?? '';
+    return p.isNotEmpty && t.isNotEmpty;
+  }
+
+  bool _isSub(DemographicQuestion q) =>
+      (q.parentQuestionId?.trim().isNotEmpty ?? false) &&
+      (q.triggerOptionId?.trim().isNotEmpty ?? false);
+
+  bool _isBase(DemographicQuestion q) => !_isSub(q);
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
-
   @override
   void onInit() {
     super.onInit();
@@ -170,7 +185,6 @@ class DemographicResponseController extends GetxController {
 
   @override
   void onClose() {
-    // Dispose all text controllers
     for (final c in textControllers.values) {
       c.dispose();
     }
@@ -206,10 +220,11 @@ class DemographicResponseController extends GetxController {
     activeQuestionId.value = id;
   }
 
-  /// Update an answer.
+  /// Update an answer and recompute conditional visibility.
   void updateAnswer(String questionId, dynamic value) {
     answers[questionId] = value;
-    answers.refresh(); // Force UI rebuild
+    answers.refresh();
+    recomputeVisibleQuestions(); // ✅ conditional sub-questions
   }
 
   /// Get text controller for short_answer/paragraph questions.
@@ -222,10 +237,7 @@ class DemographicResponseController extends GetxController {
 
   /// Get free text controller for "other" option.
   TextEditingController getFreeTextController(String key) {
-    return freeTextControllers.putIfAbsent(
-      key,
-      () => TextEditingController(),
-    );
+    return freeTextControllers.putIfAbsent(key, () => TextEditingController());
   }
 
   /// Check if a question is answered (for validation).
@@ -240,6 +252,7 @@ class DemographicResponseController extends GetxController {
       final list = (v as List?) ?? const [];
       if (list.isEmpty) return false;
 
+      // if there is an "other" item requiring free text, enforce it
       for (final item in list) {
         if (item is Map && (item['requiresFreeText'] == true)) {
           final ft = (item['freeText'] ?? '').toString().trim();
@@ -288,7 +301,7 @@ class DemographicResponseController extends GetxController {
       return;
     }
 
-    // Validate required questions
+    // Validate required VISIBLE questions (includes triggered sub-questions)
     final missing = questions.where((q) => q.isRequired && !isAnswered(q));
     if (missing.isNotEmpty) {
       _showSnackbar(context, 'Please answer all required questions');
@@ -315,25 +328,156 @@ class DemographicResponseController extends GetxController {
         companionIndex: _currentCompanionIndex,
       );
 
-      // Update local state
       _updateLocalStateAfterSubmit();
 
-      // Rebuild flow state
       _flowState = ResponseFlowState.fromInvitation(
         invitation.value!,
         tokenToUse,
         invitationIdOverride: _activeInvitationId,
       );
 
-      // Navigate
       _navigateToNextStep(context, tokenToUse);
-      
     } on FirebaseFunctionsException catch (e) {
-      _showSnackbar(context, 'Submit failed: ${e.message ?? e.code}', isError: true);
+      _showSnackbar(context, 'Submit failed: ${e.message ?? e.code}',
+          isError: true);
     } catch (e) {
       _showSnackbar(context, 'Submit failed: $e', isError: true);
     } finally {
       isSubmitting.value = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conditional rules logic (core)
+  // ---------------------------------------------------------------------------
+
+  void _ensureAnswerInitialized(DemographicQuestion q) {
+    if (answers.containsKey(q.id)) return;
+
+    if (q.type == 'short_answer' || q.type == 'paragraph') {
+      answers[q.id] = '';
+      if (!readOnly) {
+        textControllers.putIfAbsent(
+            q.id, () => TextEditingController(text: ''));
+      }
+    } else if (q.type == 'checkboxes') {
+      answers[q.id] = <Map<String, dynamic>>[];
+    } else {
+      answers[q.id] = null;
+    }
+  }
+
+  /// Extract selected optionIds for rules.
+  /// Rule matching uses option document IDs (triggerOptionId).
+  Set<String> _selectedOptionIdsForQuestion(DemographicQuestion q) {
+    final v = answers[q.id];
+    if (v == null) return {};
+
+    // Single select stored as optionId string
+    if (v is String) {
+      final s = v.trim();
+      return s.isEmpty ? {} : {s};
+    }
+
+    // Single select stored as map { optionId, ... }
+    if (v is Map) {
+      final optId = v['optionId'];
+      if (optId is String && optId.trim().isNotEmpty) return {optId.trim()};
+      return {};
+    }
+
+    // Checkboxes stored as list
+    if (v is List) {
+      final out = <String>{};
+      for (final item in v) {
+        if (item is String && item.trim().isNotEmpty) {
+          out.add(item.trim());
+        } else if (item is Map) {
+          final optId = item['optionId'];
+          if (optId is String && optId.trim().isNotEmpty) out.add(optId.trim());
+        }
+      }
+      return out;
+    }
+
+    return {};
+  }
+
+  void _clearAnswerForQuestion(String questionId) {
+    answers.remove(questionId);
+    textControllers.remove(questionId)?.dispose();
+    freeTextControllers.remove(questionId)?.dispose();
+  }
+
+  /// ✅ Base questions always visible.
+  /// ✅ Sub-questions visible only when parent answer includes triggerOptionId.
+  void recomputeVisibleQuestions() {
+    if (allQuestions.isEmpty) {
+      questions.clear();
+      return;
+    }
+
+    final base = allQuestions.where(_isBase).toList()
+      ..sort((a, b) {
+        final d = a.displayOrder.compareTo(b.displayOrder);
+        if (d != 0) return d;
+        return a.id.compareTo(b.id);
+      });
+
+    final Map<String, List<DemographicQuestion>> subsByParent = {};
+    for (final q in allQuestions.where(_isSub)) {
+      final parent = (q.parentQuestionId ?? '').trim();
+      if (parent.isEmpty) continue;
+      subsByParent.putIfAbsent(parent, () => []).add(q);
+    }
+
+    final visible = <DemographicQuestion>[];
+
+    for (final bq in base) {
+      _ensureAnswerInitialized(bq);
+      visible.add(bq);
+
+      final subs = subsByParent[bq.id] ?? const <DemographicQuestion>[];
+      if (subs.isEmpty) continue;
+
+      final selectedOptIds = _selectedOptionIdsForQuestion(bq);
+
+      final triggered = subs.where((sq) {
+        final trig = (sq.triggerOptionId ?? '').trim();
+        return trig.isNotEmpty && selectedOptIds.contains(trig);
+      }).toList()
+        ..sort((a, b) {
+          final d = a.displayOrder.compareTo(b.displayOrder);
+          if (d != 0) return d;
+          return a.id.compareTo(b.id);
+        });
+
+      for (final sq in triggered) {
+        _ensureAnswerInitialized(sq);
+        visible.add(sq);
+      }
+    }
+
+    // Remove answers for hidden sub-questions
+    final visibleIds = visible.map((q) => q.id).toSet();
+    final hiddenSubIds = allQuestions
+        .where(_isSub)
+        .map((q) => q.id)
+        .where((id) => !visibleIds.contains(id))
+        .toList();
+
+    for (final id in hiddenSubIds) {
+      _clearAnswerForQuestion(id);
+    }
+
+    questions.assignAll(visible);
+
+    // keep active question valid
+    final current = activeQuestionId.value;
+    if (current != null &&
+        current.isNotEmpty &&
+        !visibleIds.contains(current)) {
+      activeQuestionId.value = visible.isNotEmpty ? visible.first.id : null;
     }
   }
 
@@ -354,7 +498,7 @@ class DemographicResponseController extends GetxController {
       // 1) Fetch invitation
       final inv = await _firestoreService.getInvitation(invitationId);
       if (inv == null) {
-        _setError('Invitation not found', 
+        _setError('Invitation not found',
             'This link is invalid. Please request a new invite.');
         return;
       }
@@ -411,24 +555,25 @@ class DemographicResponseController extends GetxController {
       // 5) Validate/setup companion
       final companions = (inv['companions'] as List?) ?? [];
       if (_currentCompanionIndex != null) {
-        if (_currentCompanionIndex! < 0 || _currentCompanionIndex! >= companions.length) {
-          _setError('Invalid companion', 'The specified companion does not exist.');
+        if (_currentCompanionIndex! < 0 ||
+            _currentCompanionIndex! >= companions.length) {
+          _setError(
+              'Invalid companion', 'The specified companion does not exist.');
           return;
         }
-        
-        final companion = companions[_currentCompanionIndex!] as Map<String, dynamic>;
-        currentPersonName.value = 
-            _firestoreService.getCompanionName(companion, _currentCompanionIndex!);
-        
-        // Already submitted?
+
+        final companion =
+            companions[_currentCompanionIndex!] as Map<String, dynamic>;
+        currentPersonName.value = _firestoreService.getCompanionName(
+            companion, _currentCompanionIndex!);
+
         if (companion['demographicSubmitted'] == true) {
           isLoading.value = false;
           return;
         }
       } else {
         currentPersonName.value = _firestoreService.getMainGuestName(inv);
-        
-        // Already submitted?
+
         if (inv['used'] == true) {
           isLoading.value = false;
           return;
@@ -442,19 +587,19 @@ class DemographicResponseController extends GetxController {
       }
 
       // 7) Get question set ID
-      final questionSetId = await _firestoreService.getQuestionSetId(
+      final qsId = await _firestoreService.getQuestionSetId(
         inv,
         allowEventFallback: showInvitationInput,
       );
 
-      if (questionSetId == null || questionSetId.isEmpty) {
+      if (qsId == null || qsId.isEmpty) {
         _setError('Questions not assigned',
             'This invitation is missing a demographic question set. Please ask the host to resend the invite.');
         return;
       }
 
-      // 8) Fetch question set
-      final qs = await _firestoreService.getDemographicQuestionSet(questionSetId);
+      // 8) Fetch question set metadata
+      final qs = await _firestoreService.getDemographicQuestionSet(qsId);
       if (qs == null) {
         _setError('Question set not found',
             'This invitation points to a missing question set.');
@@ -462,9 +607,16 @@ class DemographicResponseController extends GetxController {
       }
       questionSet.value = qs;
 
-      // 9) Fetch questions
-      final loadedQuestions = await _firestoreService.getDemographicQuestions(questionSetId);
+      // 9) Fetch questions (base + conditional)
+      final loadedQuestions =
+          await _firestoreService.getDemographicQuestions(qsId);
+      for (final q in loadedQuestions) {
+        debugPrint(
+          'Q="${q.text}" id=${q.id} parent=${q.parentQuestionId} trigger=${q.triggerOptionId}',
+        );
+      }
       if (loadedQuestions.isEmpty) {
+        allQuestions.clear();
         questions.clear();
         isLoading.value = false;
         return;
@@ -472,31 +624,26 @@ class DemographicResponseController extends GetxController {
 
       // 10) Fetch options
       final questionIds = loadedQuestions.map((q) => q.id).toList();
-      final optionsMap = await _firestoreService.getDemographicOptions(questionIds);
+      final optionsMap =
+          await _firestoreService.getDemographicOptions(questionIds);
 
-      // 11) Build questions with options & init answers
+      // 11) Build allQuestions with options
+      allQuestions.clear();
       questions.clear();
       answers.clear();
 
       for (final q in loadedQuestions) {
         q.options = optionsMap[q.id] ?? [];
-        questions.add(q);
-
-        // Initialize answers based on type
-        if (q.type == 'short_answer' || q.type == 'paragraph') {
-          answers[q.id] = '';
-          textControllers[q.id] = TextEditingController(text: '');
-        } else if (q.type == 'checkboxes') {
-          answers[q.id] = <Map<String, dynamic>>[];
-        } else {
-          answers[q.id] = null;
-        }
+        allQuestions.add(q); // ✅ IMPORTANT: allQuestions, not questions
       }
 
-      // 12) Set active question
-      activeQuestionId.value = questions.isNotEmpty ? questions.first.id : null;
-      isLoading.value = false;
+// 12) Compute visible questions (base only initially)
+      recomputeVisibleQuestions();
 
+// 13) Set active question (from visible list)
+      activeQuestionId.value = questions.isNotEmpty ? questions.first.id : null;
+
+      isLoading.value = false;
     } catch (e, st) {
       debugPrint('Demographic load error: $e');
       debugPrint('$st');
@@ -505,12 +652,10 @@ class DemographicResponseController extends GetxController {
     }
   }
 
-  /// Load questions only (read-only mode) - no invitation needed.
-  /// Used for previewing question sets in admin panel.
+  /// Load questions only (read-only preview mode) - no invitation needed.
   Future<void> loadQuestionsOnly(String qsId) async {
     _setLoading();
 
-    // Clear previous text controllers
     for (final c in textControllers.values) c.dispose();
     for (final c in freeTextControllers.values) c.dispose();
     textControllers.clear();
@@ -526,9 +671,11 @@ class DemographicResponseController extends GetxController {
       }
       questionSet.value = qs;
 
-      // 2) Fetch questions
-      final loadedQuestions = await _firestoreService.getDemographicQuestions(qsId);
+      // 2) Fetch questions (base + conditional)
+      final loadedQuestions =
+          await _firestoreService.getDemographicQuestions(qsId);
       if (loadedQuestions.isEmpty) {
+        allQuestions.clear();
         questions.clear();
         isLoading.value = false;
         return;
@@ -536,26 +683,24 @@ class DemographicResponseController extends GetxController {
 
       // 3) Fetch options
       final questionIds = loadedQuestions.map((q) => q.id).toList();
-      final optionsMap = await _firestoreService.getDemographicOptions(questionIds);
+      final optionsMap =
+          await _firestoreService.getDemographicOptions(questionIds);
 
-      // 4) Build questions with options (no answers in read-only mode)
+      allQuestions.clear();
       questions.clear();
       answers.clear();
 
       for (final q in loadedQuestions) {
         q.options = optionsMap[q.id] ?? [];
-        questions.add(q);
-        
-        // Initialize empty answers for display purposes
-        if (q.type == 'checkboxes') {
-          answers[q.id] = <Map<String, dynamic>>[];
-        } else {
-          answers[q.id] = null;
-        }
+        allQuestions.add(q);
       }
 
-      isLoading.value = false;
+// In preview mode there are no answers selected,
+// so only base questions should show
+      recomputeVisibleQuestions();
+      activeQuestionId.value = questions.isNotEmpty ? questions.first.id : null;
 
+      isLoading.value = false;
     } catch (e, st) {
       debugPrint('Demographic loadQuestionsOnly error: $e');
       debugPrint('$st');
@@ -572,6 +717,7 @@ class DemographicResponseController extends GetxController {
     isLoading.value = true;
     invitation.value = null;
     questionSet.value = null;
+    allQuestions.clear();
     questions.clear();
     answers.clear();
     activeQuestionId.value = null;
@@ -583,6 +729,7 @@ class DemographicResponseController extends GetxController {
     isLoading.value = false;
     invitation.value = null;
     questionSet.value = null;
+    allQuestions.clear();
     questions.clear();
     answers.clear();
     activeQuestionId.value = null;
@@ -591,13 +738,12 @@ class DemographicResponseController extends GetxController {
   }
 
   int? _readCompanionIndexFromUrl() {
-    // 1) normal query param
     final idx = Uri.base.queryParameters['companionIndex'];
     if (idx != null && idx.isNotEmpty) {
       return int.tryParse(idx);
     }
 
-    // 2) hash route support: "#/demographics?...&companionIndex=0"
+    // hash route support: "#/demographics?...&companionIndex=0"
     final frag = Uri.base.fragment;
     final qIndex = frag.indexOf('?');
     if (qIndex >= 0 && qIndex + 1 < frag.length) {
@@ -615,15 +761,12 @@ class DemographicResponseController extends GetxController {
   }
 
   String _resolveToken() {
-    // 1) widget token
     final t1 = token.trim();
     if (t1.isNotEmpty) return t1;
 
-    // 2) normal query param
     final t2 = (Uri.base.queryParameters['token'] ?? '').trim();
     if (t2.isNotEmpty) return t2;
 
-    // 3) hash route support
     final frag = Uri.base.fragment;
     final qIndex = frag.indexOf('?');
     if (qIndex >= 0 && qIndex + 1 < frag.length) {
@@ -644,10 +787,8 @@ class DemographicResponseController extends GetxController {
 
   void _updateLocalStateAfterSubmit() {
     if (_currentCompanionIndex == null) {
-      // Main guest
       invitation.value = {...?invitation.value, 'used': true};
     } else {
-      // Companion
       final companions = List<Map<String, dynamic>>.from(
         (invitation.value?['companions'] as List? ?? [])
             .map((c) => Map<String, dynamic>.from(c as Map)),
@@ -673,7 +814,11 @@ class DemographicResponseController extends GetxController {
     context.go(nextUrl);
   }
 
-  void _showSnackbar(BuildContext context, String message, {bool isError = false}) {
+  void _showSnackbar(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: isError ? Colors.red : Colors.black87,

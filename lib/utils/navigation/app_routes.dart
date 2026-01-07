@@ -25,6 +25,7 @@ enum AppRoute {
   hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
   adminEventDetails('/host-event-details/:eventId', 'eventId'),
+  hostQuestionRules('/host-question-rules'),
 
   // Guest / event routes ...
   guestEvents('/guest-events'),
