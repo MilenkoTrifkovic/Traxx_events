@@ -37,6 +37,7 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
 
   int _selectedIndexForLocation(String location) {
     if (location.startsWith(AppRoute.guestResponsesPreview.path)) return 0;
+    if (location.startsWith(AppRoute.guestFeed.path)) return 1;
     // Add more guest routes here as needed
     return 0;
   }
@@ -47,6 +48,9 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
         pushAndRemoveAllRoute(AppRoute.guestResponsesPreview, context);
         return;
       case 1:
+        pushAndRemoveAllRoute(AppRoute.guestFeed, context);
+        return;
+      case 2:
         // Logout
         try {
           await guestSession.clearSession();
@@ -121,6 +125,11 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
         label: 'Event Details',
         icon: Icons.event_outlined,
         selectedIcon: Icons.event,
+      ),
+      const NavItemData(
+        label: 'Feed',
+        icon: Icons.chat_bubble_outline,
+        selectedIcon: Icons.chat_bubble,
       ),
       const NavItemData(
         label: 'Logout',

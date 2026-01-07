@@ -56,6 +56,7 @@ import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.da
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_feed_page/view/guest_feed_page.dart';
 import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.dart';
 
 /// Router setup for the Traxx application.
@@ -191,6 +192,21 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.guestMenuSelectionEdit.path,
             builder: (context, state) => const GuestMenuSelectionEditPage(),
+          ),
+
+          // Guest feed page (authenticated)
+          GoRoute(
+            path: AppRoute.guestFeed.path,
+            builder: (context, state) {
+              final guestSession = Get.find<GuestSessionController>();
+              final eventId = guestSession.event.value?.eventId ?? '';
+              final eventName = guestSession.event.value?.name;
+              
+              return GuestFeedPage(
+                eventId: eventId,
+                eventName: eventName,
+              );
+            },
           ),
           
           // TODO: Add more authenticated guest routes here
