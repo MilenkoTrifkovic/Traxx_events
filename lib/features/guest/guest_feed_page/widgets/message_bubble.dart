@@ -208,7 +208,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Timestamp row with small user photo
+                    // Name and timestamp row with small user photo
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -250,6 +250,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                             backgroundImage: NetworkImage(widget.message.userPhoto!),
                           ),
                         ],
+                        AppSpacing.horizontalXxs(context),
+                        AppText.styledLabelMedium(
+                          context,
+                          widget.message.userName,
+                          color: AppColors.primary,
+                          weight: FontWeight.w600,
+                        ),
                       ],
                     ),
                     AppSpacing.verticalXxs(context),
