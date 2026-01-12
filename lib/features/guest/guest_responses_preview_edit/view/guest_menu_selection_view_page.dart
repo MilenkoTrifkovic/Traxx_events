@@ -31,13 +31,15 @@ class GuestMenuSelectionViewPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 🆕 Companion Selector (show only if there are companions AND main guest can edit)
-                if (controller.hasCompanions && controller.canEditCompanionResponses)
+                if (controller.hasCompanions &&
+                    controller.canEditCompanionResponses)
                   Container(
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+                      border:
+                          Border.all(color: AppColors.borderSubtle, width: 1.5),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -75,36 +77,42 @@ class GuestMenuSelectionViewPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           Obx(() => Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceCard,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.borderSubtle, width: 1.5),
-                            ),
-                            child: DropdownButtonFormField<String>(
-                              value: controller.selectedGuestId.value,
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                prefixIcon: Icon(Icons.person_outline, color: AppColors.primaryAccent),
-                              ),
-                              dropdownColor: Colors.white,
-                              icon: Icon(Icons.arrow_drop_down, color: AppColors.primaryAccent),
-                              items: controller.allGuests.map((guest) {
-                                final label = guest.isCompanion
-                                    ? '${guest.name} (Companion)'
-                                    : '${guest.name} (Main Guest)';
-                                return DropdownMenuItem(
-                                  value: guest.guestId,
-                                  child: AppText.styledBodyMedium(context, label),
-                                );
-                              }).toList(),
-                              onChanged: (guestId) {
-                                if (guestId != null) {
-                                  controller.selectGuest(guestId);
-                                }
-                              },
-                            ),
-                          )),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceCard,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: AppColors.borderSubtle,
+                                      width: 1.5),
+                                ),
+                                child: DropdownButtonFormField<String>(
+                                  value: controller.selectedGuestId.value,
+                                  decoration: InputDecoration(
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 14),
+                                    prefixIcon: Icon(Icons.person_outline,
+                                        color: AppColors.primaryAccent),
+                                  ),
+                                  dropdownColor: Colors.white,
+                                  icon: Icon(Icons.arrow_drop_down,
+                                      color: AppColors.primaryAccent),
+                                  items: controller.allGuests.map((guest) {
+                                    final label = guest.isCompanion
+                                        ? '${guest.name} (Companion)'
+                                        : '${guest.name} (Main Guest)';
+                                    return DropdownMenuItem(
+                                      value: guest.guestId,
+                                      child: AppText.styledBodyMedium(
+                                          context, label),
+                                    );
+                                  }).toList(),
+                                  onChanged: (guestId) {
+                                    if (guestId != null) {
+                                      controller.selectGuest(guestId);
+                                    }
+                                  },
+                                ),
+                              )),
                         ],
                       ),
                     ),
@@ -115,7 +123,8 @@ class GuestMenuSelectionViewPage extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+                    border:
+                        Border.all(color: AppColors.borderSubtle, width: 1.5),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.04),
@@ -173,9 +182,11 @@ class GuestMenuSelectionViewPage extends StatelessWidget {
                             AppSecondaryButton(
                               text: 'Edit',
                               icon: Icons.edit,
-                              onPressed: () => controller.editMenuSelection(context),
+                              onPressed: () =>
+                                  controller.editMenuSelection(context),
                               height: 36,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               textColor: AppColors.primaryAccent,
                               iconColor: AppColors.primaryAccent,
                               fontSize: 14,
@@ -184,10 +195,11 @@ class GuestMenuSelectionViewPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        
+
                         // Display actual menu items
                         if (menuSelectionResponse != null)
-                          MenuSelectionResponseView(response: menuSelectionResponse)
+                          MenuSelectionResponseView(
+                              response: menuSelectionResponse)
                         else
                           Container(
                             padding: const EdgeInsets.all(20),
