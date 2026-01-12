@@ -4,14 +4,11 @@ import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/control
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/event_info_card.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/guest_info_card.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/welcome_header.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/demographics_response_view.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/widgets/menu_selection_response_view.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 
 /// Guest Responses Preview Page
-/// Shows the guest's event details, RSVP status, and allows editing responses
+/// Shows the guest's event details and RSVP status
 class GuestResponsesPreviewPage extends StatelessWidget {
   const GuestResponsesPreviewPage({super.key});
 
