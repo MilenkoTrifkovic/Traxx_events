@@ -28,6 +28,33 @@ class EventListController extends GetxController {
     return event?.capacity;
   }
 
+  Future<void> copyEventById(String sourceEventId) async {
+    try {
+      isLoading.value = true;
+
+      final source = events.firstWhere((e) => e.eventId == sourceEventId);
+
+      final orgId = authController.organisationId;
+      if (orgId == null || orgId.isEmpty) {
+        throw Exception('OrganisationId missing');
+      }
+
+      final copied = await firestoreServices.copyEventAsDraft(
+        source,
+        organisationId: orgId,
+      );
+
+      final copiedWithUrl = await storageServices.loadImage(copied);
+
+      addCreatedEventToList(copiedWithUrl);
+    } catch (e) {
+      print('copyEventById error: $e');
+      rethrow;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   /// Fetches events from Firestore and loads their images from Storage
   Future<void> fetchEvents() async {
     try {
@@ -152,35 +179,38 @@ class EventListController extends GetxController {
   /// Throws Exception if publish operation fails
   Future<void> publishEvent() async {
     try {
-      if (selectedEvent.value == null) {
-        throw Exception('No event selected');
-      }
+      final current = selectedEvent.value;
+      if (current == null) throw Exception('No event selected');
 
-      String eventId = selectedEvent.value!.eventId!;
+      final eventId = current.eventId!;
+      final wasPublished = current.status == EventStatus.published;
 
-      // Update status in Firestore
-      await firestoreServices.updateEventStatus(eventId, EventStatus.published);
-
-      // Update local event object
-      Event updatedEvent = selectedEvent.value!.copyWith(
-        status: EventStatus.published,
+      // Update status (and ideally bump publishedAt on republish too)
+      await firestoreServices.updateEventStatus(
+        eventId,
+        EventStatus.published,
+        // If your service supports it, also update publishedAt/lastPublishedAt:
+        // bumpPublishedAt: true,
       );
 
-      // Update in local lists
-      int index = events.indexWhere((e) => e.eventId == eventId);
-      if (index != -1) {
-        events[index] = updatedEvent;
-      }
+      // Local update stays published either way
+      final updatedEvent = current.copyWith(
+        status: EventStatus.published,
+        // optionally: publishedAt: DateTime.now(),
+      );
 
-      int filteredIndex = filteredEvents.indexWhere((e) => e.eventId == eventId);
-      if (filteredIndex != -1) {
-        filteredEvents[filteredIndex] = updatedEvent;
-      }
+      final index = events.indexWhere((e) => e.eventId == eventId);
+      if (index != -1) events[index] = updatedEvent;
 
-      // Update selected event
+      final filteredIndex =
+          filteredEvents.indexWhere((e) => e.eventId == eventId);
+      if (filteredIndex != -1) filteredEvents[filteredIndex] = updatedEvent;
+
       selectedEvent.value = updatedEvent;
 
-      print('Event published successfully');
+      print(wasPublished
+          ? 'Event re-published successfully'
+          : 'Event published successfully');
     } catch (e) {
       print('Error publishing event: $e');
       throw Exception('Failed to publish event: $e');

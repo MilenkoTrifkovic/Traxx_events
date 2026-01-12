@@ -7,9 +7,13 @@ import 'package:traxx_wepapp/theme/app_colors.dart';
 class DemographicsResponseView extends StatelessWidget {
   final DemographicResponseModel response;
 
+  /// optionId/value -> label (loaded in controller)
+  final Map<String, String> optionLabels;
+
   const DemographicsResponseView({
     super.key,
     required this.response,
+    this.optionLabels = const {},
   });
 
   @override
@@ -46,7 +50,6 @@ class DemographicsResponseView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Question text with icon
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -73,8 +76,6 @@ class DemographicsResponseView extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              
-              // Answer value with better styling
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -95,16 +96,81 @@ class DemographicsResponseView extends StatelessWidget {
     );
   }
 
-  String _formatAnswer(DemographicAnswer answer) {
-    if (answer.answer == null) return 'No answer provided';
-    
-    // Handle different answer types
-    if (answer.answer is List) {
-      final list = answer.answer as List;
-      if (list.isEmpty) return 'No answer provided';
-      return list.join(', ');
+  String _formatAnswer(DemographicAnswer a) {
+    final v = a.answer;
+    if (v == null) return 'No answer provided';
+
+    // bool
+    if (v is bool) return v ? 'Yes' : 'No';
+
+    // string (often old saved optionId)
+    if (v is String) {
+      final key = v.trim();
+      if (key.isEmpty) return 'No answer provided';
+      return optionLabels[key] ?? key;
     }
-    
-    return answer.answer.toString();
+
+    // map (single selected option)
+    if (v is Map) {
+      final m = Map<String, dynamic>.from(v);
+
+      final label = (m['label'] ?? m['text'] ?? '').toString().trim();
+      final value = (m['value'] ?? '').toString().trim();
+      final optionId = (m['optionId'] ?? '').toString().trim();
+      final freeText = (m['freeText'] ?? '').toString().trim();
+
+      final base = label.isNotEmpty
+          ? label
+          : value.isNotEmpty
+              ? value
+              : optionId.isNotEmpty
+                  ? (optionLabels[optionId] ?? optionId)
+                  : m.toString();
+
+      if (freeText.isNotEmpty) return '$base - $freeText';
+      return base;
+    }
+
+    // list (checkboxes)
+    if (v is List) {
+      final items = <String>[];
+
+      for (final item in v) {
+        if (item == null) continue;
+
+        if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+
+          final label = (m['label'] ?? m['text'] ?? '').toString().trim();
+          final value = (m['value'] ?? '').toString().trim();
+          final optionId = (m['optionId'] ?? '').toString().trim();
+          final freeText = (m['freeText'] ?? '').toString().trim();
+
+          String base = label.isNotEmpty
+              ? label
+              : value.isNotEmpty
+                  ? value
+                  : optionId.isNotEmpty
+                      ? (optionLabels[optionId] ?? optionId)
+                      : m.toString();
+
+          if (freeText.isNotEmpty) base = '$base - $freeText';
+          items.add(base);
+        } else if (item is String) {
+          final key = item.trim();
+          if (key.isNotEmpty) items.add(optionLabels[key] ?? key);
+        } else if (item is bool) {
+          items.add(item ? 'Yes' : 'No');
+        } else {
+          items.add(item.toString());
+        }
+      }
+
+      if (items.isEmpty) return 'No answer provided';
+      return items.join(', ');
+    }
+
+    // fallback
+    return v.toString();
   }
 }

@@ -17,10 +17,6 @@ class GuestFirestoreServices {
   // Invitations
   // ---------------------------------------------------------------------------
 
-  /// Fetches an invitation by ID.
-  ///
-  /// Returns the invitation data map or null if not found.
-  /// Optionally force server fetch to get latest data.
   Future<Map<String, dynamic>?> getInvitation(
     String invitationId, {
     bool forceServer = false,
@@ -34,7 +30,6 @@ class GuestFirestoreServices {
     return doc.data();
   }
 
-  /// Updates invitation fields atomically.
   Future<void> updateInvitation(
     String invitationId,
     Map<String, dynamic> fields,
@@ -42,23 +37,15 @@ class GuestFirestoreServices {
     await _db.collection('invitations').doc(invitationId).update(fields);
   }
 
-  /// Validates invitation token and expiry.
-  ///
-  /// Returns a validation result with success status and error message if any.
   InvitationValidation validateInvitation(
     Map<String, dynamic> invitation,
     String providedToken,
   ) {
-    // Token check
     final invToken = (invitation['token'] ?? '').toString().trim();
     if (invToken.isEmpty || invToken != providedToken) {
-      return InvitationValidation(
-        isValid: false,
-        error: 'Invalid token',
-      );
+      return InvitationValidation(isValid: false, error: 'Invalid token');
     }
 
-    // Expiry check
     final expiresAt = invitation['expiresAt'];
     if (expiresAt != null) {
       DateTime? expiryDate;
@@ -70,9 +57,7 @@ class GuestFirestoreServices {
 
       if (expiryDate != null && expiryDate.isBefore(DateTime.now())) {
         return InvitationValidation(
-          isValid: false,
-          error: 'Invitation has expired',
-        );
+            isValid: false, error: 'Invitation has expired');
       }
     }
 
@@ -83,10 +68,6 @@ class GuestFirestoreServices {
   // Menu Responses
   // ---------------------------------------------------------------------------
 
-  /// Checks if a menu response document exists for an invitation/companion.
-  ///
-  /// For main guest: docId = invitationId
-  /// For companion: docId = invitationId_companion_{index}
   Future<bool> menuResponseExists(
     String invitationId, {
     int? companionIndex,
@@ -101,7 +82,6 @@ class GuestFirestoreServices {
     return doc.exists;
   }
 
-  /// Gets menu response data if it exists.
   Future<Map<String, dynamic>?> getMenuResponse(
     String invitationId, {
     int? companionIndex,
@@ -117,42 +97,30 @@ class GuestFirestoreServices {
     return doc.data();
   }
 
-  /// Fetches menu items by their IDs from the menu document.
-  ///
-  /// Used for read-only preview mode where we only have item IDs.
   Future<List<Map<String, dynamic>>> getMenuItemsByIds({
     required String menuId,
     required List<String> itemIds,
   }) async {
     if (itemIds.isEmpty) return [];
 
-    // Fetch the menu document
     final menuDoc = await _db.collection('menus').doc(menuId).get();
     if (!menuDoc.exists) return [];
 
     final menuData = menuDoc.data();
     if (menuData == null) return [];
 
-    // Get items from the menu
     final allItems = (menuData['items'] as List?) ?? [];
-
-    // Filter to only the selected item IDs
     final selectedItems = <Map<String, dynamic>>[];
+
     for (final item in allItems) {
       final itemMap = Map<String, dynamic>.from(item as Map);
       final itemId = itemMap['id']?.toString() ?? '';
-      if (itemIds.contains(itemId)) {
-        selectedItems.add(itemMap);
-      }
+      if (itemIds.contains(itemId)) selectedItems.add(itemMap);
     }
 
     return selectedItems;
   }
 
-  /// Fetches menu items directly from the menu_items collection by document IDs.
-  ///
-  /// This doesn't require a menuId - items are fetched by their document IDs.
-  /// Used for read-only preview when we only have selectedMenuItemIds.
   Future<List<Map<String, dynamic>>> getMenuItemsDirectlyByIds(
     List<String> itemIds,
   ) async {
@@ -160,7 +128,7 @@ class GuestFirestoreServices {
 
     final results = <Map<String, dynamic>>[];
 
-    // Firestore 'whereIn' supports max 10 items, so batch the queries
+    // whereIn max 10
     final batches = <List<String>>[];
     for (var i = 0; i < itemIds.length; i += 10) {
       batches.add(itemIds.sublist(
@@ -188,32 +156,27 @@ class GuestFirestoreServices {
       }
     }
 
-    // Preserve the original order from itemIds
-    final orderedResults = <Map<String, dynamic>>[];
+    // preserve original order
+    final ordered = <Map<String, dynamic>>[];
     for (final id in itemIds) {
       final item = results.firstWhere(
         (r) => r['id'] == id,
         orElse: () => <String, dynamic>{},
       );
-      if (item.isNotEmpty) {
-        orderedResults.add(item);
-      }
+      if (item.isNotEmpty) ordered.add(item);
     }
 
-    return orderedResults;
+    return ordered;
   }
 
   // ---------------------------------------------------------------------------
   // Demographic Responses
   // ---------------------------------------------------------------------------
 
-  /// Checks if a demographic response exists for an invitation/companion.
   Future<bool> demographicResponseExists(
     String invitationId, {
     int? companionIndex,
   }) async {
-    // For main guest, check the invitation's responseId field
-    // For companions, check companions[index].demographicResponseId
     final invitation = await getInvitation(invitationId);
     if (invitation == null) return false;
 
@@ -227,7 +190,6 @@ class GuestFirestoreServices {
     }
   }
 
-  /// Gets the demographic question set by ID.
   Future<Map<String, dynamic>?> getDemographicQuestionSet(
     String questionSetId,
   ) async {
@@ -240,55 +202,69 @@ class GuestFirestoreServices {
     return doc.data();
   }
 
-  /// Gets all demographic questions for a question set.
-  /// Questions are returned ordered by displayOrder.
+  /// ✅ FIXED: no `.where('isDisabled'...)` and no `.orderBy(...)`
+  /// because those break when isDisabled missing or index missing.
+  /// We fetch all, filter locally, then sort by displayOrder.
   Future<List<DemographicQuestion>> getDemographicQuestions(
-      String questionSetId) async {
+    String questionSetId,
+  ) async {
     final snap = await _db
         .collection('demographicQuestions')
         .where('questionSetId', isEqualTo: questionSetId)
-        .where('isDisabled', isEqualTo: false)
-        .orderBy('displayOrder')
         .get();
 
-    return snap.docs.map((doc) {
+    final out = <DemographicQuestion>[];
+
+    for (final doc in snap.docs) {
       final data = doc.data();
+
+      // ✅ missing isDisabled => treat as enabled
+      if (_asBool(data['isDisabled']) == true) continue;
 
       final parent = (data['parentQuestionId'] ?? '').toString().trim();
       final trigger = (data['triggerOptionId'] ?? '').toString().trim();
 
-      return DemographicQuestion(
+      out.add(DemographicQuestion(
         id: doc.id,
         text: (data['questionText'] ?? '').toString(),
         type: _normalizeQuestionType((data['questionType'] ?? '').toString()),
         isRequired: _asBool(data['isRequired']),
         displayOrder: _asInt(data['displayOrder']),
-        parentQuestionId: parent.isEmpty ? null : parent, // ✅
-        triggerOptionId: trigger.isEmpty ? null : trigger, // ✅
-      );
-    }).toList();
+        parentQuestionId: parent.isEmpty ? null : parent,
+        triggerOptionId: trigger.isEmpty ? null : trigger,
+      ));
+    }
+
+    // ✅ Sort locally
+    out.sort((a, b) {
+      final d = a.displayOrder.compareTo(b.displayOrder);
+      if (d != 0) return d;
+      return a.id.compareTo(b.id);
+    });
+
+    return out;
   }
 
-  /// Gets all options for a list of question IDs.
-  /// Returns a map of questionId -> list of options (ordered by displayOrder).
+  /// ✅ Your already-fixed options loader (kept)
   Future<Map<String, List<DemographicOption>>> getDemographicOptions(
     List<String> questionIds,
   ) async {
     final Map<String, List<DemographicOption>> result = {};
 
-    // Firestore limits whereIn to 30 items, so we chunk
     for (final ids in _chunks(questionIds, 30)) {
       final snap = await _db
           .collection('demographicQuestionOptions')
           .where('questionId', whereIn: ids)
-          .where('isDisabled', isEqualTo: false)
-          .orderBy('displayOrder')
           .get();
 
       for (final doc in snap.docs) {
         final data = doc.data();
-        final qId = (data['questionId'] ?? '').toString();
+
+        final qId = (data['questionId'] ?? '').toString().trim();
         if (qId.isEmpty) continue;
+
+        // ✅ missing isDisabled => treat as enabled
+        if (_asBool(data['isDisabled']) == true) continue;
 
         final opt = DemographicOption(
           id: doc.id,
@@ -303,10 +279,18 @@ class GuestFirestoreServices {
       }
     }
 
+    // ✅ Sort options per question locally
+    for (final entry in result.entries) {
+      entry.value.sort((a, b) {
+        final d = a.displayOrder.compareTo(b.displayOrder);
+        if (d != 0) return d;
+        return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+    }
+
     return result;
   }
 
-  /// Gets the question set ID from an invitation, with event fallback for hosts.
   Future<String?> getQuestionSetId(
     Map<String, dynamic> invitation, {
     bool allowEventFallback = false,
@@ -315,10 +299,8 @@ class GuestFirestoreServices {
         (invitation['demographicQuestionSetId'] ?? '').toString().trim();
 
     if (questionSetId.isNotEmpty) return questionSetId;
-
     if (!allowEventFallback) return null;
 
-    // Fallback from event (host only)
     final eventId = (invitation['eventId'] ?? '').toString().trim();
     if (eventId.isEmpty) return null;
 
@@ -347,7 +329,7 @@ class GuestFirestoreServices {
   }
 
   // ---------------------------------------------------------------------------
-  // Private Helpers
+  // Helpers
   // ---------------------------------------------------------------------------
 
   static String _normalizeQuestionType(String type) {
@@ -396,27 +378,22 @@ class GuestFirestoreServices {
   }
 
   // ---------------------------------------------------------------------------
-  // Companions Helpers
+  // Companion helpers + status checks (unchanged)
   // ---------------------------------------------------------------------------
 
-  /// Gets the list of companions from an invitation.
   List<Map<String, dynamic>> getCompanions(Map<String, dynamic> invitation) {
     final raw = invitation['companions'] as List?;
     if (raw == null) return [];
     return raw.map((c) => Map<String, dynamic>.from(c as Map)).toList();
   }
 
-  /// Gets a specific companion by index.
   Map<String, dynamic>? getCompanion(
-    Map<String, dynamic> invitation,
-    int index,
-  ) {
+      Map<String, dynamic> invitation, int index) {
     final companions = getCompanions(invitation);
     if (index < 0 || index >= companions.length) return null;
     return companions[index];
   }
 
-  /// Gets the companion's display name.
   String getCompanionName(Map<String, dynamic> companion, int index) {
     return (companion['guestName'] ??
             companion['name'] ??
@@ -424,48 +401,35 @@ class GuestFirestoreServices {
         .toString();
   }
 
-  /// Gets the main guest's display name.
   String getMainGuestName(Map<String, dynamic> invitation) {
     return (invitation['guestName'] ?? 'Guest').toString();
   }
 
-  // ---------------------------------------------------------------------------
-  // Status Checks
-  // ---------------------------------------------------------------------------
-
-  /// Checks if main guest has completed demographics.
   bool isMainDemographicsComplete(Map<String, dynamic> invitation) {
     return invitation['used'] == true;
   }
 
-  /// Checks if main guest has completed menu selection.
   bool isMainMenuComplete(Map<String, dynamic> invitation) {
     return invitation['menuSelectionSubmitted'] == true;
   }
 
-  /// Checks if a companion has completed demographics.
   bool isCompanionDemographicsComplete(Map<String, dynamic> companion) {
     return companion['demographicSubmitted'] == true;
   }
 
-  /// Checks if a companion has completed menu selection.
   bool isCompanionMenuComplete(Map<String, dynamic> companion) {
     return companion['menuSubmitted'] == true;
   }
 
-  /// Checks if all people (main + companions) have completed the entire flow.
   bool isFlowComplete(Map<String, dynamic> invitation) {
-    // Main guest checks
     if (!isMainDemographicsComplete(invitation)) return false;
     if (!isMainMenuComplete(invitation)) return false;
 
-    // Companions checks
     final companions = getCompanions(invitation);
     for (final c in companions) {
       if (!isCompanionDemographicsComplete(c)) return false;
       if (!isCompanionMenuComplete(c)) return false;
     }
-
     return true;
   }
 }

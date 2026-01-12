@@ -15,19 +15,21 @@ class GuestSessionController extends GetxController {
   final Rxn<Event> event = Rxn<Event>();
   final Rxn<GuestModel> guest = Rxn<GuestModel>();
   final isLoading = false.obs;
-  
+
   // 🆕 Invitation configuration
   final Rxn<bool> isInvitingCompanionsByEmail = Rxn<bool>();
 
   // 🔹 Response data for current guest
-  final Rxn<DemographicResponseModel> demographicsResponse = Rxn<DemographicResponseModel>();
-  final Rxn<MenuSelectionResponseModel> menuSelectionResponse = Rxn<MenuSelectionResponseModel>();
+  final Rxn<DemographicResponseModel> demographicsResponse =
+      Rxn<DemographicResponseModel>();
+  final Rxn<MenuSelectionResponseModel> menuSelectionResponse =
+      Rxn<MenuSelectionResponseModel>();
 
   // 🆕 Group management (main guest + companions)
   final RxList<GuestModel> groupGuests = <GuestModel>[].obs;
-  final RxMap<String, DemographicResponseModel> groupDemographicsResponses = 
+  final RxMap<String, DemographicResponseModel> groupDemographicsResponses =
       <String, DemographicResponseModel>{}.obs;
-  final RxMap<String, MenuSelectionResponseModel> groupMenuResponses = 
+  final RxMap<String, MenuSelectionResponseModel> groupMenuResponses =
       <String, MenuSelectionResponseModel>{}.obs;
 
   // Services
@@ -39,6 +41,16 @@ class GuestSessionController extends GetxController {
   static const String _keyEventId = 'guest_session_event_id';
   static const String _keyInvitationCode = 'guest_session_invitation_code';
   static const String _keyBatchId = 'guest_session_batch_id';
+
+  String? _effectiveGuestId(GuestModel? g) {
+    final gid = (g?.guestId ?? '').trim();
+    if (gid.isNotEmpty) return gid;
+
+    final did = (g?.docId ?? '').trim();
+    if (did.isNotEmpty) return did;
+
+    return null;
+  }
 
   /// Check if guest is authenticated
   bool get isAuthenticated => guest.value != null && event.value != null;
@@ -80,7 +92,7 @@ class GuestSessionController extends GetxController {
 
       event.value = authenticatedEvent;
       guest.value = authenticatedGuest;
-      
+
       // 🆕 Fetch invitation configuration
       await _loadInvitationConfig();
 
@@ -93,12 +105,14 @@ class GuestSessionController extends GetxController {
       );
 
       print('✅ Guest session established');
-      print('   Guest: ${authenticatedGuest.name} (${authenticatedGuest.docId})');
-      print('   Event: ${authenticatedEvent.name} (${authenticatedEvent.eventId})');
+      print(
+          '   Guest: ${authenticatedGuest.name} (${authenticatedGuest.docId})');
+      print(
+          '   Event: ${authenticatedEvent.name} (${authenticatedEvent.eventId})');
 
       // 🔹 Load guest responses after session is established
       await loadResponses();
-      
+
       // 🆕 Load group guests and their responses
       await loadGroupGuests();
 
@@ -136,10 +150,10 @@ class GuestSessionController extends GetxController {
 
       if (success) {
         print('✅ Session restored successfully');
-        
+
         // 🔹 Load guest responses after session is restored
         await loadResponses();
-        
+
         // 🆕 Load group guests and their responses
         await loadGroupGuests();
       } else {
@@ -186,11 +200,11 @@ class GuestSessionController extends GetxController {
 
       event.value = null;
       guest.value = null;
-      
+
       // 🔹 Clear response data
       demographicsResponse.value = null;
       menuSelectionResponse.value = null;
-      
+
       // 🆕 Clear group data
       groupGuests.clear();
       groupDemographicsResponses.clear();
@@ -206,28 +220,25 @@ class GuestSessionController extends GetxController {
   /// Fetches both demographic and menu selection responses
   Future<void> loadResponses() async {
     try {
-      final guestId = guest.value?.guestId;
+      final gid = _effectiveGuestId(guest.value);
       final eventId = event.value?.eventId;
 
-      if (guestId == null || eventId == null) {
-        print('⚠️ Cannot load responses: missing guest or event');
+      if (gid == null || eventId == null || eventId.trim().isEmpty) {
+        print('⚠️ Cannot load responses: missing guestId/docId or eventId');
         return;
       }
 
-      print('📋 Loading responses for guest: $guestId, event: $eventId');
+      print('📋 Loading responses for guest: $gid, event: $eventId');
 
-      // Fetch both responses in parallel
       final results = await _responsesService.fetchAllResponses(
-        guestId: guestId,
+        guestId: gid,
         eventId: eventId,
       );
 
-      demographicsResponse.value = results['demographics'] as DemographicResponseModel?;
-      menuSelectionResponse.value = results['menuSelection'] as MenuSelectionResponseModel?;
-
-      print('✅ Responses loaded successfully');
-      print('   Demographics: ${demographicsResponse.value != null ? 'Found' : 'Not found'}');
-      print('   Menu: ${menuSelectionResponse.value != null ? 'Found' : 'Not found'}');
+      demographicsResponse.value =
+          results['demographics'] as DemographicResponseModel?;
+      menuSelectionResponse.value =
+          results['menuSelection'] as MenuSelectionResponseModel?;
     } catch (e) {
       print('❌ Error loading responses: $e');
     }
@@ -235,16 +246,17 @@ class GuestSessionController extends GetxController {
 
   /// Update demographic response in Firestore and local state
   /// Returns true if successful, false otherwise
-  Future<bool> updateDemographicsResponse(DemographicResponseModel response) async {
+  Future<bool> updateDemographicsResponse(
+      DemographicResponseModel response) async {
     try {
       print('📝 Updating demographics response...');
-      
+
       await _responsesService.updateDemographicResponse(response);
       demographicsResponse.value = response;
-      
+
       // 🆕 Also update in group map
       groupDemographicsResponses[response.guestId] = response;
-      
+
       print('✅ Demographics response updated successfully');
       return true;
     } catch (e) {
@@ -255,16 +267,17 @@ class GuestSessionController extends GetxController {
 
   /// Update menu selection response in Firestore and local state
   /// Returns true if successful, false otherwise
-  Future<bool> updateMenuSelectionResponse(MenuSelectionResponseModel response) async {
+  Future<bool> updateMenuSelectionResponse(
+      MenuSelectionResponseModel response) async {
     try {
       print('📝 Updating menu selection response...');
-      
+
       await _responsesService.updateMenuSelectionResponse(response);
       menuSelectionResponse.value = response;
-      
+
       // 🆕 Also update in group map
       groupMenuResponses[response.guestId] = response;
-      
+
       print('✅ Menu selection response updated successfully');
       return true;
     } catch (e) {
@@ -302,7 +315,8 @@ class GuestSessionController extends GetxController {
         print('📧 Companions invited by email - only loading current guest');
         groupGuests.value = guest.value != null ? [guest.value!] : [];
       } else {
-        print('👥 Main guest fills for companions - loading all guests in group');
+        print(
+            '👥 Main guest fills for companions - loading all guests in group');
         // Fetch all guests in the group using service
         final guests = await _responsesService.fetchGroupGuests(
           groupId: groupId,
@@ -328,30 +342,30 @@ class GuestSessionController extends GetxController {
 
       print('📦 Loading responses for ${groupGuests.length} guests');
 
-      for (final guest in groupGuests) {
-        if (guest.guestId == null) continue;
+      for (final g in groupGuests) {
+        final gid = _effectiveGuestId(g);
+        if (gid == null) continue;
 
         final results = await _responsesService.fetchAllResponses(
-          guestId: guest.guestId!,
+          guestId: gid,
           eventId: eventId,
         );
 
-        // Store in group maps
         if (results['demographics'] != null) {
-          groupDemographicsResponses[guest.guestId!] = 
+          groupDemographicsResponses[gid] =
               results['demographics'] as DemographicResponseModel;
         }
         if (results['menuSelection'] != null) {
-          groupMenuResponses[guest.guestId!] = 
+          groupMenuResponses[gid] =
               results['menuSelection'] as MenuSelectionResponseModel;
         }
       }
 
-      // Update current guest's responses from group maps
-      final currentGuestId = this.guest.value?.guestId;
-      if (currentGuestId != null) {
-        demographicsResponse.value = groupDemographicsResponses[currentGuestId];
-        menuSelectionResponse.value = groupMenuResponses[currentGuestId];
+// Update current guest responses
+      final currentId = _effectiveGuestId(this.guest.value);
+      if (currentId != null) {
+        demographicsResponse.value = groupDemographicsResponses[currentId];
+        menuSelectionResponse.value = groupMenuResponses[currentId];
       }
 
       print('✅ Loaded responses for all guests in group');
@@ -384,19 +398,18 @@ class GuestSessionController extends GetxController {
     try {
       final eventId = event.value?.eventId;
       final guestId = guest.value?.guestId;
-      
+
       if (eventId == null || guestId == null) {
         print('⚠️ Cannot load invitation config: missing eventId or guestId');
         return;
       }
 
       print('📋 Loading invitation configuration...');
-      
+
       // Find the main guest's invitation (the one who received the original invite)
       // If current guest is a companion, find their parent guest's invitation
-      final mainGuestId = guest.value?.isCompanion == true 
-          ? await _findMainGuestId() 
-          : guestId;
+      final mainGuestId =
+          guest.value?.isCompanion == true ? await _findMainGuestId() : guestId;
 
       if (mainGuestId == null) {
         print('⚠️ Could not find main guest ID');
@@ -417,9 +430,11 @@ class GuestSessionController extends GetxController {
       }
 
       final invitationData = invitationSnapshot.docs.first.data();
-      isInvitingCompanionsByEmail.value = invitationData['isInvitingCompanionsByEmail'] as bool?;
-      
-      print('✅ Invitation config loaded: isInvitingCompanionsByEmail = ${isInvitingCompanionsByEmail.value}');
+      isInvitingCompanionsByEmail.value =
+          invitationData['isInvitingCompanionsByEmail'] as bool?;
+
+      print(
+          '✅ Invitation config loaded: isInvitingCompanionsByEmail = ${isInvitingCompanionsByEmail.value}');
     } catch (e) {
       print('❌ Error loading invitation config: $e');
     }
@@ -440,7 +455,7 @@ class GuestSessionController extends GetxController {
           .get();
 
       if (mainGuestSnapshot.docs.isEmpty) return null;
-      
+
       return mainGuestSnapshot.docs.first.data()['guestId'] as String?;
     } catch (e) {
       print('❌ Error finding main guest: $e');

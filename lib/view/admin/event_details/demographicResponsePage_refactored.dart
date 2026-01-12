@@ -557,29 +557,29 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // ✅ badge so you can SEE which ones are real sub-questions
-                      if (isSub)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                'Follow-up',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      // if (isSub)
+                      //   Padding(
+                      //     padding: const EdgeInsets.only(bottom: 6),
+                      //     child: Align(
+                      //       alignment: Alignment.centerLeft,
+                      //       child: Container(
+                      //         padding: const EdgeInsets.symmetric(
+                      //             horizontal: 10, vertical: 5),
+                      //         decoration: BoxDecoration(
+                      //           color: Colors.black.withOpacity(0.06),
+                      //           borderRadius: BorderRadius.circular(999),
+                      //         ),
+                      //         child: Text(
+                      //           'Follow-up',
+                      //           style: GoogleFonts.poppins(
+                      //             fontSize: 12,
+                      //             fontWeight: FontWeight.w600,
+                      //             color: Colors.black87,
+                      //           ),
+                      //         ),
+                      //       ),
+                      //     ),
+                      //   ),
 
                       DemographicQuestionCard(
                         question: q,

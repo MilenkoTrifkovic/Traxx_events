@@ -10,8 +10,7 @@ class InvitationResponseServices {
   late final CollectionReference<Map<String, dynamic>> invitationsRef;
 
   /// Reference to demographic responses collection
-  late final CollectionReference<Map<String, dynamic>>
-      demographicResponsesRef;
+  late final CollectionReference<Map<String, dynamic>> demographicResponsesRef;
 
   /// Reference to menu selection responses collection
   late final CollectionReference<Map<String, dynamic>> menuResponsesRef;
@@ -51,8 +50,9 @@ class InvitationResponseServices {
     bool? isInvitingCompanionsByEmail,
   }) async {
     final updateData = {
-      'companionsCount': companionsCount,
+      'companionsCount': 0,
       'companionsSubmittedAt': FieldValue.serverTimestamp(),
+      'isInvitingCompanionsByEmail': false,
     };
 
     // Only add isInvitingCompanionsByEmail if companionsCount > 0

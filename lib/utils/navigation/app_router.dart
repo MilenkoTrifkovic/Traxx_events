@@ -16,8 +16,10 @@ import 'package:traxx_wepapp/features/common/calendar_page/view/calendar_page.da
 import 'package:traxx_wepapp/features/guest/rsvp_response/controller/rsvp_response_controller.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/compaignons_info_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_count_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_thank_you_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
+import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -129,6 +131,16 @@ GoRouter buildRouter() {
         builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
+      GoRoute(
+        path: AppRoute.thankYou.path,
+        builder: (context, state) {
+          final invId =
+              (state.uri.queryParameters['invitationId'] ?? '').trim();
+          final token = (state.uri.queryParameters['token'] ?? '').trim();
+          return GuestThankYouPage(invitationId: invId, token: token);
+        },
+      ),
+
       // GUEST AUTHENTICATED SHELL ROUTE
       // Handles guest authentication and session management
       // All guest routes that require authentication go here
@@ -227,24 +239,22 @@ GoRouter buildRouter() {
           final invitationId = state.uri.queryParameters['invitationId'] ?? '';
           final token = state.uri.queryParameters['token'] ?? '';
 
-          // Initialize RsvpResponseController at shell level
-          // Use Get.put with tag - it returns existing if already created
-          final controller = Get.put(
-            RsvpResponseController(),
-            tag: invitationId,
-          );
+          final rsvpCtrl = Get.put(RsvpResponseController(), tag: invitationId);
+          rsvpCtrl.invitationId = invitationId;
+          rsvpCtrl.token = token;
 
-          // Only initialize ONCE (check if invitationId is already set)
-          if (controller.invitationId == null ||
-              controller.invitationId!.isEmpty) {
-            controller.invitationId = invitationId;
-            controller.token = token;
-
-            // Load invitation status
-            controller.checkExistingResponse();
+          // Always ensure load at least once
+          if (rsvpCtrl.invitationStatus.value == null &&
+              !rsvpCtrl.isLoading.value) {
+            rsvpCtrl.checkExistingResponse();
           }
 
-          // Wrapper fetches event cover image from invitation and displays it reactively
+          // ✅ CREATE GuestLayoutController HERE (not later)
+          final guestLayout =
+              Get.put(GuestLayoutController(), tag: invitationId);
+          // start loading event immediately
+          guestLayout.loadEventCoverImageFromInvitation(invitationId);
+
           return GuestPageWrapper(
             invitationId: invitationId,
             child: child,
@@ -258,13 +268,19 @@ GoRouter buildRouter() {
                   state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
               final eventName = state.uri.queryParameters['eventName'];
+
+              final forceDetails =
+                  (state.uri.queryParameters['view'] ?? '') == 'details';
+
               return RsvpResponsePage(
                 invitationId: invitationId,
                 token: token,
                 eventName: eventName,
+                forceDetails: forceDetails, // ✅ NEW
               );
             },
           ),
+
           GoRoute(
             path: AppRoute.guestCompanionsInfo.path,
             builder: (context, state) {
@@ -320,21 +336,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-          // GoRoute(
-          //   path: AppRoute.menuSelection.path,
-          //   builder: (context, state) {
-          //     final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          //     return GuestMenuSelectionPage(invitationId: invitationId);
-          //   },
-          // ),
-          GoRoute(
-            path: AppRoute.thankYou.path,
-            builder: (context, state) {
-              final invitationId =
-                  state.uri.queryParameters['invitationId'] ?? '';
-              return ThankYouPage(invitationId: invitationId);
-            },
-          ),
           GoRoute(
             path: AppRoute.menuSelection.path,
             builder: (context, state) {
@@ -356,6 +357,37 @@ GoRouter buildRouter() {
                 companionIndex: companionIndex,
                 companionName: companionName,
               );
+            },
+          ),
+          // GoRoute(
+          //   path: AppRoute.menuSelection.path,
+          //   builder: (context, state) {
+          //     final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          //     return GuestMenuSelectionPage(invitationId: invitationId);
+          //   },
+          // ),
+          GoRoute(
+            path: AppRoute.thankYou.path,
+            redirect: (context, state) {
+              final invitationId =
+                  (state.uri.queryParameters['invitationId'] ?? '').trim();
+              final token = (state.uri.queryParameters['token'] ?? '').trim();
+              final eventName = state.uri.queryParameters['eventName'];
+
+              // If invitationId is missing, just go to guest-response base route
+              if (invitationId.isEmpty) {
+                return AppRoute.guestResponse.path;
+              }
+
+              return Uri(
+                path: AppRoute.guestResponse.path,
+                queryParameters: {
+                  'invitationId': invitationId,
+                  if (token.isNotEmpty) 'token': token,
+                  if (eventName != null && eventName.trim().isNotEmpty)
+                    'eventName': eventName.trim(),
+                },
+              ).toString();
             },
           ),
         ],

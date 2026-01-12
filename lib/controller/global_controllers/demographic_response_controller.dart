@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/guest_firestore_services.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
 class DemographicResponseController extends GetxController {
@@ -317,7 +318,7 @@ class DemographicResponseController extends GetxController {
           'questionText': q.text,
           'type': q.type,
           'isRequired': q.isRequired,
-          'answer': _serializeAnswer(answers[q.id]),
+          'answer': _serializeAnswerForQuestion(q, answers[q.id]),
         };
       }).toList();
 
@@ -496,6 +497,7 @@ class DemographicResponseController extends GetxController {
 
     try {
       // 1) Fetch invitation
+      debugPrint('1) invitation...');
       final inv = await _firestoreService.getInvitation(invitationId);
       if (inv == null) {
         _setError('Invitation not found',
@@ -606,8 +608,10 @@ class DemographicResponseController extends GetxController {
         return;
       }
       questionSet.value = qs;
-
+      debugPrint('2) qsId=$qsId');
       // 9) Fetch questions (base + conditional)
+      debugPrint('3) getDemographicQuestionSet...');
+
       final loadedQuestions =
           await _firestoreService.getDemographicQuestions(qsId);
       for (final q in loadedQuestions) {
@@ -647,8 +651,7 @@ class DemographicResponseController extends GetxController {
     } catch (e, st) {
       debugPrint('Demographic load error: $e');
       debugPrint('$st');
-      _setError('Something went wrong',
-          'We could not load the questions right now. Please refresh and try again.');
+      _setError('Something went wrong', e.toString());
     }
   }
 
@@ -780,10 +783,138 @@ class DemographicResponseController extends GetxController {
     return '';
   }
 
-  dynamic _serializeAnswer(dynamic answer) {
-    if (answer is String) return answer.trim();
-    return answer;
+  dynamic _serializeAnswerForQuestion(DemographicQuestion q, dynamic raw) {
+    if (raw == null) return null;
+
+    DemographicOption? findOpt(String key) {
+      final k = key.trim();
+      if (k.isEmpty) return null;
+
+      // raw usually matches option docId (o.id)
+      for (final o in q.options) {
+        if (o.id == k) return o;
+      }
+
+      // fallback matching (in case something stored value/label)
+      for (final o in q.options) {
+        if (o.value == k || o.label == k) return o;
+      }
+
+      return null;
+    }
+
+    Map<String, dynamic> optToMap(
+      DemographicOption o, {
+      String? freeText,
+      bool? requiresFreeTextOverride,
+    }) {
+      return {
+        'optionId': o.id,
+        'label': o.label,
+        'value': o.value,
+        'requiresFreeText': requiresFreeTextOverride ?? o.requiresFreeText,
+        if (freeText != null && freeText.trim().isNotEmpty)
+          'freeText': freeText.trim(),
+      };
+    }
+
+    // Text
+    if (q.type == 'short_answer' || q.type == 'paragraph') {
+      return raw.toString().trim();
+    }
+
+    // Single choice
+    if (q.type == 'multiple_choice' || q.type == 'dropdown') {
+      // If UI already gave a map, normalize it
+      if (raw is Map) {
+        final m = Map<String, dynamic>.from(raw);
+
+        final optionId = (m['optionId'] ?? m['id'] ?? '').toString().trim();
+        final freeText = (m['freeText'] ?? '').toString().trim();
+        final label = (m['label'] ?? m['text'] ?? '').toString().trim();
+        final value = (m['value'] ?? '').toString().trim();
+        final requiresFreeText = (m['requiresFreeText'] == true) ||
+            (m['requiresFreeText'] == 'true');
+
+        // If already has label/value, keep it
+        if (label.isNotEmpty || value.isNotEmpty) {
+          return {
+            'optionId': optionId.isNotEmpty ? optionId : (m['optionId'] ?? ''),
+            'label': label.isNotEmpty ? label : value,
+            'value': value.isNotEmpty ? value : label,
+            'requiresFreeText': requiresFreeText,
+            if (freeText.isNotEmpty) 'freeText': freeText,
+          };
+        }
+
+        // Otherwise resolve by optionId
+        final opt = optionId.isNotEmpty ? findOpt(optionId) : null;
+        if (opt != null)
+          return optToMap(opt,
+              freeText: freeText, requiresFreeTextOverride: requiresFreeText);
+
+        return m;
+      }
+
+      // raw is a string (optionId/docId) → enrich
+      final key = raw.toString().trim();
+      final opt = findOpt(key);
+      return opt != null ? optToMap(opt) : key;
+    }
+
+    // Checkboxes (multi)
+    if (q.type == 'checkboxes') {
+      final list = raw is List ? raw : <dynamic>[];
+      final out = <Map<String, dynamic>>[];
+
+      for (final item in list) {
+        if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+
+          final optionId = (m['optionId'] ?? m['id'] ?? '').toString().trim();
+          final freeText = (m['freeText'] ?? '').toString().trim();
+          final label = (m['label'] ?? m['text'] ?? '').toString().trim();
+          final value = (m['value'] ?? '').toString().trim();
+          final requiresFreeText = (m['requiresFreeText'] == true) ||
+              (m['requiresFreeText'] == 'true');
+
+          if (label.isNotEmpty || value.isNotEmpty) {
+            out.add({
+              'optionId': optionId,
+              'label': label.isNotEmpty ? label : value,
+              'value': value.isNotEmpty ? value : label,
+              'requiresFreeText': requiresFreeText,
+              if (freeText.isNotEmpty) 'freeText': freeText,
+            });
+            continue;
+          }
+
+          final opt = optionId.isNotEmpty ? findOpt(optionId) : null;
+          if (opt != null) {
+            out.add(optToMap(opt,
+                freeText: freeText,
+                requiresFreeTextOverride: requiresFreeText));
+          }
+          continue;
+        }
+
+        // item is string optionId
+        final key = item.toString().trim();
+        final opt = findOpt(key);
+        if (opt != null) out.add(optToMap(opt));
+      }
+
+      return out;
+    }
+
+    // Fallback
+    return raw is String ? raw.trim() : raw;
   }
+
+  // dynamic _serializeAnswer(dynamic answer) {
+  //   if (answer is String) return answer.trim();
+  //   return answer;
+  // }
 
   void _updateLocalStateAfterSubmit() {
     if (_currentCompanionIndex == null) {
@@ -806,11 +937,24 @@ class DemographicResponseController extends GetxController {
       tokenToUse,
       invitationIdOverride: _activeInvitationId,
     );
+
+    // ✅ FIRST: if complete → go to Thank You and stop
+    if (flowState.isComplete) {
+      context.go(
+        '${AppRoute.thankYou.path}?invitationId=$_activeInvitationId&token=$tokenToUse',
+      );
+      return;
+    }
+
+    // Then normal routing
     final nextStep = flowState.getNextStep();
     final nextUrl = nextStep.buildUrl(_activeInvitationId, tokenToUse);
 
-    debugPrint('Demographics: Navigating to next step: ${nextStep.step}, '
-        'companionIndex: ${nextStep.companionIndex}, url: $nextUrl');
+    debugPrint(
+      'Demographics: Navigating to next step: ${nextStep.step}, '
+      'companionIndex: ${nextStep.companionIndex}, url: $nextUrl',
+    );
+
     context.go(nextUrl);
   }
 

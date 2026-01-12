@@ -17,8 +17,8 @@ class GuestLoginController extends GetxController {
 
   // Format validation patterns
   // Invitation Code: 2 letters + 4 digits + 2 letters (case-insensitive)
-  final invitationCodePattern = RegExp(r'^[a-zA-Z]{2}\d{4}[a-zA-Z]{2}$');
-  
+  final invitationCodePattern = RegExp(r'^[A-Z0-9]{8}$');
+
   // Batch ID: exactly 6 digits
   final batchIdPattern = RegExp(r'^\d{6}$');
 
@@ -71,9 +71,12 @@ class GuestLoginController extends GetxController {
 
   /// Validates the form fields based on format patterns
   void validateForm(String invitationCode, String batchId) {
-    final codeValid = invitationCodePattern.hasMatch(invitationCode.trim());
-    final batchValid = batchIdPattern.hasMatch(batchId.trim());
-    
+    final code = invitationCode.trim().toUpperCase();
+    final batch = batchId.trim();
+
+    final codeValid = invitationCodePattern.hasMatch(code);
+    final batchValid = batchIdPattern.hasMatch(batch);
+
     isFormValid.value = codeValid && batchValid;
   }
 

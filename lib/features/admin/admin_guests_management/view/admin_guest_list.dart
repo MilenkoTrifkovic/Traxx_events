@@ -274,62 +274,72 @@ class GuestListSection extends StatelessWidget {
                               )),
 
                               // Invited cell
+                              // Invited cell (Invite / Re-send using same button)
                               DataCell(
                                 Align(
                                   alignment: Alignment.centerLeft,
-                                  child: guest.isInvited == true
-                                      ? IconButton(
-                                          icon: const Icon(Icons.check_circle,
-                                              size: 18, color: Colors.green),
-                                          tooltip: 'Already invited',
-                                          onPressed: () {},
-                                        )
-                                      : IconButton(
-                                          icon: Icon(
-                                            Icons.send,
-                                            size: 18,
-                                            color: canInviteThisGuest
-                                                ? Colors.blue
-                                                : Colors.grey,
-                                          ),
-                                          tooltip: isDisabledGuest
-                                              ? 'Guest is disabled'
-                                              : (!canInvite
-                                                  ? 'Publish event and select menu + demographic set first'
-                                                  : 'Invite guest'),
-                                          onPressed: canInviteThisGuest
-                                              ? () async {
-                                                  if (guest.guestId != null) {
-                                                    final success =
-                                                        await controller
-                                                            .inviteGuest(
-                                                                guest.guestId!);
-                                                    final snackbarController =
-                                                        Get.find<
-                                                            SnackbarMessageController>();
-                                                    if (success) {
-                                                      snackbarController
-                                                          .showSuccessMessage(
-                                                              'Guest invited');
-                                                    } else {
-                                                      snackbarController
-                                                          .showErrorMessage(
-                                                              'Failed to invite guest');
-                                                    }
-                                                  }
-                                                }
-                                              : () {
-                                                  if (!canInvite) {
-                                                    final snackbarController =
-                                                        Get.find<
-                                                            SnackbarMessageController>();
-                                                    snackbarController
-                                                        .showInfoMessage(
-                                                      'Before inviting guests, please publish the event and complete: Menu & dishes selection and Demographic questions.',
-                                                    );
-                                                  }
-                                                },
-                                        ),
+                                  child: IconButton(
+                                    icon: Icon(
+                                      guest.isInvited == true
+                                          ? Icons.refresh
+                                          : Icons.send,
+                                      size: 18,
+                                      color: canInviteThisGuest
+                                          ? (guest.isInvited == true
+                                              ? Colors.green
+                                              : Colors.blue)
+                                          : Colors.grey,
+                                    ),
+                                    tooltip: isDisabledGuest
+                                        ? 'Guest is disabled'
+                                        : (!canInvite
+                                            ? 'Publish event and select menu + demographic set first'
+                                            : (guest.isInvited == true
+                                                ? 'Already invited — click to re-send'
+                                                : 'Invite guest')),
+                                    onPressed: canInviteThisGuest
+                                        ? () async {
+                                            if (guest.guestId == null) return;
+
+                                            final isResend =
+                                                guest.isInvited == true;
+
+                                            final success =
+                                                await controller.inviteGuest(
+                                              guest.guestId!,
+                                              forceResend: isResend,
+                                            );
+
+                                            final snackbarController = Get.find<
+                                                SnackbarMessageController>();
+
+                                            if (success) {
+                                              snackbarController
+                                                  .showSuccessMessage(
+                                                isResend
+                                                    ? 'Invitation re-sent'
+                                                    : 'Guest invited',
+                                              );
+                                            } else {
+                                              snackbarController
+                                                  .showErrorMessage(
+                                                isResend
+                                                    ? 'Failed to re-send invitation'
+                                                    : 'Failed to invite guest',
+                                              );
+                                            }
+                                          }
+                                        : () {
+                                            if (!canInvite) {
+                                              final snackbarController = Get.find<
+                                                  SnackbarMessageController>();
+                                              snackbarController
+                                                  .showInfoMessage(
+                                                'Before inviting guests, please publish the event and complete: Menu & dishes selection and Demographic questions.',
+                                              );
+                                            }
+                                          },
+                                  ),
                                 ),
                               ),
 

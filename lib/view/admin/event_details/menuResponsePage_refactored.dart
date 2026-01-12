@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 
 import 'menus_widgets/menu_widgets.dart';
 
@@ -97,7 +98,10 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
     if (_controller.isFlowComplete) {
       context.go(
-          '/thank-you?invitationId=${Uri.encodeComponent(widget.invitationId!)}');
+        '${AppRoute.thankYou.path}?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+        '&token=${Uri.encodeComponent(_token)}',
+      );
+      return;
     }
   }
 
@@ -146,18 +150,41 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
     if (!mounted) return;
 
-    if (result.success && result.nextStep != null) {
-      final nextUrl = result.nextStep!.buildUrl(widget.invitationId!, _token);
-      context.go(nextUrl);
-    } else if (!result.success && result.error != null) {
+    if (!result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Submit failed: ${result.error}')),
+        SnackBar(
+            content: Text('Submit failed: ${result.error ?? 'Unknown error'}')),
       );
+      return;
+    }
+
+    // ✅ SAFETY: if flow is complete after menu submit → always go Thank You
+    if (_controller.isFlowComplete) {
+      context.go(
+        '${AppRoute.thankYou.path}?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+        '&token=${Uri.encodeComponent(_token)}',
+      );
+      return;
+    }
+
+    // Otherwise follow normal next-step routing
+    final next = result.nextStep;
+    if (next != null) {
+      final nextUrl = next.buildUrl(widget.invitationId!, _token);
+      context.go(nextUrl);
     }
   }
 
   void _handleContinue() {
     if (_isReadOnly) return;
+
+    if (_controller.isFlowComplete) {
+      context.go(
+        '${AppRoute.thankYou.path}?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+        '&token=${Uri.encodeComponent(_token)}',
+      );
+      return;
+    }
 
     final nextStep = _controller.getNextStep();
     if (nextStep != null) {

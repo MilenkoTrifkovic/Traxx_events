@@ -46,7 +46,8 @@ class HostEventDetailsHeader extends StatelessWidget {
                 final eventId = GoRouterState.of(context)
                     .pathParameters[AppRoute.eventDetails.placeholder];
                 if (eventId != null) {
-                  pushRoute(AppRoute.guestSidePreview, context, urlParam: eventId);
+                  pushRoute(AppRoute.guestSidePreview, context,
+                      urlParam: eventId);
                 }
               },
             ),
@@ -60,38 +61,44 @@ class HostEventDetailsHeader extends StatelessWidget {
             Obx(() {
               final event = eventListController.selectedEvent.value;
               final isPublished = event?.status == EventStatus.published;
-              
-              // If event is published, don't show the spacing or button
-              if (isPublished) {
-                return const SizedBox.shrink();
-              }
-              
-              // Show spacing and publish button if event is not published
+
+              final buttonTextDesktop =
+                  isPublished ? 'Re-publish' : 'Publish Event';
+              final buttonTextMobile = isPublished ? 'Re-publish' : 'Publish';
+
               return Row(
                 children: [
                   AppSpacing.horizontalXs(context),
                   AppPrimaryButton(
-                      // icon: Icons.add,
-                      text: idDesktop ? 'Publish Event' : 'Publish',
-                      onPressed: () async {
-                        // Handle publish event action
-                        try {
-                          await eventListController.publishEvent();
-                          if (!context.mounted) return;
-                          snackbarController.showSuccessMessage(
-                            'Event published successfully!',
-                          );
-                        } catch (e) {
-                          print('Error publishing event: $e');
-                          if (!context.mounted) return;
-                          snackbarController.showErrorMessage(
-                            'Failed to publish event. Please try again.',
-                          );
-                        }
-                      }),
+                    text: idDesktop ? buttonTextDesktop : buttonTextMobile,
+                    icon: isPublished ? Icons.refresh : Icons.publish,
+                    onPressed: () async {
+                      try {
+                        await eventListController
+                            .publishEvent(); // works for publish + republish
+                        if (!context.mounted) return;
+
+                        snackbarController.showSuccessMessage(
+                          isPublished
+                              ? 'Event re-published successfully!'
+                              : 'Event published successfully!',
+                        );
+                      } catch (e) {
+                        print('Error publishing event: $e');
+                        if (!context.mounted) return;
+
+                        snackbarController.showErrorMessage(
+                          isPublished
+                              ? 'Failed to re-publish event. Please try again.'
+                              : 'Failed to publish event. Please try again.',
+                        );
+                      }
+                    },
+                  ),
                 ],
               );
             }),
+
             // AppSpacing.horizontalXs(context),
             // PopupMenuButton(
             //   icon: Icon(

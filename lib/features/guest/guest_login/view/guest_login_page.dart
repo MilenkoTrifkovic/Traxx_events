@@ -33,10 +33,20 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
   void initState() {
     super.initState();
     controller = Get.put(GuestLoginController());
+
+    // ✅ keep form validity updated no matter what
+    _invitationCodeController.addListener(_onFieldChanged);
+    _batchIdController.addListener(_onFieldChanged);
+
+    // run once for initial state (optional)
+    _onFieldChanged();
   }
 
   @override
   void dispose() {
+    _invitationCodeController.removeListener(_onFieldChanged);
+    _batchIdController.removeListener(_onFieldChanged);
+
     _invitationCodeController.dispose();
     _batchIdController.dispose();
     super.dispose();
@@ -47,7 +57,7 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     if (!_formKey.currentState!.validate()) return;
 
     await controller.handleNext(
-      invitationCode: _invitationCodeController.text.trim(),
+      invitationCode: _invitationCodeController.text.trim().toUpperCase(),
       batchId: _batchIdController.text.trim(),
       context: context,
     );
@@ -202,18 +212,17 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
         // Invitation Code Field
         AppTextInputField(
           label: 'Invitation Code',
-          hintText: 'AB1234CD',
-          helperText: 'Format: 2 letters, 4 digits, 2 letters',
+          hintText: '9MTYJ7V5',
+          helperText: 'Format: 8 characters (A–Z, 0–9)',
           controller: _invitationCodeController,
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.characters,
           validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Invitation code is required';
-            }
-            if (!RegExp(r'^[a-zA-Z]{2}\d{4}[a-zA-Z]{2}$').hasMatch(value.trim())) {
-              return 'Invalid format (e.g., AB1234CD)';
+            final v = (value ?? '').trim().toUpperCase();
+            if (v.isEmpty) return 'Invitation code is required';
+            if (!RegExp(r'^[A-Z0-9]{8}$').hasMatch(v)) {
+              return 'Invalid format (e.g., 9MTYJ7V5)';
             }
             return null;
           },

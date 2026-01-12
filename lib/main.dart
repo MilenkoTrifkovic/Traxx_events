@@ -29,10 +29,10 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize date formatting for table_calendar locale support
   await initializeDateFormatting();
-  
+
   tzdata.initializeTimeZones();
   setPathUrlStrategy();
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -41,7 +41,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+
   // Initialize Nominatim Geocoding (works on web)
   await NominatimGeocoding.init(reqCacheNum: 50);
 
@@ -81,7 +81,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'Trax Events',
       // builder: EasyLoading.init(),
       builder: (context, child) {
         return EasyLoading.init()(context, child);

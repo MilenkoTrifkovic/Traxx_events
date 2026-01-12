@@ -57,6 +57,25 @@ class FirestoreServices {
         );
   }
 
+  Future<Event> copyEventAsDraft(
+    Event source, {
+    required String organisationId,
+  }) async {
+    final ref = _db.collection('events').doc();
+    final newId = ref.id;
+
+    final data = source.toJson();
+    data['eventId'] = newId;
+    data['organisationId'] = organisationId;
+    data['name'] = '${source.name} (Copy)';
+    data['status'] = EventStatus.draft.statusName;
+
+    await ref.set(data);
+
+    final snap = await ref.get();
+    return Event.fromFirestore(snap); // ✅ you have this factory
+  }
+
   /// Adds a new organisation to Firestore.
   /// Throws [FirebaseException] if the add operation fails.
   Future<void> addOrganisation(Organisation organisation) async {
@@ -169,11 +188,11 @@ class FirestoreServices {
   }
 
   /// Generates a unique invitation code that doesn't exist in Firestore.
-  /// 
+  ///
   /// This method will keep generating new codes until it finds one that
   /// is not already used by any event. Maximum 10 attempts to prevent
   /// infinite loops in case of issues.
-  /// 
+  ///
   /// Returns a unique invitation code in format: WE2390RT
   /// Throws [Exception] if unable to generate unique code after max attempts.
   Future<String> _generateUniqueInvitationCode() async {
@@ -182,7 +201,7 @@ class FirestoreServices {
 
     while (attempts < maxAttempts) {
       final code = generateInvitationCode();
-      
+
       // Check if this code already exists
       final existingEvents = await eventsRef
           .where('invitationCode', isEqualTo: code)
@@ -204,11 +223,11 @@ class FirestoreServices {
   }
 
   /// Generates a unique batch ID that doesn't exist in Firestore.
-  /// 
+  ///
   /// This method will keep generating new 6-digit batch IDs until it finds one
   /// that is not already used by any guest. Maximum 10 attempts to prevent
   /// infinite loops in case of issues.
-  /// 
+  ///
   /// Returns a unique batch ID in format: 123456 (6 digits)
   /// Throws [Exception] if unable to generate unique batch ID after max attempts.
   Future<String> _generateUniqueBatchId() async {
@@ -217,12 +236,10 @@ class FirestoreServices {
 
     while (attempts < maxAttempts) {
       final batchId = generateBatchId();
-      
+
       // Check if this batch ID already exists
-      final existingGuests = await guestsRef
-          .where('batchId', isEqualTo: batchId)
-          .limit(1)
-          .get();
+      final existingGuests =
+          await guestsRef.where('batchId', isEqualTo: batchId).limit(1).get();
 
       // If no guests found with this batch ID, it's unique!
       if (existingGuests.docs.isEmpty) {
@@ -247,10 +264,11 @@ class FirestoreServices {
       // Assign a new UUID v4 to eventId if not provided
       final uuid = Uuid();
       final id = event.eventId ?? uuid.v4();
-      
+
       // Generate unique invitation code if not provided
-      final invitationCode = event.invitationCode ?? await _generateUniqueInvitationCode();
-      
+      final invitationCode =
+          event.invitationCode ?? await _generateUniqueInvitationCode();
+
       final eventWithId = event.copyWith(
         eventId: id,
         invitationCode: invitationCode,
@@ -653,18 +671,35 @@ class FirestoreServices {
 
   Future<void> inviteGuest(String eventId, Guest_old guest) async {
     try {
-      final querySnapshot =
-          await usersRef.where('email', isEqualTo: guest.email).limit(1).get();
-      final docRef = querySnapshot.docs.isNotEmpty
-          ? querySnapshot.docs.first.reference
+      if (eventId.trim().isEmpty) {
+        throw Exception('eventId is empty');
+      }
+
+      final email = (guest.email ?? '').trim();
+      if (email.isEmpty) {
+        throw Exception('guest.email is empty');
+      }
+
+      // ✅ IMPORTANT: do NOT query by email (email can be shared by multiple guests)
+      // Use guest.id if you have it, otherwise create a new doc id.
+      final docRef = (guest.id != null && guest.id!.trim().isNotEmpty)
+          ? usersRef.doc(guest.id!.trim())
           : usersRef.doc();
 
+      // (Optional) if guest didn't have an id, store it back locally
+      guest.id ??= docRef.id;
+
       await docRef.set({
-        'email': guest.email,
-        'guest': FieldValue.arrayUnion([eventId])
+        'guestId': docRef.id,
+        'email': email,
+        if ((guest.name ?? '').trim().isNotEmpty) 'name': guest.name!.trim(),
+        'eventIds': FieldValue.arrayUnion([eventId]),
+        if (guest.companions != null) 'companions': guest.companions,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('Guest Invited Successfully');
+      print('Guest Invited Successfully (guestId=${docRef.id})');
     } catch (e) {
       print('Failed to invite guest: $e');
       rethrow;
@@ -756,8 +791,9 @@ class FirestoreServices {
 
       // Use add with explicit create data to ensure proper timestamps
       final docRef = await _db.collection(venuesCol).add(data);
-      print('Venue created successfully with docId: ${docRef.id}, venueID: $venueId');
-      
+      print(
+          'Venue created successfully with docId: ${docRef.id}, venueID: $venueId');
+
       // Return the UUID venueID, NOT the Firestore document ID
       return venueId;
     } on FirebaseException catch (e) {
@@ -1039,18 +1075,18 @@ class FirestoreServices {
   // ---------------------------
 
   /// Creates companion guests with groupId and updates main guest atomically
-  /// 
+  ///
   /// This method uses a Firestore batch write to ensure ALL operations succeed or fail together:
   /// 1. Generates a UUID v4 groupId
   /// 2. Updates the main guest document with the groupId
   /// 3. Creates all companion guest documents with the same groupId
-  /// 
+  ///
   /// This guarantees data consistency - either all guests get the groupId or none do.
-  /// 
+  ///
   /// Parameters:
   /// - [mainGuestId]: The main guest's guestId (from invitation) (required)
   /// - [companions]: List of GuestModel instances for companions (required)
-  /// 
+  ///
   /// Returns:
   /// - Map with 'groupId' and 'createdGuestIds' list
   /// - Throws Exception if main guest not found
@@ -1093,7 +1129,7 @@ class FirestoreServices {
       for (final companion in companions) {
         // Generate UUID v4 for guestId
         final guestId = uuid.v4();
-        
+
         // Generate unique batch ID if not provided
         final batchId = companion.batchId ?? await _generateUniqueBatchId();
 
@@ -1118,7 +1154,8 @@ class FirestoreServices {
       // Step 3: Commit batch atomically
       await batch.commit();
 
-      print('✅ Created ${companions.length} companion(s) with groupId=$groupId');
+      print(
+          '✅ Created ${companions.length} companion(s) with groupId=$groupId');
       return {
         'groupId': groupId,
         'createdGuestIds': createdGuestIds,
@@ -1133,18 +1170,18 @@ class FirestoreServices {
   }
 
   /// Atomically creates a companion guest and links them to an invitation
-  /// 
+  ///
   /// This method uses a Firestore batch write to ensure BOTH operations succeed or fail together:
   /// 1. Creates a new guest document in the 'guests' collection
   /// 2. Adds the companion entry to the invitation's 'companions' array
-  /// 
+  ///
   /// This guarantees data consistency - you won't have orphaned guest records
   /// or invitations with missing companion references.
-  /// 
+  ///
   /// Parameters:
   /// - [invitationId]: The invitation document ID to link the companion to (required)
   /// - [guest]: The GuestModel containing companion information (required)
-  /// 
+  ///
   /// Returns:
   /// - The created guestId on success
   /// - Throws Exception if invitation not found
@@ -1166,7 +1203,7 @@ class FirestoreServices {
 
       final invitationData = invitationDoc.data()!;
       final mainGuestId = (invitationData['guestId'] as String?) ?? '';
-      
+
       if (mainGuestId.isEmpty) {
         throw Exception('Main guest ID not found in invitation');
       }
@@ -1203,10 +1240,10 @@ class FirestoreServices {
       // Step 3: Generate UUID v4 for companion guestId and batch ID
       final uuid = Uuid();
       final guestId = uuid.v4();
-      
+
       // Generate unique batch ID if not provided
       final batchId = guest.batchId ?? await _generateUniqueBatchId();
-      
+
       // Create guest with groupId, batch ID, isCompanion=true, and UUID v4 guestId
       final guestWithId = guest.copyWith(
         docId: guestId, // Use guestId as docId
@@ -1215,11 +1252,11 @@ class FirestoreServices {
         isCompanion: true, // Mark as companion
         batchId: batchId, // Unique batch ID
       );
-      
+
       // Use guestId as document ID (following saveGuest pattern)
       final guestRef = guestsRef.doc(guestId);
       final guestData = guestWithId.toFirestoreCreate();
-      
+
       // Add guest creation to batch
       batch.set(guestRef, guestData);
 
@@ -1234,7 +1271,8 @@ class FirestoreServices {
       });
 
       if (duplicateEmail) {
-        throw Exception('A companion with email ${guest.email} already exists in this invitation');
+        throw Exception(
+            'A companion with email ${guest.email} already exists in this invitation');
       }
 
       // Create companion entry
@@ -1250,13 +1288,16 @@ class FirestoreServices {
       // Add companion to invitation's companions array
       batch.update(invitationRef, {
         'companions': FieldValue.arrayUnion([companionEntry]),
+        'companionsCount':
+            (invitationData['companionsCount'] ?? 0), // or keep existing
+        'companionsSubmittedAt': FieldValue.serverTimestamp(),
         'modifiedAt': FieldValue.serverTimestamp(),
       });
-
       // Step 5: Commit batch atomically
       await batch.commit();
 
-      print('✅ Companion created and linked atomically: guestId=$guestId, groupId=$groupId');
+      print(
+          '✅ Companion created and linked atomically: guestId=$guestId, groupId=$groupId');
       return guestId;
     } on FirebaseException catch (e) {
       print('❌ Firestore error creating companion: ${e.message}');
@@ -1268,13 +1309,13 @@ class FirestoreServices {
   }
 
   /// Updates the isInvited flag for multiple guests atomically
-  /// 
+  ///
   /// This method uses a Firestore batch write to update multiple guest documents
   /// in a single atomic operation. All updates succeed or fail together.
-  /// 
+  ///
   /// Parameters:
   /// - [guestIds]: List of guest IDs to update (required)
-  /// 
+  ///
   /// Returns:
   /// - Number of guests updated
   /// - Throws FirebaseException on Firestore errors
@@ -1289,7 +1330,7 @@ class FirestoreServices {
 
       for (final guestId in guestIds) {
         if (guestId.isEmpty) continue;
-        
+
         final guestRef = guestsRef.doc(guestId);
         batch.update(guestRef, {
           'isInvited': true,
@@ -1314,10 +1355,10 @@ class FirestoreServices {
   }
 
   /// Gets the groupId for a main guest by their guestId
-  /// 
+  ///
   /// Parameters:
   /// - [mainGuestId]: The main guest's guestId (required)
-  /// 
+  ///
   /// Returns:
   /// - The groupId if found, null otherwise
   /// - Throws FirebaseException on Firestore errors
@@ -1344,10 +1385,10 @@ class FirestoreServices {
   }
 
   /// Gets the count of existing companions for a given groupId
-  /// 
+  ///
   /// Parameters:
   /// - [groupId]: The groupId to query (required)
-  /// 
+  ///
   /// Returns:
   /// - Number of companions (guests with isCompanion=true) with this groupId
   /// - Throws FirebaseException on Firestore errors
@@ -1360,7 +1401,8 @@ class FirestoreServices {
 
       return groupGuestsQuery.docs.length;
     } on FirebaseException catch (e) {
-      print('❌ Firestore error getting companion count by groupId: ${e.message}');
+      print(
+          '❌ Firestore error getting companion count by groupId: ${e.message}');
       rethrow;
     } catch (e) {
       print('❌ Error getting companion count by groupId: $e');
@@ -1369,19 +1411,17 @@ class FirestoreServices {
   }
 
   /// Gets an invitation document by ID
-  /// 
+  ///
   /// Parameters:
   /// - [invitationId]: The invitation document ID (required)
-  /// 
+  ///
   /// Returns:
   /// - The invitation data map if found, null otherwise
   /// - Throws FirebaseException on Firestore errors
   Future<Map<String, dynamic>?> getInvitationById(String invitationId) async {
     try {
-      final invitationDoc = await _db
-          .collection('invitations')
-          .doc(invitationId)
-          .get();
+      final invitationDoc =
+          await _db.collection('invitations').doc(invitationId).get();
 
       if (!invitationDoc.exists) {
         return null;
@@ -1402,13 +1442,13 @@ class FirestoreServices {
   // ---------------------------------------------------------------------------
 
   /// Validates guest login by fetching event and guest simultaneously.
-  /// 
+  ///
   /// Returns a map containing both event and guest data if found, or null if either is missing.
-  /// 
+  ///
   /// Parameters:
   /// - [invitationCode]: The invitation code from the event (e.g., "MI9289UL")
   /// - [batchId]: The batch ID assigned to the guest (e.g., "223322")
-  /// 
+  ///
   /// Returns:
   /// ```dart
   /// {
@@ -1417,7 +1457,7 @@ class FirestoreServices {
   /// }
   /// ```
   /// or `null` if validation fails.
-  /// 
+  ///
   /// Note: Uses a transaction to ensure data consistency if we need to update
   /// guest/invitation status in the future.
   Future<Map<String, dynamic>?> validateGuestLogin({
@@ -1425,60 +1465,104 @@ class FirestoreServices {
     required String batchId,
   }) async {
     try {
-      return await _db.runTransaction<Map<String, dynamic>?>(
-        (transaction) async {
-          // Query event by invitation code
-          final eventQuery = await eventsRef
-              .where('invitationCode', isEqualTo: invitationCode.toUpperCase())
-              .limit(1)
-              .get();
+      final code = invitationCode.trim().toUpperCase();
+      final batch = batchId.trim();
 
-          // Query guest by batch ID
-          final guestQuery = await guestsRef
-              .where('batchId', isEqualTo: batchId)
-              .limit(1)
-              .get();
+      if (code.isEmpty || batch.isEmpty) {
+        print('❌ Missing invitationCode or batchId');
+        return null;
+      }
 
-          // Check if both event and guest were found
-          if (eventQuery.docs.isEmpty) {
-            print('❌ No event found with invitation code: $invitationCode');
-            return null;
-          }
+      // ✅ 1) Find invitation by PER-GUEST invitation code
+      final invSnap = await _db
+          .collection('invitations')
+          .where('invitationCode', isEqualTo: code)
+          .limit(1)
+          .get();
 
-          if (guestQuery.docs.isEmpty) {
-            print('❌ No guest found with batch ID: $batchId');
-            return null;
-          }
+      if (invSnap.docs.isEmpty) {
+        print('❌ No invitation found with code: $code');
+        return null;
+      }
 
-          final eventDoc = eventQuery.docs.first;
-          final guestDoc = guestQuery.docs.first;
+      final invDoc = invSnap.docs.first;
+      final inv = invDoc.data();
 
-          // Parse event and guest models
-          final event = Event.fromFirestore(eventDoc);
-          final guest = GuestModel.fromFirestore(guestDoc.data(), guestDoc.id);
+      // ✅ 2) Expiry check (if stored)
+      final expiresAt = inv['expiresAt'];
+      if (expiresAt is Timestamp) {
+        final expired = expiresAt.toDate().isBefore(DateTime.now());
+        if (expired) {
+          print('❌ Invitation code expired');
+          return null;
+        }
+      }
 
-          // Additional validation: ensure guest belongs to the event
-          if (guest.eventId != event.eventId) {
-            print('❌ Guest batch ID does not belong to this event');
-            return null;
-          }
+      // ✅ 3) Verify batchId matches invitation (if invitation has batchId)
+      final invBatchId = (inv['batchId'] ?? '').toString().trim();
+      if (invBatchId.isNotEmpty && invBatchId != batch) {
+        print('❌ Batch ID mismatch for invitation code');
+        return null;
+      }
 
-          // TODO: Optional - Update guest login timestamp or status within transaction
-          // transaction.update(guestDoc.reference, {
-          //   'lastLoginAt': FieldValue.serverTimestamp(),
-          // });
+      // ✅ 4) Load guest
+      final invGuestId = (inv['guestId'] ?? '').toString().trim();
 
-          print('✅ Guest login validated successfully');
-          print('   Event: ${event.name} (${event.eventId})');
-          print('   Guest: ${guest.name} (${guest.email})');
+      GuestModel guest;
+      if (invGuestId.isNotEmpty) {
+        final gDoc = await guestsRef.doc(invGuestId).get();
+        if (!gDoc.exists) {
+          print('❌ Guest not found for guestId=$invGuestId');
+          return null;
+        }
+        guest = GuestModel.fromFirestore(gDoc.data()!, gDoc.id);
 
-          return {
-            'event': event,
-            'guest': guest,
-          };
-        },
-        timeout: const Duration(seconds: 10),
-      );
+        // Extra safety: if guest has batchId, ensure it matches input
+        final guestBatchId = (guest.batchId ?? '').trim();
+        if (guestBatchId.isNotEmpty && guestBatchId != batch) {
+          print('❌ Batch ID mismatch for guest');
+          return null;
+        }
+      } else {
+        // Fallback: if invitation guestId missing, locate guest by batchId
+        final gSnap =
+            await guestsRef.where('batchId', isEqualTo: batch).limit(1).get();
+        if (gSnap.docs.isEmpty) {
+          print('❌ No guest found with batchId: $batch');
+          return null;
+        }
+        final gDoc = gSnap.docs.first;
+        guest = GuestModel.fromFirestore(gDoc.data(), gDoc.id);
+      }
+
+      // ✅ 5) Load event
+      final eventId = (inv['eventId'] ?? '').toString().trim();
+      if (eventId.isEmpty) {
+        print('❌ Invitation missing eventId');
+        return null;
+      }
+
+      final eDoc = await eventsRef.doc(eventId).get();
+      if (!eDoc.exists) {
+        print('❌ Event not found for eventId=$eventId');
+        return null;
+      }
+
+      final event = Event.fromFirestore(eDoc);
+
+      // ✅ 6) Ensure guest belongs to event
+      if (guest.eventId != event.eventId) {
+        print('❌ Guest does not belong to this event');
+        return null;
+      }
+
+      print('✅ Guest login validated successfully (by invitationCode)');
+      return {
+        'event': event,
+        'guest': guest,
+        'invitationId': invDoc.id,
+        'token': (inv['token'] ?? '').toString().trim(),
+      };
     } on FirebaseException catch (e) {
       print('❌ Firestore error during guest login validation: ${e.message}');
       rethrow;

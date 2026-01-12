@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Model representing the status of an invitation and RSVP response
 /// Used when checking if a guest has already responded
-/// 
+///
 /// Firestore Schema:
 /// - invitationId: Document ID
 /// - eventId: Event reference
@@ -43,19 +43,21 @@ class InvitationStatus {
   final DateTime? usedAt;
   final DateTime? createdAt;
   final DateTime? expiresAt;
-  
+
   // RSVP fields (new flow)
   final bool hasResponded;
   final bool? isAttending;
   final DateTime? rsvpSubmittedAt;
   final String? declineReason;
-  
+
   // Companion selection
   final int? companionsCount;
   final DateTime? companionsSubmittedAt;
-  final bool? isInvitingCompanionsByEmail; // Whether primary guest wants to send email invites to companions
-  final List<Map<String, dynamic>> companions; // List of already added companions
-  
+  final bool?
+      isInvitingCompanionsByEmail; // Whether primary guest wants to send email invites to companions
+  final List<Map<String, dynamic>>
+      companions; // List of already added companions
+
   // Response tracking
   final String? responseId;
   final bool menuSelectionSubmitted;
@@ -97,15 +99,17 @@ class InvitationStatus {
     Map<String, dynamic> data,
   ) {
     final isAttending = data['isAttending'] as bool?;
-    
+
     // Convert Timestamps to DateTime
     final rsvpTimestamp = data['rsvpSubmittedAt'] as Timestamp?;
     final sentAtTimestamp = data['sentAt'] as Timestamp?;
     final usedAtTimestamp = data['usedAt'] as Timestamp?;
     final createdAtTimestamp = data['createdAt'] as Timestamp?;
     final expiresAtTimestamp = data['expiresAt'] as Timestamp?;
-    final companionsSubmittedAtTimestamp = data['companionsSubmittedAt'] as Timestamp?;
-    final menuSubmittedAtTimestamp = data['menuSelectionSubmittedAt'] as Timestamp?;
+    final companionsSubmittedAtTimestamp =
+        data['companionsSubmittedAt'] as Timestamp?;
+    final menuSubmittedAtTimestamp =
+        data['menuSelectionSubmittedAt'] as Timestamp?;
 
     return InvitationStatus(
       invitationId: invitationId,
@@ -176,7 +180,8 @@ class InvitationStatus {
   bool get canInviteCompanions => maxGuestInvite > 0;
 
   /// Check if guest has submitted companion count selection
-  bool get hasSubmittedCompanionCount => companionsCount != null;
+  bool get hasSubmittedCompanionCount =>
+      companionsCount != null || maxGuestInvite == 0;
 
   /// Get the number of companions already added to Firestore
   int get savedCompanionsCount => companions.length;
@@ -192,7 +197,8 @@ class InvitationStatus {
   bool get hasMenuSelection => menuSelectionSubmitted == true;
 
   /// Check if there are demographics questions for this event
-  bool get requiresDemographics => demographicQuestionSetId != null && demographicQuestionSetId!.isNotEmpty;
+  bool get requiresDemographics =>
+      demographicQuestionSetId != null && demographicQuestionSetId!.isNotEmpty;
 
   /// Check if all required steps are completed
   /// Returns true only if guest has done RSVP, demographics (if required), companions (if allowed), and menu
@@ -223,25 +229,30 @@ class InvitationStatus {
   /// Returns 'menu' if menu not completed
   String? get nextIncompleteStep {
     if (!hasResponded || !isConfirmedAttending) return null;
-    
-    // Check companion selection (if guest is allowed to invite companions)
-    // Case 1: maxGuestInvite > 0 but companionsCount not selected yet
+
+    // Only force companions page if maxGuestInvite > 0 AND
+// the host flow actually requires selecting a count
+// (If you want: only when canInviteCompanions == true AND you show the companions page)
     if (maxGuestInvite > 0 && companionsCount == null) {
-      return 'companions';
+      // ✅ treat as 0 by default if user skipped
+      // (or return companions only if your UI really requires this step)
+      return null; // or 'menu/demographics' checks below will decide
     }
-    
+
     // Case 2: companionsCount selected but not all companions created yet
-    if (companionsCount != null && companionsCount! > 0 && companions.length < companionsCount!) {
+    if (companionsCount != null &&
+        companionsCount! > 0 &&
+        companions.length < companionsCount!) {
       return 'companions';
     }
-    
+
     // Check demographics (if required) - main guest AND all companions
     if (requiresDemographics) {
       // Check main guest demographics
       if (!hasDemographics) {
         return 'demographics';
       }
-      
+
       // Check all companions have completed demographics
       for (final companion in companions) {
         if (companion['demographicSubmitted'] != true) {
@@ -249,19 +260,19 @@ class InvitationStatus {
         }
       }
     }
-    
+
     // Check menu selection - main guest AND all companions
     if (!hasMenuSelection) {
       return 'menu';
     }
-    
+
     // Check all companions have completed menu selection
     for (final companion in companions) {
       if (companion['menuSubmitted'] != true) {
         return 'menu';
       }
     }
-    
+
     // All steps completed
     return null;
   }
@@ -350,7 +361,8 @@ class InvitationStatus {
       guestEmail: guestEmail ?? this.guestEmail,
       guestName: guestName ?? this.guestName,
       organisationId: organisationId ?? this.organisationId,
-      demographicQuestionSetId: demographicQuestionSetId ?? this.demographicQuestionSetId,
+      demographicQuestionSetId:
+          demographicQuestionSetId ?? this.demographicQuestionSetId,
       maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
       token: token ?? this.token,
       sent: sent ?? this.sent,
@@ -365,12 +377,16 @@ class InvitationStatus {
       rsvpSubmittedAt: rsvpSubmittedAt ?? this.rsvpSubmittedAt,
       declineReason: declineReason ?? this.declineReason,
       companionsCount: companionsCount ?? this.companionsCount,
-      companionsSubmittedAt: companionsSubmittedAt ?? this.companionsSubmittedAt,
-      isInvitingCompanionsByEmail: isInvitingCompanionsByEmail ?? this.isInvitingCompanionsByEmail,
+      companionsSubmittedAt:
+          companionsSubmittedAt ?? this.companionsSubmittedAt,
+      isInvitingCompanionsByEmail:
+          isInvitingCompanionsByEmail ?? this.isInvitingCompanionsByEmail,
       companions: companions ?? this.companions,
       responseId: responseId ?? this.responseId,
-      menuSelectionSubmitted: menuSelectionSubmitted ?? this.menuSelectionSubmitted,
-      menuSelectionSubmittedAt: menuSelectionSubmittedAt ?? this.menuSelectionSubmittedAt,
+      menuSelectionSubmitted:
+          menuSelectionSubmitted ?? this.menuSelectionSubmitted,
+      menuSelectionSubmittedAt:
+          menuSelectionSubmittedAt ?? this.menuSelectionSubmittedAt,
     );
   }
 }

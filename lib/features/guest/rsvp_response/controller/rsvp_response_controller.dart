@@ -28,9 +28,12 @@ class RsvpResponseController extends GetxController {
       Get.find<SnackbarMessageController>();
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
-  final RxBool isLoading = true.obs; // Start with true to load initial state
+  final RxBool isLoading = false.obs; // Start with true to load initial state
   final RxBool isSubmitting = false.obs;
   final Rx<String?> error = Rx<String?>(null);
+
+  final RxnString invitationCode = RxnString();
+  final RxnString batchId = RxnString();
 
   // RSVP status - now using the typed model
   final Rx<InvitationStatus?> invitationStatus = Rx<InvitationStatus?>(null);
@@ -45,19 +48,27 @@ class RsvpResponseController extends GetxController {
   DateTime? get rsvpSubmittedAt => invitationStatus.value?.rsvpSubmittedAt;
   String? get declineReason => invitationStatus.value?.declineReason;
   String? get guestName => invitationStatus.value?.guestName;
-  String? get eventId => invitationStatus.value?.eventId; // For fetching event data
+  String? get eventId =>
+      invitationStatus.value?.eventId; // For fetching event data
   int get maxGuestInvite => invitationStatus.value?.maxGuestInvite ?? 0;
   int? get companionsCount => invitationStatus.value?.companionsCount;
-  int get savedCompanionsCount => invitationStatus.value?.savedCompanionsCount ?? 0;
-  int get remainingCompanionsToCreate => invitationStatus.value?.remainingCompanionsToCreate ?? 0;
-  
+  int get savedCompanionsCount =>
+      invitationStatus.value?.savedCompanionsCount ?? 0;
+  int get remainingCompanionsToCreate =>
+      invitationStatus.value?.remainingCompanionsToCreate ?? 0;
+
   // Step completion getters
   bool get hasDemographics => invitationStatus.value?.hasDemographics ?? false;
-  bool get canInviteCompanions => invitationStatus.value?.canInviteCompanions ?? false;
-  bool get hasSubmittedCompanionCount => invitationStatus.value?.hasSubmittedCompanionCount ?? false;
-  bool get hasMenuSelection => invitationStatus.value?.hasMenuSelection ?? false;
-  bool get requiresDemographics => invitationStatus.value?.requiresDemographics ?? false;
-  bool get isFullyCompleted => invitationStatus.value?.isFullyCompleted ?? false;
+  bool get canInviteCompanions =>
+      invitationStatus.value?.canInviteCompanions ?? false;
+  bool get hasSubmittedCompanionCount =>
+      invitationStatus.value?.hasSubmittedCompanionCount ?? false;
+  bool get hasMenuSelection =>
+      invitationStatus.value?.hasMenuSelection ?? false;
+  bool get requiresDemographics =>
+      invitationStatus.value?.requiresDemographics ?? false;
+  bool get isFullyCompleted =>
+      invitationStatus.value?.isFullyCompleted ?? false;
   String? get nextIncompleteStep => invitationStatus.value?.nextIncompleteStep;
 
   @override
@@ -78,7 +89,8 @@ class RsvpResponseController extends GetxController {
 
     // Token validation - ensure URL hasn't been tampered with
     if (token == null || token!.isEmpty) {
-      error.value = 'Invalid invitation link. Please use the link from your email.';
+      error.value =
+          'Invalid invitation link. Please use the link from your email.';
       isLoading.value = false;
       return;
     }
@@ -100,21 +112,33 @@ class RsvpResponseController extends GetxController {
 
       // Validate token matches the one from Firestore (local check)
       if (!_validateToken(status)) {
-        error.value = 'Invalid or expired invitation link. Please check your email for the correct link.';
+        error.value =
+            'Invalid or expired invitation link. Please check your email for the correct link.';
         isLoading.value = false;
         return;
       }
 
       // Check if invitation has expired
       if (_isExpired(status)) {
-        error.value = 'This invitation has expired. Please contact the event organizer for assistance.';
+        error.value =
+            'This invitation has expired. Please contact the event organizer for assistance.';
         isLoading.value = false;
         return;
       }
 
       // Update state with the typed model
       invitationStatus.value = status;
-      
+
+      // Pull extra fields from invitations/{invitationId}
+      final inv = await _firestoreService.getInvitationById(invitationId!);
+      if (inv != null) {
+        final code = (inv['invitationCode'] ?? '').toString().trim();
+        final bId = (inv['batchId'] ?? '').toString().trim();
+
+        invitationCode.value = code.isEmpty ? null : code;
+        batchId.value = bId.isEmpty ? null : bId;
+      }
+
       print('✅ Invitation loaded: ${status.statusMessage}');
     } catch (e) {
       error.value = 'Failed to load invitation. Please try again.';
@@ -137,7 +161,7 @@ class RsvpResponseController extends GetxController {
     if (status.expiresAt == null) {
       return false; // No expiration set, invitation is valid
     }
-    
+
     // Check if current time is after expiration time
     return DateTime.now().isAfter(status.expiresAt!);
   }
@@ -229,7 +253,8 @@ class RsvpResponseController extends GetxController {
 
     // Validate isInvitingCompanionsByEmail is provided when count > 0
     if (count > 0 && isInvitingCompanionsByEmail == null) {
-      error.value = 'Please specify how you want to handle companion information.';
+      error.value =
+          'Please specify how you want to handle companion information.';
       return false;
     }
 
@@ -252,7 +277,8 @@ class RsvpResponseController extends GetxController {
         );
       }
 
-      print('✅ Companion count submitted: $count, isInvitingCompanionsByEmail: $isInvitingCompanionsByEmail');
+      print(
+          '✅ Companion count submitted: $count, isInvitingCompanionsByEmail: $isInvitingCompanionsByEmail');
       return true;
     } catch (e) {
       error.value = 'Failed to submit companion count. Please try again.';
@@ -268,14 +294,14 @@ class RsvpResponseController extends GetxController {
   // ---------------------------
 
   /// Creates a companion guest and links them to the invitation atomically
-  /// 
+  ///
   /// This is a convenience method that delegates to FirestoreServices to perform
   /// an atomic batch operation that:
   /// 1. Creates a new guest document in the 'guests' collection
   /// 2. Adds the companion entry to the invitation's 'companions' array
-  /// 
+  ///
   /// Both operations succeed together or fail together, ensuring data consistency.
-  /// 
+  ///
   /// Parameters:
   /// - [name]: Guest's full name (required)
   /// - [email]: Guest's email address (required)
@@ -284,7 +310,7 @@ class RsvpResponseController extends GetxController {
   /// - [state]: Guest's state (optional)
   /// - [country]: Guest's country (optional)
   /// - [gender]: Guest's gender (optional)
-  /// 
+  ///
   /// Returns the created guestId on success, null on failure
   Future<String?> createAndInviteGuest({
     required String name,
@@ -335,12 +361,14 @@ class RsvpResponseController extends GetxController {
       );
 
       // Call service layer to perform atomic operation
-      final guestId = await _firestoreService.createCompanionAndLinkToInvitation(
+      final guestId =
+          await _firestoreService.createCompanionAndLinkToInvitation(
         invitationId: invitationId!,
         guest: guestModel,
       );
 
-      debugPrint('✅ createAndInviteGuest: companion created successfully, guestId=$guestId');
+      debugPrint(
+          '✅ createAndInviteGuest: companion created successfully, guestId=$guestId');
       return guestId;
     } catch (e, st) {
       // Parse error message for better user feedback
@@ -416,7 +444,8 @@ class RsvpResponseController extends GetxController {
 
     for (int i = 0; i < emails.length; i++) {
       final email = emails[i].trim().toLowerCase();
-      if (email.isEmpty) continue; // Skip empty emails (will be caught by form validation)
+      if (email.isEmpty)
+        continue; // Skip empty emails (will be caught by form validation)
 
       // Validate individual email
       final individualError = validateCompanionEmail(email);
@@ -456,7 +485,8 @@ class RsvpResponseController extends GetxController {
     List<String>? otherPendingEmails,
   }) async {
     // Validate email uniqueness
-    final emailError = validateCompanionEmail(email, otherPendingEmails: otherPendingEmails);
+    final emailError =
+        validateCompanionEmail(email, otherPendingEmails: otherPendingEmails);
     if (emailError != null) {
       _snackbarController.showErrorMessage(emailError);
       error.value = emailError;
@@ -493,7 +523,8 @@ class RsvpResponseController extends GetxController {
   /// First creates guest documents, then sends invitations with guestId
   /// Returns true if all invitations were sent successfully, false otherwise
   Future<bool> sendCompanionInvitations({
-    required List<Map<String, dynamic>> companionData, // List of {name, email, address, city, state, country, gender}
+    required List<Map<String, dynamic>>
+        companionData, // List of {name, email, address, city, state, country, gender}
   }) async {
     if (invitationId == null || invitationId!.isEmpty) {
       error.value = 'Invitation ID is not available';
@@ -510,7 +541,8 @@ class RsvpResponseController extends GetxController {
 
     if (status.eventId.isEmpty || status.organisationId.isEmpty) {
       error.value = 'Event or organisation information is missing';
-      debugPrint('❌ sendCompanionInvitations: eventId or organisationId is empty');
+      debugPrint(
+          '❌ sendCompanionInvitations: eventId or organisationId is empty');
       return false;
     }
 
@@ -526,14 +558,15 @@ class RsvpResponseController extends GetxController {
 
       // Step 1: Create guest documents with groupId atomically
       // This includes updating main guest and creating all companions in one batch
-      debugPrint('📝 Creating ${companionData.length} companion guest document(s) with groupId...');
-      
+      debugPrint(
+          '📝 Creating ${companionData.length} companion guest document(s) with groupId...');
+
       // Prepare companion GuestModel instances
       final List<GuestModel> companionGuests = [];
       for (final companion in companionData) {
         final email = (companion['email'] as String?)?.trim() ?? '';
         final name = (companion['name'] as String?)?.trim() ?? '';
-        
+
         if (email.isEmpty) {
           debugPrint('⚠️ Skipping companion with empty email: $name');
           continue;
@@ -578,8 +611,9 @@ class RsvpResponseController extends GetxController {
 
       final groupId = groupResult['groupId'] as String;
       final createdGuestIds = groupResult['createdGuestIds'] as List<String>;
-      
-      debugPrint('✅ Created ${createdGuestIds.length} companion(s) with groupId=$groupId');
+
+      debugPrint(
+          '✅ Created ${createdGuestIds.length} companion(s) with groupId=$groupId');
 
       // Step 2: Fetch created guests to get their batchId
       final List<GuestModel> createdGuests = [];
@@ -589,7 +623,8 @@ class RsvpResponseController extends GetxController {
             .doc(guestId)
             .get();
         if (guestDoc.exists) {
-          createdGuests.add(GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id));
+          createdGuests
+              .add(GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id));
         }
       }
 
@@ -602,12 +637,12 @@ class RsvpResponseController extends GetxController {
           'guestId': guest.guestId,
           'maxGuestInvite': guest.maxGuestInvite,
         };
-        
+
         // Include batchId if available
         if (guest.batchId != null && guest.batchId!.trim().isNotEmpty) {
           invitation['batchId'] = guest.batchId;
         }
-        
+
         invitations.add(invitation);
       }
 
@@ -626,7 +661,7 @@ class RsvpResponseController extends GetxController {
             .collection('events')
             .doc(status.eventId)
             .get();
-        
+
         if (eventDoc.exists) {
           invitationCode = eventDoc.data()?['invitationCode'] as String?;
           debugPrint('📋 Fetched invitation code from event: $invitationCode');
@@ -669,8 +704,10 @@ class RsvpResponseController extends GetxController {
         // Collect guest IDs for successfully sent invitations
         final List<String> invitedGuestIds = [];
         for (int i = 0; i < invitations.length; i++) {
-          final invitationEmail = (invitations[i]['guestEmail'] as String).trim().toLowerCase();
-          if (sentEmails.contains(invitationEmail) && i < createdGuestIds.length) {
+          final invitationEmail =
+              (invitations[i]['guestEmail'] as String).trim().toLowerCase();
+          if (sentEmails.contains(invitationEmail) &&
+              i < createdGuestIds.length) {
             invitedGuestIds.add(createdGuestIds[i]);
           }
         }
@@ -681,7 +718,8 @@ class RsvpResponseController extends GetxController {
         }
       }
 
-      debugPrint('✅ Companion invitations sent: $invited of ${invitations.length}');
+      debugPrint(
+          '✅ Companion invitations sent: $invited of ${invitations.length}');
 
       if (invited == invitations.length) {
         _snackbarController.showSuccessMessage(
@@ -707,7 +745,8 @@ class RsvpResponseController extends GetxController {
         return false;
       }
     } on FirebaseFunctionsException catch (e) {
-      error.value = 'Failed to send invitations: ${e.message ?? 'Unknown error'}';
+      error.value =
+          'Failed to send invitations: ${e.message ?? 'Unknown error'}';
       debugPrint('❌ sendCompanionInvitations FirebaseFunctionsException: $e');
       _snackbarController.showErrorMessage(
         'Failed to send invitations: ${e.message ?? 'Unknown error'}',
@@ -737,14 +776,16 @@ class RsvpResponseController extends GetxController {
 
     try {
       // Get groupId for main guest via service layer
-      final groupId = await _firestoreService.getGroupIdForMainGuest(mainGuestId);
-      
+      final groupId =
+          await _firestoreService.getGroupIdForMainGuest(mainGuestId);
+
       if (groupId == null || groupId.isEmpty) {
         return null;
       }
 
       // Get companion count by groupId via service layer
-      final existingCompanionsCount = await _firestoreService.getCompanionCountByGroupId(groupId);
+      final existingCompanionsCount =
+          await _firestoreService.getCompanionCountByGroupId(groupId);
       return existingCompanionsCount;
     } catch (e) {
       debugPrint('⚠️ Error getting existing companion count: $e');

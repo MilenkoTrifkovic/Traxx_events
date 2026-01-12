@@ -1,11 +1,12 @@
 // functions/sendInvitationForEvent.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin.js";
 
 import postmark from "postmark";
 import { randomBytes } from "crypto";
+
 
 // ✅ ESM-safe firebase-admin init
 // if (!getApps().length) initializeApp();
@@ -26,10 +27,57 @@ const INV_EXPIRY_DAYS = (() => {
 
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
 
+const POINTERS_COL = "invitationPointers";
+
+function emailLower(s) {
+  return (s ?? "").toString().trim().toLowerCase();
+}
+
 function makeToken() {
   return randomBytes(24).toString("hex");
 }
 
+function makeInvitationCode(len = 8) {
+  // Alphanumeric (no confusing chars like 0/O/1/I)
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = randomBytes(len);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
+async function generateUniqueInvitationCodeTx(tx, ignoreInvitationId) {
+  // In-transaction uniqueness check
+  for (let i = 0; i < 10; i++) {
+    const code = makeInvitationCode();
+    const q = db.collection("invitations").where("invitationCode", "==", code).limit(1);
+    const snap = await tx.get(q);
+
+    if (snap.empty) return code;
+
+    const existingId = snap.docs[0].id;
+    if (existingId === ignoreInvitationId) return code;
+  }
+  throw new Error("Failed to generate unique invitationCode (tx)");
+}
+
+async function generateUniqueInvitationCode(ignoreInvitationId) {
+  // Non-transaction uniqueness check (for case B)
+  for (let i = 0; i < 10; i++) {
+    const code = makeInvitationCode();
+    const snap = await db
+      .collection("invitations")
+      .where("invitationCode", "==", code)
+      .limit(1)
+      .get();
+
+    if (snap.empty) return code;
+
+    const existingId = snap.docs[0].id;
+    if (existingId === ignoreInvitationId) return code;
+  }
+  throw new Error("Failed to generate unique invitationCode");
+}
 function escapeHtml(s) {
   const str = (s ?? "").toString();
   return str
@@ -38,6 +86,25 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function pickEarliestByCreatedAt(docs) {
+  let chosen = docs[0];
+  let chosenMs = chosen.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+
+  for (const d of docs) {
+    const ms = d.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+    if (ms < chosenMs) {
+      chosen = d;
+      chosenMs = ms;
+    }
+  }
+  return chosen;
+}
+
+function pointerId(eventId, guestId) {
+  // safe for UUIDs; if you ever use other ids, sanitize here
+  return `${eventId}_${guestId}`;
 }
 
 export const sendInvitations = onCall(
@@ -53,22 +120,18 @@ export const sendInvitations = onCall(
         organisationId,
         invitations,
         demographicQuestionSetId,
-        staticLink,
-        invitationCode,
+
+        // 🔸 This is event-level (same for all guests). We keep it if you want it.
+        // 🔸 Per-guest unique code will be stored as `invitationCode` on each invite doc.
+        invitationCode: eventInvitationCode,
       } = request.data || {};
 
-      if (!eventId) {
-        throw new HttpsError("invalid-argument", "eventId is required");
-      }
-
+      if (!eventId) throw new HttpsError("invalid-argument", "eventId is required");
       if (!Array.isArray(invitations) || invitations.length === 0) {
         throw new HttpsError("invalid-argument", "invitations array required");
       }
 
-      // ✅ token: trim to remove accidental whitespace/newlines
       const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
-      console.log("Postmark token length:", token.length);
-
       if (!token) {
         throw new HttpsError(
           "failed-precondition",
@@ -77,102 +140,222 @@ export const sendInvitations = onCall(
       }
 
       const client = new postmark.ServerClient(token);
-
-      const createdAt = Timestamp.now();
-      const expiresAt = Timestamp.fromMillis(
-        Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
-      );
-      const preview = await buildQuestionPreview({ questionSetId: demographicQuestionSetId });
-
-      
-
       const results = [];
 
       for (const guest of invitations) {
         const guestEmail = (guest?.guestEmail || "").trim();
         const guestName = (guest?.guestName || "").trim();
-        const guestId = guest?.guestId || null;
-        const maxGuestInvite = typeof guest?.maxGuestInvite === 'number' 
-          ? guest.maxGuestInvite 
-          : 0;
+        const gid = (guest?.guestId ?? "").toString().trim();
+
+        const maxGuestInvite =
+          typeof guest?.maxGuestInvite === "number" ? guest.maxGuestInvite : 0;
+
         const batchId = guest?.batchId || null;
 
         if (!guestEmail) continue;
 
-        const ref = db.collection("invitations").doc();
-        const inviteToken = makeToken();
+        const expiresAt = Timestamp.fromMillis(
+          Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+        );
 
-        await ref.set({
-          invitationId: ref.id,
-          eventId,
-          organisationId: organisationId || null,
-          guestId,
-          guestEmail,
-          guestName,
-          maxGuestInvite,
-          demographicQuestionSetId: demographicQuestionSetId || null,
-          token: inviteToken,
-          used: false,
-          createdAt,
-          expiresAt,
-          sent: false,
-          ...(invitationCode && { invitationCode }),
-          ...(batchId && { batchId }),
-        });
+        let invRef = null;
+        let invId = null;
+        let invData = null;
+        let invToken = null;
 
-        // const link =
-        // `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
-        // `&token=${encodeURIComponent(inviteToken)}`;
-        // const link =
-        // `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(ref.id)}` +
-        // `&token=${encodeURIComponent(inviteToken)}`;
-        const link =
-        `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(ref.id)}` +
-        `&token=${encodeURIComponent(inviteToken)}` +
-        `&v=${Date.now()}`;
+        // ✅ NEW: per-guest invitation code (stable on resend)
+        let guestInvitationCode = null;
 
-        const subject = "Complete your demographics";
+        // ✅ CASE A: guestId exists -> uniqueness = (eventId + guestId)
+        if (gid) {
+          const ptrRef = db.collection(POINTERS_COL).doc(pointerId(eventId, gid));
 
-        // Build reference information
-        let referenceInfo = "";
-        if (invitationCode || batchId) {
-          referenceInfo = "\n\nReference Information:";
-          if (invitationCode) referenceInfo += `\nInvitation Code: ${invitationCode}`;
-          if (batchId) referenceInfo += `\nBatch ID: ${batchId}`;
+          await db.runTransaction(async (tx) => {
+            const ptrSnap = await tx.get(ptrRef);
+
+            // 1) Pointer exists -> reuse invitationId
+            if (ptrSnap.exists) {
+              invId = (ptrSnap.data()?.invitationId || "").toString().trim();
+              if (!invId) throw new Error("Pointer has empty invitationId");
+
+              invRef = db.collection("invitations").doc(invId);
+              const snap = await tx.get(invRef);
+              invData = snap.exists ? (snap.data() || {}) : {};
+
+            } else {
+              // 2) No pointer yet -> try to find existing invitation by (eventId+guestId)
+              const q = db.collection("invitations")
+                .where("eventId", "==", eventId)
+                .where("guestId", "==", gid)
+                .limit(10);
+
+              const qSnap = await tx.get(q);
+
+              if (!qSnap.empty) {
+                const chosen = pickEarliestByCreatedAt(qSnap.docs);
+                invRef = chosen.ref;
+                invId = chosen.id;
+                invData = chosen.data() || {};
+
+                // create pointer to the existing invite
+                tx.set(
+                  ptrRef,
+                  {
+                    eventId,
+                    guestId: gid,
+                    invitationId: invId,
+                    createdAt: Timestamp.now(),
+                  },
+                  { merge: true }
+                );
+              } else {
+                // 3) Create brand-new invitation with RANDOM id (old structure)
+                invRef = db.collection("invitations").doc();
+                invId = invRef.id;
+                invData = {};
+
+                // create pointer to the new invite
+                tx.set(ptrRef, {
+                  eventId,
+                  guestId: gid,
+                  invitationId: invId,
+                  createdAt: Timestamp.now(),
+                });
+              }
+            }
+
+            // SAFETY: never allow a reuse collision
+            const storedGid = (invData?.guestId ?? "").toString().trim();
+            if (storedGid && storedGid !== gid) {
+              throw new HttpsError(
+                "failed-precondition",
+                `Invitation collision: invitationId=${invId} belongs to guestId=${storedGid}, attempted guestId=${gid}`
+              );
+            }
+
+            // Token must stay stable for same invitation
+            invToken = (invData?.token || "").toString().trim() || makeToken();
+
+            // ✅ NEW: invitationCode must stay stable for same invitation
+            guestInvitationCode =
+              (invData?.invitationCode || "").toString().trim() || makeInvitationCode();
+
+            // Ensure invitation doc has correct core fields (merge)
+            tx.set(
+              invRef,
+              {
+                invitationId: invId,
+                eventId,
+                organisationId: organisationId || null,
+                guestId: gid,
+                guestEmail,
+                guestEmailLower: emailLower(guestEmail),
+                guestName,
+                maxGuestInvite,
+                demographicQuestionSetId: demographicQuestionSetId || null,
+                token: invToken,
+
+                // ✅ per-guest unique code
+                invitationCode: guestInvitationCode,
+
+                // optional: keep event-level code if you want it for reporting/filtering
+                ...(eventInvitationCode && { eventInvitationCode }),
+
+                // preserve createdAt if already exists
+                createdAt: invData?.createdAt ?? Timestamp.now(),
+                expiresAt,
+
+                // reset send flags for this attempt
+                sent: false,
+                lastSendAttemptAt: Timestamp.now(),
+
+                ...(batchId && { batchId }),
+              },
+              { merge: true }
+            );
+          });
+
+        } else {
+          // ✅ CASE B: guestId missing -> ALWAYS create new invitation
+          invRef = db.collection("invitations").doc();
+          invId = invRef.id;
+          invToken = makeToken();
+
+          // ✅ NEW: unique invitation code for this guest
+          guestInvitationCode = makeInvitationCode();
+
+          await invRef.set(
+            {
+              invitationId: invId,
+              eventId,
+              organisationId: organisationId || null,
+              guestId: null,
+              guestEmail,
+              guestEmailLower: emailLower(guestEmail),
+              guestName,
+              maxGuestInvite,
+              demographicQuestionSetId: demographicQuestionSetId || null,
+              token: invToken,
+
+              // ✅ per-guest unique code
+              invitationCode: guestInvitationCode,
+
+              // optional: keep event-level code if you want it
+              ...(eventInvitationCode && { eventInvitationCode }),
+
+              createdAt: Timestamp.now(),
+              expiresAt,
+              sent: false,
+              lastSendAttemptAt: Timestamp.now(),
+
+              ...(batchId && { batchId }),
+            },
+            { merge: true }
+          );
         }
+
+        // ✅ Build link
+        const link =
+          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
+          `&token=${encodeURIComponent(invToken)}` +
+          `&v=${Date.now()}`;
+
+        const subject = "RSVP & Complete your details";
 
         const textBody =
-            `Hello${guestName ? " " + guestName : ""},\n\n` +
-            `Please open this link to answer the demographic questions:\n${link}\n\n` +
-            `You may see follow-up questions depending on your answers.\n\n` +
-            (preview.text || "") +
-            `This link expires in ${INV_EXPIRY_DAYS} days.` +
-            referenceInfo +
-            `\n\n— ${FROM_NAME}`;
-
+          `Hello${guestName ? " " + guestName : ""},\n\n` +
+          `Please open this link to RSVP and complete your details:\n${link}\n\n` +
+          `This link expires in ${INV_EXPIRY_DAYS} days.\n\n` +
+          `Invitation Code: ${guestInvitationCode || ""}\n\n` +
+          `— ${FROM_NAME}`;
 
         const safeName = guestName ? escapeHtml(guestName) : "";
-        
-        // Build HTML reference information
+
+        // ✅ Show per-guest invitation code in email
         let htmlReferenceInfo = "";
-        if (invitationCode || batchId) {
-          htmlReferenceInfo = '<p style="color:#6b7280;font-size:13px;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb">';
-          htmlReferenceInfo += '<strong>Reference Information:</strong><br/>';
-          if (invitationCode) htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(invitationCode)}</strong><br/>`;
-          if (batchId) htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
-          htmlReferenceInfo += '</p>';
+        if (guestInvitationCode || batchId) {
+          htmlReferenceInfo =
+            '<p style="color:#6b7280;font-size:13px;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb">';
+          htmlReferenceInfo += "<strong>Reference Information:</strong><br/>";
+          if (guestInvitationCode) {
+            htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(
+              guestInvitationCode
+            )}</strong><br/>`;
+          }
+          if (batchId) {
+            htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
+          }
+          htmlReferenceInfo += "</p>";
         }
-        
+
         const htmlBody = `
           <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
             <p>Hello${safeName ? " " + safeName : ""},</p>
-            <p>Please click the button below to complete the demographic questions, then choose your preferred menu items.</p>
-            <p style="color:#6b7280;font-size:13px;margin-top:10px">
-              You may see follow-up questions depending on your answers.
-            </p>
+            <p>Please click the button below to RSVP, complete demographics, then choose your preferred menu items.</p>
+
             <p style="margin: 18px 0;">
               <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">
-                Open questions
+                Open RSVP
               </a>
             </p>
 
@@ -199,32 +382,51 @@ export const sendInvitations = onCall(
             TextBody: textBody,
             HtmlBody: htmlBody,
             MessageStream: MESSAGE_STREAM,
-            Metadata: { invitationId: ref.id, eventId },
+            Metadata: {
+              invitationId: invId,
+              eventId,
+              guestId: gid || "",
+              invitationCode: guestInvitationCode || "",
+            },
           });
 
-          await ref.update({
+          await invRef.update({
             sent: true,
             sentAt: Timestamp.now(),
             postmarkMessageId: resp.MessageID,
+            sendError: null,
+            sendErrorStatus: null,
+            sendErrorBody: null,
+            sendAttemptCount: FieldValue.increment(1),
+            sendSuccessCount: FieldValue.increment(1),
           });
 
-          results.push({ guestEmail, invitationId: ref.id, status: "sent" });
+          results.push({
+            guestEmail,
+            guestId: gid || null,
+            invitationId: invId,
+            invitationCode: guestInvitationCode || null,
+            status: "sent",
+          });
         } catch (err) {
           const status = err?.statusCode ?? err?.code ?? null;
           const msg = err?.message ?? String(err);
           const body = err?.response?.body ?? err?.body ?? null;
 
-          await ref.update({
+          await invRef.update({
             sent: false,
             sentAt: Timestamp.now(),
             sendError: msg,
             sendErrorStatus: status,
             sendErrorBody: body,
+            sendAttemptCount: FieldValue.increment(1),
           });
 
           results.push({
             guestEmail,
-            invitationId: ref.id,
+            guestId: gid || null,
+            invitationId: invId,
+            invitationCode: guestInvitationCode || null,
             status: "failed",
             error: msg,
             statusCode: status,
@@ -253,125 +455,350 @@ export const sendInvitations = onCall(
   }
 );
 
-async function buildQuestionPreview({ questionSetId, maxQuestions = 8 }) {
-  if (!questionSetId) return { text: "", html: "" };
 
-  // 1) Load questions in the set
-  const qsnap = await db
-    .collection("demographicQuestions")
-    .where("questionSetId", "==", questionSetId)
-    .where("isDisabled", "==", false)
-    .get();
+// function emailLower(s) {
+//   return (s ?? "").toString().trim().toLowerCase();
+// }
 
-  const questions = qsnap.docs.map((d) => {
-    const data = d.data() || {};
-    return {
-      docId: d.id,
-      questionId: (data.questionId || d.id).toString(),
-      questionText: (data.questionText || "").toString(),
-      displayOrder: Number(data.displayOrder || 0),
-      parentQuestionId: (data.parentQuestionId || "").toString().trim(),
-      triggerOptionId: (data.triggerOptionId || "").toString().trim(),
-    };
-  });
+// function pickEarliestByCreatedAt(docs) {
+//   let chosen = docs[0];
+//   let chosenMs =
+//     chosen.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
 
-  // base = parentQuestionId empty
-  const base = questions
-    .filter((q) => !q.parentQuestionId)
-    .sort((a, b) => a.displayOrder - b.displayOrder)
-    .slice(0, maxQuestions);
+//   for (const d of docs) {
+//     const ms = d.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+//     if (ms < chosenMs) {
+//       chosen = d;
+//       chosenMs = ms;
+//     }
+//   }
+//   return chosen;
+// }
 
-  // sub rules = have parentQuestionId + triggerOptionId
-  const subs = questions.filter((q) => q.parentQuestionId && q.triggerOptionId);
+// async function findExistingInvitationDoc({ eventId, guestId, guestEmail }) {
+//   const eid = (eventId ?? "").toString().trim();
+//   const gid = (guestId ?? "").toString().trim();
+//   const email = (guestEmail ?? "").toString().trim();
+//   const emailL = emailLower(email);
 
-  // group subs: parentQuestionId -> triggerOptionId -> [subQuestionText...]
-  const byParent = new Map();
-  for (const s of subs) {
-    if (!byParent.has(s.parentQuestionId)) byParent.set(s.parentQuestionId, new Map());
-    const byTrigger = byParent.get(s.parentQuestionId);
-    if (!byTrigger.has(s.triggerOptionId)) byTrigger.set(s.triggerOptionId, []);
-    byTrigger.get(s.triggerOptionId).push(s.questionText);
-  }
+//   if (!eid) return null;
 
-  // 2) Load option labels for parent questions (to show “If you pick X…”)
-  const parentIds = Array.from(byParent.keys());
-  const optionIdToLabel = new Map();
+//   // ✅ If guestId is provided, ONLY match by guestId (no email fallback)
+//   if (gid) {
+//     const snapById = await db
+//       .collection("invitations")
+//       .where("eventId", "==", eid)
+//       .where("guestId", "==", gid)
+//       .limit(10)
+//       .get();
 
-  const chunk = (arr, size) => {
-    const out = [];
-    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-    return out;
-  };
+//     if (!snapById.empty) return pickEarliestByCreatedAt(snapById.docs);
 
-  for (const c of chunk(parentIds, 30)) {
-    const osnap = await db
-      .collection("demographicQuestionOptions")
-      .where("questionId", "in", c)
-      .where("isDisabled", "==", false)
-      .get();
+//     // Optional legacy-claim:
+//     // If old invites were created without guestId, we can "claim" only those where guestId is missing.
+//     if (emailL) {
+//       const snapLegacy = await db
+//         .collection("invitations")
+//         .where("eventId", "==", eid)
+//         .where("guestEmailLower", "==", emailL)
+//         .limit(20)
+//         .get();
 
-    for (const od of osnap.docs) {
-      const odt = od.data() || {};
-      optionIdToLabel.set(od.id, (odt.label || "").toString());
-    }
-  }
+//       if (!snapLegacy.empty) {
+//         const candidates = snapLegacy.docs.filter((d) => {
+//           const existingGid = (d.data()?.guestId ?? "").toString().trim();
+//           return !existingGid; // only if guestId missing
+//         });
 
-  // 3) Build preview (text + html)
-  let text = "";
-  let html = "";
+//         if (candidates.length) return pickEarliestByCreatedAt(candidates);
+//       }
+//     }
 
-  if (base.length > 0) {
-    text += "Questions preview (you will answer these on the form):\n";
-    html += `
-      <div style="margin-top:18px;padding:14px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa">
-        <div style="font-weight:700;margin-bottom:8px">Questions preview</div>
-        <div style="color:#6b7280;font-size:13px;margin-bottom:10px">
-          You’ll answer these on the website after opening the link.
-        </div>
-        <ol style="margin:0;padding-left:18px">
-    `;
+//     return null;
+//   }
 
-    for (const q of base) {
-      const qText = q.questionText || "(Untitled question)";
-      text += `• ${qText}\n`;
+//   // ✅ If guestId is NOT provided, fallback to email-based match
+//   if (emailL) {
+//     const snapByLower = await db
+//       .collection("invitations")
+//       .where("eventId", "==", eid)
+//       .where("guestEmailLower", "==", emailL)
+//       .limit(10)
+//       .get();
 
-      html += `<li style="margin:6px 0">${escapeHtml(qText)}`;
+//     if (!snapByLower.empty) return pickEarliestByCreatedAt(snapByLower.docs);
+//   }
 
-      // Conditional rules for this question?
-      const triggers = byParent.get(q.questionId);
-      if (triggers && triggers.size) {
-        text += `  Follow-ups may appear for some answers.\n`;
+//   if (email) {
+//     const snapByExact = await db
+//       .collection("invitations")
+//       .where("eventId", "==", eid)
+//       .where("guestEmail", "==", email)
+//       .limit(10)
+//       .get();
 
-        html += `
-          <div style="margin-top:6px;color:#6b7280;font-size:13px">
-            Follow-up questions may appear depending on your answer:
-          </div>
-          <ul style="margin:6px 0 0 0;padding-left:18px;color:#111827;font-size:13px">
-        `;
+//     if (!snapByExact.empty) return pickEarliestByCreatedAt(snapByExact.docs);
+//   }
 
-        // show up to 3 triggers to keep email short
-        let shown = 0;
-        for (const [triggerOptId, subTexts] of triggers.entries()) {
-          if (shown >= 3) break;
-          shown++;
+//   return null;
+// }
 
-          const optLabel = optionIdToLabel.get(triggerOptId) || "Selected option";
-          const subList = (subTexts || []).filter(Boolean).slice(0, 3);
 
-          html += `<li><strong>${escapeHtml(optLabel)}</strong> → ${escapeHtml(subList.join(", "))}</li>`;
-        }
-        html += `</ul>`;
-      }
 
-      html += `</li>`;
-    }
 
-    html += `</ol></div>`;
-  }
+// function makeToken() {
+//   return randomBytes(24).toString("hex");
+// }
 
-  if (text) {
-    text += "\nNote: Follow-up questions will only appear when relevant answers are selected.\n\n";
-  }
+// function escapeHtml(s) {
+//   const str = (s ?? "").toString();
+//   return str
+//     .replaceAll("&", "&amp;")
+//     .replaceAll("<", "&lt;")
+//     .replaceAll(">", "&gt;")
+//     .replaceAll('"', "&quot;")
+//     .replaceAll("'", "&#039;");
+// }
 
-  return { text, html };
-}
+// export const sendInvitations = onCall(
+//   { secrets: [POSTMARK_SERVER_TOKEN] },
+//   async (request) => {
+//     try {
+//       if (!APP_BASE_URL) {
+//         throw new HttpsError("failed-precondition", "APP_BASE_URL missing");
+//       }
+
+//       const {
+//         eventId,
+//         organisationId,
+//         invitations,
+//         demographicQuestionSetId,
+//         staticLink, // not used
+//         invitationCode,
+//       } = request.data || {};
+
+//       if (!eventId) {
+//         throw new HttpsError("invalid-argument", "eventId is required");
+//       }
+
+//       if (!Array.isArray(invitations) || invitations.length === 0) {
+//         throw new HttpsError("invalid-argument", "invitations array required");
+//       }
+
+//       const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
+//       console.log("Postmark token length:", token.length);
+
+//       if (!token) {
+//         throw new HttpsError(
+//           "failed-precondition",
+//           "POSTMARK_SERVER_TOKEN missing/empty at runtime."
+//         );
+//       }
+
+//       const client = new postmark.ServerClient(token);
+
+//       const createdAt = Timestamp.now();
+//       const results = [];
+
+//       for (const guest of invitations) {
+//         const guestEmail = (guest?.guestEmail || "").trim();
+//         const guestName = (guest?.guestName || "").trim();
+//         const guestId = guest?.guestId || null;
+
+//         const maxGuestInvite =
+//           typeof guest?.maxGuestInvite === "number" ? guest.maxGuestInvite : 0;
+
+//         const batchId = guest?.batchId || null;
+
+//         if (!guestEmail) continue;
+
+//         // ✅ Find existing invitation (for resend)
+//         const existing = await findExistingInvitationDoc({
+//           eventId,
+//           guestId,
+//           guestEmail,
+//         });
+
+//         // ✅ Reuse same doc id if found, else create new
+//         let ref;
+
+//       if (existing) {
+//         ref = existing.ref;
+//       } else if (guestId) {
+//         // ✅ deterministic doc id per event+guest
+//         ref = db.collection("invitations").doc(invitationDocId(eventId, guestId));
+//       } else {
+//         // fallback when guestId missing
+//         ref = db.collection("invitations").doc();
+//       }
+
+//         const invitationId = ref.id;
+
+//         // ✅ Keep SAME token if exists (so link remains same)
+//         let inviteToken = existing?.data()?.token;
+//         if (!inviteToken) inviteToken = makeToken();
+
+//         // ✅ Refresh expiry on every send/resend
+//         const expiresAt = Timestamp.fromMillis(
+//           Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+//         );
+
+//         // ✅ Upsert invitation doc (merge so we don't wipe fields)
+//         await ref.set(
+//           {
+//             invitationId,
+//             eventId,
+//             organisationId: organisationId || null,
+//             guestId,
+//             guestEmail,
+//             guestEmailLower: emailLower(guestEmail),
+//             guestName,
+//             maxGuestInvite,
+//             demographicQuestionSetId: demographicQuestionSetId || null,
+//             token: inviteToken,
+
+//             used: existing?.data()?.used ?? false,
+//             createdAt: existing?.data()?.createdAt ?? createdAt,
+//             expiresAt,
+
+//             sent: false,
+
+//             ...(invitationCode && { invitationCode }),
+//             ...(batchId && { batchId }),
+
+//             lastSendAttemptAt: Timestamp.now(),
+//           },
+//           { merge: true }
+//         );
+
+//         const link =
+//           `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invitationId)}` +
+//           `&token=${encodeURIComponent(inviteToken)}` +
+//           `&v=${Date.now()}`;
+
+//         const subject = "RSVP & Complete your details";
+
+//         const textBody =
+//           `Hello${guestName ? " " + guestName : ""},\n\n` +
+//           `Please open this link to RSVP and complete your details:\n${link}\n\n` +
+//           `You may be asked companion questions depending on your RSVP and guest count.\n\n` +
+//           `This link expires in ${INV_EXPIRY_DAYS} days.\n\n— ${FROM_NAME}`;
+
+//         const safeName = guestName ? escapeHtml(guestName) : "";
+
+//         // Build HTML reference information
+//         let htmlReferenceInfo = "";
+//         if (invitationCode || batchId) {
+//           htmlReferenceInfo =
+//             '<p style="color:#6b7280;font-size:13px;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb">';
+//           htmlReferenceInfo += "<strong>Reference Information:</strong><br/>";
+//           if (invitationCode)
+//             htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(
+//               invitationCode
+//             )}</strong><br/>`;
+//           if (batchId)
+//             htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
+//           htmlReferenceInfo += "</p>";
+//         }
+
+//         const htmlBody = `
+//           <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
+//             <p>Hello${safeName ? " " + safeName : ""},</p>
+
+//             <p>Please click the button below to RSVP, complete demographics, then choose your preferred menu items.</p>
+
+//             <p style="color:#6b7280;font-size:13px;margin-top:10px">
+//               You may see follow-up questions depending on your answers.
+//             </p>
+
+//             <p style="margin: 18px 0;">
+//               <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">
+//                 Open RSVP
+//               </a>
+//             </p>
+
+//             <p style="color:#6b7280;font-size:13px">
+//               If the button doesn’t work, copy and paste this link into your browser:<br/>
+//               <a href="${link}">${link}</a>
+//             </p>
+
+//             <p style="color:#6b7280;font-size:13px">
+//               This link expires in ${INV_EXPIRY_DAYS} days.
+//             </p>
+
+//             ${htmlReferenceInfo}
+
+//             <p>— ${escapeHtml(FROM_NAME)}</p>
+//           </div>
+//         `;
+
+//         try {
+//           const resp = await client.sendEmail({
+//             From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+//             To: guestEmail,
+//             Subject: subject,
+//             TextBody: textBody,
+//             HtmlBody: htmlBody,
+//             MessageStream: MESSAGE_STREAM,
+//             Metadata: { invitationId, eventId },
+//           });
+
+//           await ref.update({
+//             sent: true,
+//             sentAt: Timestamp.now(),
+//             postmarkMessageId: resp.MessageID,
+
+//             sendError: null,
+//             sendErrorStatus: null,
+//             sendErrorBody: null,
+
+//             sendAttemptCount: FieldValue.increment(1),
+//             sendSuccessCount: FieldValue.increment(1),
+//           });
+
+//           results.push({ guestEmail, invitationId, status: "sent" });
+//         } catch (err) {
+//           const status = err?.statusCode ?? err?.code ?? null;
+//           const msg = err?.message ?? String(err);
+//           const body = err?.response?.body ?? err?.body ?? null;
+
+//           await ref.update({
+//             sent: false,
+//             sentAt: Timestamp.now(),
+//             sendError: msg,
+//             sendErrorStatus: status,
+//             sendErrorBody: body,
+
+//             sendAttemptCount: FieldValue.increment(1),
+//           });
+
+//           results.push({
+//             guestEmail,
+//             invitationId,
+//             status: "failed",
+//             error: msg,
+//             statusCode: status,
+//           });
+//         }
+//       }
+
+//       await db.collection("invitationLogs").add({
+//         eventId,
+//         organisationId: organisationId || null,
+//         createdAt: Timestamp.now(),
+//         results,
+//       });
+
+//       return {
+//         ok: true,
+//         invited: results.filter((r) => r.status === "sent").length,
+//         results,
+//       };
+//     } catch (err) {
+//       console.error("sendInvitations error:", err);
+//       throw err instanceof HttpsError
+//         ? err
+//         : new HttpsError("internal", err?.message ?? "Unknown error");
+//     }
+//   }
+// );

@@ -9,11 +9,12 @@ class GuestResponsesService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // Collection names
-  static const String _demographicResponsesCollection = 'demographicQuestionsResponses';
+  static const String _demographicResponsesCollection =
+      'demographicQuestionsResponses';
   static const String _menuResponsesCollection = 'menuSelectedItemsResponses';
 
   /// Fetch demographic response for a guest
-  /// 
+  ///
   /// Queries the demographicQuestionsResponses collection by guestId and eventId
   /// Returns null if no response is found
   Future<DemographicResponseModel?> fetchDemographicResponse({
@@ -21,7 +22,8 @@ class GuestResponsesService {
     required String eventId,
   }) async {
     try {
-      print('📋 Fetching demographic response for guest: $guestId, event: $eventId');
+      print(
+          '📋 Fetching demographic response for guest: $guestId, event: $eventId');
 
       final query = await _db
           .collection(_demographicResponsesCollection)
@@ -41,7 +43,7 @@ class GuestResponsesService {
 
       final response = DemographicResponseModel.fromFirestore(data);
       print('✅ Demographic response found: ${response.answers.length} answers');
-      
+
       return response;
     } catch (e, stackTrace) {
       print('❌ Error fetching demographic response: $e');
@@ -51,7 +53,7 @@ class GuestResponsesService {
   }
 
   /// Fetch menu selection response for a guest
-  /// 
+  ///
   /// Queries the menuSelectedItemsResponses collection by guestId and eventId
   /// Returns null if no response is found
   Future<MenuSelectionResponseModel?> fetchMenuSelectionResponse({
@@ -59,7 +61,8 @@ class GuestResponsesService {
     required String eventId,
   }) async {
     try {
-      print('🍽️ Fetching menu selection response for guest: $guestId, event: $eventId');
+      print(
+          '🍽️ Fetching menu selection response for guest: $guestId, event: $eventId');
 
       final query = await _db
           .collection(_menuResponsesCollection)
@@ -78,8 +81,9 @@ class GuestResponsesService {
       data['responseId'] = doc.id; // Add document ID to data
 
       final response = MenuSelectionResponseModel.fromFirestore(data);
-      print('✅ Menu selection response found: ${response.selectedCount} items selected');
-      
+      print(
+          '✅ Menu selection response found: ${response.selectedCount} items selected');
+
       return response;
     } catch (e, stackTrace) {
       print('❌ Error fetching menu selection response: $e');
@@ -89,7 +93,7 @@ class GuestResponsesService {
   }
 
   /// Update demographic response in Firestore
-  /// 
+  ///
   /// Updates an existing response document
   /// Throws exception if update fails
   Future<void> updateDemographicResponse(
@@ -112,7 +116,7 @@ class GuestResponsesService {
   }
 
   /// Update menu selection response in Firestore
-  /// 
+  ///
   /// Updates an existing response document
   /// Throws exception if update fails
   Future<void> updateMenuSelectionResponse(
@@ -135,7 +139,7 @@ class GuestResponsesService {
   }
 
   /// Fetch both demographic and menu responses at once
-  /// 
+  ///
   /// Convenience method that fetches both responses in parallel
   /// Returns a map with both responses (null if not found)
   Future<Map<String, dynamic>> fetchAllResponses({
@@ -197,7 +201,7 @@ class GuestResponsesService {
   }
 
   /// Fetch all guests in a group by groupId
-  /// 
+  ///
   /// Returns a list of all guests (main + companions) sharing the same groupId
   /// Returns empty list if no groupId or no guests found
   Future<List<GuestModel>> fetchGroupGuests({
@@ -205,46 +209,35 @@ class GuestResponsesService {
     required String eventId,
   }) async {
     try {
-      if (groupId.isEmpty) {
-        print('⚠️ No groupId provided');
-        return [];
-      }
-
-      print('👥 Fetching guests in group: $groupId');
+      if (groupId.isEmpty) return [];
 
       final query = await _db
           .collection('guests')
           .where('groupId', isEqualTo: groupId)
           .where('eventId', isEqualTo: eventId)
-          .where('isDisabled', isEqualTo: false)
           .get();
 
       final guests = query.docs
           .map((doc) => GuestModel.fromFirestore(doc.data(), doc.id))
+          .where((g) =>
+              g.isDisabled != true) // ✅ local filter (missing field is ok)
           .toList();
 
       // Sort: main guest first, then companions
       guests.sort((a, b) {
-        final aIsCompanion = a.isCompanion;
-        final bIsCompanion = b.isCompanion;
-        if (aIsCompanion == bIsCompanion) return 0;
-        return aIsCompanion ? 1 : -1;
+        if (a.isCompanion == b.isCompanion) return 0;
+        return a.isCompanion ? 1 : -1;
       });
 
-      final mainCount = guests.where((g) => !g.isCompanion).length;
-      final companionCount = guests.where((g) => g.isCompanion).length;
-      print('✅ Found ${guests.length} guests in group ($mainCount main, $companionCount companions)');
-      
       return guests;
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('❌ Error fetching group guests: $e');
-      print('Stack trace: $stackTrace');
       return [];
     }
   }
 
   /// Fetch responses for all guests in a group
-  /// 
+  ///
   /// Returns a map of guestId -> response data
   /// Useful for loading all companion responses at once
   Future<Map<String, Map<String, dynamic>>> fetchGroupResponses({
@@ -279,7 +272,7 @@ class GuestResponsesService {
       final responsesMap = Map.fromEntries(responsesList);
 
       print('✅ Loaded responses for ${guests.length} guests');
-      
+
       return responsesMap;
     } catch (e, stackTrace) {
       print('❌ Error fetching group responses: $e');

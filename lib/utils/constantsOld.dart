@@ -8,7 +8,7 @@ class ConstantsOld {
   static String timing = 'Monday-Friday 9am-5pm EST';
   static String location = 'We are located in New York state';
   static String trademark =
-      'Traxx Events\u1d40\u1d39 is a registered trademark of Newfound Adirondack Resort LLC';
+      'Trax Events\u1d40\u1d39 is a registered trademark of Newfound Adirondack Resort LLC';
 
   //FONT
   static const String font1 = 'Blanka';
