@@ -55,6 +55,8 @@ import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.d
 import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_view_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_view_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
 import 'package:traxx_wepapp/features/guest/guest_feed_page/view/guest_feed_page.dart';
@@ -182,6 +184,18 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.guestResponsesPreview.path,
             builder: (context, state) => const GuestResponsesPreviewPage(),
+          ),
+
+          // Guest demographics view page (authenticated)
+          GoRoute(
+            path: AppRoute.guestDemographicsView.path,
+            builder: (context, state) => const GuestDemographicsViewPage(),
+          ),
+
+          // Guest menu selection view page (authenticated)
+          GoRoute(
+            path: AppRoute.guestMenuSelectionView.path,
+            builder: (context, state) => const GuestMenuSelectionViewPage(),
           ),
 
           // Guest demographics edit page (authenticated)

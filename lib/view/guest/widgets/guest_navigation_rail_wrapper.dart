@@ -37,7 +37,9 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
 
   int _selectedIndexForLocation(String location) {
     if (location.startsWith(AppRoute.guestResponsesPreview.path)) return 0;
-    if (location.startsWith(AppRoute.guestFeed.path)) return 1;
+    if (location.startsWith(AppRoute.guestDemographicsView.path)) return 1;
+    if (location.startsWith(AppRoute.guestMenuSelectionView.path)) return 2;
+    if (location.startsWith(AppRoute.guestFeed.path)) return 3;
     // Add more guest routes here as needed
     return 0;
   }
@@ -48,9 +50,15 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
         pushAndRemoveAllRoute(AppRoute.guestResponsesPreview, context);
         return;
       case 1:
-        pushAndRemoveAllRoute(AppRoute.guestFeed, context);
+        pushAndRemoveAllRoute(AppRoute.guestDemographicsView, context);
         return;
       case 2:
+        pushAndRemoveAllRoute(AppRoute.guestMenuSelectionView, context);
+        return;
+      case 3:
+        pushAndRemoveAllRoute(AppRoute.guestFeed, context);
+        return;
+      case 4:
         // Logout
         try {
           await guestSession.clearSession();
@@ -125,6 +133,16 @@ class _GuestNavigationRailWrapperState extends State<GuestNavigationRailWrapper>
         label: 'Event Details',
         icon: Icons.event_outlined,
         selectedIcon: Icons.event,
+      ),
+      const NavItemData(
+        label: 'Demographics',
+        icon: Icons.question_answer_outlined,
+        selectedIcon: Icons.question_answer,
+      ),
+      const NavItemData(
+        label: 'Menu',
+        icon: Icons.restaurant_menu_outlined,
+        selectedIcon: Icons.restaurant_menu,
       ),
       const NavItemData(
         label: 'Feed',
