@@ -56,6 +56,16 @@ class OrganisationController extends GetxController {
     return organisation.value;
   }
 
+  /// Gets the organisation name or returns a default placeholder
+  String getOrganisationName() {
+    return organisation.value?.name ?? 'Event Manager';
+  }
+
+  /// Gets the organisation logo/photo URL if available
+  String? getOrganisationPhotoUrl() {
+    return organisation.value?.photoUrl;
+  }
+
   /// Adds or updates the organisation
   void setOrganisation(Organisation org) {
     organisation.value = org;

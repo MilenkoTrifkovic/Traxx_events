@@ -42,6 +42,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   bool _pendingFocusNew = false;
   bool _isProcessing = false;
   final ScrollController _listScrollCtrl = ScrollController();
+
   String _setTitle = '';
   String _setDescription = '';
   bool _metaLoading = true;
@@ -97,20 +98,8 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     }
   }
 
-  /*  void _debouncedUpdateQuestion(
-    String questionDocId,
-    Map<String, dynamic> data,
-  ) {
-    final key = questionDocId;
-    _debounceTimers[key]?.cancel();
-    _debounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
-      _controller.updateQuestion(questionDocId: questionDocId, data: data);
-    });
-  } */
   void _debouncedUpdateQuestion(
-    String questionDocId,
-    Map<String, dynamic> data,
-  ) {
+      String questionDocId, Map<String, dynamic> data) {
     final key = questionDocId;
     _debounceTimers[key]?.cancel();
     _debounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
@@ -118,10 +107,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     });
   }
 
-  void _debouncedUpdateOption(
-    String optionDocId,
-    Map<String, dynamic> data,
-  ) {
+  void _debouncedUpdateOption(String optionDocId, Map<String, dynamic> data) {
     final key = 'opt_$optionDocId';
     _optionDebounceTimers[key]?.cancel();
     _optionDebounceTimers[key] = Timer(const Duration(milliseconds: 400), () {
@@ -132,7 +118,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   Future<void> _addOption(DemographicQuestionWithOptions item) async {
     _setProcessing(true);
     try {
-      // displayOrder: last + 1
       final nextOrder =
           item.options.isNotEmpty ? (item.options.last.displayOrder + 1) : 1;
 
@@ -142,20 +127,13 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       );
 
       if (!mounted) return;
-
-      // UI update is actually optional now because streamQuestions
-      // will push a new snapshot, but this makes it feel instant.
-      setState(() {
-        item.options.add(newOpt);
-      });
+      setState(() => item.options.add(newOpt));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to add option: $e',
-            style: GoogleFonts.poppins(),
-          ),
+          content:
+              Text('Failed to add option: $e', style: GoogleFonts.poppins()),
           backgroundColor: Colors.red,
         ),
       );
@@ -172,14 +150,9 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete option?',
-          style: GoogleFonts.poppins(),
-        ),
-        content: Text(
-          'Do you want to delete "${opt.label}"?',
-          style: GoogleFonts.poppins(),
-        ),
+        title: Text('Delete option?', style: GoogleFonts.poppins()),
+        content: Text('Do you want to delete "${opt.label}"?',
+            style: GoogleFonts.poppins()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -201,17 +174,13 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       await _controller.deleteOption(opt.id);
 
       if (!mounted) return;
-      setState(() {
-        item.options.removeWhere((o) => o.id == opt.id);
-      });
+      setState(() => item.options.removeWhere((o) => o.id == opt.id));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to delete option: $e',
-            style: GoogleFonts.poppins(),
-          ),
+          content:
+              Text('Failed to delete option: $e', style: GoogleFonts.poppins()),
           backgroundColor: Colors.red,
         ),
       );
@@ -228,17 +197,14 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         data: {'questionType': type},
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to update type: $e',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Failed to update type: $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       _setProcessing(false);
     }
@@ -252,17 +218,14 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         data: {'isRequired': value},
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to update required: $e',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update required: $e',
+              style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       _setProcessing(false);
     }
@@ -274,10 +237,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete question?',
-          style: GoogleFonts.poppins(),
-        ),
+        title: Text('Delete question?', style: GoogleFonts.poppins()),
         content: Text(
           'This will permanently delete the question and its options.',
           style: GoogleFonts.poppins(),
@@ -285,18 +245,12 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(),
-            ),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(
-              'Delete',
-              style: GoogleFonts.poppins(),
-            ),
+            child: Text('Delete', style: GoogleFonts.poppins()),
           ),
         ],
       ),
@@ -308,17 +262,95 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     try {
       await _controller.deleteQuestionWithOptions(item.question.id);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to delete question: $e',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: Colors.red,
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete question: $e',
+              style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      _setProcessing(false);
+    }
+  }
+
+  // ✅ REMOVE RULE (make follow-up a normal base question again)
+  Future<void> _confirmRemoveRule(
+    DemographicQuestionWithOptions item,
+    List<DemographicQuestionWithOptions> allItems,
+  ) async {
+    final bool isFollowUp =
+        (item.question.parentQuestionId?.trim().isNotEmpty ?? false);
+
+    if (!isFollowUp) return;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Remove rule?', style: GoogleFonts.poppins()),
+        content: Text(
+          'This will unlink the follow-up and make it a normal question again.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
           ),
-        );
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Remove', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    _setProcessing(true);
+    try {
+      // place as last base question
+      final base = allItems.where((x) {
+        final p = x.question.parentQuestionId?.trim() ?? '';
+        return p.isEmpty;
+      }).toList();
+
+      int maxBaseOrder = 0;
+      for (final b in base) {
+        if (b.question.displayOrder > maxBaseOrder) {
+          maxBaseOrder = b.question.displayOrder;
+        }
       }
+
+      await _controller.updateQuestion(
+        questionDocId: item.question.id,
+        data: {
+          'parentQuestionId': FieldValue.delete(),
+          'triggerOptionId': FieldValue.delete(),
+          'displayOrder': maxBaseOrder + 1,
+          'modifiedDate': FieldValue.serverTimestamp(),
+        },
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Rule removed.', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.black87,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Failed to remove rule: $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       _setProcessing(false);
     }
@@ -330,9 +362,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     final bool? created = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AddQuestionDialog(
-        questionSetId: widget.questionSetId,
-      ),
+      builder: (_) => AddQuestionDialog(questionSetId: widget.questionSetId),
     );
 
     if (created == true) {
@@ -345,13 +375,21 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // BUILD
-  // ---------------------------------------------------------------------------
+  Future<void> _openAddRulesDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AddRulesDialog(
+        questionSetId: widget.questionSetId,
+        controller: _controller,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewportH = MediaQuery.of(context).size.height;
-    final listH = (viewportH - 360).clamp(320.0, 900.0); // ✅ safe height
+    final listH = (viewportH - 360).clamp(320.0, 900.0);
 
     return DefaultTextStyle(
       style: GoogleFonts.poppins(),
@@ -371,7 +409,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeaderWithAddButton(context),
+                        _buildHeaderWithButtons(context),
                         const SizedBox(height: 16),
                         Center(
                           child: Text(
@@ -384,13 +422,10 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // ✅ fixed-height scroll area (no Expanded)
                         SizedBox(
                           height: listH,
                           child: _buildQuestionsStream(),
                         ),
-
                         const SizedBox(height: 40),
                       ],
                     ),
@@ -414,37 +449,89 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // HEADER CARD + BUTTON ROW
-  // ---------------------------------------------------------------------------
+  Widget _buildHeaderWithButtons(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
 
-  Widget _buildHeaderWithAddButton(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _buildFormHeaderCard()),
-        const SizedBox(width: 16),
-        SizedBox(
-          height: 44,
-          child: ElevatedButton(
-            onPressed: _isProcessing ? null : _handleAddQuestion,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kGfPurple,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        Widget addQuestionBtn() => SizedBox(
+              height: 44,
+              child: ElevatedButton(
+                onPressed: _isProcessing ? null : _handleAddQuestion,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kGfPurple,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: const Text('Add Question'),
               ),
-              textStyle: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+            );
+
+        Widget addRulesBtn() => SizedBox(
+              height: 44,
+              child: ElevatedButton(
+                onPressed: _isProcessing ? null : _openAddRulesDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kGfPurple,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: const Text('Add Rule'),
               ),
-            ),
-            child: const Text('Add Question'),
+            );
+
+        if (isNarrow) {
+          // ✅ Stack header + buttons (no horizontal constraint problems)
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildFormHeaderCard(),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  addQuestionBtn(),
+                  addRulesBtn(),
+                ],
+              ),
+            ],
+          );
+        }
+
+        // ✅ Wide layout
+        return SizedBox(
+          width: constraints.maxWidth, // ✅ forces finite width
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildFormHeaderCard()),
+              const SizedBox(width: 16),
+              addQuestionBtn(),
+              const SizedBox(width: 12),
+              addRulesBtn(),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -454,7 +541,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         _setDescription.isEmpty ? 'Form description' : _setDescription;
 
     return Card(
-      color: Colors.white, // pure white like Forms
+      color: Colors.white,
       elevation: 3,
       shadowColor: Colors.black.withOpacity(0.08),
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -465,7 +552,6 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Colored top border like Google Forms
           Container(
             height: 6,
             decoration: const BoxDecoration(
@@ -503,119 +589,151 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // QUESTIONS STREAM
-  // ---------------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
-  // QUESTIONS STREAM
-  // ---------------------------------------------------------------------------
-
   Widget _buildQuestionsStream() {
     return StreamBuilder<List<DemographicQuestionWithOptions>>(
-      stream: _controller.streamQuestions(questionSetId: widget.questionSetId),
+      stream: _controller.streamQuestions(
+        questionSetId: widget.questionSetId,
+        includeConditional: true,
+      ),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final err = snapshot.error;
-          if (kDebugMode) {
-            debugPrint('🔥 HostQuestionsScreen error: $err');
-          }
+          if (kDebugMode) debugPrint('🔥 HostQuestionsScreen error: $err');
           return _buildErrorState(err.toString());
         }
 
-        // ✅ IMPORTANT: show loader until first emission arrives
         if (!snapshot.hasData) {
           return _buildLoadingSkeleton();
         }
 
         final items = snapshot.data!;
-
-        // Once we HAVE data (even empty), show empty state correctly
         if (items.isEmpty) return _buildEmptyState();
 
-        final questions = List<DemographicQuestionWithOptions>.from(items);
+        final all = List<DemographicQuestionWithOptions>.from(items);
 
-        if (_pendingFocusNew && questions.isNotEmpty) {
+        // Build option label map (needed to display trigger label for follow-ups)
+        final optionLabelById = <String, String>{};
+        for (final it in all) {
+          for (final opt in it.options) {
+            optionLabelById[opt.id] = opt.label;
+          }
+        }
+
+        // split base/sub
+        final base = all.where((x) {
+          final p = x.question.parentQuestionId?.trim() ?? '';
+          return p.isEmpty;
+        }).toList()
+          ..sort((a, b) =>
+              a.question.displayOrder.compareTo(b.question.displayOrder));
+
+        final subs = all.where((x) {
+          final p = x.question.parentQuestionId?.trim() ?? '';
+          return p.isNotEmpty;
+        }).toList();
+
+        // group subs by parent doc-id
+        final Map<String, List<DemographicQuestionWithOptions>> subsByParent =
+            {};
+        for (final s in subs) {
+          final parentId = s.question.parentQuestionId!.trim();
+          subsByParent.putIfAbsent(parentId, () => []).add(s);
+        }
+
+        // sort subs
+        for (final entry in subsByParent.entries) {
+          entry.value.sort((a, b) =>
+              a.question.displayOrder.compareTo(b.question.displayOrder));
+        }
+
+        // render: base + its subs
+        final renderList = <_HostRenderRow>[];
+        final usedSubIds = <String>{};
+
+        for (final b in base) {
+          renderList.add(_HostRenderRow(item: b, isSub: false));
+          final children = subsByParent[b.question.id] ?? const [];
+          for (final c in children) {
+            renderList.add(_HostRenderRow(item: c, isSub: true));
+            usedSubIds.add(c.question.id);
+          }
+        }
+
+        // orphan subs (if parent missing) -> append at end
+        final orphanSubs =
+            subs.where((s) => !usedSubIds.contains(s.question.id)).toList();
+        if (orphanSubs.isNotEmpty) {
+          orphanSubs.sort((a, b) =>
+              a.question.displayOrder.compareTo(b.question.displayOrder));
+          for (final o in orphanSubs) {
+            renderList.add(_HostRenderRow(item: o, isSub: true));
+          }
+        }
+
+        if (_pendingFocusNew && all.isNotEmpty) {
           _pendingFocusNew = false;
-          final newId = questions.last.question.id;
+          final newId = all.last.question.id;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _setActiveQuestion(newId);
+            if (mounted) _setActiveQuestion(newId);
           });
         }
 
         return Scrollbar(
-            thumbVisibility: true,
-            child: ReorderableListView.builder(
-              scrollController: _listScrollCtrl,
-              key: const PageStorageKey('questions_reorderable_list'),
-              buildDefaultDragHandles: false,
-              physics: const ClampingScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: questions.length,
-              onReorder: (oldIndex, newIndex) async {
-                if (newIndex > oldIndex) newIndex--;
-                final item = questions.removeAt(oldIndex);
-                questions.insert(newIndex, item);
+          thumbVisibility: true,
+          child: ListView.builder(
+            controller: _listScrollCtrl,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: renderList.length,
+            itemBuilder: (context, index) {
+              final row = renderList[index];
+              final item = row.item;
 
-                _setProcessing(true);
-                try {
-                  await Future.wait([
-                    for (int i = 0; i < questions.length; i++)
-                      _controller.updateQuestion(
-                        questionDocId: questions[i].question.id,
-                        data: {'displayOrder': i + 1},
-                      ),
-                  ]);
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to reorder questions: $e',
-                            style: GoogleFonts.poppins()),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                } finally {
-                  _setProcessing(false);
-                }
-              },
-              itemBuilder: (context, index) {
-                final item = questions[index];
-                return Padding(
-                  key: ValueKey(item.question.id),
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _GoogleFormsQuestionCard(
-                    index: index,
-                    item: item,
-                    isActive: item.question.id == _activeQuestionId,
-                    onTap: () => _setActiveQuestion(item.question.id),
-                    onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
-                      item.question.id,
-                      {'questionText': text},
-                    ),
-                    onQuestionTypeChanged: (type) =>
-                        _updateQuestionType(item.question.id, type),
-                    onRequiredChanged: (required) =>
-                        _updateRequired(item.question.id, required),
-                    onDelete: () => _confirmDeleteQuestion(item),
-                    onRemoveOption: (opt) => _removeOption(item, opt),
-                    onAddOption: () => _addOption(item),
-                    onOptionLabelChanged: (opt, newLabel) {
-                      if (opt.id.isEmpty) return;
-                      _debouncedUpdateOption(opt.id, {'label': newLabel});
-                    },
+              final isFollowUp = row.isSub;
+              final triggerLabel = isFollowUp
+                  ? (optionLabelById[item.question.triggerOptionId ?? ''] ?? '')
+                  : null;
+
+              return Padding(
+                key: ValueKey(item.question.id),
+                padding: EdgeInsets.only(
+                  bottom: 12,
+                  left: row.isSub ? 28 : 0, // indent follow-ups
+                ),
+                child: _GoogleFormsQuestionCard(
+                  index: index,
+                  item: item,
+                  isActive: item.question.id == _activeQuestionId,
+                  isFollowUp: isFollowUp,
+                  followUpTriggerLabel: triggerLabel,
+                  onTap: () => _setActiveQuestion(item.question.id),
+                  onQuestionTextChanged: (text) => _debouncedUpdateQuestion(
+                    item.question.id,
+                    {'questionText': text},
                   ),
-                );
-              },
-            ));
+                  onQuestionTypeChanged: (type) =>
+                      _updateQuestionType(item.question.id, type),
+                  onRequiredChanged: (required) =>
+                      _updateRequired(item.question.id, required),
+                  onDelete: () => _confirmDeleteQuestion(item),
+                  onRemoveRule:
+                      isFollowUp ? () => _confirmRemoveRule(item, all) : null,
+                  onRemoveOption: (opt) => _removeOption(item, opt),
+                  onAddOption: () => _addOption(item),
+                  onOptionLabelChanged: (opt, newLabel) {
+                    if (opt.id.isEmpty) return;
+                    _debouncedUpdateOption(opt.id, {'label': newLabel});
+                  },
+                ),
+              );
+            },
+          ),
+        );
       },
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // STATES
-  // ---------------------------------------------------------------------------
+  // ---------------- STATES ----------------
 
   Widget _buildLoadingSkeleton() {
     return Padding(
@@ -655,22 +773,16 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Card(
-        color: Colors.white, // ❗️Make sure this is white, not lavender
+        color: Colors.white,
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.05),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           child: Column(
             children: [
-              Icon(
-                Icons.help_outline_rounded,
-                size: 48,
-                color: kGfPurple,
-              ),
-              SizedBox(height: 16),
+              Icon(Icons.help_outline_rounded, size: 48, color: kGfPurple),
+              const SizedBox(height: 16),
               Text(
                 'No questions yet',
                 style: GoogleFonts.poppins(
@@ -679,7 +791,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
                   color: kTextDark,
                 ),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(
                 'Start by adding your first question using the "Add Question" button.',
                 textAlign: TextAlign.center,
@@ -723,6 +835,274 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
   }
 }
 
+class AddRulesDialog extends StatefulWidget {
+  final String questionSetId;
+  final HostQuestionsController controller;
+
+  const AddRulesDialog({
+    super.key,
+    required this.questionSetId,
+    required this.controller,
+  });
+
+  @override
+  State<AddRulesDialog> createState() => _AddRulesDialogState();
+}
+
+class _AddRulesDialogState extends State<AddRulesDialog> {
+  String? _mainQuestionDocId;
+  String? _triggerOptionId;
+  String? _subQuestionDocId;
+
+  bool _saving = false;
+
+  bool _needsOptions(String type) =>
+      type == 'multiple_choice' || type == 'checkboxes' || type == 'dropdown';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Add rule',
+          style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700, color: Colors.black)),
+      content: SizedBox(
+        width: 520,
+        child: StreamBuilder<List<DemographicQuestionWithOptions>>(
+          stream: widget.controller.streamQuestions(
+            questionSetId: widget.questionSetId,
+            includeConditional: true,
+          ),
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Text('Failed to load questions: ${snap.error}',
+                  style: GoogleFonts.poppins());
+            }
+            if (!snap.hasData) {
+              return Row(
+                children: [
+                  const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.5)),
+                  const SizedBox(width: 12),
+                  Text('Loading…', style: GoogleFonts.poppins()),
+                ],
+              );
+            }
+
+            final all = snap.data!;
+
+            // Base questions = no parent
+            final base = all.where((x) {
+              final p = x.question.parentQuestionId?.trim() ?? '';
+              return p.isEmpty;
+            }).toList();
+
+            // Main question candidates must have options
+            final mainCandidates = base
+                .where((x) => _needsOptions(x.question.questionType))
+                .toList();
+
+            DemographicQuestionWithOptions? selectedMain;
+            if (_mainQuestionDocId != null) {
+              for (final q in mainCandidates) {
+                if (q.question.id == _mainQuestionDocId) {
+                  selectedMain = q;
+                  break;
+                }
+              }
+            }
+
+            // Sub-question candidates = any base question except selected main
+            final subCandidates = base.where((x) {
+              if (_mainQuestionDocId == null) return true;
+              return x.question.id != _mainQuestionDocId;
+            }).toList();
+
+            final mainOptions =
+                selectedMain?.options ?? const <DemographicQuestionOption>[];
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Main question
+                Text('Main question',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _mainQuestionDocId,
+                  isExpanded: true,
+                  decoration:
+                      const InputDecoration(border: OutlineInputBorder()),
+                  items: [
+                    for (final q in mainCandidates)
+                      DropdownMenuItem(
+                        value: q.question.id,
+                        child: Text(
+                          q.question.questionText.isEmpty
+                              ? '(Untitled)'
+                              : q.question.questionText,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(),
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    setState(() {
+                      _mainQuestionDocId = v;
+                      _triggerOptionId = null;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 14),
+
+                // Trigger option (only after main selected)
+                Text('When answer is',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _triggerOptionId,
+                  isExpanded: true,
+                  decoration:
+                      const InputDecoration(border: OutlineInputBorder()),
+                  items: [
+                    for (final o in mainOptions)
+                      DropdownMenuItem(
+                        value: o.id,
+                        child: Text(o.label.isEmpty ? '(Option)' : o.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins()),
+                      ),
+                  ],
+                  onChanged: (_mainQuestionDocId == null)
+                      ? null
+                      : (v) => setState(() => _triggerOptionId = v),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Existing sub-question selection
+                Text('Follow-up question (existing)',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _subQuestionDocId,
+                  isExpanded: true,
+                  decoration:
+                      const InputDecoration(border: OutlineInputBorder()),
+                  items: [
+                    for (final q in subCandidates)
+                      DropdownMenuItem(
+                        value: q.question.id,
+                        child: Text(
+                          q.question.questionText.isEmpty
+                              ? '(Untitled)'
+                              : q.question.questionText,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(),
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _subQuestionDocId = v),
+                ),
+
+                const SizedBox(height: 6),
+                Text(
+                  'Tip: Create questions freely first. Then use rules to “attach” one under a main question.',
+                  style:
+                      GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text('Cancel', style: GoogleFonts.poppins()),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : _saveRule,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : Text('Save rule',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _saveRule() async {
+    if ((_mainQuestionDocId ?? '').isEmpty ||
+        (_triggerOptionId ?? '').isEmpty ||
+        (_subQuestionDocId ?? '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'Please select main question, answer option, and follow-up question.',
+                style: GoogleFonts.poppins())),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      // Put sub-question at end of that parent’s follow-ups (optional)
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestions')
+          .where('isDisabled', isEqualTo: false) // ✅ ADD THIS
+          .where('questionSetId', isEqualTo: widget.questionSetId)
+          .where('parentQuestionId', isEqualTo: _mainQuestionDocId)
+          .get();
+
+      int maxOrder = 0;
+      for (final d in snap.docs) {
+        final v = d.data()['displayOrder'];
+        final n = (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
+        if (n > maxOrder) maxOrder = n;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('demographicQuestions')
+          .doc(_subQuestionDocId)
+          .update({
+        'parentQuestionId': _mainQuestionDocId,
+        'triggerOptionId': _triggerOptionId,
+        'displayOrder': maxOrder + 1,
+        'modifiedDate': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rule saved.', style: GoogleFonts.poppins())),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text('Failed to save rule: $e', style: GoogleFonts.poppins())),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+class _HostRenderRow {
+  final DemographicQuestionWithOptions item;
+  final bool isSub;
+  const _HostRenderRow({required this.item, required this.isSub});
+}
+
 // -----------------------------------------------------------------------------
 // QUESTION CARD – updated styling
 // -----------------------------------------------------------------------------
@@ -730,15 +1110,21 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 class _GoogleFormsQuestionCard extends StatelessWidget {
   final int index;
   final DemographicQuestionWithOptions item;
+
   final bool isActive;
   final VoidCallback onTap;
+
+  final bool isFollowUp; // ✅ NEW
+  final String? followUpTriggerLabel; // ✅ NEW
+  final VoidCallback? onRemoveRule; // ✅ NEW
+
   final ValueChanged<String> onQuestionTextChanged;
   final ValueChanged<String> onQuestionTypeChanged;
   final ValueChanged<bool> onRequiredChanged;
+
   final VoidCallback onDelete;
   final ValueChanged<DemographicQuestionOption>? onRemoveOption;
 
-  // NEW:
   final VoidCallback? onAddOption;
   final void Function(DemographicQuestionOption opt, String newLabel)?
       onOptionLabelChanged;
@@ -753,7 +1139,10 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
     required this.onRequiredChanged,
     required this.onDelete,
     required this.onRemoveOption,
-    this.onAddOption, // NEW
+    required this.isFollowUp,
+    this.followUpTriggerLabel,
+    this.onRemoveRule,
+    this.onAddOption,
     this.onOptionLabelChanged,
   });
 
@@ -786,18 +1175,50 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drag handle
-            // Center(
-            //   child: ReorderableDragStartListener(
-            //     index: index,
-            //     child: Icon(
-            //       Icons.drag_indicator_rounded,
-            //       size: 20,
-            //       color: Colors.grey.shade500,
-            //     ),
-            //   ),
-            // ),
-            // const SizedBox(height: 8),
+            // ✅ show follow-up chip ONLY when actually a follow-up (rule applied)
+            if (isFollowUp)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Follow-up',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    if ((followUpTriggerLabel ?? '').trim().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'When: ${followUpTriggerLabel!}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
 
             // Question row
             Row(
@@ -818,17 +1239,14 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: Colors.grey,
                       ),
-                      border: UnderlineInputBorder(
+                      border: const UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.transparent),
                       ),
-                      enabledBorder: UnderlineInputBorder(
+                      enabledBorder: const UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.transparent),
                       ),
                       focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                          color: kAccent,
-                          width: 2,
-                        ),
+                        borderSide: BorderSide(color: kAccent, width: 2),
                       ),
                     ),
                     style: GoogleFonts.poppins(
@@ -867,6 +1285,27 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
             if (isActive)
               Row(
                 children: [
+                  // ✅ Remove rule action (only for follow-ups)
+                  if (isFollowUp && onRemoveRule != null) ...[
+                    TextButton.icon(
+                      onPressed: onRemoveRule,
+                      icon: const Icon(Icons.link_off_rounded, size: 18),
+                      label: Text(
+                        'Remove rule',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red.shade600,
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),

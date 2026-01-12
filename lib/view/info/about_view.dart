@@ -35,7 +35,7 @@ class AboutView extends StatelessWidget {
                     children: [
                       AppText.styledBodyMedium(
                         context,
-                        "Traxx Events got started in Wilmington New York at the Hungry Trout Restaurant.\n\n\nWhile busy managing normal every day goings on around the restaurant and resort, the team\nrealized that there was something missing.\n\n\nThe guests attending an event hosted there were often in the dark about what food would be\nprovided and on top of that, if they could eat it,\ndue to dietary restrictions.\n\n\nThat's when Traxx was born",
+                        "Trax Events got started in Wilmington New York at the Hungry Trout Restaurant.\n\n\nWhile busy managing normal every day goings on around the restaurant and resort, the team\nrealized that there was something missing.\n\n\nThe guests attending an event hosted there were often in the dark about what food would be\nprovided and on top of that, if they could eat it,\ndue to dietary restrictions.\n\n\nThat's when Traxx was born",
                         weight: FontWeight.w500,
                         color: AppColors.onPrimary(context),
                         textAlign: TextAlign.center,

@@ -24,9 +24,13 @@ class GuestModel {
 
   final bool isDisabled;
   final bool isInvited;
+  final int maxGuestInvite;
+  final String? groupId; // Optional group ID to link main guest with companions
+  final bool isCompanion; // Whether this guest is a companion (not the main guest)
+  final String? batchId; // Optional batch ID (6-digit number) for guest grouping/tracking
 
   GuestModel({
-    this.docId = '', // ✅ default, so parsers don’t need to pass it
+    this.docId = '', // ✅ default, so parsers don't need to pass it
     this.guestId,
     required this.name,
     required this.email,
@@ -40,6 +44,10 @@ class GuestModel {
     this.modifiedAt,
     this.isDisabled = false,
     this.isInvited = false,
+    this.maxGuestInvite = 0,
+    this.groupId,
+    this.isCompanion = false,
+    this.batchId,
   });
 
   /// Firestore: create (new document)
@@ -61,6 +69,10 @@ class GuestModel {
 
       'isDisabled': isDisabled,
       'isInvited': isInvited,
+      'maxGuestInvite': maxGuestInvite,
+      if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
+      'isCompanion': isCompanion,
+      if (batchId != null && batchId!.trim().isNotEmpty) 'batchId': batchId,
 
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
@@ -82,6 +94,10 @@ class GuestModel {
       if (gender != null) 'gender': gender!.name,
       'isDisabled': isDisabled,
       'isInvited': isInvited,
+      'maxGuestInvite': maxGuestInvite,
+      if (groupId != null && groupId!.trim().isNotEmpty) 'groupId': groupId,
+      'isCompanion': isCompanion,
+      if (batchId != null && batchId!.trim().isNotEmpty) 'batchId': batchId,
       'modifiedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -144,6 +160,10 @@ class GuestModel {
       modifiedAt: parseTimestamp(data['modifiedAt']),
       isDisabled: data['isDisabled'] as bool? ?? false,
       isInvited: data['isInvited'] as bool? ?? false,
+      maxGuestInvite: data['maxGuestInvite'] as int? ?? 0,
+      groupId: data['groupId'] as String?,
+      isCompanion: data['isCompanion'] as bool? ?? false,
+      batchId: data['batchId'] as String?,
     );
   }
 
@@ -162,6 +182,10 @@ class GuestModel {
     DateTime? modifiedAt,
     bool? isDisabled,
     bool? isInvited,
+    int? maxGuestInvite,
+    String? groupId,
+    bool? isCompanion,
+    String? batchId,
   }) {
     return GuestModel(
       docId: docId ?? this.docId,
@@ -178,6 +202,10 @@ class GuestModel {
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isDisabled: isDisabled ?? this.isDisabled,
       isInvited: isInvited ?? this.isInvited,
+      maxGuestInvite: maxGuestInvite ?? this.maxGuestInvite,
+      groupId: groupId ?? this.groupId,
+      isCompanion: isCompanion ?? this.isCompanion,
+      batchId: batchId ?? this.batchId,
     );
   }
 
@@ -197,7 +225,11 @@ class GuestModel {
         'createdAt: $createdAt, '
         'modifiedAt: $modifiedAt, '
         'isDisabled: $isDisabled, '
-        'isInvited: $isInvited'
+        'isInvited: $isInvited, '
+        'maxGuestInvite: $maxGuestInvite, '
+        'groupId: $groupId, '
+        'isCompanion: $isCompanion, '
+        'batchId: $batchId'
         ')';
   }
 }

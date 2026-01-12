@@ -4,6 +4,7 @@ import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/admin_
 import 'package:traxx_wepapp/layout/headers/calendar_header.dart';
 import 'package:traxx_wepapp/layout/headers/event_list_header.dart';
 import 'package:traxx_wepapp/layout/headers/host_event_details_header.dart';
+import 'package:traxx_wepapp/layout/headers/guest_side_preview_header.dart';
 import 'package:traxx_wepapp/layout/headers/menus_management_header.dart';
 import 'package:traxx_wepapp/layout/headers/settings_header.dart';
 import 'package:traxx_wepapp/layout/headers/venues_management_header.dart';
@@ -11,52 +12,68 @@ import 'package:traxx_wepapp/layout/headers/questions_management_header.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_bar_custom.dart';
 
-Widget getPageHeader(GoRouterState state) {
-  print('Matched location: ${state.matchedLocation}');
-  if (state.matchedLocation == AppRoute.hostEvents.path) {
+/// Returns the header widget for a given route state.
+/// 
+/// Uses [GoRouterState.of(context)] to get the current location for accurate
+/// header resolution, especially when navigating within shell routes.
+Widget getPageHeader(GoRouterState state, {BuildContext? context}) {
+  // Use context-based state if available for more accurate location
+  final location = context != null 
+      ? GoRouterState.of(context).uri.toString()
+      : state.matchedLocation;
+  
+  print('Header resolver - location: $location');
+  
+  if (location == AppRoute.hostEvents.path) {
     return AppBarCustom(content: EventListHeader());
   }
-  // if (state.matchedLocation == AppRoute.eventDetails.path) {
-  if (state.matchedLocation.startsWith('/event-details/')) {
+  
+  // Check for guest preview page first (before event details check)
+  if (location.contains('/guest-preview')) {
+    print('GUEST preview page found');
+    final eventId = state.pathParameters[AppRoute.guestSidePreview.placeholder] 
+        ?? _extractEventIdFromPath(location);
+    if (eventId != null) {
+      return AppBarCustom(content: GuestSidePreviewHeader(eventId: eventId));
+    }
+  }
+  
+  // Check for event details page
+  if (location.startsWith('/event-details/') && !location.contains('/guest-preview')) {
     return AppBarCustom(content: HostEventDetailsHeader());
   }
-  if (state.matchedLocation == AppRoute.calendarView.path) {
+  if (location == AppRoute.calendarView.path) {
     return AppBarCustom(content: CalendarHeader());
   }
-  if (state.matchedLocation == AppRoute.hostVenues.path) {
+  if (location == AppRoute.hostVenues.path) {
     return AppBarCustom(content: VenuesManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostMenus.path) {
+  if (location == AppRoute.hostMenus.path) {
     return AppBarCustom(content: MenusManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostRoleSelection.path) {
+  if (location == AppRoute.hostRoleSelection.path) {
     return AppBarCustom(content: AdminUserManagementHeader());
   }
-  if (state.matchedLocation == AppRoute.hostQuestionSets.path ||
-      state.matchedLocation.startsWith('/host-question-sets/') || // ✅ NEW
-      state.matchedLocation == AppRoute.hostQuestions.path) {
+  if (location == AppRoute.hostQuestionSets.path ||
+      location.startsWith('/host-question-sets/') ||
+      location == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }
 
-  if (state.matchedLocation == AppRoute.hostQuestions.path) {
+  if (location == AppRoute.hostQuestions.path) {
     return AppBarCustom(content: QuestionsManagementHeader());
   }
-  // if (state.matchedLocation == AppRoute.hostDemographics.path) {
-  //   return AppBarCustom(
-  //     content: Row(
-  //       children: const [
-  //         Text(
-  //           'Guest Demographic Responses',
-  //           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
-  if (state.matchedLocation == AppRoute.hostSettings.path) {
+  if (location == AppRoute.hostSettings.path) {
     return AppBarCustom(content: SettingsHeader());
   }
 
   return const SizedBox.shrink();
+}
+
+/// Extracts eventId from a path like /event-details/abc123/guest-preview
+String? _extractEventIdFromPath(String path) {
+  final regex = RegExp(r'/event-details/([^/]+)');
+  final match = regex.firstMatch(path);
+  return match?.group(1);
 }

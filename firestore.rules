@@ -53,10 +53,9 @@ service cloud.firestore {
 
     // Events (TEMP - dev)
     match /events/{eventId} {
-      allow read, create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow read: if true;          // ✅ guest needs to read
+      allow create, update, delete: if isSignedIn();
     }
-
     // Responses subcollection
     match /events/{eventId}/responses/{respId} {
       allow create: if isSignedIn() && (isSuperAdmin() || userOrgId() == eventOrgId(eventId));
@@ -65,8 +64,8 @@ service cloud.firestore {
     }
 
     // guestResponses (existing)
-    match /events/{eventId}/guestResponses/{docId} {
-      allow read, write: if isSignedIn();
+   	match /events/{eventId}/guestResponses/{docId} {
+      allow read, write: if true;  // dev only
     }
 
     // guestQuestions config
@@ -74,40 +73,32 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // ✅ Demographic Question Sets
-    // Guests must be able to GET the specific set referenced by invitation.
-    // But do NOT allow list for guests.
-    match /demographicQuestionSets/{setId} {
-      // guests can only GET a single doc (no list), and only if enabled
-      allow get: if resource.data.isDisabled != true;
+		match /demographicQuestionSets/{setId} {
+      allow get: if
+        !exists(/databases/$(database)/documents/demographicQuestionSets/$(setId)) ||
+        get(/databases/$(database)/documents/demographicQuestionSets/$(setId)).data.isDisabled != true;
 
-      // signed-in users can list (and read) per your existing constraints
       allow list: if isSignedIn();
-
-      // keep your original signed-in read constraints
-      allow read: if isSignedIn() && (
-        isSuperAdmin() ||
-        resource.data.userId == request.auth.uid ||
-        resource.data.organisationId == userOrgId()
-      );
-
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // ✅ Demographic Questions
-    // Guests need to query questions, so allow read when enabled.
-    match /demographicQuestions/{questionId} {
-      allow read: if resource.data.isDisabled != true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // ✅ Demographic Question Options
-    match /demographicQuestionOptions/{optId} {
-      allow read: if resource.data.isDisabled != true;
+      allow read: if isSignedIn();
       allow create, update, delete: if isSignedIn();
     }
+
+    match /demographicQuestions/{questionId} {
+      allow read: if
+        !exists(/databases/$(database)/documents/demographicQuestions/$(questionId)) ||
+        get(/databases/$(database)/documents/demographicQuestions/$(questionId)).data.isDisabled != true;
+
+      allow write: if isSignedIn();
+    }
+
+    match /demographicQuestionOptions/{optId} {
+      allow read: if
+        !exists(/databases/$(database)/documents/demographicQuestionOptions/$(optId)) ||
+        get(/databases/$(database)/documents/demographicQuestionOptions/$(optId)).data.isDisabled != true;
+
+      allow write: if isSignedIn();
+    }
+
 
     // Venues dev
     match /venues/{venueId} {
@@ -115,28 +106,51 @@ service cloud.firestore {
     }
 
     // Guests dev (org-level)
-    match /guests/{guestId} {
-      allow read, write: if isSignedIn();
+   match /guests/{guestId} {
+      allow read: if true;
+      allow create: if true;     // ✅ allow guest to create companion docs
+      allow update, delete: if false; // keep tight
     }
 
-    // Invitations
     match /invitations/{invId} {
       allow get: if true;
       allow list: if false;
 
-      allow create: if isSignedIn(); // dev
-      allow update, delete: if false;
+      allow create: if isSignedIn();
+      allow delete: if false;
+
+      allow update: if
+        request.resource.data.token == resource.data.token &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          // RSVP
+          'isAttending', 'rsvpSubmittedAt', 'declineReason',
+
+          // Companions step
+          'companions',
+          'companionsCount', 'companionsSubmittedAt', 'isInvitingCompanionsByEmail',
+          'savedCompanionsCount',              // ✅ ADD
+          'remainingCompanionsToCreate',       // ✅ ADD
+
+          // Demographics completion
+          'used', 'demographicsSubmittedAt',
+
+          // Menu completion
+          'menuSelectionSubmitted', 'menuSubmittedAt',
+
+          // optional
+          'updatedAt'
+        ]);
     }
+
+
 
     // Demographic Responses: Anyone can create (guest submission), only org members can read
     match /demographicQuestionsResponses/{respId} {
       allow create: if true;
-      allow read: if isSignedIn() && (
-        isSuperAdmin() ||
-        userOrgId() == resource.data.organisationId
-      );
+      allow read: if isSignedIn();
       allow update, delete: if false;
     }
+
 
     // Invitation Logs: Only org members can read
     match /invitationLogs/{logId} {

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_csv_parser.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_xlsx_parser.dart';
 import 'package:traxx_wepapp/utils/enums/genders.dart';
@@ -13,6 +14,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class AdminGuestListController extends GetxController {
   final formKey = GlobalKey<FormState>();
+
+  // Add FirestoreServices instance
+  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
 
   final name = TextEditingController();
   final email = TextEditingController();
@@ -25,6 +29,9 @@ class AdminGuestListController extends GetxController {
   final selectedCountry = RxnString();
   final selectedState = RxnString();
   final selectedGender = Rxn<Gender>();
+
+  /// Maximum number of guests this guest can invite (0 by default)
+  final maxGuestInvite = 0.obs;
 
   /// Whether the guest is disabled. Defaults to false (enabled).
   final isDisabled = false.obs;
@@ -116,44 +123,44 @@ class AdminGuestListController extends GetxController {
     return q.docs.first.data();
   }
 
-  Future<void> _createInvitationForGuest({
-    required String guestId,
-    required String guestEmail,
-  }) async {
-    final eventData = await _getEventData(eventId);
+  // Future<void> _createInvitationForGuest({
+  //   required String guestId,
+  //   required String guestEmail,
+  // }) async {
+  //   final eventData = await _getEventData(eventId);
 
-    final orgId = (eventData['organisationId'] ?? '').toString();
-    final setId =
-        (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
+  //   final orgId = (eventData['organisationId'] ?? '').toString();
+  //   final setId =
+  //       (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
 
-    if (orgId.isEmpty) throw Exception('Event.organisationId missing');
-    if (setId.isEmpty)
-      throw Exception('Event.selectedDemographicQuestionSetId missing');
+  //   if (orgId.isEmpty) throw Exception('Event.organisationId missing');
+  //   if (setId.isEmpty)
+  //     throw Exception('Event.selectedDemographicQuestionSetId missing');
 
-    final invRef = FirebaseFirestore.instance.collection('invitations').doc();
-    final invId = invRef.id;
+  //   final invRef = FirebaseFirestore.instance.collection('invitations').doc();
+  //   final invId = invRef.id;
 
-    final expiresAt =
-        Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
+  //   final expiresAt =
+  //       Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
 
-    await invRef.set({
-      'invitationId': invId,
-      'eventId': eventId,
-      'organisationId': orgId,
-      'guestId': guestId,
-      'guestEmail': guestEmail,
-      'demographicQuestionSetId': setId,
-      'token': _newToken(),
-      'expiresAt': expiresAt,
-      'used': false,
+  //   await invRef.set({
+  //     'invitationId': invId,
+  //     'eventId': eventId,
+  //     'organisationId': orgId,
+  //     'guestId': guestId,
+  //     'guestEmail': guestEmail,
+  //     'demographicQuestionSetId': setId,
+  //     'token': _newToken(),
+  //     'expiresAt': expiresAt,
+  //     'used': false,
 
-      // match your screenshot fields
-      'sent': false,
-      'sendError': null,
-      'createdAt': FieldValue.serverTimestamp(),
-      'sentAt': FieldValue.serverTimestamp(),
-    });
-  }
+  //     // match your screenshot fields
+  //     'sent': false,
+  //     'sendError': null,
+  //     'createdAt': FieldValue.serverTimestamp(),
+  //     'sentAt': FieldValue.serverTimestamp(),
+  //   });
+  // }
 
   // ---------------------------
   // Add Guest
@@ -165,27 +172,24 @@ class AdminGuestListController extends GetxController {
     if (!validateForm()) return false;
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('guests').doc();
-      final guestId = docRef.id;
+      // Create GuestModel and use FirestoreServices to save (which will generate batch ID)
+      final guest = GuestModel(
+        name: name.text.trim(),
+        email: email.text.trim(),
+        eventId: eventId,
+        address: address.text.trim().isNotEmpty ? address.text.trim() : null,
+        city: city.text.trim().isNotEmpty ? city.text.trim() : null,
+        country: selectedCountry.value,
+        state: selectedState.value,
+        gender: selectedGender.value,
+        isDisabled: isDisabled.value,
+        isInvited: false, // Default to not invited
+        maxGuestInvite: maxGuestInvite.value,
+      );
 
-      final data = <String, dynamic>{
-        'guestId': guestId,
-        'name': name.text.trim(),
-        'email': email.text.trim(),
-        'address': address.text.trim(),
-        'city': city.text.trim(),
-        'country': selectedCountry.value,
-        'state': selectedState.value,
-        'gender': selectedGender.value?.name,
-        'isDisabled': isDisabled.value,
-        'isInvited': false, // Default to not invited
-        'eventId': eventId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'modifiedAt': FieldValue.serverTimestamp(),
-      };
-
-      await docRef.set(data);
-      debugPrint('submitForm: guest created, id=$guestId');
+      final savedGuest = await _firestoreServices.saveGuest(guest);
+      debugPrint(
+          'submitForm: guest created with batch ID, id=${savedGuest.guestId}, batchId=${savedGuest.batchId}');
       return true;
     } catch (e, st) {
       debugPrint('submitForm error: $e\n$st');
@@ -203,42 +207,46 @@ class AdminGuestListController extends GetxController {
     }
 
     try {
-      final docRef =
-          FirebaseFirestore.instance.collection('guests').doc(_currentGuestId);
+      // Create GuestModel with current form values
+      final guest = GuestModel(
+        guestId: _currentGuestId,
+        name: name.text.trim(),
+        email: email.text.trim(),
+        eventId: eventId,
+        address: address.text.trim().isNotEmpty ? address.text.trim() : null,
+        city: city.text.trim().isNotEmpty ? city.text.trim() : null,
+        country: selectedCountry.value,
+        state: selectedState.value,
+        gender: selectedGender.value,
+        isDisabled: isDisabled.value,
+        maxGuestInvite: maxGuestInvite.value,
+        isInvited: false, // Keep existing or default
+      );
 
-      // Check existence
-      final snapshot = await docRef.get();
-      final data = <String, dynamic>{
-        "name": name.text.trim(),
-        "email": email.text.trim(),
-        "address": address.text.trim(),
-        "city": city.text.trim(),
-        "country": selectedCountry.value,
-        "state": selectedState.value,
-        "gender": selectedGender.value?.name,
-        "isDisabled": isDisabled.value,
-        "modifiedAt": FieldValue.serverTimestamp(),
-      };
-
-      if (snapshot.exists) {
-        await docRef.update(data);
-        debugPrint('updateGuest: updated existing guest id=$_currentGuestId');
-      } else {
-        // Document missing — create with provided id so future updates succeed
-        await docRef.set({
-          ...data,
-          'guestId': _currentGuestId,
-          'isInvited': false, // Default to not invited for new docs
-          'eventId': eventId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        debugPrint(
-            'updateGuest: doc not found — created new guest doc id=$_currentGuestId');
-      }
-
+      // Use FirestoreServices to update (preserves batchId and other fields)
+      await _firestoreServices.updateGuest(guest);
+      debugPrint('updateGuest: updated guest id=$_currentGuestId');
       return true;
     } catch (e, st) {
       debugPrint('updateGuest error: $e\n$st');
+      return false;
+    }
+  }
+
+  /// Updates a guest directly using a GuestModel object (for inline edits)
+  Future<bool> updateGuestDirectly(GuestModel guest) async {
+    if (guest.guestId == null || guest.guestId!.isEmpty) {
+      debugPrint('updateGuestDirectly: guestId is null/empty — cannot update');
+      return false;
+    }
+
+    try {
+      // Use FirestoreServices to update (preserves batchId and other fields)
+      await _firestoreServices.updateGuest(guest);
+      debugPrint('updateGuestDirectly: updated guest id=${guest.guestId}');
+      return true;
+    } catch (e, st) {
+      debugPrint('updateGuestDirectly error: $e\n$st');
       return false;
     }
   }
@@ -267,6 +275,9 @@ class AdminGuestListController extends GetxController {
     // isDisabled flag
     // GuestModel.isDisabled is non-nullable in current model, assign directly
     isDisabled.value = guest.isDisabled;
+
+    // maxGuestInvite
+    maxGuestInvite.value = guest.maxGuestInvite;
 
     // // Gender: map from stored String to Gender enum safely (case-insensitive)
     // if (guest.gender != null && guest.gender!.isNotEmpty) {
@@ -365,34 +376,21 @@ class AdminGuestListController extends GetxController {
         return {'added': 0, 'skipped': skippedCount};
       }
 
-      // Save all unique guests to Firestore using batch write
-      final batch = FirebaseFirestore.instance.batch();
+      // Save all unique guests to Firestore using the service layer
+      // Note: We can't use batch writes here because batch ID generation requires async queries
       int count = 0;
 
       for (final guest in uniqueGuests) {
-        final docRef = FirebaseFirestore.instance.collection('guests').doc();
-        final guestId = docRef.id;
-
-        final guestWithId = GuestModel(
-          docId: guestId,
-          guestId: guestId,
-          name: guest.name,
-          email: guest.email,
-          eventId: eventId,
-          address: guest.address,
-          city: guest.city,
-          state: guest.state,
-          country: guest.country,
-          gender: guest.gender,
-          isDisabled: false,
-          isInvited: false,
-        );
-
-        batch.set(docRef, guestWithId.toFirestoreCreate());
-        count++;
+        try {
+          // Use FirestoreServices.saveGuest which will generate batch ID
+          await _firestoreServices.saveGuest(guest);
+          count++;
+        } catch (e) {
+          debugPrint('Failed to save guest ${guest.email}: $e');
+          // Continue with next guest even if one fails
+        }
       }
 
-      await batch.commit();
       debugPrint(
           'uploadGuestsFromFile: uploaded $count guests, skipped $skippedCount duplicates');
       return {'added': count, 'skipped': skippedCount};
@@ -406,7 +404,7 @@ class AdminGuestListController extends GetxController {
   // Invitation methods
   // ---------------------------
 
-  Future<bool> inviteGuest(String guestId) async {
+  Future<bool> inviteGuest(String guestId, {bool forceResend = false}) async {
     try {
       final guestDoc = await FirebaseFirestore.instance
           .collection('guests')
@@ -417,13 +415,21 @@ class AdminGuestListController extends GetxController {
       final guest = GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id);
 
       if (guest.isDisabled == true) return false;
-      if (guest.isInvited == true) return true;
       if (guest.email.trim().isEmpty) return false;
+
+      // allow resend
+      if (guest.isInvited == true && !forceResend) {
+        return true;
+      }
 
       final eventMeta = await _getEventMeta();
       final orgId = (eventMeta['organisationId'] ?? '').toString();
       final setId =
           (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
+
+      final eventsController = Get.find<EventsController>();
+      final invitationCode =
+          eventsController.getInvitationCodeByEventId(eventId);
 
       final callable =
           FirebaseFunctions.instance.httpsCallable('sendInvitations');
@@ -432,32 +438,53 @@ class AdminGuestListController extends GetxController {
         'eventId': eventId,
         'organisationId': orgId.isEmpty ? null : orgId,
         'demographicQuestionSetId': setId.isEmpty ? null : setId,
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
         'invitations': [
           {
             'guestEmail': guest.email.trim(),
-            'guestId': guest.guestId,
+            // ✅ CRITICAL: MUST be the Firestore guest document id
+            'guestId': guestId,
             'guestName': guest.name,
+            'maxGuestInvite': guest.maxGuestInvite,
+            if (guest.batchId != null && guest.batchId!.trim().isNotEmpty)
+              'batchId': guest.batchId,
           }
         ],
       });
 
       final data = Map<String, dynamic>.from(res.data as Map);
-      final invited = (data['invited'] ?? 0) as int;
+      final results = (data['results'] as List?) ?? const [];
 
-      if (invited > 0) {
+      final first = results.isNotEmpty
+          ? Map<String, dynamic>.from(results.first as Map)
+          : <String, dynamic>{};
+
+      final status = (first['status'] ?? '').toString();
+
+      if (status == 'sent') {
         await FirebaseFirestore.instance
             .collection('guests')
             .doc(guestId)
             .update({
           'isInvited': true,
           'modifiedAt': FieldValue.serverTimestamp(),
+          'lastInvitedAt': FieldValue.serverTimestamp(),
+          'inviteSentCount': FieldValue.increment(1),
         });
         return true;
       }
 
+// helpful debug
+      debugPrint(
+          'Invite failed: ${first['error'] ?? first['sendError'] ?? data}');
+      return false;
+    } on FirebaseFunctionsException catch (e, st) {
+      debugPrint(
+          'inviteGuest FirebaseFunctionsException: ${e.code} ${e.message}\n$st');
       return false;
     } catch (e, st) {
-      debugPrint('inviteGuest email error: $e\n$st');
+      debugPrint('inviteGuest error: $e\n$st');
       return false;
     }
   }
@@ -468,22 +495,37 @@ class AdminGuestListController extends GetxController {
           .collection('guests')
           .where('eventId', isEqualTo: eventId)
           .where('isDisabled', isEqualTo: false)
-          .where('isInvited', isEqualTo: false)
           .get();
 
       if (snapshot.docs.isEmpty) return 0;
 
-      final guestsToInvite = snapshot.docs
-          .map((d) => GuestModel.fromFirestore(d.data(), d.id))
-          .where((g) => g.email.trim().isNotEmpty)
+      // Build invitations using doc.id as guestId (CRITICAL)
+      final invitations = snapshot.docs
+          .map((doc) {
+            final g = GuestModel.fromFirestore(doc.data(), doc.id);
+            if (g.email.trim().isEmpty) return null;
+            return {
+              'guestEmail': g.email.trim(),
+              'guestId': doc.id, // ✅ MUST be doc.id
+              'guestName': g.name,
+              'maxGuestInvite': g.maxGuestInvite,
+              if (g.batchId != null && g.batchId!.trim().isNotEmpty)
+                'batchId': g.batchId,
+            };
+          })
+          .whereType<Map<String, dynamic>>()
           .toList();
 
-      if (guestsToInvite.isEmpty) return 0;
+      if (invitations.isEmpty) return 0;
 
       final eventMeta = await _getEventMeta();
       final orgId = (eventMeta['organisationId'] ?? '').toString();
       final setId =
           (eventMeta['selectedDemographicQuestionSetId'] ?? '').toString();
+
+      final eventsController = Get.find<EventsController>();
+      final invitationCode =
+          eventsController.getInvitationCodeByEventId(eventId);
 
       final callable =
           FirebaseFunctions.instance.httpsCallable('sendInvitations');
@@ -492,45 +534,40 @@ class AdminGuestListController extends GetxController {
         'eventId': eventId,
         'organisationId': orgId.isEmpty ? null : orgId,
         'demographicQuestionSetId': setId.isEmpty ? null : setId,
-        'invitations': guestsToInvite
-            .map((g) => {
-                  'guestEmail': g.email.trim(),
-                  'guestId': g.guestId,
-                  'guestName': g.name,
-                })
-            .toList(),
+        if (invitationCode != null && invitationCode.trim().isNotEmpty)
+          'invitationCode': invitationCode,
+        'invitations': invitations,
       });
 
       final data = Map<String, dynamic>.from(res.data as Map);
       final results = (data['results'] as List?) ?? [];
 
-      final sentEmails = results
+      // ✅ Collect guestIds that were successfully sent
+      final sentGuestIds = results
           .where((r) => r is Map && r['status'] == 'sent')
-          .map((r) => (r['guestEmail'] ?? '').toString().trim().toLowerCase())
-          .where((e) => e.isNotEmpty)
+          .map((r) => (r['guestId'] ?? '').toString().trim())
+          .where((id) => id.isNotEmpty)
           .toSet();
 
-      if (sentEmails.isEmpty) return 0;
+      if (sentGuestIds.isEmpty) return 0;
 
       final batch = FirebaseFirestore.instance.batch();
       int count = 0;
 
-      for (final doc in snapshot.docs) {
-        final email =
-            (doc.data()['email'] ?? '').toString().trim().toLowerCase();
-        if (sentEmails.contains(email)) {
-          batch.update(doc.reference, {
-            'isInvited': true,
-            'modifiedAt': FieldValue.serverTimestamp(),
-          });
-          count++;
-        }
+      for (final id in sentGuestIds) {
+        batch.update(FirebaseFirestore.instance.collection('guests').doc(id), {
+          'isInvited': true,
+          'modifiedAt': FieldValue.serverTimestamp(),
+          'lastInvitedAt': FieldValue.serverTimestamp(),
+          'inviteSentCount': FieldValue.increment(1),
+        });
+        count++;
       }
 
       await batch.commit();
       return count;
     } catch (e, st) {
-      debugPrint('inviteAllGuests email error: $e\n$st');
+      debugPrint('inviteAllGuests error: $e\n$st');
       return 0;
     }
   }
@@ -554,6 +591,7 @@ class AdminGuestListController extends GetxController {
     selectedGender.value = null;
 
     isDisabled.value = false;
+    maxGuestInvite.value = 0;
     _currentGuestId = null;
   }
 

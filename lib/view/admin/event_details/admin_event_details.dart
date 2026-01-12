@@ -8,19 +8,25 @@ import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_co
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/menu_item_group.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/models/question_set.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
+import 'package:traxx_wepapp/utils/menu_cateogory_utils.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
+import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
+import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
-import 'package:traxx_wepapp/widgets/event_details_header.dart';
-import 'package:traxx_wepapp/view/admin/event_details/widgets/event_details_image.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_summary_section.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/invitation_letter/invitation_letter_section.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 
 class AdminEventDetails extends StatefulWidget {
   final String eventId;
@@ -59,10 +65,6 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
   @override
   Widget build(BuildContext context) {
-    final hasDemo =
-        (controller.selectedDemographicSetId.value ?? '').trim().isNotEmpty;
-    final hasMenu = controller.selectedMenuItemIds.isNotEmpty;
-    final canInvite = hasDemo && hasMenu;
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -77,6 +79,13 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
           ),
         );
       }
+
+      // Calculate canInvite based on menu, demographics, and event status
+      final hasDemo =
+          (controller.selectedDemographicSetId.value ?? '').trim().isNotEmpty;
+      final hasMenu = controller.selectedMenuItemIds.isNotEmpty;
+      final isPublished = evt.status == EventStatus.published;
+      final canInvite = hasDemo && hasMenu && isPublished;
 
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -99,7 +108,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
             const SizedBox(height: 24),
 
-            /// Row with Menu card + Demographic card
+            /// Row with Menu card + Demographic column (Demographic + Additional Info)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -108,7 +117,17 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
                 ),
                 const SizedBox(width: 24),
                 Expanded(
-                  child: DemographicSelectionCard(controller: controller),
+                  child: Column(
+                    children: [
+                      DemographicSelectionCard(controller: controller),
+                      const SizedBox(height: 16),
+                      Obx(() {
+                        final event = controller.event.value;
+                        if (event == null) return const SizedBox.shrink();
+                        return InvitationLetterSection(event: event);
+                      }),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -130,6 +149,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
               eventName: evt.name,
               capacity: evt.capacity,
               canInvite: canInvite,
+              maxInviteByGuest: evt.maxInviteByGuest,
             ),
           ],
         ),
@@ -405,7 +425,7 @@ class _DemographicSetPickerDialogState
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withValues(alpha: 0.18),
               blurRadius: 24,
               offset: const Offset(0, 12),
             )
@@ -818,155 +838,6 @@ class _DemographicSetPickerDialogState
   }
 }
 
-class EventSummarySection extends StatelessWidget {
-  final AdminEventDetailsController controller;
-
-  const EventSummarySection({super.key, required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final evt = controller.event.value;
-      if (evt == null) return const SizedBox.shrink();
-      final organisation = controller.organisation;
-      final venue = controller.venue;
-
-      final dateStr =
-          "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
-      final timeStr =
-          "${evt.date.hour.toString().padLeft(2, '0')}:${evt.date.minute.toString().padLeft(2, '0')}";
-
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// title + edit icon
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      EventImage(
-                        onUpdate: (updatedEvent) =>
-                            controller.updateEvent(updatedEvent),
-                        event: evt,
-                        width: 90,
-                        height: 90,
-                        borderRadius: 12,
-                        iconSize: 36,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  evt.name,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF111827),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Edit event details',
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => EditEventDetailsDialog(
-                                        controller: controller,
-                                        initialEvent: evt,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 16,
-                              runSpacing: 8,
-                              children: [
-                                _pill(
-                                  icon: Icons.event,
-                                  label: '$dateStr • $timeStr',
-                                ),
-                                _pill(
-                                  icon: Icons.place,
-                                  label:
-                                      organisation?.city ?? 'Location not set',
-                                ),
-                                _pill(
-                                  icon: Icons.location_city,
-                                  label: venue.value?.name.capitalize ??
-                                      'Venue not set',
-                                ),
-                                _pill(
-                                  icon: Icons.restaurant,
-                                  label: evt.serviceType.name.isEmpty
-                                      ? 'Service type'
-                                      : evt.serviceType.name[0].toUpperCase() +
-                                          evt.serviceType.name.substring(1),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _pill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: const Color(0xFF4B5563)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: const Color(0xFF4B5563),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class EditEventDetailsDialog extends StatefulWidget {
   final AdminEventDetailsController controller;
   final Event initialEvent;
@@ -985,6 +856,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   late TextEditingController _nameCtrl;
   late TextEditingController _locationCtrl;
   late String _serviceType;
+  late int _maxInviteByGuest;
   bool _saving = false;
 
   // Venue selection - tracked by child widget
@@ -999,6 +871,8 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
         TextEditingController(text: widget.initialEvent.address ?? '');
     // ServiceType is enum; use its name to bind to Dropdown
     _serviceType = widget.initialEvent.serviceType.name;
+    // Initialize max invite by guest
+    _maxInviteByGuest = widget.initialEvent.maxInviteByGuest;
     // Initialize selected venue
     _selectedVenueId = widget.initialEvent.venueId;
   }
@@ -1013,33 +887,37 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit event details'),
       content: SizedBox(
-        width: 600,
+        width: 488,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              TextField(
+              // Title Header
+              DialogStepHeader(
+                icon: Icons.edit,
+                title: 'Edit Event Details',
+                description: 'Update the event\'s information.',
+              ),
+              const SizedBox(height: 24),
+
+              // Event Name
+              AppTextInputField(
+                label: 'Event Name',
                 controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Event name',
-                ),
               ),
-              const SizedBox(height: 12),
-              TextField(
+
+              // Location (Address)
+              AppTextInputField(
+                label: 'Location (Address)',
                 controller: _locationCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Location (address)',
-                ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _serviceType,
-                decoration: const InputDecoration(
-                  labelText: 'Service type',
-                ),
+
+              // Service Type
+              AppDropdownMenu<String>(
+                label: 'Service Type',
+                value: _serviceType,
                 items: const [
                   DropdownMenuItem(
                     value: 'buffet',
@@ -1052,7 +930,30 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                 ],
                 onChanged: (v) => setState(() => _serviceType = v ?? 'buffet'),
               ),
-              const SizedBox(height: 12),
+
+              // Max Guests Per Invite
+              AppDropdownMenu<int>(
+                label: 'Max Guests Per Invite',
+                helperText:
+                    'Maximum number of additional guests each invitee can bring',
+                value: _maxInviteByGuest,
+                items: List.generate(6, (index) => index).map((number) {
+                  return DropdownMenuItem<int>(
+                    value: number,
+                    child: Text(number == 0
+                        ? 'No additional guests'
+                        : number == 1
+                            ? '1 additional guest'
+                            : '$number additional guests'),
+                  );
+                }).toList(),
+                onChanged: (int? value) {
+                  if (value != null) {
+                    setState(() => _maxInviteByGuest = value);
+                  }
+                },
+              ),
+
               // Venue Selection and Photo Management
               // Note: Photo add/remove happens immediately, independent of save button
               VenuePhotoManager(
@@ -1092,6 +993,7 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
                     await widget.controller.updateEventCoreDetails(
                       name: name,
                       serviceType: _serviceType,
+                      maxInviteByGuest: _maxInviteByGuest,
                       address: _locationCtrl.text.trim().isEmpty
                           ? null
                           : _locationCtrl.text.trim(),
@@ -1155,25 +1057,79 @@ class MenuSelectionCard extends StatelessWidget {
     );
   }
 
+  double _priceOf(MenuItem item) {
+    final p = item.price;
+    if (p == null) return 0.0;
+    if (p is num) return p.toDouble();
+    return double.tryParse(p.toString()) ?? 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final selectedIds = controller.selectedMenuItemIds.toList();
       final selectedItems = controller.selectedMenuItems.toList();
+      final groups = controller.menuItemGroups.toList();
 
       final bool hasSelection = selectedIds.isNotEmpty;
       final bool isLoadingSelectedDocs = hasSelection && selectedItems.isEmpty;
 
-      double priceOf(MenuItem item) {
-        final p = item.price;
-        if (p == null) return 0.0;
-        if (p is num) return p.toDouble();
-        return double.tryParse(p.toString()) ?? 0.0;
+      // -----------------------------
+      // Group mapping: itemId -> groupName
+      // -----------------------------
+      final Map<String, String> groupNameByItemId = {};
+      final Set<String> groupedIds = {};
+      for (final g in groups) {
+        for (final id in g.itemIds) {
+          final x = id.trim();
+          if (x.isEmpty) continue;
+          groupedIds.add(x);
+          groupNameByItemId[x] = g.name;
+        }
       }
 
-      final total = selectedItems.map(priceOf).fold(0.0, (a, b) => a + b);
+      // Map for quick lookup
+      final Map<String, MenuItem> itemById = {};
+      for (final it in selectedItems) {
+        final id = (it.menuItemId ?? '').trim();
+        if (id.isNotEmpty) itemById[id] = it;
+      }
 
-      // counts
+      // -----------------------------
+      // Estimated Total (range)
+      // base = ungrouped items total
+      // range add = for each group, min..max
+      // -----------------------------
+      double ungroupedTotal = 0.0;
+      for (final it in selectedItems) {
+        final id = (it.menuItemId ?? '').trim();
+        if (id.isEmpty) continue;
+        if (groupedIds.contains(id)) continue;
+        ungroupedTotal += _priceOf(it);
+      }
+
+      double minTotal = ungroupedTotal;
+      double maxTotal = ungroupedTotal;
+
+      for (final g in groups) {
+        final prices = <double>[];
+        for (final id in g.itemIds) {
+          final it = itemById[id];
+          if (it == null) continue;
+          prices.add(_priceOf(it));
+        }
+        if (prices.isEmpty) continue;
+        prices.sort();
+        minTotal += prices.first;
+        maxTotal += prices.last;
+      }
+
+      final bool hasGroups = groups.isNotEmpty;
+      final bool showRange = hasGroups && (minTotal != maxTotal);
+
+      // -----------------------------
+      // counts (chips)
+      // -----------------------------
       final Map<String, int> typeCounts = {};
       final Map<String, int> catCounts = {};
       for (final i in selectedItems) {
@@ -1183,6 +1139,9 @@ class MenuSelectionCard extends StatelessWidget {
         catCounts[cat] = (catCounts[cat] ?? 0) + 1;
       }
 
+      // grouped count for chip
+      final groupedCount = groupedIds.length;
+
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -1191,7 +1150,7 @@ class MenuSelectionCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -1235,7 +1194,6 @@ class MenuSelectionCard extends StatelessWidget {
                 child: Text('Select dishes', style: GoogleFonts.poppins()),
               ),
             ] else if (isLoadingSelectedDocs) ...[
-              // ✅ Handles the “IDs exist but docs are still loading” state
               Text(
                 'Loading selected dishes...',
                 style: GoogleFonts.poppins(
@@ -1246,19 +1204,18 @@ class MenuSelectionCard extends StatelessWidget {
               const SizedBox(height: 10),
               const LinearProgressIndicator(minHeight: 3),
             ] else ...[
-              // ✅ IMPORTANT: no menu name/description shown (items are mixed)
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
                 children: [
                   _summaryChip('Total', selectedIds.length),
+                  if (hasGroups) _summaryChip('Grouped', groupedCount),
                   ...typeCounts.entries
                       .map((e) => _summaryChip(e.key, e.value)),
                   ...catCounts.entries.map((e) => _summaryChip(e.key, e.value)),
                 ],
               ),
               const SizedBox(height: 10),
-
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 340),
                 child: Scrollbar(
@@ -1266,25 +1223,30 @@ class MenuSelectionCard extends StatelessWidget {
                   child: ListView.separated(
                     itemCount: selectedItems.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, idx) =>
-                        selectedDishRow(selectedItems[idx]),
+                    itemBuilder: (_, idx) {
+                      final it = selectedItems[idx];
+                      final id = (it.menuItemId ?? '').trim();
+                      final groupName = groupNameByItemId[id];
+                      return _selectedDishRow(it, groupName: groupName);
+                    },
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Total',
+                    hasGroups ? 'Estimated total' : 'Total',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
-                    AppCurrency.format(total),
+                    showRange
+                        ? '${AppCurrency.format(minTotal)} - ${AppCurrency.format(maxTotal)}'
+                        : AppCurrency.format(maxTotal),
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1299,41 +1261,7 @@ class MenuSelectionCard extends StatelessWidget {
     });
   }
 
-  Widget _summaryChip(String label, int count) {
-    final bool isVeg = label.toLowerCase().contains('veg') &&
-        !label.toLowerCase().startsWith('non');
-    final bool isNonVeg = label.toLowerCase().contains('non') ||
-        label.toLowerCase().contains('non-veg');
-
-    final bg = isVeg
-        ? Colors.green.shade50
-        : (isNonVeg ? Colors.red.shade50 : Colors.grey.shade50);
-    final border = isVeg
-        ? Colors.green.shade200
-        : (isNonVeg ? Colors.red.shade200 : Colors.grey.shade200);
-    final textColor = isVeg
-        ? Colors.green.shade800
-        : (isNonVeg ? Colors.red.shade800 : Colors.black87);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
-      ),
-      child: Text(
-        '$label • $count',
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
-  Widget selectedDishRow(MenuItem item) {
+  Widget _selectedDishRow(MenuItem item, {String? groupName}) {
     final String ftLabel = _foodTypeLabel(item);
     final String catLabel = _categoryLabel(item);
     final bool isVeg = ftLabel.toLowerCase() == 'veg' || _isVegByCategory(item);
@@ -1386,7 +1314,9 @@ class MenuSelectionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (ftLabel.isNotEmpty)
                       Text(
@@ -1397,11 +1327,8 @@ class MenuSelectionCard extends StatelessWidget {
                         ),
                       ),
                     if (ftLabel.isNotEmpty && catLabel.isNotEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Text('•',
-                            style: TextStyle(color: Color(0xFFCBD5E1))),
-                      ),
+                      const Text('•',
+                          style: TextStyle(color: Color(0xFFCBD5E1))),
                     if (catLabel.isNotEmpty)
                       Text(
                         catLabel,
@@ -1410,6 +1337,28 @@ class MenuSelectionCard extends StatelessWidget {
                           color: const Color(0xFF6B7280),
                         ),
                       ),
+
+                    // ✅ Group label
+                    if (groupName != null && groupName.trim().isNotEmpty) ...[
+                      const Text('•',
+                          style: TextStyle(color: Color(0xFFCBD5E1))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Group: $groupName',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -1420,6 +1369,40 @@ class MenuSelectionCard extends StatelessWidget {
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _summaryChip(String label, int count) {
+    final bool isVeg = label.toLowerCase().contains('veg') &&
+        !label.toLowerCase().startsWith('non');
+    final bool isNonVeg = label.toLowerCase().contains('non') ||
+        label.toLowerCase().contains('non-veg');
+
+    final bg = isVeg
+        ? Colors.green.shade50
+        : (isNonVeg ? Colors.red.shade50 : Colors.grey.shade50);
+    final border = isVeg
+        ? Colors.green.shade200
+        : (isNonVeg ? Colors.red.shade200 : Colors.grey.shade200);
+    final textColor = isVeg
+        ? Colors.green.shade800
+        : (isNonVeg ? Colors.red.shade800 : Colors.black87);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        '$label • $count',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
       ),
     );
   }
@@ -1495,6 +1478,11 @@ class MenuAndItemsDialog extends StatefulWidget {
 }
 
 class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
+  /// =============================================================
+  /// Category normalization (match your Cloud Function mapping)
+  /// MenuItem.category is a String in your codebase.
+  /// =============================================================
+
   String? _menuId;
   List<MenuItem> _items = [];
 
@@ -1507,6 +1495,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   bool _loadingSelected = false;
   bool _saving = false;
 
+  // NEW: groups editable in dialog
+  late List<MenuItemGroup> _groups;
+
   final ScrollController _leftScrollController = ScrollController();
   final ScrollController _rightScrollController = ScrollController();
 
@@ -1516,11 +1507,23 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   String _leftSearch = '';
   String _rightSearch = '';
 
-  String? _leftCategory; // null = All
-  String? _rightCategory; // null = All
+  String? _leftCategory; // label (not key)
+  String? _rightCategory; // label (not key)
 
-  FoodType? _leftFoodType; // null = All
+  FoodType? _leftFoodType;
   FoodType? _rightFoodType;
+
+  Size _calcDialogSize(BuildContext context) {
+    final s = MediaQuery.of(context).size;
+    final w = (s.width * 0.92).clamp(980.0, 1480.0); // bigger + capped
+    final h = (s.height * 0.92).clamp(720.0, 940.0); // bigger + capped
+    return Size(w, h);
+  }
+
+  bool _isNarrowLayout(double dialogWidth) => dialogWidth < 1180;
+
+  EdgeInsets get _dialogOuterPadding => const EdgeInsets.all(14);
+  EdgeInsets get _bodyPadding => const EdgeInsets.fromLTRB(28, 22, 28, 26);
 
   @override
   void initState() {
@@ -1539,6 +1542,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       if (_selectedIds.add(v)) _selectedOrder.add(v);
     }
 
+    // NEW: init groups from controller (local editable copy)
+    _groups = widget.controller.menuItemGroups.toList();
+
     _prefetchSelectedDetails();
 
     if (_menuId != null) {
@@ -1554,6 +1560,51 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     _rightSearchCtrl.dispose();
     super.dispose();
   }
+
+  _PriceRange _groupPriceRange(MenuItemGroup g) {
+    final prices = <double>[];
+    for (final id in g.itemIds) {
+      final it = _selectedCache[id];
+      if (it == null) continue;
+      prices.add(_priceOf(it));
+    }
+    if (prices.isEmpty) return const _PriceRange(0, 0);
+    prices.sort();
+    return _PriceRange(prices.first, prices.last);
+  }
+
+  double get _ungroupedTotal {
+    final grouped = _groupedIds;
+    double sum = 0.0;
+    for (final it in _selectedItemsOrdered) {
+      final id = (it.menuItemId ?? '').trim();
+      if (id.isEmpty) continue;
+      if (grouped.contains(id)) continue; // exclude grouped items
+      sum += _priceOf(it);
+    }
+    return sum;
+  }
+
+  _PriceRange get _estimatedTotalRange {
+    final base = _ungroupedTotal;
+
+    double minTotal = base;
+    double maxTotal = base;
+
+    for (final g in _groups) {
+      // group must have at least 1 cached item to contribute
+      final anyLoaded = g.itemIds.any((id) => _selectedCache[id] != null);
+      if (!anyLoaded) continue;
+
+      final r = _groupPriceRange(g);
+      minTotal += r.min;
+      maxTotal += r.max;
+    }
+
+    return _PriceRange(minTotal, maxTotal);
+  }
+
+  bool get _hasAnyGroupsWithItems => _groups.any((g) => g.itemIds.isNotEmpty);
 
   Future<void> _prefetchSelectedDetails() async {
     if (_selectedOrder.isEmpty) return;
@@ -1571,18 +1622,36 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   }
 
   Future<void> _loadItems(String menuId) async {
+    if (!mounted) return;
     setState(() {
       _loadingItems = true;
       _items = [];
     });
+
     try {
       final list = await widget.controller.fetchMenuItemsForMenu(menuId);
+      if (!mounted) return;
       setState(() => _items = list);
     } catch (e, st) {
       debugPrint('Failed to load menu items: $e\n$st');
+      if (!mounted) return;
       setState(() => _items = []);
     } finally {
+      if (!mounted) return;
       setState(() => _loadingItems = false);
+    }
+  }
+
+  Future<void> _persistNow() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.controller.applyMenuSelectionAndGroups(
+        newItemIds: _selectedOrder, // ALL selected ids
+        groups: _groups,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -1593,56 +1662,47 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     return double.tryParse(p.toString()) ?? 0.0;
   }
 
-  // ✅ robust foodType: uses item.foodType first, then falls back to item.isVeg if present.
+  // robust foodType
   FoodType? _foodTypeFor(MenuItem item) {
-    // 1) if your model has foodType
     final dynamic ft = (item as dynamic).foodType;
     if (ft is FoodType) return ft;
 
-    // 2) if foodType stored as String somehow
     if (ft is String) {
       final norm = ft.replaceAll(RegExp(r'[\s_\-]'), '').toLowerCase();
       if (norm == 'veg') return FoodType.veg;
       if (norm == 'nonveg') return FoodType.nonVeg;
     }
 
-    // 3) fallback to isVeg field if present on model
     final dynamic v = (item as dynamic).isVeg;
     if (v is bool) return v ? FoodType.veg : FoodType.nonVeg;
 
-    return null; // unknown
+    return null;
   }
 
   String _foodTypeLabelFor(MenuItem item) {
     final ft = _foodTypeFor(item);
     if (ft == FoodType.veg) return 'Veg';
     if (ft == FoodType.nonVeg) return 'Non-Veg';
-    return ''; // unknown
+    return '';
   }
 
   String _categoryLabelFor(MenuItem item) {
-    final dynamic c = item.category;
-    if (c == null) return '';
-    String raw;
-    if (c is MenuCategory) {
-      raw = c.name;
-    } else if (c is String) {
-      raw = c;
-    } else {
-      raw = c.toString();
-    }
-
-    // ✅ handle enum.toString + camelCase nicely
-    var last = raw.split('.').last.trim();
-    last = last.replaceAll('_', ' ');
-    last = last.replaceAllMapped(
-      RegExp(r'(?<=[a-z])(?=[A-Z])'),
-      (_) => ' ',
+    final raw = (item.category ?? '').toString().trim();
+    if (raw.isEmpty) return '';
+    // If you store canonical keys already, show label from key:
+    if (kMenuCategoryKeys.contains(raw)) return categoryLabelFromKey(raw);
+    // Otherwise title-case
+    return _titleCase(
+      raw
+          .replaceAll('_', ' ')
+          .replaceAllMapped(RegExp(r'(?<=[a-z])(?=[A-Z])'), (_) => ' ')
+          .trim(),
     );
-    last = last.trim();
+  }
 
-    if (last.isEmpty) return '';
-    return _titleCase(last);
+  String _categoryKeyFor(MenuItem item) {
+    final raw = (item.category ?? '').toString().trim();
+    return normalizeCategoryKey(raw);
   }
 
   String _titleCase(String s) {
@@ -1666,6 +1726,14 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     _selectedIds.remove(id);
     _selectedOrder.remove(id);
     _selectedCache.remove(id);
+
+    // NEW: remove from any group
+    _groups = _groups
+        .map((g) => g.copyWith(
+              itemIds: g.itemIds.where((x) => x != id).toList(),
+            ))
+        .where((g) => g.itemIds.isNotEmpty)
+        .toList();
   }
 
   Future<void> _toggleSelection(MenuItem item) async {
@@ -1711,13 +1779,352 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   double get _selectedTotal =>
       _selectedItemsOrdered.map(_priceOf).fold(0.0, (a, b) => a + b);
 
-  Widget _buildHeader(BuildContext context, List<MenuModel> menus) {
+  Set<String> get _groupedIds {
+    final s = <String>{};
+    for (final g in _groups) {
+      for (final id in g.itemIds) {
+        s.add(id);
+      }
+    }
+    return s;
+  }
+
+  /// Create/edit group dialog:
+  /// - Only items from same category
+  /// - Only selected items
+  /// - Excludes items already in other groups (unless editing current group)
+  Future<void> _showCreateOrEditGroup({
+    required String categoryKey,
+    MenuItemGroup? existing,
+  }) async {
+    final isEdit = existing != null;
+
+    String groupName = existing?.name ?? '';
+    final existingIds = (existing?.itemIds ?? const <String>[]).toSet();
+    final checked = <String>{...existingIds};
+
+    // items in this category that are selected
+    final selectedSet = _selectedIds.toSet();
+    final candidates = <MenuItem>[];
+    for (final id in _selectedOrder) {
+      final it = _selectedCache[id];
+      if (it == null) continue;
+      if (_categoryKeyFor(it) != categoryKey) continue;
+      if (!selectedSet.contains(id)) continue;
+      candidates.add(it);
+    }
+
+    // ids used by other groups (so one item cannot be in two groups)
+    final usedByOtherGroups = <String>{};
+    for (final g in _groups) {
+      if (existing != null && g.groupId == existing.groupId) continue;
+      usedByOtherGroups.addAll(g.itemIds);
+    }
+
+    // allowed ids
+    final allowed = <String>{};
+    for (final it in candidates) {
+      final id = (it.menuItemId ?? '').trim();
+      if (id.isEmpty) continue;
+      if (existingIds.contains(id)) {
+        allowed.add(id);
+      } else if (!usedByOtherGroups.contains(id)) {
+        allowed.add(id);
+      }
+    }
+
+    final res = await showDialog<_GroupDialogResult?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: Text(
+                isEdit ? 'Edit group' : 'Create group',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+              content: SizedBox(
+                width: 560,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      initialValue: groupName,
+                      decoration: const InputDecoration(
+                        labelText: 'Group name',
+                        hintText: 'e.g. Breakfast breads',
+                      ),
+                      onChanged: (v) => groupName = v,
+                    ),
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Select items (only from this category)',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // ✅ IMPORTANT: shrinkWrap MUST be false here to prevent huge overflow
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 360),
+                      child: ListView.separated(
+                        shrinkWrap: false,
+                        itemCount: candidates.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final it = candidates[i];
+                          final id = (it.menuItemId ?? '').trim();
+                          final disabled = !allowed.contains(id);
+                          final isOn = checked.contains(id);
+
+                          return CheckboxListTile(
+                            value: isOn,
+                            onChanged: disabled
+                                ? null
+                                : (v) {
+                                    setLocal(() {
+                                      if (v == true) {
+                                        checked.add(id);
+                                      } else {
+                                        checked.remove(id);
+                                      }
+                                    });
+                                  },
+                            title: Text(
+                              it.name,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: disabled && !existingIds.contains(id)
+                                ? Text(
+                                    'Already used in another group',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.red.shade700,
+                                    ),
+                                  )
+                                : Text(
+                                    [
+                                      _foodTypeLabelFor(it),
+                                      categoryLabelFromKey(categoryKey),
+                                    ].where((e) => e.isNotEmpty).join(' • '),
+                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.black),
+                  onPressed: () {
+                    final name = groupName.trim();
+                    if (name.isEmpty) return;
+                    if (checked.length < 2) return;
+
+                    Navigator.of(ctx)
+                        .pop(_GroupDialogResult(name, checked.toList()));
+                  },
+                  child: Text(
+                    isEdit ? 'Save' : 'Create',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (res == null) return;
+    if (!mounted) return;
+
+    // ✅ Safer: schedule the setState after the dialog has fully closed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      setState(() {
+        final pickedSet = res.itemIds.toSet();
+
+        // remove picked from other groups
+        _groups = _groups
+            .map((g) {
+              if (existing != null && g.groupId == existing.groupId) return g;
+              return g.copyWith(
+                itemIds:
+                    g.itemIds.where((id) => !pickedSet.contains(id)).toList(),
+              );
+            })
+            .where((g) => g.itemIds.isNotEmpty)
+            .toList();
+
+        if (isEdit) {
+          _groups = _groups.map((g) {
+            if (g.groupId != existing!.groupId) return g;
+            return g.copyWith(name: res.name, itemIds: res.itemIds);
+          }).toList();
+        } else {
+          final gid = 'grp_${DateTime.now().microsecondsSinceEpoch}';
+          _groups.add(MenuItemGroup(
+            groupId: gid,
+            name: res.name,
+            categoryKey: categoryKey,
+            maxPick: 1,
+            itemIds: res.itemIds,
+          ));
+        }
+      });
+
+      _persistNow();
+    });
+  }
+
+  void _deleteGroup(String groupId) {
+    setState(() {
+      _groups = _groups.where((g) => g.groupId != groupId).toList();
+    });
+    _persistNow();
+  }
+
+  void _removeItemFromGroup(String groupId, String itemId) {
+    setState(() {
+      _groups = _groups
+          .map((g) => g.groupId == groupId
+              ? g.copyWith(
+                  itemIds: g.itemIds.where((x) => x != itemId).toList(),
+                )
+              : g)
+          .where((g) => g.itemIds.isNotEmpty)
+          .toList();
+    });
+  }
+
+  Widget _buildLeftItemRow(MenuItem item) {
+    final id = (item.menuItemId ?? '').trim();
+    final bool isSelected = id.isNotEmpty && _selectedIds.contains(id);
+
+    final bool isVeg = _foodTypeFor(item) == FoodType.veg;
+    final ftLabel = _foodTypeLabelFor(item);
+    final catLabel = _categoryLabelFor(item);
+
+    final price = _priceOf(item);
+
+    final bg = isSelected
+        ? (isVeg ? Colors.green.shade50 : Colors.red.shade50)
+        : Colors.white;
+
+    final border = isSelected
+        ? (isVeg ? Colors.green.shade700 : Colors.red.shade700)
+        : Colors.grey.shade300;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _toggleSelection(item),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border, width: isSelected ? 2 : 1),
+        ),
+        child: Row(
+          children: [
+            _foodSquareIcon(isVeg),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    [
+                      if (ftLabel.isNotEmpty) ftLabel,
+                      if (catLabel.isNotEmpty) catLabel,
+                    ].join(' • '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              AppCurrency.format(price),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: const Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              height: 34,
+              child: TextButton(
+                onPressed: () => _toggleSelection(item),
+                style: TextButton.styleFrom(
+                  backgroundColor: isSelected ? Colors.black : Colors.white,
+                  foregroundColor: isSelected ? Colors.white : Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+                child: Text(
+                  isSelected ? 'Remove' : 'Add',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(
+      BuildContext context, List<MenuModel> menus, double dialogWidth) {
+    final dropdownWidth = (dialogWidth * 0.42).clamp(380.0, 560.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
       decoration: const BoxDecoration(
         color: Colors.black,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Row(
         children: [
@@ -1726,28 +2133,28 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               'Select menu & dishes',
               style: GoogleFonts.poppins(
                 fontSize: 22,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
                 color: Colors.white,
               ),
             ),
           ),
           const SizedBox(width: 14),
           SizedBox(
-            width: 460,
+            width: dropdownWidth,
             child: InputDecorator(
               decoration: InputDecoration(
                 labelText: 'Menu (browse)',
                 labelStyle: GoogleFonts.poppins(color: Colors.white70),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.18),
+                fillColor: Colors.white.withValues(alpha: 0.18),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Colors.white24),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Colors.white54),
                 ),
               ),
@@ -1757,8 +2164,6 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                   isExpanded: true,
                   dropdownColor: Colors.white,
                   iconEnabledColor: Colors.white,
-
-                  // ✅ FIX: selected text in the field should be WHITE
                   selectedItemBuilder: (_) => menus
                       .map((m) => Align(
                             alignment: Alignment.centerLeft,
@@ -1772,8 +2177,6 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                             ),
                           ))
                       .toList(),
-
-                  // ✅ dropdown list should stay BLACK text on WHITE bg
                   items: menus
                       .map((m) => DropdownMenuItem(
                             value: m.id,
@@ -1786,12 +2189,10 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                       .toList(),
                   onChanged: (value) {
                     if (value == null) return;
-
                     setState(() {
                       _menuId = value;
                       _items = [];
                     });
-
                     widget.controller.lastBrowsedMenuId.value = value;
                     _loadItems(value);
                   },
@@ -1804,33 +2205,309 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     );
   }
 
+  Widget _buildLeftPanel(List<MenuItem> filteredLeft) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Before selection',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            _infoChip(
+              'Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.veg).length}',
+              highlight: true,
+            ),
+            const SizedBox(width: 8),
+            _infoChip(
+              'Non-Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length}',
+              negative: true,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ✅ LEFT FILTERS (keep your existing filter UI here if you want)
+        // If you already render search/category/pills in main build, skip.
+
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE6E9EE)),
+            ),
+            child: _loadingItems
+                ? const Center(child: CircularProgressIndicator())
+                : (filteredLeft.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No items match your filters',
+                          style: GoogleFonts.poppins(color: Colors.grey),
+                        ),
+                      )
+                    : Scrollbar(
+                        controller: _leftScrollController,
+                        thumbVisibility: true,
+                        child: ListView.separated(
+                          controller: _leftScrollController,
+                          primary: false, // ✅ important
+                          itemCount: filteredLeft.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, idx) =>
+                              _buildLeftItemRow(filteredLeft[idx]),
+                        ),
+                      )),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRightPanel() {
+    // Build selected list ids filtered by RIGHT filters
+    final bool rightFiltersActive = _rightSearch.trim().isNotEmpty ||
+        _rightCategory != null ||
+        _rightFoodType != null;
+
+    bool match(MenuItem it) {
+      final q = _rightSearch.toLowerCase().trim();
+      final nameOk = q.isEmpty || it.name.toLowerCase().contains(q);
+
+      final catLabel = _categoryLabelFor(it);
+      final catOk = _rightCategory == null || _rightCategory == catLabel;
+
+      final ft = _foodTypeFor(it);
+      final ftOk = _rightFoodType == null || ft == _rightFoodType;
+
+      return nameOk && catOk && ftOk;
+    }
+
+    final visibleSelectedIds = <String>[];
+    for (final id in _selectedOrder) {
+      final it = _selectedCache[id];
+      if (it == null) {
+        // show loading cards only when no right filters are applied
+        if (!rightFiltersActive) visibleSelectedIds.add(id);
+        continue;
+      }
+      if (match(it)) visibleSelectedIds.add(id);
+    }
+
+    final visibleSet = visibleSelectedIds.toSet();
+    final visibleItems = visibleSelectedIds
+        .map((id) => _selectedCache[id])
+        .whereType<MenuItem>()
+        .toList();
+
+    final vegCount =
+        visibleItems.where((it) => _foodTypeFor(it) == FoodType.veg).length;
+    final nonCount =
+        visibleItems.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length;
+
+    // category counts for RIGHT dropdown (from all selected, not filtered)
+    final Map<String, int> rightCatCounts = {};
+    for (final it in _selectedItemsOrdered) {
+      final cat =
+          _categoryLabelFor(it).isEmpty ? 'Other' : _categoryLabelFor(it);
+      rightCatCounts[cat] = (rightCatCounts[cat] ?? 0) + 1;
+    }
+    final rightCats = rightCatCounts.keys.toList()..sort();
+
+    // groups by categoryKey
+    final Map<String, List<MenuItemGroup>> groupsByCat = {};
+    for (final g in _groups) {
+      groupsByCat.putIfAbsent(g.categoryKey, () => []).add(g);
+    }
+
+    // categories present in visible selected items
+    final Set<String> visibleCategoryKeys = {};
+    for (final id in visibleSelectedIds) {
+      final it = _selectedCache[id];
+      if (it == null) continue;
+      visibleCategoryKeys.add(_categoryKeyFor(it));
+    }
+    // include categories where groups exist (even if filtered hides all items)
+    visibleCategoryKeys.addAll(groupsByCat.keys);
+
+    final catKeysSorted = visibleCategoryKeys.toList()
+      ..sort(
+          (a, b) => categoryLabelFromKey(a).compareTo(categoryLabelFromKey(b)));
+
+    final groupedIds = _groupedIds;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title + counts
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Selected items • ${_selectedOrder.length}',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            _infoChip('Veg • $vegCount', highlight: true),
+            const SizedBox(width: 8),
+            _infoChip('Non-Veg • $nonCount', negative: true),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // RIGHT search
+        TextField(
+          controller: _rightSearchCtrl,
+          style: GoogleFonts.poppins(),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            hintText: 'Search within selected items',
+            hintStyle: GoogleFonts.poppins(),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          onChanged: (v) => setState(() => _rightSearch = v),
+        ),
+        const SizedBox(height: 10),
+
+        // RIGHT filters row
+        Row(
+          children: [
+            SizedBox(
+              width: 260,
+              child: DropdownButtonFormField<String?>(
+                value: _rightCategory,
+                hint: Text('Category', style: GoogleFonts.poppins()),
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('All (${_selectedOrder.length})',
+                        style: GoogleFonts.poppins()),
+                  ),
+                  ...rightCats.map(
+                    (c) => DropdownMenuItem<String?>(
+                      value: c,
+                      child: Text('$c (${rightCatCounts[c] ?? 0})',
+                          style: GoogleFonts.poppins()),
+                    ),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _rightCategory = v),
+                decoration: InputDecoration(
+                  fillColor: Colors.white,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _filterPill(
+              'Veg',
+              _rightFoodType == FoodType.veg,
+              () => setState(() => _rightFoodType =
+                  _rightFoodType == FoodType.veg ? null : FoodType.veg),
+            ),
+            const SizedBox(width: 8),
+            _filterPill(
+              'Non-Veg',
+              _rightFoodType == FoodType.nonVeg,
+              () => setState(() => _rightFoodType =
+                  _rightFoodType == FoodType.nonVeg ? null : FoodType.nonVeg),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () => setState(() {
+                _rightSearchCtrl.clear();
+                _rightSearch = '';
+                _rightCategory = null;
+                _rightFoodType = null;
+              }),
+              child: Text('Clear',
+                  style: GoogleFonts.poppins(color: Colors.black)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // RIGHT list container
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: _loadingSelected
+                ? const Center(child: CircularProgressIndicator())
+                : (visibleSelectedIds.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No selected items match your filters',
+                          style: GoogleFonts.poppins(color: Colors.grey),
+                        ),
+                      )
+                    : Scrollbar(
+                        controller: _rightScrollController,
+                        thumbVisibility: true,
+                        child: ListView(
+                          controller: _rightScrollController,
+                          primary: false, // ✅ important
+                          children: [
+                            for (final catKey in catKeysSorted) ...[
+                              _categorySection(
+                                categoryKey: catKey,
+                                visibleSelectedIds: visibleSelectedIds,
+                                visibleSet: visibleSet,
+                                groupedIds: groupedIds,
+                                groupsInThisCat:
+                                    groupsByCat[catKey] ?? const [],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+
+                            // placeholders for ids not yet fetched (only when no right filters)
+                            if (!rightFiltersActive) ...[
+                              ...visibleSelectedIds
+                                  .where((id) => _selectedCache[id] == null)
+                                  .map((id) => _loadingRow(id)),
+                            ],
+                          ],
+                        ),
+                      )),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final menus = widget.controller.availableMenus;
-
-    String _norm(String s) =>
-        s.replaceAll(RegExp(r'[\s_\-]'), '').toLowerCase();
-
-    // LEFT menu categories based on current menu
-    final allCategories = _items
-        .map(_categoryLabelFor)
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
-
-    final Map<String, int> leftCategoryCounts = {};
-    final Map<String, int> leftFoodTypeCounts = {}; // Veg / Non-Veg / Other
-
-    for (final it in _items) {
-      final cat =
-          _categoryLabelFor(it).isEmpty ? 'Other' : _categoryLabelFor(it);
-      leftCategoryCounts[cat] = (leftCategoryCounts[cat] ?? 0) + 1;
-
-      final ftLabel = _foodTypeLabelFor(it);
-      final key = ftLabel.isEmpty ? 'Other' : ftLabel;
-      leftFoodTypeCounts[key] = (leftFoodTypeCounts[key] ?? 0) + 1;
-    }
+    final dialogSize = _calcDialogSize(context);
+    final isNarrow = _isNarrowLayout(dialogSize.width);
 
     // LEFT filtered list
     final filteredLeft = _items.where((it) {
@@ -1846,1084 +2523,500 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       return nameOk && catOk && ftOk;
     }).toList();
 
-    // RIGHT counts (selected)
-    final selectedOrdered = _selectedItemsOrdered;
-
-    final Map<String, int> rightCategoryCounts = {};
-    final Map<String, int> rightFoodTypeCounts = {};
-
-    for (final it in selectedOrdered) {
-      final cat =
-          _categoryLabelFor(it).isEmpty ? 'Other' : _categoryLabelFor(it);
-      rightCategoryCounts[cat] = (rightCategoryCounts[cat] ?? 0) + 1;
-
-      final ftLabel = _foodTypeLabelFor(it);
-      final key = ftLabel.isEmpty ? 'Other' : ftLabel;
-      rightFoodTypeCounts[key] = (rightFoodTypeCounts[key] ?? 0) + 1;
-    }
-
-    final bool showSeeMore = filteredLeft.length > 6;
+    // precompute estimated total range for bottom bar
+    final range = _estimatedTotalRange;
+    final showRange = _hasAnyGroupsWithItems && (range.min != range.max);
 
     return MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: const TextScaler.linear(1.08), // try 1.06–1.10
-        ),
-        child: Dialog(
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: 1240,
-            height: 820,
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                )
-              ],
+      data: MediaQuery.of(context).copyWith(
+        textScaler: const TextScaler.linear(1.05), // slightly calmer
+      ),
+      child: Dialog(
+        insetPadding: _dialogOuterPadding,
+        backgroundColor: Colors.transparent,
+        child: SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: dialogSize.width,
+              maxHeight: dialogSize.height,
             ),
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _buildHeader(context, menus),
-                // filter row
-                // Row(
-                //   children: [
-                //     Expanded(
-                //       child: TextField(
-                //         style: GoogleFonts.poppins(),
-                //         decoration: InputDecoration(
-                //           prefixIcon: const Icon(Icons.search),
-                //           hintText: 'Search dish name, e.g. "rice"',
-                //           hintStyle: GoogleFonts.poppins(),
-                //           filled: true,
-                //           fillColor: Colors.white,
-                //           border: OutlineInputBorder(
-                //             borderRadius: BorderRadius.circular(10),
-                //             borderSide: BorderSide.none,
-                //           ),
-                //           contentPadding: const EdgeInsets.symmetric(
-                //               horizontal: 12, vertical: 12),
-                //         ),
-                //         onChanged: (v) => setState(() => _leftSearch = v),
-                //       ),
-                //     ),
-                //     const SizedBox(width: 12),
-                //     SizedBox(
-                //       width: 200,
-                //       child: DropdownButtonFormField<String?>(
-                //         value: _leftCategory,
-                //         hint: Text('Category', style: GoogleFonts.poppins()),
-                //         items: [null, 'All', ...allCategories]
-                //             .map((c) => DropdownMenuItem<String?>(
-                //                   value: c,
-                //                   child: Text(c ?? 'All',
-                //                       style: GoogleFonts.poppins()),
-                //                 ))
-                //             .toList(),
-                //         onChanged: (v) => setState(() => _leftCategory = v),
-                //         decoration: InputDecoration(
-                //           fillColor: Colors.white,
-                //           filled: true,
-                //           border: OutlineInputBorder(
-                //             borderRadius: BorderRadius.circular(10),
-                //             borderSide: BorderSide.none,
-                //           ),
-                //           contentPadding: const EdgeInsets.symmetric(
-                //               horizontal: 12, vertical: 8),
-                //         ),
-                //       ),
-                //     ),
-                //     const SizedBox(width: 12),
-                //     Row(
-                //       children: [
-                //         _filterPill(
-                //           'Veg',
-                //           _leftFoodType == FoodType.veg,
-                //           () => setState(() => _leftFoodType =
-                //               _leftFoodType == FoodType.veg ? null : FoodType.veg),
-                //         ),
-                //         _filterPill(
-                //           'Non-Veg',
-                //           _leftFoodType == FoodType.nonVeg,
-                //           () => setState(() => _leftFoodType =
-                //               _leftFoodType == FoodType.nonVeg
-                //                   ? null
-                //                   : FoodType.nonVeg),
-                //         ),
-                //         const SizedBox(width: 12),
-                //         TextButton(
-                //           onPressed: () => setState(() {
-                //             _leftSearch = '';
-                //             _leftCategory = null;
-                //             _leftFoodType = null;
-                //           }),
-                //           child: Text('Clear',
-                //               style: GoogleFonts.poppins(color: Colors.black)),
-                //         ),
-                //       ],
-                //     ),
-                //   ],
-                // ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Material(
+                color: Theme.of(context).cardColor,
+                child: Column(
+                  children: [
+                    // HEADER (sticky)
+                    _buildHeader(context, menus, dialogSize.width),
 
-                const SizedBox(height: 18),
+                    // BODY
+                    Expanded(
+                      child: Padding(
+                        padding: _bodyPadding,
+                        child: isNarrow
+                            ? Column(
+                                children: [
+                                  // LEFT block
+                                  Expanded(
+                                    child: _buildLeftPanel(filteredLeft),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  // RIGHT block
+                                  Expanded(
+                                    child: _buildRightPanel(),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                      child: _buildLeftPanel(filteredLeft)),
+                                  const SizedBox(width: 22),
+                                  Container(
+                                      width: 1, color: const Color(0xFFE5E7EB)),
+                                  const SizedBox(width: 22),
+                                  Expanded(child: _buildRightPanel()),
+                                ],
+                              ),
+                      ),
+                    ),
 
-                Expanded(
-                    child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      24, 18, 24, 24), // spacing for body
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ================= LEFT HALF (Before selection) =================
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title + Veg/Non-Veg counts (ONLY)
-                            Row(
+                    // FOOTER (sticky)
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(26, 14, 26, 18),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF9FAFB),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Items pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                              border:
+                                  Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Row(
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    'Before selection',
+                                Text('Items:',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                        color: const Color(0xFFE5E7EB)),
+                                  ),
+                                  child: Text(
+                                    '${_selectedOrder.length}',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                ),
-                                _infoChip(
-                                  'Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.veg).length}',
-                                  highlight: true,
-                                ),
-                                const SizedBox(width: 8),
-                                _infoChip(
-                                  'Non-Veg • ${_items.where((it) => _foodTypeFor(it) == FoodType.nonVeg).length}',
-                                  negative: true,
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                          ),
 
-                            // LEFT filters (moved fully to left)
-                            TextField(
-                              controller: _leftSearchCtrl,
-                              style: GoogleFonts.poppins(),
-                              decoration: InputDecoration(
-                                prefixIcon: const Icon(Icons.search),
-                                hintText: 'Search dish name, e.g. "rice"',
-                                hintStyle: GoogleFonts.poppins(),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
-                              ),
-                              onChanged: (v) => setState(() => _leftSearch = v),
+                          const SizedBox(width: 14),
+
+                          // Total pill (range aware)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(24),
                             ),
-                            const SizedBox(height: 10),
+                            child: Row(
+                              children: [
+                                Text(
+                                  _hasAnyGroupsWithItems
+                                      ? 'Estimated Total'
+                                      : 'Total',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  showRange
+                                      ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
+                                      : AppCurrency.format(range.max),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
 
-                            Builder(builder: (_) {
-                              // category counts for LEFT dropdown (from all _items)
-                              final Map<String, int> leftCatCounts = {};
-                              for (final it in _items) {
-                                final cat = _categoryLabelFor(it).isEmpty
-                                    ? 'Other'
-                                    : _categoryLabelFor(it);
-                                leftCatCounts[cat] =
-                                    (leftCatCounts[cat] ?? 0) + 1;
-                              }
-                              final leftCats = leftCatCounts.keys.toList()
-                                ..sort();
+                          const Spacer(),
 
-                              return Row(
-                                children: [
-                                  SizedBox(
-                                    width: 260,
-                                    child: DropdownButtonFormField<String?>(
-                                      value: _leftCategory,
-                                      hint: Text('Category',
-                                          style: GoogleFonts.poppins()),
-                                      items: [
-                                        DropdownMenuItem<String?>(
-                                          value: null,
-                                          child: Text('All (${_items.length})',
-                                              style: GoogleFonts.poppins()),
-                                        ),
-                                        ...leftCats.map((c) =>
-                                            DropdownMenuItem<String?>(
-                                              value: c,
-                                              child: Text(
-                                                  '$c (${leftCatCounts[c] ?? 0})',
-                                                  style: GoogleFonts.poppins()),
-                                            )),
-                                      ],
-                                      onChanged: (v) =>
-                                          setState(() => _leftCategory = v),
-                                      decoration: InputDecoration(
-                                        fillColor: Colors.white,
-                                        filled: true,
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 8),
-                                      ),
+                          TextButton(
+                            onPressed: _saving
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            child: Text('Cancel', style: GoogleFonts.poppins()),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: _saving
+                                ? null
+                                : () async {
+                                    setState(() => _saving = true);
+                                    try {
+                                      widget.controller.lastBrowsedMenuId
+                                          .value = _menuId;
+                                      await widget.controller
+                                          .applyMenuSelectionAndGroups(
+                                        newItemIds: _selectedOrder,
+                                        groups: _groups,
+                                      );
+                                      if (mounted) Navigator.of(context).pop();
+                                    } finally {
+                                      if (mounted)
+                                        setState(() => _saving = false);
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 12),
+                            ),
+                            child: _saving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    'Confirm',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  _filterPill(
-                                    'Veg',
-                                    _leftFoodType == FoodType.veg,
-                                    () => setState(() => _leftFoodType =
-                                        _leftFoodType == FoodType.veg
-                                            ? null
-                                            : FoodType.veg),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _filterPill(
-                                    'Non-Veg',
-                                    _leftFoodType == FoodType.nonVeg,
-                                    () => setState(() => _leftFoodType =
-                                        _leftFoodType == FoodType.nonVeg
-                                            ? null
-                                            : FoodType.nonVeg),
-                                  ),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: () => setState(() {
-                                      _leftSearchCtrl.clear();
-                                      _leftSearch = '';
-                                      _leftCategory = null;
-                                      _leftFoodType = null;
-                                    }),
-                                    child: Text('Clear',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.black)),
-                                  ),
-                                ],
-                              );
-                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                            const SizedBox(height: 10),
+  Widget _categorySection({
+    required String categoryKey,
+    required List<String> visibleSelectedIds,
+    required Set<String> visibleSet,
+    required Set<String> groupedIds,
+    required List<MenuItemGroup> groupsInThisCat,
+  }) {
+    // Visible ungrouped items for this category
+    final ungroupedVisible = <MenuItem>[];
+    for (final id in visibleSelectedIds) {
+      final it = _selectedCache[id];
+      if (it == null) continue;
+      if (_categoryKeyFor(it) != categoryKey) continue;
+      if (groupedIds.contains(id)) continue;
+      ungroupedVisible.add(it);
+    }
 
-                            // LEFT list container
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF9FAFB),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: const Color(0xFFE6E9EE)),
-                                ),
-                                child: Builder(builder: (_) {
-                                  final filteredLeft = _items.where((it) {
-                                    final q = _leftSearch.toLowerCase().trim();
-                                    final nameOk = q.isEmpty ||
-                                        it.name.toLowerCase().contains(q);
+    // Visible groups for this category
+    final visibleGroups = <MenuItemGroup>[];
+    for (final g in groupsInThisCat) {
+      final anyVisible = g.itemIds.any((id) => visibleSet.contains(id));
+      if (anyVisible) visibleGroups.add(g);
+    }
 
-                                    final cat = _categoryLabelFor(it);
-                                    final catOk = _leftCategory == null ||
-                                        _leftCategory == cat;
+    final showSection = ungroupedVisible.isNotEmpty || visibleGroups.isNotEmpty;
+    if (!showSection) return const SizedBox.shrink();
 
-                                    final ft = _foodTypeFor(it);
-                                    final ftOk = _leftFoodType == null ||
-                                        ft == _leftFoodType;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // category header + create group
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  categoryLabelFromKey(categoryKey),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () =>
+                    _showCreateOrEditGroup(categoryKey: categoryKey),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text('Create group', style: GoogleFonts.poppins()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
 
-                                    return nameOk && catOk && ftOk;
-                                  }).toList();
+          // groups (expansion tiles)
+          for (final g in visibleGroups) ...[
+            Builder(builder: (_) {
+              final r = _groupPriceRange(g);
 
-                                  final bool showSeeMore =
-                                      filteredLeft.length > 6;
+              // if prices are not loaded yet, don't show range
+              final hasAnyPriceLoaded =
+                  g.itemIds.any((id) => _selectedCache[id] != null);
 
-                                  if (_loadingItems) {
-                                    return const Center(
-                                        child: CircularProgressIndicator());
-                                  }
-                                  if (filteredLeft.isEmpty) {
-                                    return Center(
-                                      child: Text(
-                                        'No items match your filters',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.grey),
-                                      ),
-                                    );
-                                  }
+              final subtitleText = !hasAnyPriceLoaded
+                  ? 'Guest can pick ${g.maxPick} item'
+                  : (r.min == r.max
+                      ? 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)}'
+                      : 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)} - ${AppCurrency.format(r.max)}');
 
-                                  return Column(
-                                    children: [
-                                      Expanded(
-                                        child: Scrollbar(
-                                          controller: _leftScrollController,
-                                          thumbVisibility: true,
-                                          child: ListView.separated(
-                                            controller: _leftScrollController,
-                                            itemCount: filteredLeft.length,
-                                            separatorBuilder: (_, __) =>
-                                                const SizedBox(height: 10),
-                                            itemBuilder: (_, idx) {
-                                              final item = filteredLeft[idx];
-                                              final id = (item.menuItemId ?? '')
-                                                  .trim();
-                                              final isSelected =
-                                                  id.isNotEmpty &&
-                                                      _selectedIds.contains(id);
-                                              final bool isVeg =
-                                                  _foodTypeFor(item) ==
-                                                      FoodType.veg;
-
-                                              return InkWell(
-                                                onTap: () =>
-                                                    _toggleSelection(item),
-                                                child: Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 12),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? (isVeg
-                                                            ? Colors
-                                                                .green.shade50
-                                                            : Colors
-                                                                .red.shade50)
-                                                        : Colors.white,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                    border: Border.all(
-                                                      color: isSelected
-                                                          ? (isVeg
-                                                              ? Colors.green
-                                                                  .shade700
-                                                              : Colors
-                                                                  .red.shade700)
-                                                          : Colors
-                                                              .grey.shade300,
-                                                    ),
-                                                  ),
-                                                  child: Row(
-                                                    children: [
-                                                      _foodSquareIcon(isVeg),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              item.name,
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 15,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 6),
-                                                            Text(
-                                                              [
-                                                                if (_foodTypeLabelFor(
-                                                                        item)
-                                                                    .isNotEmpty)
-                                                                  _foodTypeLabelFor(
-                                                                      item),
-                                                                if (_categoryLabelFor(
-                                                                        item)
-                                                                    .isNotEmpty)
-                                                                  _categoryLabelFor(
-                                                                      item),
-                                                              ].join(' • '),
-                                                              style: GoogleFonts
-                                                                  .poppins(
-                                                                fontSize: 12,
-                                                                color: Colors
-                                                                    .grey
-                                                                    .shade700,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        AppCurrency.format(
-                                                            _priceOf(item)),
-                                                        style:
-                                                            GoogleFonts.poppins(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: isSelected
-                                                              ? Colors.black
-                                                              : Colors.white,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(6),
-                                                          border: Border.all(
-                                                              color: Colors.grey
-                                                                  .shade300),
-                                                        ),
-                                                        child: TextButton(
-                                                          onPressed: () =>
-                                                              _toggleSelection(
-                                                                  item),
-                                                          child: Text(
-                                                            isSelected
-                                                                ? 'Remove'
-                                                                : 'Add',
-                                                            style: GoogleFonts
-                                                                .poppins(
-                                                              color: isSelected
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .black,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      if (showSeeMore)
-                                        Container(
-                                          alignment: Alignment.center,
-                                          padding:
-                                              const EdgeInsets.only(top: 10),
-                                          child: TextButton(
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: Colors.black,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 12),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            onPressed: () {
-                                              final max = _leftScrollController
-                                                  .position.maxScrollExtent;
-                                              final pos =
-                                                  _leftScrollController.offset +
-                                                      260;
-                                              _leftScrollController.animateTo(
-                                                pos.clamp(0, max),
-                                                duration: const Duration(
-                                                    milliseconds: 420),
-                                                curve: Curves.easeInOut,
-                                              );
-                                            },
-                                            child: Text(
-                                              'See more',
-                                              style: GoogleFonts.poppins(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ),
-                          ],
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: ExpansionTile(
+                  tilePadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  title: Text(
+                    '${g.name}  •  ${g.itemIds.length} items',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  subtitle: Text(
+                    subtitleText,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit group',
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        onPressed: () => _showCreateOrEditGroup(
+                          categoryKey: categoryKey,
+                          existing: g,
                         ),
                       ),
-
-                      const SizedBox(width: 20),
-                      Container(
-                          width: 1,
-                          height: double.infinity,
-                          color: const Color(0xFFE5E7EB)),
-                      const SizedBox(width: 20),
-
-                      // ================= RIGHT HALF (After selection) =================
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Build selected list ids filtered by RIGHT filters
-                            Builder(builder: (_) {
-                              final bool rightFiltersActive =
-                                  _rightSearch.trim().isNotEmpty ||
-                                      _rightCategory != null ||
-                                      _rightFoodType != null;
-
-                              bool match(MenuItem it) {
-                                final q = _rightSearch.toLowerCase().trim();
-                                final nameOk = q.isEmpty ||
-                                    it.name.toLowerCase().contains(q);
-
-                                final cat = _categoryLabelFor(it);
-                                final catOk = _rightCategory == null ||
-                                    _rightCategory == cat;
-
-                                final ft = _foodTypeFor(it);
-                                final ftOk = _rightFoodType == null ||
-                                    ft == _rightFoodType;
-
-                                return nameOk && catOk && ftOk;
-                              }
-
-                              final visibleSelectedIds = <String>[];
-                              for (final id in _selectedOrder) {
-                                final it = _selectedCache[id];
-                                if (it == null) {
-                                  // show loading cards only when no right filters are applied
-                                  if (!rightFiltersActive)
-                                    visibleSelectedIds.add(id);
-                                  continue;
-                                }
-                                if (match(it)) visibleSelectedIds.add(id);
-                              }
-
-                              final visibleItems = visibleSelectedIds
-                                  .map((id) => _selectedCache[id])
-                                  .whereType<MenuItem>()
-                                  .toList();
-
-                              final vegCount = visibleItems
-                                  .where(
-                                      (it) => _foodTypeFor(it) == FoodType.veg)
-                                  .length;
-                              final nonCount = visibleItems
-                                  .where((it) =>
-                                      _foodTypeFor(it) == FoodType.nonVeg)
-                                  .length;
-
-                              // category counts for RIGHT dropdown (from all selected, not filtered)
-                              final Map<String, int> rightCatCounts = {};
-                              for (final it in _selectedItemsOrdered) {
-                                final cat = _categoryLabelFor(it).isEmpty
-                                    ? 'Other'
-                                    : _categoryLabelFor(it);
-                                rightCatCounts[cat] =
-                                    (rightCatCounts[cat] ?? 0) + 1;
-                              }
-                              final rightCats = rightCatCounts.keys.toList()
-                                ..sort();
-
-                              return Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Title + counts only
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            'Selected Items - ${_selectedOrder.length}',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        _infoChip('Veg • $vegCount',
-                                            highlight: true),
-                                        const SizedBox(width: 8),
-                                        _infoChip('Non-Veg • $nonCount',
-                                            negative: true),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    // RIGHT filters (new, only for selected items)
-                                    TextField(
-                                      controller: _rightSearchCtrl,
-                                      style: GoogleFonts.poppins(),
-                                      decoration: InputDecoration(
-                                        prefixIcon: const Icon(Icons.search),
-                                        hintText:
-                                            'Search within selected items',
-                                        hintStyle: GoogleFonts.poppins(),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 12),
-                                      ),
-                                      onChanged: (v) =>
-                                          setState(() => _rightSearch = v),
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 260,
-                                          child:
-                                              DropdownButtonFormField<String?>(
-                                            value: _rightCategory,
-                                            hint: Text('Category',
-                                                style: GoogleFonts.poppins()),
-                                            items: [
-                                              DropdownMenuItem<String?>(
-                                                value: null,
-                                                child: Text(
-                                                  'All (${_selectedOrder.length})',
-                                                  style: GoogleFonts.poppins(),
-                                                ),
-                                              ),
-                                              ...rightCats.map((c) =>
-                                                  DropdownMenuItem<String?>(
-                                                    value: c,
-                                                    child: Text(
-                                                      '$c (${rightCatCounts[c] ?? 0})',
-                                                      style:
-                                                          GoogleFonts.poppins(),
-                                                    ),
-                                                  )),
-                                            ],
-                                            onChanged: (v) => setState(
-                                                () => _rightCategory = v),
-                                            decoration: InputDecoration(
-                                              fillColor: Colors.white,
-                                              filled: true,
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                borderSide: BorderSide.none,
-                                              ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        _filterPill(
-                                          'Veg',
-                                          _rightFoodType == FoodType.veg,
-                                          () => setState(() => _rightFoodType =
-                                              _rightFoodType == FoodType.veg
-                                                  ? null
-                                                  : FoodType.veg),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _filterPill(
-                                          'Non-Veg',
-                                          _rightFoodType == FoodType.nonVeg,
-                                          () => setState(() => _rightFoodType =
-                                              _rightFoodType == FoodType.nonVeg
-                                                  ? null
-                                                  : FoodType.nonVeg),
-                                        ),
-                                        const Spacer(),
-                                        TextButton(
-                                          onPressed: () => setState(() {
-                                            _rightSearchCtrl.clear();
-                                            _rightSearch = '';
-                                            _rightCategory = null;
-                                            _rightFoodType = null;
-                                          }),
-                                          child: Text('Clear',
-                                              style: GoogleFonts.poppins(
-                                                  color: Colors.black)),
-                                        ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 10),
-
-                                    // RIGHT list
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(
-                                              color: const Color(0xFFE5E7EB)),
-                                        ),
-                                        child: _loadingSelected
-                                            ? const Center(
-                                                child:
-                                                    CircularProgressIndicator())
-                                            : visibleSelectedIds.isEmpty
-                                                ? Center(
-                                                    child: Text(
-                                                      'No selected items match your filters',
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                              color:
-                                                                  Colors.grey),
-                                                    ),
-                                                  )
-                                                : Scrollbar(
-                                                    controller:
-                                                        _rightScrollController,
-                                                    thumbVisibility: true,
-                                                    child: ListView.builder(
-                                                      controller:
-                                                          _rightScrollController,
-                                                      itemCount:
-                                                          visibleSelectedIds
-                                                              .length,
-                                                      itemBuilder: (_, index) {
-                                                        final id =
-                                                            visibleSelectedIds[
-                                                                index];
-                                                        final it =
-                                                            _selectedCache[id];
-
-                                                        if (it == null) {
-                                                          return Container(
-                                                            margin:
-                                                                const EdgeInsets
-                                                                    .only(
-                                                                    bottom: 10),
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .symmetric(
-                                                                    horizontal:
-                                                                        12,
-                                                                    vertical:
-                                                                        10),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color:
-                                                                  Colors.white,
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          10),
-                                                              border: Border.all(
-                                                                  color: const Color(
-                                                                      0xFFE5E7EB)),
-                                                            ),
-                                                            child: Row(
-                                                              children: [
-                                                                const SizedBox(
-                                                                  width: 18,
-                                                                  height: 18,
-                                                                  child: CircularProgressIndicator(
-                                                                      strokeWidth:
-                                                                          2),
-                                                                ),
-                                                                const SizedBox(
-                                                                    width: 10),
-                                                                Expanded(
-                                                                  child: Text(
-                                                                    'Loading item...',
-                                                                    style: GoogleFonts
-                                                                        .poppins(
-                                                                      fontSize:
-                                                                          13,
-                                                                      color: Colors
-                                                                          .grey
-                                                                          .shade700,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                                IconButton(
-                                                                  icon: const Icon(
-                                                                      Icons
-                                                                          .close,
-                                                                      size: 18),
-                                                                  onPressed: () =>
-                                                                      setState(() =>
-                                                                          _removeId(
-                                                                              id)),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          );
-                                                        }
-
-                                                        final price =
-                                                            _priceOf(it);
-                                                        final bool isVeg =
-                                                            _foodTypeFor(it) ==
-                                                                FoodType.veg;
-                                                        final ftLabel =
-                                                            _foodTypeLabelFor(
-                                                                it);
-                                                        final cat =
-                                                            _categoryLabelFor(
-                                                                it);
-
-                                                        return Container(
-                                                          margin:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  bottom: 10),
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      12,
-                                                                  vertical: 10),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: Colors.white,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        10),
-                                                            border: Border.all(
-                                                                color: const Color(
-                                                                    0xFFE5E7EB)),
-                                                          ),
-                                                          child: Row(
-                                                            children: [
-                                                              _foodSquareIcon(
-                                                                  isVeg),
-                                                              const SizedBox(
-                                                                  width: 10),
-                                                              Expanded(
-                                                                child: Column(
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .start,
-                                                                  children: [
-                                                                    Text(
-                                                                      it.name,
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            14,
-                                                                        fontWeight:
-                                                                            FontWeight.w700,
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        height:
-                                                                            6),
-                                                                    Text(
-                                                                      [
-                                                                        if (ftLabel
-                                                                            .isNotEmpty)
-                                                                          ftLabel,
-                                                                        if (cat
-                                                                            .isNotEmpty)
-                                                                          cat,
-                                                                      ].join(
-                                                                          ' • '),
-                                                                      style: GoogleFonts
-                                                                          .poppins(
-                                                                        fontSize:
-                                                                            12,
-                                                                        color: Colors
-                                                                            .grey
-                                                                            .shade700,
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                              Text(
-                                                                AppCurrency
-                                                                    .format(
-                                                                        price),
-                                                                style:
-                                                                    GoogleFonts
-                                                                        .poppins(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                                ),
-                                                              ),
-                                                              IconButton(
-                                                                icon: const Icon(
-                                                                    Icons.close,
-                                                                    size: 18),
-                                                                onPressed: () =>
-                                                                    setState(() =>
-                                                                        _removeId(
-                                                                            id)),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 10),
-
-                                    // totals (overall selection, not filtered)
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 14, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade50,
-                                            borderRadius:
-                                                BorderRadius.circular(24),
-                                            border: Border.all(
-                                                color: Colors.grey.shade200),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Text('Items:',
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                              const SizedBox(width: 10),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 6),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  border: Border.all(
-                                                      color:
-                                                          Colors.grey.shade200),
-                                                ),
-                                                child: Text(
-                                                    '${_selectedOrder.length}',
-                                                    style: GoogleFonts.poppins(
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w700)),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 18, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black,
-                                            borderRadius:
-                                                BorderRadius.circular(24),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Text('Total',
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 13,
-                                                      color: Colors.white70,
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                              const SizedBox(width: 10),
-                                              Text(
-                                                  AppCurrency.format(
-                                                      _selectedTotal),
-                                                  style: GoogleFonts.poppins(
-                                                      fontSize: 15,
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w800)),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton(
-                                          onPressed: _saving
-                                              ? null
-                                              : () =>
-                                                  Navigator.of(context).pop(),
-                                          child: Text('Cancel',
-                                              style: GoogleFonts.poppins()),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        ElevatedButton(
-                                          onPressed: _saving
-                                              ? null
-                                              : () async {
-                                                  setState(
-                                                      () => _saving = true);
-                                                  try {
-                                                    widget
-                                                        .controller
-                                                        .lastBrowsedMenuId
-                                                        .value = _menuId;
-                                                    await widget.controller
-                                                        .applyMenuSelection(
-                                                            _selectedOrder);
-                                                    if (mounted)
-                                                      Navigator.of(context)
-                                                          .pop();
-                                                  } finally {
-                                                    if (mounted)
-                                                      setState(() =>
-                                                          _saving = false);
-                                                  }
-                                                },
-                                          style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.black),
-                                          child: _saving
-                                              ? const SizedBox(
-                                                  width: 20,
-                                                  height: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    color: Colors.white,
-                                                  ),
-                                                )
-                                              : Text('Confirm',
-                                                  style: GoogleFonts.poppins(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w700)),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
+                      IconButton(
+                        tooltip: 'Delete group',
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        onPressed: () => _deleteGroup(g.groupId),
                       ),
                     ],
                   ),
-                )),
+                  children: [
+                    for (final id in g.itemIds) ...[
+                      if (!visibleSet.contains(id))
+                        const SizedBox.shrink()
+                      else ...[
+                        _groupItemRow(groupId: g.groupId, itemId: id),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+
+          // ungrouped items in this category
+          if (ungroupedVisible.isNotEmpty) ...[
+            Text(
+              'Ungrouped',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final it in ungroupedVisible) ...[
+              _selectedItemRow(it),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _selectedItemRow(MenuItem it) {
+    final id = (it.menuItemId ?? '').trim();
+    final price = _priceOf(it);
+    final isVeg = _foodTypeFor(it) == FoodType.veg;
+    final ftLabel = _foodTypeLabelFor(it);
+    final cat = _categoryLabelFor(it);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          _foodSquareIcon(isVeg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(it.name,
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Text(
+                  [if (ftLabel.isNotEmpty) ftLabel, if (cat.isNotEmpty) cat]
+                      .join(' • '),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.grey.shade700),
+                ),
               ],
             ),
           ),
-        ));
+          Text(AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          IconButton(
+            tooltip: 'Remove from selection',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _removeId(id)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupItemRow({required String groupId, required String itemId}) {
+    final it = _selectedCache[itemId];
+    if (it == null) return _loadingRow(itemId);
+
+    final price = _priceOf(it);
+    final isVeg = _foodTypeFor(it) == FoodType.veg;
+    final ftLabel = _foodTypeLabelFor(it);
+    final cat = _categoryLabelFor(it);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          _foodSquareIcon(isVeg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(it.name,
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Text(
+                  [if (ftLabel.isNotEmpty) ftLabel, if (cat.isNotEmpty) cat]
+                      .join(' • '),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ),
+          Text(AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          IconButton(
+            tooltip: 'Remove from group (keep selected)',
+            icon: const Icon(Icons.link_off, size: 18),
+            onPressed: () => _removeItemFromGroup(groupId, itemId),
+          ),
+          IconButton(
+            tooltip: 'Remove from selection',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _removeId(itemId)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _loadingRow(String id) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Loading item...',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _removeId(id)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _infoChip(String text,
@@ -3097,7 +3190,7 @@ class DemographicSelectionCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -3295,7 +3388,7 @@ class _EventAnalyzerCardState extends State<EventAnalyzerCard> {
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -3592,4 +3685,16 @@ class _EventAnalyzerCardState extends State<EventAnalyzerCard> {
       ),
     );
   }
+}
+
+class _GroupDialogResult {
+  final String name;
+  final List<String> itemIds;
+  const _GroupDialogResult(this.name, this.itemIds);
+}
+
+class _PriceRange {
+  final double min;
+  final double max;
+  const _PriceRange(this.min, this.max);
 }

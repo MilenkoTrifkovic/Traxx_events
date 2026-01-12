@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:traxx_wepapp/view/common/widgets/sort_events.dart';
+import 'package:traxx_wepapp/view/common/widgets/sort_events_old.dart';
 
 class EventListHeader extends StatelessWidget {
   const EventListHeader({super.key});

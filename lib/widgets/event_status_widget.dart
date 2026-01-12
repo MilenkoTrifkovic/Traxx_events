@@ -10,6 +10,8 @@ class EventStatusWidget extends StatelessWidget {
     switch (status) {
       case EventStatus.draft:
         return const Color(0xFFF3F4F6); // light gray
+      case EventStatus.published:
+        return const Color(0xFFD1FAE5); // light teal
       case EventStatus.live:
         return const Color(0xFFE0F7FA); // light blue
       case EventStatus.upcoming:
@@ -23,6 +25,8 @@ class EventStatusWidget extends StatelessWidget {
     switch (status) {
       case EventStatus.draft:
         return const Color(0xFF6B7280); // gray
+      case EventStatus.published:
+        return const Color(0xFF047857); // teal
       case EventStatus.live:
         return const Color(0xFF2563EB); // blue
       case EventStatus.upcoming:

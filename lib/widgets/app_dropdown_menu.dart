@@ -126,8 +126,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
     return Container(
       constraints: BoxConstraints(
         maxWidth: widget.width ?? 360.0,
-        // Remove fixed maxHeight to allow for validation errors
-        minHeight: widget.height ?? 68.0,
+        // Remove minHeight constraint to allow proper expansion for helper/error text
       ),
       margin: EdgeInsets.only(bottom: AppSpacing.xxxs(context)),
       child: Column(
@@ -145,7 +144,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
             ),
           ),
           const SizedBox(height: 4.0),
-          // Dropdown field - Remove fixed height to allow for error text expansion
+          // Dropdown field
           MouseRegion(
             onEnter: (_) => setState(() => _isHovered = true),
             onExit: (_) => setState(() => _isHovered = false),
@@ -168,8 +167,9 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
               onTap: widget.onTap,
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                helperText: widget.helperText,
-                errorText: widget.errorText,
+                // Remove helperText and errorText from InputDecoration - render them separately
+                helperText: null,
+                errorText: null,
                 filled: true,
                 fillColor: widget.fillColor ?? AppColors.white,
                 contentPadding: const EdgeInsets.symmetric(
@@ -190,6 +190,32 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
               ),
             ),
           ),
+          // Render helper text or error text separately below the dropdown
+          if (widget.errorText != null) ...[
+            const SizedBox(height: 4.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Text(
+                widget.errorText!,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  color: AppColors.inputError,
+                ),
+              ),
+            ),
+          ] else if (widget.helperText != null) ...[
+            const SizedBox(height: 4.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Text(
+                widget.helperText!,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

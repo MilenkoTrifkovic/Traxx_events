@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/venue_photo_manager_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
+import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 
 /// A widget that manages venue selection and photo management for events.
 ///
@@ -176,30 +177,31 @@ class _VenuePhotoManagerState extends State<VenuePhotoManager> {
   Widget build(BuildContext context) {
     final venuesController = Get.find<VenuesController>();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Venue Selection Dropdown
-        Obx(() {
-          final venues = venuesController.venues;
-          return DropdownButtonFormField<String>(
-            value: _selectedVenueId,
-            decoration: const InputDecoration(
-              labelText: 'Venue',
-            ),
-            items: venues.map((venue) {
-              return DropdownMenuItem<String>(
-                value: venue.venueID,
-                child: Text(venue.name.capitalize ?? venue.name),
-              );
-            }).toList(),
-            onChanged: _onVenueChanged,
-          );
-        }),
-        const SizedBox(height: 20),
-        // Venue Photos Section
-        if (_selectedVenueId != null) _buildVenuePhotosSection(),
-      ],
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Venue Selection Dropdown
+          Obx(() {
+            final venues = venuesController.venues;
+            return AppDropdownMenu<String>(
+              label: 'Venue',
+              value: _selectedVenueId,
+              items: venues.map((venue) {
+                return DropdownMenuItem<String>(
+                  value: venue.venueID,
+                  child: Text(venue.name.capitalize ?? venue.name),
+                );
+              }).toList(),
+              onChanged: _onVenueChanged,
+            );
+          }),
+          const SizedBox(height: 20),
+          // Venue Photos Section
+          if (_selectedVenueId != null) _buildVenuePhotosSection(),
+        ],
+      ),
     );
   }
 

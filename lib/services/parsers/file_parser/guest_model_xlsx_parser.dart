@@ -9,7 +9,7 @@ import 'package:traxx_wepapp/utils/enums/genders.dart';
 /// The first row must be a header with column names.
 ///
 /// Required columns: "Name", "Email"
-/// Optional columns: "Address", "City", "State", "Country", "Gender"
+/// Optional columns: "Max Invite", "Address", "City", "State", "Country", "Gender"
 ///
 /// Parsing is strict — if the header or any required field is missing,
 /// a [FormatException] is thrown and no data is returned.
@@ -101,11 +101,12 @@ class GuestModelXlsxParser {
     // Validate required columns
     if (!headerMap.containsKey('name') || !headerMap.containsKey('email')) {
       throw FormatException(
-          'Invalid XLSX format. Required columns: Name, Email. Optional: Address, City, State, Country, Gender.');
+          'Invalid XLSX format. Required columns: Name, Email. Optional: Max Invite, Address, City, State, Country, Gender.');
     }
 
     final nameIdx = headerMap['name']!;
     final emailIdx = headerMap['email']!;
+    final maxInviteIdx = headerMap['max invite'] ?? headerMap['maxinvite'];
     final addressIdx = headerMap['address'];
     final cityIdx = headerMap['city'];
     final stateIdx = headerMap['state'];
@@ -182,6 +183,18 @@ class GuestModelXlsxParser {
         country = elements[countryIdx].isEmpty ? null : elements[countryIdx];
       }
 
+      // Parse Max Invite - default to 0 if empty or invalid
+      int maxGuestInvite = 0;
+      if (maxInviteIdx != null && elements.length > maxInviteIdx) {
+        final maxInviteStr = elements[maxInviteIdx].trim();
+        if (maxInviteStr.isNotEmpty) {
+          final parsed = int.tryParse(maxInviteStr);
+          if (parsed != null && parsed >= 0) {
+            maxGuestInvite = parsed;
+          }
+        }
+      }
+
       Gender? gender;
       if (genderIdx != null && elements.length > genderIdx) {
         final genderStr = elements[genderIdx].toLowerCase();
@@ -200,6 +213,7 @@ class GuestModelXlsxParser {
         state: state,
         country: country,
         gender: gender,
+        maxGuestInvite: maxGuestInvite,
         isDisabled: false,
         isInvited: false,
       ));

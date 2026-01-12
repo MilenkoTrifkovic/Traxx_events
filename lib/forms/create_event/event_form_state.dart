@@ -27,6 +27,7 @@ class EventFormState {
   String? selectedEventType;
   String? selectedTimezone;
   bool hideHostInfo = false;
+  int? maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
 
   // Location & images
   LatLng? selectedLocation;
@@ -78,6 +79,7 @@ class EventFormState {
     // Initialize other fields
     state.serviceType = event.serviceType;
     state.hideHostInfo = event.hideHostInfo;
+    state.maxInviteByGuest = event.maxInviteByGuest;
     state.coverImage = event.coverImage;
 
     // NEW fields
@@ -123,6 +125,7 @@ EventFormState {
   eventType: $selectedEventType
   timezone: $selectedTimezone
   hideHostInfo: $hideHostInfo
+  maxInviteByGuest: $maxInviteByGuest
   location: $selectedLocation
   selectedVenue: ${selectedVenue != null ? (selectedVenue is Map ? selectedVenue['id'] : selectedVenue?.id) : null}
   selectedMenuId: $selectedMenuId

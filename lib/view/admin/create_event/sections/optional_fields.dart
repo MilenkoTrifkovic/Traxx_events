@@ -95,6 +95,39 @@ class _OptionalFieldsState extends State<OptionalFields> {
         ),
         const SizedBox(height: 16),
 
+        /// Dropdown for maximum number of guests each invitee can bring
+        /// Allows the host to control the "+1" policy (0-5 additional guests)
+        DropdownButtonFormField<int>(
+          value: formState.maxInviteByGuest,
+          decoration: const InputDecoration(
+            labelText: 'Max Guests Per Invite',
+            hintText: 'Select maximum number of additional guests',
+          ),
+          validator: (value) {
+            if (value == null) {
+              return 'Please select max guests per invite';
+            }
+            return null;
+          },
+          items: List.generate(6, (index) => index).map((number) {
+            return DropdownMenuItem<int>(
+              value: number,
+              child: Text(number == 0
+                  ? 'No additional guests'
+                  : number == 1
+                      ? '1 additional guest'
+                      : '$number additional guests'),
+            );
+          }).toList(),
+          onChanged: (int? value) {
+            if (value != null) {
+              formState.maxInviteByGuest = value;
+              setState(() {});
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+
         /// Text field for additional event information
         /// Used for providing parking instructions, venue rules,
         /// or any other important information for attendees

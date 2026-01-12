@@ -19,10 +19,13 @@ import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
 class AddGuestPopup extends StatefulWidget {
   final AdminGuestListController controller;
   final bool isEditMode;
+  final int maxInviteByGuest;
+
   const AddGuestPopup({
     super.key,
     required this.controller,
     this.isEditMode = false,
+    this.maxInviteByGuest = 0,
   });
 
   @override
@@ -38,26 +41,49 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
   @override
   Widget build(BuildContext context) {
     return AppDialog(
-      content: SingleChildScrollView(
-        child: Padding(
-          padding: AppPadding.symmetric(
-            context,
-            horizontalPadding: Sizes.xxxl, // 64px on desktop
-            verticalPadding: Sizes.xl, // 48px on desktop
-          ),
-          child: Column(
-            children: [
-              DialogStepHeader(
-                icon: Icons.person_add,
-                title: isEditMode ? 'Edit Guest' : 'Add Guest',
-                description: isEditMode
-                    ? 'Update the guest\'s information.'
-                    : 'Fill in the guest information below.',
+      content: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Padding(
+              padding: AppPadding.symmetric(
+                context,
+                horizontalPadding: Sizes.xxxl, // 64px on desktop
+                verticalPadding: Sizes.xl, // 48px on desktop
               ),
-              _buildGuestForm(context),
-            ],
+              child: Column(
+                children: [
+                  DialogStepHeader(
+                    icon: Icons.person_add,
+                    title: isEditMode ? 'Edit Guest' : 'Add Guest',
+                    description: isEditMode
+                        ? 'Update the guest\'s information.'
+                        : 'Fill in the guest information below.',
+                  ),
+                  _buildGuestForm(context),
+                ],
+              ),
+            ),
           ),
-        ),
+          // Close button (X) in top-right corner
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton(
+              icon: const Icon(Icons.close, size: 24),
+              tooltip: 'Close',
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.grey.shade100,
+                foregroundColor: Colors.grey.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -95,6 +121,32 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
               keyboardType: TextInputType.emailAddress,
               validator: ValidationHelper.validateEmail,
             ),
+
+            // Max Guest Invite dropdown
+            if (widget.maxInviteByGuest > 0)
+              Obx(() {
+                return AppDropdownMenu<int>(
+                  value: controller.maxGuestInvite.value,
+                  label: "Max Guest Invite (Optional)",
+                  hintText: "Select max guests to invite",
+                  items: List.generate(
+                    widget.maxInviteByGuest + 1,
+                    (index) => DropdownMenuItem(
+                      value: index,
+                      child: AppText.styledBodyLarge(
+                        context,
+                        index == 0 ? 'None' : '$index',
+                        weight: AppFontWeight.regular,
+                      ),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value != null) {
+                      controller.maxGuestInvite.value = value;
+                    }
+                  },
+                );
+              }),
 
             // Address (optional)
             AppTextInputField(

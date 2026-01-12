@@ -62,6 +62,7 @@ class AppTextInputField extends StatefulWidget {
   final Color? labelColor;
   final double? width;
   final double? height;
+  final Color? hintTextColor;
 
   const AppTextInputField({
     super.key,
@@ -114,6 +115,7 @@ class AppTextInputField extends StatefulWidget {
     this.labelColor,
     this.width,
     this.height,
+    this.hintTextColor,
   });
 
   @override
@@ -165,8 +167,7 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
     return Container(
       constraints: BoxConstraints(
         maxWidth: widget.width ?? 360.0,
-        // Remove fixed maxHeight to allow for validation errors
-        minHeight: widget.height ?? 68.0,
+        // Remove minHeight constraint to allow proper expansion for helper/error text
       ),
       margin: EdgeInsets.only(bottom: AppSpacing.xxxs(context)),
       child: Column(
@@ -184,7 +185,7 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
             ),
           ),
           const SizedBox(height: 4.0),
-          // Input field - Remove fixed height to allow for error text expansion
+          // Input field
           MouseRegion(
             onEnter: (_) => setState(() => _isHovered = true),
             onExit: (_) => setState(() => _isHovered = false),
@@ -221,8 +222,12 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
               enableInteractiveSelection: widget.enableInteractiveSelection,
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                helperText: widget.helperText,
-                errorText: widget.errorText,
+                hintStyle: TextStyle(
+                  color: widget.hintTextColor ?? AppColors.textMuted,
+                ),
+                // Remove helperText and errorText from InputDecoration - render them separately
+                helperText: null,
+                errorText: null,
                 suffixIcon: widget.suffixIcon,
                 prefixIcon: widget.prefixIcon,
                 prefixText: widget.prefixText,
@@ -249,6 +254,32 @@ class _AppTextInputFieldState extends State<AppTextInputField> {
               ),
             ),
           ),
+          // Render helper text or error text separately below the input field
+          if (widget.errorText != null) ...[
+            const SizedBox(height: 4.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Text(
+                widget.errorText!,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  color: AppColors.inputError,
+                ),
+              ),
+            ),
+          ] else if (widget.helperText != null) ...[
+            const SizedBox(height: 4.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Text(
+                widget.helperText!,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

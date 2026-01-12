@@ -3,6 +3,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
+import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 
 /// Base controller for event-related functionality.
@@ -25,6 +26,33 @@ class EventListController extends GetxController {
   int? get eventCapacity {
     final event = selectedEvent.value;
     return event?.capacity;
+  }
+
+  Future<void> copyEventById(String sourceEventId) async {
+    try {
+      isLoading.value = true;
+
+      final source = events.firstWhere((e) => e.eventId == sourceEventId);
+
+      final orgId = authController.organisationId;
+      if (orgId == null || orgId.isEmpty) {
+        throw Exception('OrganisationId missing');
+      }
+
+      final copied = await firestoreServices.copyEventAsDraft(
+        source,
+        organisationId: orgId,
+      );
+
+      final copiedWithUrl = await storageServices.loadImage(copied);
+
+      addCreatedEventToList(copiedWithUrl);
+    } catch (e) {
+      print('copyEventById error: $e');
+      rethrow;
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   /// Fetches events from Firestore and loads their images from Storage
@@ -53,6 +81,49 @@ class EventListController extends GetxController {
           (event) => event.name.toLowerCase().contains(value.toLowerCase())));
       print('Filtered events count: ${filteredEvents.length}');
     }
+  }
+
+  /// Applies multiple filters to the event list
+  /// Supports search text, date range, and event type filtering
+  void applyFilters({
+    String? searchText,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? eventType,
+  }) {
+    var filtered = events.toList();
+
+    // Apply search text filter
+    if (searchText != null && searchText.isNotEmpty) {
+      filtered = filtered
+          .where((event) =>
+              event.name.toLowerCase().contains(searchText.toLowerCase()))
+          .toList();
+    }
+
+    // Apply date range filter
+    if (startDate != null) {
+      filtered = filtered
+          .where((event) =>
+              event.date.isAfter(startDate.subtract(const Duration(days: 1))))
+          .toList();
+    }
+
+    if (endDate != null) {
+      filtered = filtered
+          .where((event) =>
+              event.date.isBefore(endDate.add(const Duration(days: 1))))
+          .toList();
+    }
+
+    // Apply event type filter
+    if (eventType != null && eventType.isNotEmpty) {
+      filtered =
+          filtered.where((event) => event.eventType == eventType).toList();
+    }
+
+    filteredEvents.assignAll(filtered);
+    print('Filtered events count: ${filteredEvents.length}');
   }
 
   /// Sorts the filtered events list based on the specified sort type
@@ -100,6 +171,49 @@ class EventListController extends GetxController {
     } catch (e) {
       print('Error deleting event: $e');
       throw Exception('$e');
+    }
+  }
+
+  /// Publishes an event by updating its status to published
+  /// Updates both Firestore and local state
+  /// Throws Exception if publish operation fails
+  Future<void> publishEvent() async {
+    try {
+      final current = selectedEvent.value;
+      if (current == null) throw Exception('No event selected');
+
+      final eventId = current.eventId!;
+      final wasPublished = current.status == EventStatus.published;
+
+      // Update status (and ideally bump publishedAt on republish too)
+      await firestoreServices.updateEventStatus(
+        eventId,
+        EventStatus.published,
+        // If your service supports it, also update publishedAt/lastPublishedAt:
+        // bumpPublishedAt: true,
+      );
+
+      // Local update stays published either way
+      final updatedEvent = current.copyWith(
+        status: EventStatus.published,
+        // optionally: publishedAt: DateTime.now(),
+      );
+
+      final index = events.indexWhere((e) => e.eventId == eventId);
+      if (index != -1) events[index] = updatedEvent;
+
+      final filteredIndex =
+          filteredEvents.indexWhere((e) => e.eventId == eventId);
+      if (filteredIndex != -1) filteredEvents[filteredIndex] = updatedEvent;
+
+      selectedEvent.value = updatedEvent;
+
+      print(wasPublished
+          ? 'Event re-published successfully'
+          : 'Event published successfully');
+    } catch (e) {
+      print('Error publishing event: $e');
+      throw Exception('Failed to publish event: $e');
     }
   }
 

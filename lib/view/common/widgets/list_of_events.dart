@@ -6,6 +6,8 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/controller/common_controllers/list_of_events_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/user_type.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -70,7 +72,7 @@ class _ListOfEventsState extends State<ListOfEvents> {
         return SizedBox(
           height: MediaQuery.of(context).size.height - 200,
           child: EmptyState(
-            title: 'Welcome to Traxx',
+            title: 'Welcome to Trax',
             description: 'Lets create your first event',
             buttonText: 'Add First Event',
             onButtonPressed: () {
@@ -84,7 +86,33 @@ class _ListOfEventsState extends State<ListOfEvents> {
       }
 
       if (controller.filteredEvents.isEmpty) {
-        return const Center(child: Text('No filtered events found'));
+        return SizedBox(
+          height: 300,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search_off,
+                  size: 64,
+                  color: AppColors.textMuted,
+                ),
+                const SizedBox(height: 16),
+                AppText.styledHeadingSmall(
+                  context,
+                  'No events found',
+                  weight: FontWeight.w600,
+                ),
+                const SizedBox(height: 8),
+                AppText.styledBodyMedium(
+                  context,
+                  'Try adjusting your filters',
+                  color: AppColors.textMuted,
+                ),
+              ],
+            ),
+          ),
+        );
       }
 
       final paginatedEvents =

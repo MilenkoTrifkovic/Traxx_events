@@ -41,6 +41,14 @@ class Event {
   final String? plannerEmail;
   final String? specialNotes;
   final bool hideHostInfo;
+  final int maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
+  
+  // Invitation letter fields
+  final String? invitationLetterPath; // Storage path for the invitation letter file
+  final String? invitationLetterUrl; // Download URL for the invitation letter file
+  
+  // Invitation code field
+  final String? invitationCode; // Unique invitation code (e.g., WE2390RT)
 
   Event({
     this.isDisabled,
@@ -67,12 +75,18 @@ class Event {
     this.plannerEmail,
     this.specialNotes,
     this.hideHostInfo = false,
+    this.maxInviteByGuest = 0, // Default to 0
     this.selectableCategories = const [],
     this.selectedMenus,
     // new fields
     this.selectedMenuId,
     this.selectedMenuItemIds,
     this.selectedDemographicQuestionSetId,
+    // invitation letter fields
+    this.invitationLetterPath,
+    this.invitationLetterUrl,
+    // invitation code field
+    this.invitationCode,
   });
 
   /// Creates an Event instance from a Firestore document
@@ -141,6 +155,7 @@ class Event {
       plannerEmail: data['plannerEmail'] as String?,
       specialNotes: data['specialNotes'] as String?,
       hideHostInfo: data['hideHostInfo'] as bool? ?? false,
+      maxInviteByGuest: (data['maxInviteByGuest'] as num?)?.toInt() ?? 0,
       isDisabled: data['isDisabled'] as bool?,
       serviceType: ServiceType.values.firstWhere(
         (e) => e.name == (data['serviceType']),
@@ -157,6 +172,11 @@ class Event {
       selectedMenuItemIds: selectedMenuItemIdsList,
       selectedDemographicQuestionSetId:
           data['selectedDemographicQuestionSetId'] as String?,
+      // invitation letter fields
+      invitationLetterPath: data['invitationLetterPath'] as String?,
+      invitationLetterUrl: data['invitationLetterUrl'] as String?,
+      // invitation code field
+      invitationCode: data['invitationCode'] as String?,
     );
   }
 
@@ -273,6 +293,7 @@ class Event {
           ? state.specialNotesController.text.trim()
           : null,
       hideHostInfo: state.hideHostInfo ?? false,
+      maxInviteByGuest: state.maxInviteByGuest ?? 0,
       selectableCategories:
           state.selectableMenuCategories ?? const <MenuCategory>[],
       selectedMenus: state.selectedMenus,
@@ -323,6 +344,7 @@ class Event {
       'plannerEmail': plannerEmail,
       'specialNotes': specialNotes,
       'hideHostInfo': hideHostInfo,
+      'maxInviteByGuest': maxInviteByGuest,
       'coverImageUrl': coverImageUrl,
       'serviceType': serviceType.name,
       'status': status.statusName,
@@ -336,6 +358,11 @@ class Event {
       'selectedMenuItemIds': selectedMenuItemIds ?? [],
       'selectedDemographicQuestionSetId': selectedDemographicQuestionSetId,
       'isDisabled': isDisabled ?? false,
+      // invitation letter fields
+      'invitationLetterPath': invitationLetterPath,
+      'invitationLetterUrl': invitationLetterUrl,
+      // invitation code field
+      'invitationCode': invitationCode,
     };
   }
 
@@ -365,6 +392,7 @@ class Event {
     String? plannerEmail,
     String? specialNotes,
     bool? hideHostInfo,
+    int? maxInviteByGuest,
     List<MenuCategory>? selectableCategories,
     bool? isDisabled,
     // NEW copyWith options:
@@ -372,6 +400,11 @@ class Event {
     String? selectedMenuId,
     List<String>? selectedMenuItemIds,
     String? selectedDemographicQuestionSetId,
+    // invitation letter options
+    String? invitationLetterPath,
+    String? invitationLetterUrl,
+    // invitation code option
+    String? invitationCode,
   }) {
     return Event(
       eventId: eventId ?? this.eventId,
@@ -398,6 +431,7 @@ class Event {
       plannerEmail: plannerEmail ?? this.plannerEmail,
       specialNotes: specialNotes ?? this.specialNotes,
       hideHostInfo: hideHostInfo ?? this.hideHostInfo,
+      maxInviteByGuest: maxInviteByGuest ?? this.maxInviteByGuest,
       selectableCategories: selectableCategories ?? this.selectableCategories,
       isDisabled: isDisabled ?? this.isDisabled,
       selectedMenus: selectedMenus ?? this.selectedMenus,
@@ -405,6 +439,9 @@ class Event {
       selectedMenuItemIds: selectedMenuItemIds ?? this.selectedMenuItemIds,
       selectedDemographicQuestionSetId: selectedDemographicQuestionSetId ??
           this.selectedDemographicQuestionSetId,
+      invitationLetterPath: invitationLetterPath ?? this.invitationLetterPath,
+      invitationLetterUrl: invitationLetterUrl ?? this.invitationLetterUrl,
+      invitationCode: invitationCode ?? this.invitationCode,
     );
   }
 
@@ -413,6 +450,7 @@ class Event {
     return '''
 Event {
   eventId: $eventId
+  invitationCode: $invitationCode
   organisationId: $organisationId
   serviceType: $serviceType
   name: $name

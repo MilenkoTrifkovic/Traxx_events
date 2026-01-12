@@ -286,13 +286,6 @@ class _CreateEventPopupViewState extends State<CreateEventPopupView> {
               form: Form(
                 child: Column(
                   children: [
-                    // Description
-                    AppTextInputField(
-                      label: 'Description (Optional)',
-                      controller: controller.descriptionController,
-                      maxLines: 3,
-                    ),
-
                     // Max Capacity
                     Obx(() => AppTextInputField(
                           label: 'Max Capacity',
@@ -305,6 +298,36 @@ class _CreateEventPopupViewState extends State<CreateEventPopupView> {
                               ? null
                               : controller.capacityError.value,
                         )),
+
+                    // Max Guests Per Invite Dropdown
+                    Obx(() => AppDropdownMenu<int>(
+                          label: 'Max Guests Per Invite',
+                          hintText: 'Select maximum number of additional guests',
+                          value: controller.maxInviteByGuest.value,
+                          errorText: controller.maxInviteByGuestError.value.isEmpty
+                              ? null
+                              : controller.maxInviteByGuestError.value,
+                          items: List.generate(6, (index) => index).map((number) {
+                            return DropdownMenuItem<int>(
+                              value: number,
+                              child: Text(number == 0
+                                  ? 'No additional guests'
+                                  : number == 1
+                                      ? '1 additional guest'
+                                      : '$number additional guests'),
+                            );
+                          }).toList(),
+                          onChanged: (int? value) {
+                            controller.updateMaxInviteByGuest(value);
+                          },
+                        )),
+
+                    // Description
+                    AppTextInputField(
+                      label: 'Description (Optional)',
+                      controller: controller.descriptionController,
+                      maxLines: 3,
+                    ),
 
                     // Dress Code
                     AppTextInputField(

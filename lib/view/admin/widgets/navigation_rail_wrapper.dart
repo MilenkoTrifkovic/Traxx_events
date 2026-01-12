@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
+import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/view/admin/widgets/sidebar.dart';
+import 'package:traxx_wepapp/view/admin/widgets/sidebar_nav_tiles.dart';
 
 // keep your existing imports for:
 // AppColors, AppText, AppRoute, pushAndRemoveAllRoute, AuthController
@@ -32,6 +33,9 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
   late final Animation<double> _contentFade;
 
   static bool _hasPlayedIntro = false;
+  bool _isExpanded = true; // Track expanded/collapsed state
+  bool _initialStateSet =
+      false; // Track if we've set initial state based on screen size
 
   int _selectedIndexForLocation(String location) {
     if (location.startsWith(AppRoute.hostEvents.path)) return 0;
@@ -39,10 +43,11 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
     if (location.startsWith(AppRoute.hostVenues.path)) return 2;
     if (location.startsWith(AppRoute.hostMenus.path)) return 3;
 
-    // ✅ Questions: sets + questions + setQuestions route
+    // ✅ Questions
     if (location.startsWith(AppRoute.hostQuestionSets.path) ||
         location.startsWith(AppRoute.hostQuestions.path) ||
-        location.startsWith(AppRoute.hostQuestionSetQuestions.path)) {
+        location.startsWith(AppRoute.hostQuestionSetQuestions.path) ||
+        location.startsWith(AppRoute.hostQuestionRules.path)) {
       return 4;
     }
 
@@ -60,24 +65,34 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
       case 0:
         pushAndRemoveAllRoute(AppRoute.hostEvents, context);
         return;
+
       case 1:
         pushAndRemoveAllRoute(AppRoute.calendarView, context);
         return;
+
       case 2:
         pushAndRemoveAllRoute(AppRoute.hostVenues, context);
         return;
+
       case 3:
         pushAndRemoveAllRoute(AppRoute.hostMenus, context);
         return;
+
       case 4:
         pushAndRemoveAllRoute(AppRoute.hostQuestionSets, context);
         return;
+
+      // ✅ Users
       case 5:
         pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
         return;
+
+      // ✅ Settings
       case 6:
         pushAndRemoveAllRoute(AppRoute.hostSettings, context);
         return;
+
+      // ✅ Logout (FIXED index)
       case 7:
         try {
           await authController.logout();
@@ -122,6 +137,19 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Set initial collapsed state for phones
+    if (!_initialStateSet) {
+      _initialStateSet = true;
+      if (ScreenSize.isPhone(context)) {
+        _isExpanded = false;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _introCtrl.dispose();
     super.dispose();
@@ -132,234 +160,132 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
     final String location = GoRouterState.of(context).uri.path;
     final int selectedIndex = _selectedIndexForLocation(location);
 
-    final items = <_NavItemData>[
-      _NavItemData(
+    // Auto-collapse on phone screens
+    final bool isPhone = ScreenSize.isPhone(context);
+    final bool shouldBeExpanded = isPhone ? _isExpanded : _isExpanded;
+
+    final items = <NavItemData>[
+      const NavItemData(
         label: 'Events',
         icon: Icons.wine_bar_outlined,
         selectedIcon: Icons.wine_bar,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Calendar',
         icon: Icons.calendar_month_outlined,
         selectedIcon: Icons.calendar_month,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Venues',
         icon: Icons.location_on_outlined,
         selectedIcon: Icons.location_on,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Menus',
         icon: Icons.restaurant_menu_outlined,
         selectedIcon: Icons.restaurant_menu,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Questions',
         icon: Icons.quiz_outlined,
         selectedIcon: Icons.quiz,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Users',
         icon: Icons.group_outlined,
         selectedIcon: Icons.group,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Settings',
         icon: Icons.settings_outlined,
         selectedIcon: Icons.settings,
       ),
-      _NavItemData(
+      const NavItemData(
         label: 'Logout',
         icon: Icons.logout_outlined,
         selectedIcon: Icons.logout,
       ),
     ];
 
+    // Get organisation name
+    final organisationName = Get.isRegistered<OrganisationController>()
+        ? Get.find<OrganisationController>().getOrganisationName()
+        : 'Event Manager';
+
+    // Get organisation photo URL
+    final organisationPhotoUrl = Get.isRegistered<OrganisationController>()
+        ? Get.find<OrganisationController>().getOrganisationPhotoUrl()
+        : null;
+
+    final sidebarWidget = SlideTransition(
+      position: _sidebarSlide,
+      child: FadeTransition(
+        opacity: _sidebarFade,
+        child: Sidebar(
+          selectedIndex: selectedIndex,
+          items: items,
+          onTap: (i) => _onTap(context, i),
+          isExpanded: shouldBeExpanded,
+          organisationName: organisationName,
+          organisationPhotoUrl: organisationPhotoUrl,
+          onToggleExpand: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+        ),
+      ),
+    );
+
+    final contentWidget = FadeTransition(
+      opacity: _contentFade,
+      child: widget.child,
+    );
+
+    // On phone: Stack layout (overlay) | On larger screens: Row layout (push)
+    if (isPhone) {
+      return Stack(
+        children: [
+          // Content with left padding when collapsed (pushes content)
+          Padding(
+            padding: EdgeInsets.only(left: _isExpanded ? 0 : 72.0),
+            child: contentWidget,
+          ),
+
+          // Backdrop/scrim when expanded
+          if (_isExpanded)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = false;
+                  });
+                },
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                ),
+              ),
+            ),
+
+          // Navigation rail (overlay)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: sidebarWidget,
+          ),
+        ],
+      );
+    }
+
+    // Larger screens: Row layout (pushes content)
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ✅ Modern Sidebar (full-width active tab + intro slide animation)
-        SlideTransition(
-          position: _sidebarSlide,
-          child: FadeTransition(
-            opacity: _sidebarFade,
-            child: _Sidebar(
-              selectedIndex: selectedIndex,
-              items: items,
-              onTap: (i) => _onTap(context, i),
-            ),
-          ),
-        ),
-
+        sidebarWidget,
         const VerticalDivider(thickness: 1, width: 1),
-
-        // ✅ Content (optional subtle fade on first render)
-        Expanded(
-          child: FadeTransition(
-            opacity: _contentFade,
-            child: widget.child,
-          ),
-        ),
+        Expanded(child: contentWidget),
       ],
     );
   }
-}
-
-class _Sidebar extends StatelessWidget {
-  final int selectedIndex;
-  final List<_NavItemData> items;
-  final ValueChanged<int> onTap;
-
-  const _Sidebar({
-    required this.selectedIndex,
-    required this.items,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 232,
-      decoration: BoxDecoration(
-        // ✅ richer, modern feel
-        color: AppColors.primary,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.18),
-            blurRadius: 18,
-            offset: const Offset(6, 0),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header (we’ll refine later as you said)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: AppText.styledHeadingLarge(
-                  context,
-                  'Traxx',
-                  color: AppColors.white,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                itemBuilder: (context, i) {
-                  final bool isActive = i == selectedIndex;
-
-                  final item = items[i];
-                  return _NavTile(
-                    label: item.label,
-                    icon: item.icon,
-                    selectedIcon: item.selectedIcon,
-                    active: isActive,
-                    onTap: () => onTap(i),
-                  );
-                },
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemCount: items.length,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavTile extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final IconData selectedIcon;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _NavTile({
-    required this.label,
-    required this.icon,
-    required this.selectedIcon,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Color fg = active ? Colors.black : Colors.white;
-    final Color bg = active ? Colors.white : Colors.transparent;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        hoverColor: Colors.white.withOpacity(0.08),
-        splashColor: Colors.white.withOpacity(0.12),
-        highlightColor: Colors.white.withOpacity(0.06),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              // Left indicator (adds a premium feel)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                width: 4,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: active ? Colors.black : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              Icon(active ? selectedIcon : icon, color: fg, size: 22),
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: fg,
-                  ),
-                  child: Text(label),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItemData {
-  final String label;
-  final IconData icon;
-  final IconData selectedIcon;
-
-  const _NavItemData({
-    required this.label,
-    required this.icon,
-    required this.selectedIcon,
-  });
 }

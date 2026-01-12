@@ -25,6 +25,7 @@ enum AppRoute {
   hostQuestions('/host-questions'),
   hostCreateEvent('/host-create-event'),
   adminEventDetails('/host-event-details/:eventId', 'eventId'),
+  hostQuestionRules('/host-question-rules'),
 
   // Guest / event routes ...
   guestEvents('/guest-events'),
@@ -38,9 +39,22 @@ enum AppRoute {
       '/event-details/:eventId/demographic-analyzer', 'eventId'),
   eventMenuAnalyzer('/event-details/:eventId/menu-analyzer', 'eventId'),
   eventGuests('/event-guests'),
+  guestSidePreview('/event-details/:eventId/guest-preview', 'eventId'),
 
-  // Public guest form route (you already have it hardcoded as '/demographics')
+  // Public guest response routes
+  guestLogin('/guest-login'),
+  guestResponsesPreview('/guest-responses-preview'),
+  guestDemographicsView('/guest-demographics-view'),
+  guestMenuSelectionView('/guest-menu-selection-view'),
+  guestDemographicsEdit('/guest-demographics-edit'),
+  guestMenuSelectionEdit('/guest-menu-selection-edit'),
+  guestFeed('/guest-feed'),
+  guestResponse('/guest-response'),
+  guestCompanions('/guest-companions'),
+  guestCompanionsInfo('/guest-companions-info'),
   demographics('/demographics'),
+  menuSelection('/menu-selection'),
+  thankYou('/thank-you'),
 
 // Dev-only host route visible in sidebar
   // hostDemographics('/host-demographics'),

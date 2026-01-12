@@ -6,23 +6,31 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
 import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
 import 'package:traxx_wepapp/features/common/calendar_page/view/calendar_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/controller/rsvp_response_controller.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/compaignons_info_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_count_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_thank_you_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
+import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
-import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage.dart';
-import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage_refactored.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage_refactored.dart';
 import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
+import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
+import 'package:traxx_wepapp/view/admin/questions/host_questions_rules_screen.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
@@ -43,8 +51,18 @@ import 'package:traxx_wepapp/view/admin/widgets/navigation_rail_wrapper.dart';
 import 'package:traxx_wepapp/view/authentication/login/welcome_view.dart';
 import 'package:traxx_wepapp/widgets/content_wrapper.dart';
 import 'package:traxx_wepapp/widgets/event_loader.dart';
+import 'package:traxx_wepapp/layout/guest_layout/guest_page_wrapper.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
+import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_view_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_view_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
+import 'package:traxx_wepapp/features/guest/guest_feed_page/view/guest_feed_page.dart';
+import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -53,6 +71,8 @@ import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.d
 /// Key for the host section's nested navigation
 final GlobalKey<NavigatorState> hostNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestNavigationKey =
+    GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> guestAuthNavigatorKey =
     GlobalKey<NavigatorState>();
 
 ///
@@ -95,7 +115,6 @@ GoRouter buildRouter() {
       ),
       GoRoute(
         redirect: (context, state) {
-          print('dasdadlaskdjkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkas');
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
           }
@@ -115,33 +134,277 @@ GoRouter buildRouter() {
       ),
 
       GoRoute(
-        path: '/demographics',
+        path: AppRoute.thankYou.path,
         builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          final token = state.uri.queryParameters['token'] ?? '';
-          return DemographicResponsePage(
-            invitationId: invitationId,
-            token: token, // ✅ IMPORTANT
-            embedded: false,
-            showInvitationInput: false,
+          final invId =
+              (state.uri.queryParameters['invitationId'] ?? '').trim();
+          final token = (state.uri.queryParameters['token'] ?? '').trim();
+          return GuestThankYouPage(invitationId: invId, token: token);
+        },
+      ),
+
+      // GUEST AUTHENTICATED SHELL ROUTE
+      // Handles guest authentication and session management
+      // All guest routes that require authentication go here
+      ShellRoute(
+        navigatorKey: guestAuthNavigatorKey,
+        redirect: (context, state) {
+          final guestSession = Get.find<GuestSessionController>();
+
+          // If on login page and already authenticated, redirect to responses preview
+          if (state.matchedLocation == AppRoute.guestLogin.path) {
+            if (guestSession.isAuthenticated) {
+              print(
+                  '✅ Guest already authenticated, redirecting to responses preview');
+              return AppRoute.guestResponsesPreview.path;
+            }
+            // Not authenticated, allow access to login page
+            return null;
+          }
+
+          // For all other guest routes, check if authenticated
+          if (!guestSession.isAuthenticated) {
+            print('🔒 Guest not authenticated, redirecting to login');
+            return AppRoute.guestLogin.path;
+          }
+
+          print('✅ Guest authenticated, allowing access');
+          return null; // Allow access to protected route
+        },
+        builder: (context, state, child) {
+          // If on login page, don't show navigation rail
+          if (state.matchedLocation == AppRoute.guestLogin.path) {
+            print('ONLY CHILD RETURNED');
+            return child;
+          }
+
+          // For authenticated routes, show navigation rail and content wrapper
+          return GuestNavigationRailWrapper(
+            child: ContentWrapper(
+              child: child,
+            ),
           );
         },
+        routes: [
+          // Public guest login route
+          GoRoute(
+            path: AppRoute.guestLogin.path,
+            builder: (context, state) => const GuestLoginPage(),
+          ),
+
+          // Guest responses preview page (authenticated)
+          GoRoute(
+            path: AppRoute.guestResponsesPreview.path,
+            builder: (context, state) => const GuestResponsesPreviewPage(),
+          ),
+
+          // Guest demographics view page (authenticated)
+          GoRoute(
+            path: AppRoute.guestDemographicsView.path,
+            builder: (context, state) => const GuestDemographicsViewPage(),
+          ),
+
+          // Guest menu selection view page (authenticated)
+          GoRoute(
+            path: AppRoute.guestMenuSelectionView.path,
+            builder: (context, state) => const GuestMenuSelectionViewPage(),
+          ),
+
+          // Guest demographics edit page (authenticated)
+          GoRoute(
+            path: AppRoute.guestDemographicsEdit.path,
+            builder: (context, state) => const GuestDemographicsEditPage(),
+          ),
+
+          // Guest menu selection edit page (authenticated)
+          GoRoute(
+            path: AppRoute.guestMenuSelectionEdit.path,
+            builder: (context, state) => const GuestMenuSelectionEditPage(),
+          ),
+
+          // Guest feed page (authenticated)
+          GoRoute(
+            path: AppRoute.guestFeed.path,
+            builder: (context, state) {
+              final guestSession = Get.find<GuestSessionController>();
+              final eventId = guestSession.event.value?.eventId ?? '';
+              final eventName = guestSession.event.value?.name;
+
+              return GuestFeedPage(
+                eventId: eventId,
+                eventName: eventName,
+              );
+            },
+          ),
+
+          // TODO: Add more authenticated guest routes here
+          // Example:
+          // GoRoute(
+          //   path: AppRoute.guestDashboard.path,
+          //   builder: (context, state) => const GuestDashboardPage(),
+          // ),
+        ],
       ),
 
-      GoRoute(
-        path: '/menu-selection',
-        builder: (context, state) {
+      // GUEST RESPONSE SHELL ROUTE
+      // Public routes for guests responding to invitations (RSVP → Demographics → Menu → Thank You)
+      ShellRoute(
+        builder: (context, state, child) {
           final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          return GuestMenuSelectionPage(invitationId: invitationId);
-        },
-      ),
+          final token = state.uri.queryParameters['token'] ?? '';
 
-      GoRoute(
-        path: '/thank-you',
-        builder: (context, state) {
-          final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          return ThankYouPage(invitationId: invitationId);
+          final rsvpCtrl = Get.put(RsvpResponseController(), tag: invitationId);
+          rsvpCtrl.invitationId = invitationId;
+          rsvpCtrl.token = token;
+
+          // Always ensure load at least once
+          if (rsvpCtrl.invitationStatus.value == null &&
+              !rsvpCtrl.isLoading.value) {
+            rsvpCtrl.checkExistingResponse();
+          }
+
+          // ✅ CREATE GuestLayoutController HERE (not later)
+          final guestLayout =
+              Get.put(GuestLayoutController(), tag: invitationId);
+          // start loading event immediately
+          guestLayout.loadEventCoverImageFromInvitation(invitationId);
+
+          return GuestPageWrapper(
+            invitationId: invitationId,
+            child: child,
+          );
         },
+        routes: [
+          GoRoute(
+            path: AppRoute.guestResponse.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+
+              final forceDetails =
+                  (state.uri.queryParameters['view'] ?? '') == 'details';
+
+              return RsvpResponsePage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+                forceDetails: forceDetails, // ✅ NEW
+              );
+            },
+          ),
+
+          GoRoute(
+            path: AppRoute.guestCompanionsInfo.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+              return CompaignonsInfoPage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.guestCompanions.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+              return GuestCountPage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.demographics.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+
+              // Parse companion index if provided
+              final companionIndexStr =
+                  state.uri.queryParameters['companionIndex'];
+              final int? companionIndex = companionIndexStr != null
+                  ? int.tryParse(companionIndexStr)
+                  : null;
+
+              // Get companion name if provided
+              final companionName = state.uri.queryParameters['companionName'];
+
+              return DemographicResponsePage(
+                invitationId: invitationId,
+                token: token,
+                embedded: false,
+                showInvitationInput: false,
+                companionIndex: companionIndex,
+                companionName: companionName,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.menuSelection.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+
+              // Parse companion index if provided
+              final companionIndexStr =
+                  state.uri.queryParameters['companionIndex'];
+              final int? companionIndex = companionIndexStr != null
+                  ? int.tryParse(companionIndexStr)
+                  : null;
+
+              // Get companion name if provided
+              final companionName = state.uri.queryParameters['companionName'];
+
+              return GuestMenuSelectionPage(
+                invitationId: invitationId,
+                companionIndex: companionIndex,
+                companionName: companionName,
+              );
+            },
+          ),
+          // GoRoute(
+          //   path: AppRoute.menuSelection.path,
+          //   builder: (context, state) {
+          //     final invitationId = state.uri.queryParameters['invitationId'] ?? '';
+          //     return GuestMenuSelectionPage(invitationId: invitationId);
+          //   },
+          // ),
+          GoRoute(
+            path: AppRoute.thankYou.path,
+            redirect: (context, state) {
+              final invitationId =
+                  (state.uri.queryParameters['invitationId'] ?? '').trim();
+              final token = (state.uri.queryParameters['token'] ?? '').trim();
+              final eventName = state.uri.queryParameters['eventName'];
+
+              // If invitationId is missing, just go to guest-response base route
+              if (invitationId.isEmpty) {
+                return AppRoute.guestResponse.path;
+              }
+
+              return Uri(
+                path: AppRoute.guestResponse.path,
+                queryParameters: {
+                  'invitationId': invitationId,
+                  if (token.isNotEmpty) 'token': token,
+                  if (eventName != null && eventName.trim().isNotEmpty)
+                    'eventName': eventName.trim(),
+                },
+              ).toString();
+            },
+          ),
+        ],
       ),
 
       //HOST SHELL ROUTE
@@ -208,7 +471,7 @@ GoRouter buildRouter() {
                   contentColor: isQuestionsPage
                       ? gfBackground // Color(0xFFF4F0FB)
                       : const Color.fromARGB(255, 247, 247, 247),
-                  header: getPageHeader(state),
+                  header: getPageHeader(state, context: context),
                   child: child,
                 ),
               );
@@ -279,6 +542,11 @@ GoRouter buildRouter() {
               );
             },
           ),
+          GoRoute(
+            path: AppRoute.hostQuestionRules.path,
+            builder: (context, state) => const QuestionRulesScreen(),
+          ),
+
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {
@@ -357,6 +625,14 @@ GoRouter buildRouter() {
               return EventMenuAnalyzerPage(eventId: eventId);
             },
           ),
+          GoRoute(
+            path: AppRoute.guestSidePreview.path,
+            builder: (context, state) {
+              final eventId =
+                  state.pathParameters[AppRoute.guestSidePreview.placeholder]!;
+              return GuestSidePreviewPage(eventId: eventId);
+            },
+          ),
 
           GoRoute(
             path: AppRoute.eventGuests.path,
@@ -425,7 +701,7 @@ GoRouter buildRouter() {
                           top: 24,
                           bottom: 8,
                         ),
-                        child: getPageHeader(state),
+                        child: getPageHeader(state, context: context),
                       ),
                       // content area with lavender background + limited-width body
                       Expanded(
@@ -443,7 +719,7 @@ GoRouter buildRouter() {
                 return NavigationRailWrapper(
                   child: ContentWrapper(
                     contentColor: const Color.fromARGB(255, 247, 247, 247),
-                    header: getPageHeader(state),
+                    header: getPageHeader(state, context: context),
                     child: child,
                   ),
                 );
