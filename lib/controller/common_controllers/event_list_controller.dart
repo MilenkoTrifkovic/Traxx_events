@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
@@ -5,6 +6,7 @@ import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
+import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 
 /// Base controller for event-related functionality.
 /// Extend this class to create specific user type controllers (host, guest, etc.)
@@ -28,7 +30,10 @@ class EventListController extends GetxController {
     return event?.capacity;
   }
 
-  Future<void> copyEventById(String sourceEventId) async {
+  Future<void> copyEventById(
+    String sourceEventId, {
+    CopyEventOptions? options,
+  }) async {
     try {
       isLoading.value = true;
 
@@ -42,16 +47,42 @@ class EventListController extends GetxController {
       final copied = await firestoreServices.copyEventAsDraft(
         source,
         organisationId: orgId,
+        options: options,
       );
 
       final copiedWithUrl = await storageServices.loadImage(copied);
-
       addCreatedEventToList(copiedWithUrl);
+      selectedEvent.value = copiedWithUrl;
     } catch (e) {
       print('copyEventById error: $e');
       rethrow;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> deleteEventById(String eventId) async {
+    try {
+      final id = eventId.trim();
+      if (id.isEmpty) return;
+
+      await firestoreServices.deleteEvent(id);
+
+      // ✅ update local lists (datatable will refresh automatically)
+      events.removeWhere((x) => (x.eventId ?? '').trim() == id);
+      filteredEvents.removeWhere((x) => (x.eventId ?? '').trim() == id);
+
+      events.refresh();
+      filteredEvents.refresh();
+
+      if (selectedEvent.value?.eventId == id) {
+        selectedEvent.value = null;
+      }
+
+      debugPrint('✅ Deleted event: $id');
+    } catch (e) {
+      debugPrint('❌ deleteEventById error: $e');
+      rethrow;
     }
   }
 
@@ -174,47 +205,39 @@ class EventListController extends GetxController {
     }
   }
 
-  /// Publishes an event by updating its status to published
-  /// Updates both Firestore and local state
-  /// Throws Exception if publish operation fails
-  Future<void> publishEvent() async {
-    try {
-      final current = selectedEvent.value;
-      if (current == null) throw Exception('No event selected');
+  Future<void> publishEventById(String eventId) async {
+    final id = eventId.trim();
+    if (id.isEmpty) throw Exception('Invalid eventId');
 
-      final eventId = current.eventId!;
-      final wasPublished = current.status == EventStatus.published;
+    // Update Firestore first
+    await firestoreServices.updateEventStatus(id, EventStatus.published);
 
-      // Update status (and ideally bump publishedAt on republish too)
-      await firestoreServices.updateEventStatus(
-        eventId,
-        EventStatus.published,
-        // If your service supports it, also update publishedAt/lastPublishedAt:
-        // bumpPublishedAt: true,
-      );
-
-      // Local update stays published either way
-      final updatedEvent = current.copyWith(
-        status: EventStatus.published,
-        // optionally: publishedAt: DateTime.now(),
-      );
-
-      final index = events.indexWhere((e) => e.eventId == eventId);
-      if (index != -1) events[index] = updatedEvent;
-
-      final filteredIndex =
-          filteredEvents.indexWhere((e) => e.eventId == eventId);
-      if (filteredIndex != -1) filteredEvents[filteredIndex] = updatedEvent;
-
-      selectedEvent.value = updatedEvent;
-
-      print(wasPublished
-          ? 'Event re-published successfully'
-          : 'Event published successfully');
-    } catch (e) {
-      print('Error publishing event: $e');
-      throw Exception('Failed to publish event: $e');
+    // Update local lists if present
+    final i = events.indexWhere((x) => (x.eventId ?? '').trim() == id);
+    if (i != -1) {
+      events[i] = events[i].copyWith(status: EventStatus.published);
     }
+
+    final fi = filteredEvents.indexWhere((x) => (x.eventId ?? '').trim() == id);
+    if (fi != -1) {
+      filteredEvents[fi] =
+          filteredEvents[fi].copyWith(status: EventStatus.published);
+    }
+
+    events.refresh();
+    filteredEvents.refresh();
+
+    // Keep selectedEvent in sync if it matches
+    if ((selectedEvent.value?.eventId ?? '').trim() == id) {
+      selectedEvent.value =
+          selectedEvent.value?.copyWith(status: EventStatus.published);
+    }
+  }
+
+  Future<void> publishEvent() async {
+    final current = selectedEvent.value;
+    if (current == null) throw Exception('No event selected');
+    await publishEventById(current.eventId ?? '');
   }
 
   void addCreatedEventToList(Event event) {
@@ -243,7 +266,6 @@ class EventListController extends GetxController {
     super.onInit();
     fetchEvents().then((_) {
       filteredEvents.assignAll(events);
-      sortEvents(SortType.dateNewest);
     }).catchError((error) {
       print("Error fetching events: $error");
     });

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/helper/firestore_helper.dart';
@@ -60,20 +61,69 @@ class FirestoreServices {
   Future<Event> copyEventAsDraft(
     Event source, {
     required String organisationId,
+    CopyEventOptions? options,
   }) async {
     final ref = _db.collection('events').doc();
     final newId = ref.id;
 
-    final data = source.toJson();
+    final opts = options ??
+        CopyEventOptions(
+          newName: '${source.name} (Copy)',
+          copyDemographics: true,
+          copyMenuAndDishes: true,
+          copyVenue: true,
+          copyCoverImage: true,
+        );
+
+    final data = Map<String, dynamic>.from(source.toJson());
+
+    // ✅ core fields always copied
     data['eventId'] = newId;
     data['organisationId'] = organisationId;
-    data['name'] = '${source.name} (Copy)';
+    data['name'] = opts.newName.trim().isEmpty
+        ? '${source.name} (Copy)'
+        : opts.newName.trim();
     data['status'] = EventStatus.draft.statusName;
+
+    // ✅ timestamps should be server timestamps
+    data['createdAt'] = FieldValue.serverTimestamp();
+    data['updatedAt'] = FieldValue.serverTimestamp();
+
+    // ✅ IMPORTANT: new unique invitation code (avoid duplicates)
+    data['invitationCode'] = await _generateUniqueInvitationCode();
+
+    // ✅ Do NOT carry invitation letter when copying (safe default)
+    data.remove('invitationLetterPath');
+    data.remove('invitationLetterUrl');
+
+    // -------------------------
+    // Apply copy options
+    // -------------------------
+    if (!opts.copyDemographics) {
+      data.remove('selectedDemographicQuestionSetId');
+    }
+
+    if (!opts.copyMenuAndDishes) {
+      data.remove('selectedMenuId');
+      data.remove('selectedMenuItemIds');
+      data.remove('selectedMenus');
+      data.remove('menuItemGroups'); // if present in some docs
+    }
+
+    if (!opts.copyVenue) {
+      // keep key but make empty so UI treats it as "not selected"
+      data['venueId'] = '';
+    }
+
+    if (!opts.copyCoverImage) {
+      data.remove('coverImageUrl');
+      data.remove('coverImageDownloadUrl'); // if present in some docs
+    }
 
     await ref.set(data);
 
     final snap = await ref.get();
-    return Event.fromFirestore(snap); // ✅ you have this factory
+    return Event.fromFirestore(snap);
   }
 
   /// Adds a new organisation to Firestore.
@@ -329,25 +379,61 @@ class FirestoreServices {
   }
 
   Future<List<Event>> getAllEvents(String organisationId) async {
-    // TODO after login implementation:
-// - Check if the user is logged in
-// - Retrieve all events assigned to the user
-// - Fetch only the assigned events (Firestore rules will also apply)
-
     try {
-      List<Event> events = [];
+      // 1) Try ordering by createdAt (recommended)
       final snapshot = await eventsRef
           .where('organisationId', isEqualTo: organisationId)
+          .orderBy('createdAt', descending: true)
           .get();
-      events = snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
-      return events;
+
+      return snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
     } on FirebaseException catch (e) {
-      print('Firestore error: ${e.message}');
-      rethrow;
+      // 2) If createdAt is missing in some docs or index missing, fallback to no order
+      // Common errors: failed-precondition (missing index) / invalid-argument
+      print(
+          'Firestore error fetching events (ordered): ${e.code} ${e.message}');
+      try {
+        final snapshot = await eventsRef
+            .where('organisationId', isEqualTo: organisationId)
+            .get();
+
+        final events =
+            snapshot.docs.map((doc) => Event.fromFirestore(doc)).toList();
+
+        // Optional: local sort fallback if createdAt exists in model
+        // If your Event model has createdAt DateTime? field, keep this.
+        events.sort((a, b) {
+          final aCreated =
+              a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bCreated =
+              b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bCreated.compareTo(aCreated);
+        });
+
+        return events;
+      } catch (e2) {
+        print('Fallback fetch events failed: $e2');
+        rethrow;
+      }
     } catch (e) {
       print('Unknown error fetching events: $e');
       rethrow;
     }
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>> _eventRefByEventId(
+      String eventId) async {
+    final id = eventId.trim();
+
+    final direct = eventsRef.doc(id);
+    final snap = await direct.get();
+    if (snap.exists) return direct;
+
+    final q = await eventsRef.where('eventId', isEqualTo: id).limit(1).get();
+    if (q.docs.isEmpty) {
+      throw Exception('Event not found for eventId=$id');
+    }
+    return q.docs.first.reference;
   }
 
   Future<Event> getEventById(String eventId) async {
@@ -366,9 +452,29 @@ class FirestoreServices {
 
   Future<void> deleteEvent(String eventId) async {
     try {
-      await eventsRef.doc(eventId).delete();
+      final id = eventId.trim();
+      if (id.isEmpty) throw Exception('deleteEvent: eventId is empty');
+
+      // ✅ Try docId == eventId (new schema)
+      final directRef = eventsRef.doc(id);
+      final directSnap = await directRef.get();
+
+      if (directSnap.exists) {
+        await directRef.delete();
+        print('✅ Event deleted by docId: $id');
+        return;
+      }
+
+      // ✅ Fallback: docId != eventId (old schema), delete by field match
+      final q = await eventsRef.where('eventId', isEqualTo: id).limit(1).get();
+      if (q.docs.isEmpty) {
+        throw Exception('Event not found for eventId=$id');
+      }
+
+      await q.docs.first.reference.delete();
+      print('✅ Event deleted by eventId field: $id');
     } on FirebaseException catch (e) {
-      print('Firestore error: ${e.message}');
+      print('Firestore error deleting event: ${e.code} ${e.message}');
       rethrow;
     } catch (e) {
       print('Unknown error deleting event: $e');
@@ -984,19 +1090,14 @@ class FirestoreServices {
   /// Update only the given fields on the event document (atomic).
   Future<void> updateEventFields(
       String eventId, Map<String, dynamic> fields) async {
-    final docRef = eventsRef.doc(eventId);
-    final snapshot = await docRef.get();
-    if (!snapshot.exists) {
-      throw Exception('No event found with id: $eventId');
-    }
+    final ref = await _eventRefByEventId(eventId);
     fields['updatedAt'] = FieldValue.serverTimestamp();
-    await docRef.update(fields);
+    await ref.update(fields);
   }
 
-  /// Updates the status of an event
   Future<void> updateEventStatus(String eventId, EventStatus status) async {
     await updateEventFields(eventId, {
-      'status': status.name,
+      'status': status.statusName, // ✅ use statusName (matches your schema)
     });
   }
 
@@ -1014,10 +1115,8 @@ class FirestoreServices {
     if (actor != null) payload['actorUserId'] = actor;
     payload['createdAt'] = FieldValue.serverTimestamp();
 
-    final ref = eventsRef
-        .doc(eventId)
-        .collection('guestResponses')
-        .doc(); // changed here
+    final eventRef = await _eventRefByEventId(eventId);
+    final ref = eventRef.collection('guestResponses').doc();
     await ref.set(payload);
   }
 
@@ -1035,7 +1134,8 @@ class FirestoreServices {
 
   Future<void> addMenuItemToEvent(String eventId, String menuItemId,
       {String? menuId}) async {
-    await eventsRef.doc(eventId).update({
+    final ref = await _eventRefByEventId(eventId);
+    await ref.update({
       'selectedMenuItemIds': FieldValue.arrayUnion([menuItemId]),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -1048,7 +1148,8 @@ class FirestoreServices {
 
   Future<void> removeMenuItemFromEvent(String eventId, String menuItemId,
       {String? menuId}) async {
-    await eventsRef.doc(eventId).update({
+    final ref = await _eventRefByEventId(eventId);
+    await ref.update({
       'selectedMenuItemIds': FieldValue.arrayRemove([menuItemId]),
       'updatedAt': FieldValue.serverTimestamp(),
     });

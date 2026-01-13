@@ -122,7 +122,13 @@ class HostQuestionsController {
       latestQuestionsSnap = qsnap;
 
       // subscribe options only for visible questions
-      final ids = visibleDocs().map((d) => d.id).toList();
+      // ✅ IMPORTANT: use questionId field (fallback to doc.id)
+      final ids = visibleDocs().map((d) {
+        final data = d.data();
+        final qid = (data['questionId'] ?? '').toString().trim();
+        return qid.isNotEmpty ? qid : d.id;
+      }).toList();
+
       resetOptionStreams(ids);
 
       emitCombined();
