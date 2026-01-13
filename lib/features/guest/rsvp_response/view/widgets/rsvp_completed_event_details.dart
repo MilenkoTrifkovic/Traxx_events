@@ -38,8 +38,8 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
         return RsvpLoadingWidget(isPhone: isPhone);
       }
 
-      final coverUrl =
-          (event.coverImageDownloadUrl ?? event.coverImageUrl ?? '').trim();
+      // final coverUrl =
+      //     (event.coverImageDownloadUrl ?? event.coverImageUrl ?? '').trim();
 
       final invitationLetterUrl = (event.invitationLetterUrl ?? '').trim();
       final guestPortalUrl = 'https://trax-event.app/guest-login';
@@ -62,27 +62,28 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
 
             SizedBox(height: AppSpacing.lg(context)),
 
-            if (coverUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 16 / 6,
-                  child: Image.network(
-                    coverUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: AppColors.surfaceCard,
-                      alignment: Alignment.center,
-                      child: Icon(Icons.image_not_supported_outlined,
-                          color: AppColors.textMuted),
-                    ),
-                  ),
-                ),
-              ),
+            // if (coverUrl.isNotEmpty)
+            //   ClipRRect(
+            //     borderRadius: BorderRadius.circular(16),
+            //     child: AspectRatio(
+            //       aspectRatio: 16 / 6,
+            //       child: Image.network(
+            //         coverUrl,
+            //         fit: BoxFit.cover,
+            //         errorBuilder: (_, __, ___) => Container(
+            //           color: AppColors.surfaceCard,
+            //           alignment: Alignment.center,
+            //           child: Icon(Icons.image_not_supported_outlined,
+            //               color: AppColors.textMuted),
+            //         ),
+            //       ),
+            //     ),
+            //   ),
 
             SizedBox(height: AppSpacing.lg(context)),
 
             // ✅ Venue photos
+            // ✅ Venue Photos (inside the card, below title)
             _Card(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,25 +93,24 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
                     "Venue Photos",
                     weight: AppFontWeight.semiBold,
                   ),
-                  SizedBox(height: AppSpacing.xs(context)),
+                  SizedBox(height: AppSpacing.sm(context)),
+
+                  // ✅ Content area under title
                   if (guestController.isLoadingVenuePhotos.value)
-                    Padding(
-                      padding: EdgeInsets.only(top: AppSpacing.sm(context)),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: AppSpacing.sm(context)),
-                          AppText.styledBodySmall(
-                            context,
-                            "Loading venue photos...",
-                            color: AppColors.textMuted,
-                          ),
-                        ],
-                      ),
+                    Row(
+                      children: [
+                        const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: AppSpacing.sm(context)),
+                        AppText.styledBodySmall(
+                          context,
+                          "Loading venue photos...",
+                          color: AppColors.textMuted,
+                        ),
+                      ],
                     )
                   else if (venuePhotos.isEmpty)
                     AppText.styledBodySmall(
@@ -122,7 +122,6 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(top: AppSpacing.sm(context)),
                       itemCount: venuePhotos.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: isPhone ? 2 : 3,
@@ -132,6 +131,7 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
                       ),
                       itemBuilder: (_, i) {
                         final url = venuePhotos[i];
+
                         return ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.network(

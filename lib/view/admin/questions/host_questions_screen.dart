@@ -1,5 +1,6 @@
 // lib/views/host_questions_screen.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -386,154 +387,291 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final viewportH = MediaQuery.of(context).size.height;
-    final listH = (viewportH - 360).clamp(320.0, 900.0);
-
-    return DefaultTextStyle(
-      style: GoogleFonts.poppins(),
-      child: Stack(
-        children: [
-          const Positioned.fill(child: ColoredBox(color: _gfBackground)),
-          Align(
-            alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 960),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeaderWithButtons(context),
-                        const SizedBox(height: 16),
-                        Center(
-                          child: Text(
-                            'Click on a question to edit',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: listH,
-                          child: _buildQuestionsStream(),
-                        ),
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (_isProcessing)
-            Positioned.fill(
-              child: Container(
-                color: _gfBackground.withOpacity(0.35),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                      strokeWidth: 3, color: _gfPurple),
-                ),
-              ),
-            ),
-        ],
+  Future<void> _openShowRulesDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ShowRulesDialog(
+        questionSetId: widget.questionSetId,
+        controller: _controller,
       ),
     );
   }
 
-  Widget _buildHeaderWithButtons(BuildContext context) {
+  Widget _buildAddQuestionBtn() => SizedBox(
+        height: 44,
+        child: ElevatedButton(
+          onPressed: _isProcessing ? null : _handleAddQuestion,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kGfPurple,
+            foregroundColor: Colors.white,
+            elevation: 2,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            textStyle:
+                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          child: const Text('Add Question'),
+        ),
+      );
+
+  Widget _buildAddRuleBtn() => SizedBox(
+        height: 44,
+        child: ElevatedButton(
+          onPressed: _isProcessing ? null : _openAddRulesDialog,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kGfPurple,
+            foregroundColor: Colors.white,
+            elevation: 2,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            textStyle:
+                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          child: const Text('Add Rule'),
+        ),
+      );
+
+  Widget _buildShowRulesBtn() => SizedBox(
+        height: 44,
+        child: ElevatedButton(
+          onPressed: _isProcessing ? null : _openShowRulesDialog,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kGfPurple,
+            foregroundColor: Colors.white,
+            elevation: 2,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            textStyle:
+                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          child: const Text('Show Rules'),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 760;
+        final media = MediaQuery.of(context);
 
-        Widget addQuestionBtn() => SizedBox(
-              height: 44,
-              child: ElevatedButton(
-                onPressed: _isProcessing ? null : _handleAddQuestion,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kGfPurple,
-                  foregroundColor: Colors.white,
-                  elevation: 2,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: const Text('Add Question'),
-              ),
-            );
+        // ✅ If parent gives infinite height, force a finite height
+        final double boundedH = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : media.size.height;
 
-        Widget addRulesBtn() => SizedBox(
-              height: 44,
-              child: ElevatedButton(
-                onPressed: _isProcessing ? null : _openAddRulesDialog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kGfPurple,
-                  foregroundColor: Colors.white,
-                  elevation: 2,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: const Text('Add Rule'),
-              ),
-            );
+        final double screenW = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : media.size.width;
 
-        if (isNarrow) {
-          // ✅ Stack header + buttons (no horizontal constraint problems)
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildFormHeaderCard(),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  addQuestionBtn(),
-                  addRulesBtn(),
-                ],
-              ),
-            ],
-          );
-        }
+        final maxBodyWidth = math.min(screenW * 0.80, 1180.0);
 
-        // ✅ Wide layout
         return SizedBox(
-          width: constraints.maxWidth, // ✅ forces finite width
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _buildFormHeaderCard()),
-              const SizedBox(width: 16),
-              addQuestionBtn(),
-              const SizedBox(width: 12),
-              addRulesBtn(),
-            ],
+          height: boundedH,
+          width: double.infinity,
+          child: DefaultTextStyle(
+            style: GoogleFonts.poppins(),
+            child: Stack(
+              children: [
+                const Positioned.fill(child: ColoredBox(color: _gfBackground)),
+
+                // ✅ Header fixed + list scrolls
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(40, 24, 40, 12),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxBodyWidth),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildFormHeaderCard(),
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: [
+                                    _buildAddQuestionBtn(),
+                                    _buildAddRuleBtn(),
+                                    _buildShowRulesBtn(),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Center(
+                                child: Text(
+                                  'Click on a question to edit',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ✅ Only list scrolls
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(40, 0, 40, 24),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: maxBodyWidth),
+                            child: _buildQuestionsStream(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (_isProcessing)
+                  Positioned.fill(
+                    child: Container(
+                      color: _gfBackground.withOpacity(0.35),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: _gfPurple,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
     );
   }
+
+  // Widget _buildHeaderWithButtons(BuildContext context) {
+  //   return LayoutBuilder(
+  //     builder: (context, constraints) {
+  //       final isNarrow = constraints.maxWidth < 760;
+
+  //       Widget showRulesBtn() => SizedBox(
+  //             height: 44,
+  //             child: ElevatedButton(
+  //               onPressed: _isProcessing ? null : _openShowRulesDialog,
+  //               style: ElevatedButton.styleFrom(
+  //                 backgroundColor: kGfPurple,
+  //                 foregroundColor: Colors.white,
+  //                 elevation: 2,
+  //                 padding:
+  //                     const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //                 textStyle: GoogleFonts.poppins(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w600,
+  //                 ),
+  //               ),
+  //               child: const Text('Show Rules'),
+  //             ),
+  //           );
+
+  //       Widget addQuestionBtn() => SizedBox(
+  //             height: 44,
+  //             child: ElevatedButton(
+  //               onPressed: _isProcessing ? null : _handleAddQuestion,
+  //               style: ElevatedButton.styleFrom(
+  //                 backgroundColor: kGfPurple,
+  //                 foregroundColor: Colors.white,
+  //                 elevation: 2,
+  //                 padding:
+  //                     const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //                 textStyle: GoogleFonts.poppins(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w600,
+  //                 ),
+  //               ),
+  //               child: const Text('Add Question'),
+  //             ),
+  //           );
+
+  //       Widget addRulesBtn() => SizedBox(
+  //             height: 44,
+  //             child: ElevatedButton(
+  //               onPressed: _isProcessing ? null : _openAddRulesDialog,
+  //               style: ElevatedButton.styleFrom(
+  //                 backgroundColor: kGfPurple,
+  //                 foregroundColor: Colors.white,
+  //                 elevation: 2,
+  //                 padding:
+  //                     const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //                 textStyle: GoogleFonts.poppins(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w600,
+  //                 ),
+  //               ),
+  //               child: const Text('Add Rule'),
+  //             ),
+  //           );
+
+  //       if (isNarrow) {
+  //         // ✅ Stack header + buttons (no horizontal constraint problems)
+  //         return Column(
+  //           crossAxisAlignment: CrossAxisAlignment.stretch,
+  //           children: [
+  //             _buildFormHeaderCard(),
+  //             const SizedBox(height: 12),
+  //             Wrap(
+  //               spacing: 12,
+  //               runSpacing: 12,
+  //               children: [
+  //                 addQuestionBtn(),
+  //                 addRulesBtn(),
+  //                 showRulesBtn(),
+  //               ],
+  //             ),
+  //           ],
+  //         );
+  //       }
+
+  //       // ✅ Wide layout (robust)
+  //       return Row(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Expanded(child: _buildFormHeaderCard()),
+  //           const SizedBox(width: 16),
+
+  //           // ✅ Buttons area: fixed max width + Wrap to avoid constraint issues
+  //           ConstrainedBox(
+  //             constraints: const BoxConstraints(maxWidth: 360),
+  //             child: Wrap(
+  //               spacing: 12,
+  //               runSpacing: 12,
+  //               alignment: WrapAlignment.end,
+  //               children: [
+  //                 addQuestionBtn(),
+  //                 addRulesBtn(),
+  //                 showRulesBtn(),
+  //               ],
+  //             ),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   Widget _buildFormHeaderCard() {
     final title = _setTitle.isEmpty ? 'Untitled form' : _setTitle;
@@ -679,6 +817,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
         }
 
         return Scrollbar(
+          controller: _listScrollCtrl,
           thumbVisibility: true,
           child: ListView.builder(
             controller: _listScrollCtrl,
@@ -696,10 +835,7 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
 
               return Padding(
                 key: ValueKey(item.question.id),
-                padding: EdgeInsets.only(
-                  bottom: 12,
-                  left: row.isSub ? 28 : 0, // indent follow-ups
-                ),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: _GoogleFormsQuestionCard(
                   index: index,
                   item: item,
@@ -831,6 +967,469 @@ class _HostQuestionsScreenState extends State<HostQuestionsScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class ShowRulesDialog extends StatefulWidget {
+  final String questionSetId;
+  final HostQuestionsController controller;
+
+  const ShowRulesDialog({
+    super.key,
+    required this.questionSetId,
+    required this.controller,
+  });
+
+  @override
+  State<ShowRulesDialog> createState() => _ShowRulesDialogState();
+}
+
+class _ShowRulesDialogState extends State<ShowRulesDialog> {
+  bool _saving = false;
+
+  bool _needsOptions(String type) =>
+      type == 'multiple_choice' || type == 'checkboxes' || type == 'dropdown';
+
+  Future<void> _removeRule({
+    required String followUpDocId,
+    required List<DemographicQuestionWithOptions> allItems,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text('Remove rule?', style: GoogleFonts.poppins()),
+        content: Text(
+          'This will unlink the follow-up and make it a normal question again.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text('Remove', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _saving = true);
+    try {
+      // place as last base question
+      final base = allItems.where((x) {
+        final p = x.question.parentQuestionId?.trim() ?? '';
+        return p.isEmpty;
+      }).toList();
+
+      int maxBaseOrder = 0;
+      for (final b in base) {
+        if (b.question.displayOrder > maxBaseOrder) {
+          maxBaseOrder = b.question.displayOrder;
+        }
+      }
+
+      await widget.controller.updateQuestion(
+        questionDocId: followUpDocId,
+        data: {
+          'parentQuestionId': FieldValue.delete(),
+          'triggerOptionId': FieldValue.delete(),
+          'displayOrder': maxBaseOrder + 1,
+          'modifiedDate': FieldValue.serverTimestamp(),
+        },
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rule removed.', style: GoogleFonts.poppins())),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Failed to remove rule: $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _editRule({
+    required List<DemographicQuestionWithOptions> all,
+    required DemographicQuestionWithOptions followUp,
+  }) async {
+    final res = await showDialog<_RuleEditResult?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => EditRuleDialog(
+        questionSetId: widget.questionSetId,
+        controller: widget.controller,
+        allItems: all,
+        followUp: followUp,
+      ),
+    );
+
+    if (res == null) return;
+
+    setState(() => _saving = true);
+    try {
+      // Put follow-up at end of the NEW parent’s follow-ups
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestions')
+          .where('isDisabled', isEqualTo: false)
+          .where('questionSetId', isEqualTo: widget.questionSetId)
+          .where('parentQuestionId', isEqualTo: res.parentQuestionId)
+          .get();
+
+      int maxOrder = 0;
+      for (final d in snap.docs) {
+        final v = d.data()['displayOrder'];
+        final n = (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
+        if (n > maxOrder) maxOrder = n;
+      }
+
+      await widget.controller.updateQuestion(
+        questionDocId: followUp.question.id,
+        data: {
+          'parentQuestionId': res.parentQuestionId,
+          'triggerOptionId': res.triggerOptionId,
+          'displayOrder': maxOrder + 1,
+          'modifiedDate': FieldValue.serverTimestamp(),
+        },
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rule updated.', style: GoogleFonts.poppins())),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Failed to update rule: $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Rules',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      content: SizedBox(
+        width: 760,
+        child: StreamBuilder<List<DemographicQuestionWithOptions>>(
+          stream: widget.controller.streamQuestions(
+            questionSetId: widget.questionSetId,
+            includeConditional: true,
+          ),
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Text('Failed to load rules: ${snap.error}',
+                  style: GoogleFonts.poppins());
+            }
+            if (!snap.hasData) {
+              return Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('Loading…', style: GoogleFonts.poppins()),
+                ],
+              );
+            }
+
+            final all = snap.data!;
+
+            // Build maps for display
+            final questionTextById = <String, String>{};
+            final optionLabelById = <String, String>{};
+
+            for (final it in all) {
+              questionTextById[it.question.id] = it.question.questionText;
+              for (final opt in it.options) {
+                optionLabelById[opt.id] = opt.label;
+              }
+            }
+
+            final rules = all.where((x) {
+              final p = x.question.parentQuestionId?.trim() ?? '';
+              return p.isNotEmpty;
+            }).toList();
+
+            if (rules.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'No rules created yet.',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+              );
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              itemCount: rules.length,
+              separatorBuilder: (_, __) => const Divider(height: 18),
+              itemBuilder: (_, i) {
+                final followUp = rules[i];
+                final parentId = followUp.question.parentQuestionId!.trim();
+                final triggerId =
+                    (followUp.question.triggerOptionId ?? '').trim();
+
+                final parentText =
+                    (questionTextById[parentId] ?? '(Unknown)').trim();
+                final triggerLabel =
+                    (optionLabelById[triggerId] ?? '(Unknown)').trim();
+                final followText = followUp.question.questionText.trim().isEmpty
+                    ? '(Untitled)'
+                    : followUp.question.questionText.trim();
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'IF: $parentText',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'WHEN answer is: $triggerLabel',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black54,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'THEN show: $followText',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      tooltip: 'Edit rule',
+                      onPressed: _saving
+                          ? null
+                          : () => _editRule(all: all, followUp: followUp),
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove rule',
+                      onPressed: _saving
+                          ? null
+                          : () => _removeRule(
+                                followUpDocId: followUp.question.id,
+                                allItems: all,
+                              ),
+                      icon: const Icon(Icons.delete_outline),
+                      color: Colors.red.shade600,
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text('Close', style: GoogleFonts.poppins()),
+        ),
+      ],
+    );
+  }
+}
+
+class _RuleEditResult {
+  final String parentQuestionId;
+  final String triggerOptionId;
+
+  const _RuleEditResult({
+    required this.parentQuestionId,
+    required this.triggerOptionId,
+  });
+}
+
+class EditRuleDialog extends StatefulWidget {
+  final String questionSetId;
+  final HostQuestionsController controller;
+  final List<DemographicQuestionWithOptions> allItems;
+  final DemographicQuestionWithOptions followUp;
+
+  const EditRuleDialog({
+    super.key,
+    required this.questionSetId,
+    required this.controller,
+    required this.allItems,
+    required this.followUp,
+  });
+
+  @override
+  State<EditRuleDialog> createState() => _EditRuleDialogState();
+}
+
+class _EditRuleDialogState extends State<EditRuleDialog> {
+  String? _mainQuestionDocId;
+  String? _triggerOptionId;
+
+  bool _needsOptions(String type) =>
+      type == 'multiple_choice' || type == 'checkboxes' || type == 'dropdown';
+
+  @override
+  void initState() {
+    super.initState();
+    _mainQuestionDocId = widget.followUp.question.parentQuestionId?.trim();
+    _triggerOptionId = widget.followUp.question.triggerOptionId?.trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Base questions (no parent)
+    final base = widget.allItems.where((x) {
+      final p = x.question.parentQuestionId?.trim() ?? '';
+      return p.isEmpty;
+    }).toList();
+
+    // Main question candidates must have options
+    final mainCandidates =
+        base.where((x) => _needsOptions(x.question.questionType)).toList();
+
+    DemographicQuestionWithOptions? selectedMain;
+    if (_mainQuestionDocId != null) {
+      for (final q in mainCandidates) {
+        if (q.question.id == _mainQuestionDocId) {
+          selectedMain = q;
+          break;
+        }
+      }
+    }
+
+    final mainOptions =
+        selectedMain?.options ?? const <DemographicQuestionOption>[];
+
+    return AlertDialog(
+      title: Text('Edit rule',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Main question',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _mainQuestionDocId,
+              isExpanded: true,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: [
+                for (final q in mainCandidates)
+                  DropdownMenuItem(
+                    value: q.question.id,
+                    child: Text(
+                      q.question.questionText.isEmpty
+                          ? '(Untitled)'
+                          : q.question.questionText,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(),
+                    ),
+                  ),
+              ],
+              onChanged: (v) {
+                setState(() {
+                  _mainQuestionDocId = v;
+                  _triggerOptionId = null; // reset trigger when parent changes
+                });
+              },
+            ),
+            const SizedBox(height: 14),
+            Text('When answer is',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _triggerOptionId,
+              isExpanded: true,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: [
+                for (final o in mainOptions)
+                  DropdownMenuItem(
+                    value: o.id,
+                    child: Text(
+                      o.label.isEmpty ? '(Option)' : o.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(),
+                    ),
+                  ),
+              ],
+              onChanged: (_mainQuestionDocId == null)
+                  ? null
+                  : (v) => setState(() => _triggerOptionId = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: Text('Cancel', style: GoogleFonts.poppins()),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if ((_mainQuestionDocId ?? '').isEmpty ||
+                (_triggerOptionId ?? '').isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text('Select main question and trigger option.',
+                        style: GoogleFonts.poppins())),
+              );
+              return;
+            }
+
+            Navigator.pop(
+              context,
+              _RuleEditResult(
+                parentQuestionId: _mainQuestionDocId!,
+                triggerOptionId: _triggerOptionId!,
+              ),
+            );
+          },
+          child: Text('Update',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 }
@@ -1175,51 +1774,6 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ show follow-up chip ONLY when actually a follow-up (rule applied)
-            if (isFollowUp)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Follow-up',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    if ((followUpTriggerLabel ?? '').trim().isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.04),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'When: ${followUpTriggerLabel!}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
             // Question row
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1285,27 +1839,6 @@ class _GoogleFormsQuestionCard extends StatelessWidget {
             if (isActive)
               Row(
                 children: [
-                  // ✅ Remove rule action (only for follow-ups)
-                  if (isFollowUp && onRemoveRule != null) ...[
-                    TextButton.icon(
-                      onPressed: onRemoveRule,
-                      icon: const Icon(Icons.link_off_rounded, size: 18),
-                      label: Text(
-                        'Remove rule',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red.shade600,
-                        padding: EdgeInsets.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
@@ -1496,36 +2029,61 @@ class _QuestionBody extends StatelessWidget {
   /// Multiple choice / checkbox options list
   /// Multiple choice / checkbox options list
   Widget _choiceList({required bool isCheckbox}) {
-    final hasRealOptions = options.isNotEmpty;
-
-    final list = hasRealOptions
-        ? options
-        : [
-            DemographicQuestionOption(
-              id: '',
-              questionId: '',
-              label: 'Option 1',
-              value: 'option_1',
-              optionType: 'choice',
-              requiresFreeText: false,
-              isDisabled: false,
-              displayOrder: 1,
+    if (options.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isActive ? 'No options yet. Click “Add option”.' : 'No options.',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
             ),
-          ];
+          ),
+          if (isActive && onAddOption != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: InkWell(
+                onTap: onAddOption,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: _optionIconColumnWidth,
+                      height: 22,
+                      child: Center(
+                        child: Icon(Icons.add, size: 16, color: kAccent),
+                      ),
+                    ),
+                    Text(
+                      'Add option',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: kAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    }
 
+    // ✅ Real options only
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final opt in list)
+        for (final opt in options)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // --- ICON COLUMN (fixed width) ---
                 SizedBox(
                   width: _optionIconColumnWidth,
-                  height: 24, // match row height for perfect centering
+                  height: 24,
                   child: Center(
                     child: Icon(
                       isCheckbox
@@ -1536,30 +2094,24 @@ class _QuestionBody extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // --- LABEL TEXT (perfectly centered vertically) ---
                 Expanded(
                   child: SizedBox(
                     height: 24,
                     child: Center(
                       child: TextFormField(
                         initialValue: opt.label.trim(),
-                        readOnly:
-                            !isActive || !hasRealOptions || opt.id.isEmpty,
+                        readOnly: !isActive || opt.id.isEmpty,
                         decoration: InputDecoration(
                           isDense: true,
-                          contentPadding: EdgeInsets.zero, // FIXED alignment
+                          contentPadding: EdgeInsets.zero,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
-                          focusedBorder:
-                              (isActive && hasRealOptions && opt.id.isNotEmpty)
-                                  ? const UnderlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: kAccent,
-                                        width: 2,
-                                      ),
-                                    )
-                                  : InputBorder.none,
+                          focusedBorder: (isActive && opt.id.isNotEmpty)
+                              ? const UnderlineInputBorder(
+                                  borderSide:
+                                      BorderSide(color: kAccent, width: 2),
+                                )
+                              : InputBorder.none,
                         ),
                         style: GoogleFonts.poppins(
                           fontSize: 16,
@@ -1568,21 +2120,15 @@ class _QuestionBody extends StatelessWidget {
                         ),
                         onChanged: (value) {
                           if (!isActive ||
-                              !hasRealOptions ||
                               onOptionLabelChanged == null ||
-                              opt.id.isEmpty) {
-                            return;
-                          }
-
+                              opt.id.isEmpty) return;
                           onOptionLabelChanged!(opt, value.trim());
                         },
                       ),
                     ),
                   ),
                 ),
-
-                // --- DELETE ---
-                if (isActive && hasRealOptions && onRemoveOption != null)
+                if (isActive && onRemoveOption != null)
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: IconButton(
@@ -1596,8 +2142,6 @@ class _QuestionBody extends StatelessWidget {
               ],
             ),
           ),
-
-        // --- ADD OPTION ROW ---
         if (isActive && onAddOption != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),

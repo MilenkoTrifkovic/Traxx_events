@@ -41,18 +41,26 @@ class Event {
   final String? plannerEmail;
   final String? specialNotes;
   final bool hideHostInfo;
-  final int maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
-  
+  final int
+      maxInviteByGuest; // Maximum number of guests each invitee can bring (0-5)
+
   // Invitation letter fields
-  final String? invitationLetterPath; // Storage path for the invitation letter file
-  final String? invitationLetterUrl; // Download URL for the invitation letter file
-  
+  final String?
+      invitationLetterPath; // Storage path for the invitation letter file
+  final String?
+      invitationLetterUrl; // Download URL for the invitation letter file
+
   // Invitation code field
   final String? invitationCode; // Unique invitation code (e.g., WE2390RT)
+
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   Event({
     this.isDisabled,
     this.eventId,
+    this.createdAt,
+    this.updatedAt,
     required this.organisationId,
     required this.venueId,
     required this.serviceType,
@@ -121,6 +129,11 @@ class Event {
     final rsvpDeadline = data['rsvpDeadline'] != null
         ? parseTimestamp(data['rsvpDeadline'])
         : DateTime.now();
+    final createdAt =
+        data['createdAt'] != null ? parseTimestamp(data['createdAt']) : null;
+
+    final updatedAt =
+        data['updatedAt'] != null ? parseTimestamp(data['updatedAt']) : null;
 
     // read lists safely
     final selectedMenusList = (data['selectedMenus'] as List<dynamic>?)
@@ -136,6 +149,8 @@ class Event {
       eventId: data['eventId'] as String?,
       organisationId: data['organisationId'] as String,
       venueId: data['venueId'] as String,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       name: data['name'] as String,
       address: data['address'] as String? ?? '',
       capacity: (data['capacity'] as num?)?.toInt() ?? 0,
@@ -348,8 +363,11 @@ class Event {
       'coverImageUrl': coverImageUrl,
       'serviceType': serviceType.name,
       'status': status.statusName,
-      'createdAt': Timestamp.now(),
-      'updatedAt': Timestamp.now(),
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!.toUtc())
+          : FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+
       'selectableMenuCategories':
           selectableCategories.map((e) => e.name).toList(),
       'selectedMenus': selectedMenus ?? [],
@@ -372,6 +390,8 @@ class Event {
     String? id,
     String? organisationId,
     String? venueId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     ServiceType? serviceType,
     String? name,
     String? address,
@@ -442,6 +462,8 @@ class Event {
       invitationLetterPath: invitationLetterPath ?? this.invitationLetterPath,
       invitationLetterUrl: invitationLetterUrl ?? this.invitationLetterUrl,
       invitationCode: invitationCode ?? this.invitationCode,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -477,6 +499,9 @@ Event {
   selectedMenuItemIds: $selectedMenuItemIds
   selectedDemographicQuestionSetId: $selectedDemographicQuestionSetId
   isDisabled: $isDisabled
+  createdAt: $createdAt
+  updatedAt: $updatedAt
+
 }''';
   }
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
@@ -42,109 +43,128 @@ class GuestLayoutController extends GetxController {
   /// Fetches invitation document, extracts eventId, then loads event cover image
   /// This is the primary method used by GuestPageWrapper
   Future<void> loadEventCoverImageFromInvitation(String? invitationId) async {
-    print(
-        '🎫 loadEventCoverImageFromInvitation called with invitationId: $invitationId');
+    debugPrint('🎫 loadEventCoverImageFromInvitation: $invitationId');
 
-    // Skip if invitationId is null/empty
-    if (invitationId == null || invitationId.isEmpty) {
-      print('⚠️ No invitationId provided');
-      return;
-    }
+    if (invitationId == null || invitationId.isEmpty) return;
 
-    // Skip if we're already loading this invitation
+    // ✅ Only skip if BOTH cover + venue photos are already loaded
     if (_currentInvitationId == invitationId &&
-        eventCoverImageUrl.value != null) {
-      print('✅ Already loaded image for invitation: $invitationId');
+        event.value != null &&
+        (eventCoverImageUrl.value ?? '').isNotEmpty &&
+        venuePhotoUrls.isNotEmpty) {
+      debugPrint(
+          '✅ Already loaded cover + venue photos for invitation: $invitationId');
       return;
     }
 
-    // Skip if already loading
-    if (isLoadingImage.value) {
-      print('⏳ Already loading image, skipping...');
-      return;
-    }
+    // ✅ allow retry if venue photos are missing
+    if (isLoadingImage.value) return;
 
     _currentInvitationId = invitationId;
     isLoadingImage.value = true;
     error.value = null;
 
     try {
-      // 1. Fetch invitation document
-      print('📥 Fetching invitation: $invitationId');
       final invitationDoc =
           await _invitationServices.getInvitation(invitationId);
-
       if (!invitationDoc.exists || invitationDoc.data() == null) {
-        print('❌ Invitation not found: $invitationId');
-        eventCoverImageUrl.value = null;
+        debugPrint('❌ Invitation not found: $invitationId');
         return;
       }
 
-      // 2. Extract eventId from invitation
-      final eventId = invitationDoc.data()?['eventId'] as String?;
-
+      final eventId = (invitationDoc.data()?['eventId'] as String?)?.trim();
       if (eventId == null || eventId.isEmpty) {
-        print('❌ No eventId in invitation');
-        eventCoverImageUrl.value = null;
+        debugPrint('❌ No eventId in invitation');
         return;
       }
 
-      print('✅ Found eventId: $eventId');
-
-      // 3. Load event cover image using eventId
       await loadEventCoverImage(eventId);
-    } catch (e) {
-      error.value = 'Failed to load event cover image';
-      print('❌ Error loading event cover image from invitation: $e');
-      eventCoverImageUrl.value = null;
+    } catch (e, st) {
+      debugPrint('❌ loadEventCoverImageFromInvitation error: $e\n$st');
+      error.value = 'Failed to load event';
     } finally {
       isLoadingImage.value = false;
     }
   }
 
   Future<void> _loadVenuePhotosFromEvent(Event eventData) async {
+    debugPrint('🏛️ eventData.venueId = "${eventData.venueId}"');
     try {
       isLoadingVenuePhotos.value = true;
 
-      // ✅ Find venueId from event
-      final m = eventData.toJson();
-      final venueId = (m['venueId'] ??
-              m['venueID'] ??
-              m['selectedVenueId'] ??
-              m['selectedVenueID'])
-          ?.toString()
-          .trim();
+      // ✅ Prefer the typed field if you have it
+      final venueId = (eventData.venueId ?? '').toString().trim();
+      debugPrint('🏛️ eventData.venueId = "$venueId"');
 
-      if (venueId == null || venueId.isEmpty) {
+      if (venueId.isEmpty) {
         venuePhotoUrls.clear();
         _currentVenueId = null;
         return;
       }
 
-      // cache guard
+      // Cache guard
       if (_currentVenueId == venueId && venuePhotoUrls.isNotEmpty) return;
       _currentVenueId = venueId;
 
-      // ✅ Fetch venue doc by venueID field
-      final qs = await FirebaseFirestore.instance
+      Map<String, dynamic>? venueData;
+
+      // ✅ 1) Try direct doc lookup (when event stores venue docId)
+      final doc = await FirebaseFirestore.instance
           .collection('venues')
-          .where('venueID', isEqualTo: venueId)
-          .limit(1)
+          .doc(venueId)
           .get();
 
-      if (qs.docs.isEmpty) {
-        venuePhotoUrls.clear();
-        return;
+      if (doc.exists && doc.data() != null) {
+        venueData = doc.data()!;
+        debugPrint('✅ Venue found by DOC ID: $venueId');
       }
 
-      final data = qs.docs.first.data();
+      debugPrint('🏛️ venueData found? ${venueData != null}');
 
-      // ✅ Your schema: photoPaths (List) + photoPath (String)
-      final dynamic rawList = data['photoPaths'];
-      final dynamic rawSingle = data['photoPath'];
+      // ✅ 2) Fallback: query by venueID field (when event stores venueID)
+      if (venueData == null) {
+        final qs = await FirebaseFirestore.instance
+            .collection('venues')
+            .where('venueID', isEqualTo: venueId)
+            .limit(1)
+            .get();
 
-      // Build a single list of storage paths/urls
-      final List<String> paths = <String>[];
+        if (qs.docs.isNotEmpty) venueData = qs.docs.first.data();
+        if (qs.docs.isNotEmpty) {
+          venueData = qs.docs.first.data();
+          debugPrint('✅ Venue found by venueID field: $venueId');
+        }
+      }
+
+      // ✅ 3) Extra fallback: some schemas use `venueId` field
+      if (venueData == null) {
+        final qs = await FirebaseFirestore.instance
+            .collection('venues')
+            .where('venueId', isEqualTo: venueId)
+            .limit(1)
+            .get();
+
+        if (qs.docs.isNotEmpty) {
+          venueData = qs.docs.first.data();
+          debugPrint('✅ Venue found by venueId field: $venueId');
+        }
+      }
+
+      if (venueData == null) {
+        debugPrint('❌ Venue NOT found for venueId="$venueId"');
+        venuePhotoUrls.clear();
+        venuePhotoUrls.refresh();
+        return;
+      }
+      debugPrint('✅ venue photoPaths = ${venueData['photoPaths']}');
+
+      final rawList = venueData['photoPaths']; // List<String>
+      final rawSingle = venueData['photoPath']; // String
+
+      debugPrint('🖼️ photoPaths raw = $rawList');
+      debugPrint('🖼️ photoPath raw  = $rawSingle');
+
+      final List<String> paths = [];
 
       if (rawList is List) {
         paths.addAll(
@@ -158,22 +178,28 @@ class GuestLayoutController extends GetxController {
       }
 
       if (paths.isEmpty) {
+        debugPrint('⚠️ Venue has NO photo paths');
         venuePhotoUrls.clear();
+        venuePhotoUrls.refresh();
         return;
       }
 
-      // ✅ Convert storage paths to download URLs (keep http urls as-is)
-      final futures = paths.map((p) async {
-        if (p.startsWith('http://') || p.startsWith('https://')) return p;
-        final url = await _storageServices.loadImageURL(p);
-        return (url ?? '').trim();
-      }).toList();
+      // Convert storage paths → download URLs
+      final urls = await Future.wait(paths.map((p) async {
+        final x = p.trim();
+        if (x.startsWith('http://') || x.startsWith('https://')) return x;
 
-      final urls =
-          (await Future.wait(futures)).where((u) => u.isNotEmpty).toList();
-      venuePhotoUrls.assignAll(urls);
+        final u = await _storageServices.loadImageURL(x);
+        return (u ?? '').trim();
+      }));
+
+      final cleaned = urls.where((u) => u.isNotEmpty).toList();
+      debugPrint('✅ Venue photo URLs resolved: ${cleaned.length}');
+
+      venuePhotoUrls.assignAll(cleaned);
+      venuePhotoUrls.refresh();
     } catch (e) {
-      print('❌ Error loading venue photos: $e');
+      debugPrint('❌ Error loading venue photos: $e');
       venuePhotoUrls.clear();
     } finally {
       isLoadingVenuePhotos.value = false;
@@ -185,12 +211,16 @@ class GuestLayoutController extends GetxController {
   /// Also loads the cover image download URL from Storage
   /// Used internally by loadEventCoverImageFromInvitation
   Future<void> loadEventCoverImage(String? eventId) async {
-    print('📸 loadEventCoverImage called with eventId: $eventId');
+    debugPrint('📸 loadEventCoverImage: $eventId');
 
     if (eventId == null || eventId.isEmpty) return;
 
+    // ✅ Cached event: still make sure venue photos are loaded
     if (_currentEventId == eventId && event.value != null) {
-      print('✅ Already loaded event: $eventId');
+      if (venuePhotoUrls.isEmpty && !isLoadingVenuePhotos.value) {
+        await _loadVenuePhotosFromEvent(event.value!);
+        venuePhotoUrls.refresh();
+      }
       return;
     }
 
@@ -199,35 +229,39 @@ class GuestLayoutController extends GetxController {
     error.value = null;
 
     try {
-      print('📥 Fetching event data from Firestore...');
       final eventData = await _firestoreServices.getEventById(eventId);
-
       event.value = eventData;
-      print('✅ Event data loaded: ${eventData.name}');
 
-      // ✅ Load venue photos (non-blocking, but awaited to keep consistent state)
+      // ✅ Always load venue photos
       await _loadVenuePhotosFromEvent(eventData);
+      venuePhotoUrls.refresh();
 
-      if (eventData.coverImageUrl == null || eventData.coverImageUrl!.isEmpty) {
-        print('ℹ️ Event $eventId has no cover image');
+      // ✅ Cover image resolve (optional, even if you don’t show it here)
+      final rawCoverPath = (eventData.coverImageUrl ?? '').trim();
+      if (rawCoverPath.isEmpty) {
         eventCoverImageUrl.value = null;
+        event.value = event.value?.copyWith(coverImageDownloadUrl: null);
         return;
       }
 
-      print('📥 Loading cover image from Storage...');
-      final downloadUrl =
-          await _storageServices.loadImageURL(eventData.coverImageUrl);
-
-      if (downloadUrl != null && downloadUrl.isNotEmpty) {
-        eventCoverImageUrl.value = downloadUrl;
-        print('✅ Event cover image loaded: $downloadUrl');
-      } else {
-        print('⚠️ Could not load download URL for event cover image');
-        eventCoverImageUrl.value = null;
+      if (rawCoverPath.startsWith('http://') ||
+          rawCoverPath.startsWith('https://')) {
+        eventCoverImageUrl.value = rawCoverPath;
+        event.value =
+            event.value?.copyWith(coverImageDownloadUrl: rawCoverPath);
+        return;
       }
-    } catch (e) {
+
+      final downloadUrl = await _storageServices.loadImageURL(rawCoverPath);
+      final cleaned = (downloadUrl ?? '').trim();
+
+      eventCoverImageUrl.value = cleaned.isEmpty ? null : cleaned;
+      event.value = event.value?.copyWith(
+        coverImageDownloadUrl: cleaned.isEmpty ? null : cleaned,
+      );
+    } catch (e, st) {
+      debugPrint('❌ loadEventCoverImage error: $e\n$st');
       error.value = 'Failed to load event data';
-      print('❌ Error loading event: $e');
       event.value = null;
       eventCoverImageUrl.value = null;
       venuePhotoUrls.clear();

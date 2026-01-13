@@ -74,8 +74,18 @@ class HostEventDetailsHeader extends StatelessWidget {
                     icon: isPublished ? Icons.refresh : Icons.publish,
                     onPressed: () async {
                       try {
+                        final eventId = GoRouterState.of(context)
+                            .pathParameters[AppRoute.eventDetails.placeholder];
+
+                        if (eventId == null || eventId.trim().isEmpty) {
+                          snackbarController
+                              .showErrorMessage('Event ID not found.');
+                          return;
+                        }
+
                         await eventListController
-                            .publishEvent(); // works for publish + republish
+                            .publishEventById(eventId.trim());
+
                         if (!context.mounted) return;
 
                         snackbarController.showSuccessMessage(
