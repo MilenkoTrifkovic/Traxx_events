@@ -18,8 +18,7 @@ const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
 // Config
 const FROM_EMAIL = "developer@trax-event.com";
-// const FROM_NAME = process.env.FROM_NAME || "Trax Events";
-const FROM_NAME = "Trax Events";
+const FROM_NAME = process.env.FROM_NAME || "Trax Events";
 const APP_BASE_URL = "https://trax-event.app";
 const INV_EXPIRY_DAYS = (() => {
   const raw = process.env.INV_EXPIRY_DAYS; // could be "0" or "0.01"
@@ -115,42 +114,28 @@ function pointerId(eventId, guestId) {
  * @returns {Promise<string>} - Public URL or empty string if fails
  */
 async function getPublicUrlFromStoragePath(storagePath) {
-  if (!storagePath || typeof storagePath !== "string") {
-    console.warn("⚠️ getPublicUrlFromStoragePath: Empty or invalid storagePath", { storagePath });
-    return "";
-  }
+  if (!storagePath || typeof storagePath !== "string") return "";
   
   try {
-    console.log(`🔍 Getting URL for storage path: ${storagePath}`);
-    
     const bucket = getStorage().bucket();
     const file = bucket.file(storagePath);
     
     // Check if file exists
     const [exists] = await file.exists();
     if (!exists) {
-      console.error(`❌ Storage file not found: ${storagePath}`);
+      console.warn(`Storage file not found: ${storagePath}`);
       return "";
     }
     
-    console.log(`✅ File exists: ${storagePath}`);
-    
-    // Make file publicly accessible
-    await file.makePublic();
-    
-    // Get the public URL (no signature needed)
-    const bucketName = bucket.name;
-    const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(storagePath)}`;
-    
-    console.log(`✅ Public URL generated: ${publicUrl}`);
-    
-    return publicUrl;
-  } catch (err) {
-    console.error(`❌ Error getting public URL for ${storagePath}:`, err);
-    console.error(`Error details:`, {
-      message: err.message,
-      code: err.code,
+    // Generate a signed URL that expires in 7 days
+    const [url] = await file.getSignedUrl({
+      action: "read",
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+    
+    return url;
+  } catch (err) {
+    console.error(`Error getting public URL for ${storagePath}:`, err);
     return "";
   }
 }
@@ -428,14 +413,8 @@ export const sendInvitations = onCall(
 
         // Build event image header
         const eventImageHtml = eventImageUrl
-          ? `<img src="${eventImageUrl}" alt="${safeEventName}" style="width:100%;max-width:600px;max-height:105px;object-fit:cover;border-radius:8px;display:block;margin:0 auto 30px;" />`
+          ? `<img src="${eventImageUrl}" alt="${safeEventName}" style="width:100%;max-width:600px;height:auto;border-radius:8px;display:block;margin:0 auto 30px;" />`
           : "";
-
-        // Build logo for footer
-        const logoUrl = await getPublicUrlFromStoragePath('app_images/light-logo.png');
-        const logoHtml = logoUrl
-          ? `<img src="${logoUrl}" alt="Trax Event Logo" style="max-width:150px;height:auto;margin-bottom:15px;" />`
-          : '';
 
         // Build event details section
         let eventDetailsHtml = "";
@@ -473,70 +452,31 @@ export const sendInvitations = onCall(
         }
 
         const htmlBody = `
-          <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#1f2937;max-width:600px;margin:0 auto;background:#ffffff;">
-            
-            <!-- Event Image Header -->
-            ${eventImageHtml}
-            
-            <!-- Main Content -->
-            <div style="padding:0 20px;">
-              <h1 style="color:#1f2937;font-size:24px;margin:0 0 10px;font-weight:700;">You're Invited!</h1>
-              
-              <p style="font-size:16px;color:#4b5563;margin:10px 0;">
-                Hello${safeName ? " " + safeName : ""},
-              </p>
-              
-              <p style="font-size:16px;color:#1f2937;margin:16px 0;">
-                You have been invited to <strong>${safeEventName}</strong>!
-              </p>
+          <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
+            <p>Hello${safeName ? " " + safeName : ""},</p>
+            <p>Please click the button below to RSVP, complete demographics, then choose your preferred menu items.</p>
 
-              ${eventDetailsHtml}
+            <p style="margin: 18px 0;">
+              <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">
+                Open RSVP
+              </a>
+            </p>
 
-              <p style="font-size:15px;color:#4b5563;margin:20px 0;">
-                Please click the button below to confirm your attendance, complete your details, and select your menu preferences.
-              </p>
+            <p style="color:#6b7280;font-size:13px">
+              If the button doesn’t work, copy and paste this link into your browser:<br/>
+              <a href="${link}">${link}</a>
+            </p>
 
-              <!-- CTA Button -->
-              <div style="text-align:center;margin:30px 0;">
-                <a href="${link}" style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-                  Accept Invitation & RSVP
-                </a>
-              </div>
+            <p style="color:#6b7280;font-size:13px">
+              This link expires in ${INV_EXPIRY_DAYS} days.
+            </p>
 
-              <!-- Alternative Link -->
-              <div style="background:#f9fafb;padding:16px;border-radius:6px;margin:20px 0;">
-                <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
-                  If the button doesn't work, copy and paste this link into your browser:
-                </p>
-                <p style="margin:0;">
-                  <a href="${link}" style="color:#2563eb;font-size:13px;word-break:break-all;">${link}</a>
-                </p>
-              </div>
+            ${htmlReferenceInfo}
 
-              <p style="color:#9ca3af;font-size:13px;margin:20px 0 10px;">
-                ⏱️ This invitation link expires in ${INV_EXPIRY_DAYS} days.
-              </p>
-
-              ${htmlReferenceInfo}
-
-              <!-- Thank You -->
-              <div style="margin:40px 0 20px;padding:20px 0;border-top:1px solid #e5e7eb;">
-                <p style="font-size:15px;color:#4b5563;margin:0;">
-                  Thank you,<br/>
-                  <strong>Trax Event</strong>
-                </p>
-              </div>
-            </div>
-
-            <!-- Footer with Logo -->
-            <div style="background:#f9fafb;padding:30px 20px;text-align:center;border-top:2px solid #e5e7eb;">
-              ${logoHtml}
-              <p style="color:#6b7280;font-size:12px;margin:10px 0 0;">
-                © ${new Date().getFullYear()} Trax Event. All rights reserved.
-              </p>
-            </div>
+            <p>— ${escapeHtml(FROM_NAME)}</p>
           </div>
         `;
+
         try {
           const resp = await client.sendEmail({
             From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
