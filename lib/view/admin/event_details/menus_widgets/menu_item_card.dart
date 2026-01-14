@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/global_controllers/menu_selection_controller.dart';
+import 'package:traxx_wepapp/widgets/modals/image_viewer_modal.dart';
 import 'menu_constants.dart';
 import 'food_type_icon.dart';
 
@@ -177,6 +178,26 @@ class MenuSelectableTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// Builds a placeholder widget for when image is not available
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: Icon(
+        Icons.restaurant_menu,
+        size: 30,
+        color: Colors.grey.shade400,
+      ),
+    );
+  }
+
+  /// Shows the image in a full-screen viewer dialog
+  void _showImageViewer(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => ImageViewerModal(imageUrl: imageUrl),
     );
   }
 }

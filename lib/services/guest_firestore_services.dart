@@ -152,6 +152,7 @@ class GuestFirestoreServices {
           'price': data['price'],
           'category': data['category'] ?? '',
           'foodType': data['foodType'],
+          'imageUrl': data['imageUrl'],
         });
       }
     }

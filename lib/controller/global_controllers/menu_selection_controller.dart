@@ -487,6 +487,7 @@ class MenuItemDto {
   final bool? isVeg;
   final String? foodType;
   final double? price;
+  final String? imageUrl;
 
   MenuItemDto({
     required this.id,
@@ -496,6 +497,7 @@ class MenuItemDto {
     required this.isVeg,
     required this.foodType,
     required this.price,
+    this.imageUrl,
   });
 
   factory MenuItemDto.fromMap(Map<String, dynamic> m) {
@@ -521,6 +523,9 @@ class MenuItemDto {
       isVeg: derivedIsVeg,
       foodType: rawFoodType.trim().isEmpty ? null : rawFoodType.trim(),
       price: asDouble(m['price']),
+      imageUrl: m['imageUrl'] != null && m['imageUrl'].toString().trim().isNotEmpty
+          ? m['imageUrl'].toString()
+          : null,
     );
   }
 
