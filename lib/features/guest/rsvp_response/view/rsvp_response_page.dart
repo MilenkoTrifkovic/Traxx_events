@@ -54,6 +54,7 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
     }
   }
 
+  @override
   Widget build(BuildContext context) {
     final isPhone = ScreenSize.isPhone(context);
 
@@ -168,8 +169,15 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
         if (!mounted) return;
 
         if (next == 'companions') {
+          final needsCount = (status.companionsCount == null);
+          final count = status.companionsCount ?? 0;
+
+          final route = (needsCount || count == 0)
+              ? AppRoute.guestCompanions
+              : AppRoute.guestCompanionsInfo;
+
           pushAndRemoveAllRoute(
-            AppRoute.guestCompanions,
+            route,
             context,
             queryParams: {
               'invitationId': invId,
@@ -195,9 +203,9 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
             },
           );
         } else {
-          // Fallback if next step unknown
+          // final requiresDemo = status.requiresDemographics == true;
           pushAndRemoveAllRoute(
-            AppRoute.demographics,
+            AppRoute.guestResponse,
             context,
             queryParams: {
               'invitationId': invId,
@@ -323,14 +331,37 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
     final invId = c.invitationId;
     if (invId == null || invId.isEmpty) return;
 
-    pushAndRemoveAllRoute(
-      AppRoute.guestCompanions,
-      context,
-      queryParams: {
-        'invitationId': invId,
-        if (c.token != null) 'token': c.token!,
-      },
-    );
+    _didAutoRoute = true;
+    _autoRouteInvitationId = invId;
+
+    final token = (c.token ?? '').trim();
+
+    // ✅ If no companions allowed -> go to next step directly
+    if (c.maxGuestInvite == 0) {
+      if (c.requiresDemographics && !c.hasDemographics) {
+        pushAndRemoveAllRoute(AppRoute.demographics, context, queryParams: {
+          'invitationId': invId,
+          if (token.isNotEmpty) 'token': token,
+        });
+      } else if (!c.hasMenuSelection) {
+        pushAndRemoveAllRoute(AppRoute.menuSelection, context, queryParams: {
+          'invitationId': invId,
+          if (token.isNotEmpty) 'token': token,
+        });
+      } else {
+        pushAndRemoveAllRoute(AppRoute.thankYou, context, queryParams: {
+          'invitationId': invId,
+          if (token.isNotEmpty) 'token': token,
+        });
+      }
+      return;
+    }
+
+    // ✅ Companions allowed -> go to count page
+    pushAndRemoveAllRoute(AppRoute.guestCompanions, context, queryParams: {
+      'invitationId': invId,
+      if (token.isNotEmpty) 'token': token,
+    });
   }
 
   void _navigateToGuestResponse(

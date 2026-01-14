@@ -31,13 +31,16 @@ class InvitationResponseServices {
     required bool isAttending,
     String? declineReason,
   }) async {
-    final updateData = {
+    final updateData = <String, dynamic>{
+      'hasResponded': true, // ✅ IMPORTANT if your UI/model checks it
       'isAttending': isAttending,
       'rsvpSubmittedAt': FieldValue.serverTimestamp(),
     };
 
-    if (!isAttending && declineReason != null && declineReason.isNotEmpty) {
-      updateData['declineReason'] = declineReason;
+    if (!isAttending && (declineReason?.trim().isNotEmpty ?? false)) {
+      updateData['declineReason'] = declineReason!.trim();
+    } else {
+      updateData['declineReason'] = FieldValue.delete();
     }
 
     await invitationsRef.doc(invitationId).update(updateData);
@@ -49,15 +52,18 @@ class InvitationResponseServices {
     required int companionsCount,
     bool? isInvitingCompanionsByEmail,
   }) async {
-    final updateData = {
-      'companionsCount': 0,
+    final updateData = <String, dynamic>{
+      'companionsCount': companionsCount, // ✅ FIXED
       'companionsSubmittedAt': FieldValue.serverTimestamp(),
-      'isInvitingCompanionsByEmail': false,
     };
 
-    // Only add isInvitingCompanionsByEmail if companionsCount > 0
-    if (companionsCount > 0 && isInvitingCompanionsByEmail != null) {
-      updateData['isInvitingCompanionsByEmail'] = isInvitingCompanionsByEmail;
+    if (companionsCount > 0) {
+      // UI already enforces not-null when count > 0
+      updateData['isInvitingCompanionsByEmail'] =
+          isInvitingCompanionsByEmail ?? false;
+    } else {
+      // If user selected 0 companions, clear the flag so it doesn't stay stale
+      updateData['isInvitingCompanionsByEmail'] = FieldValue.delete();
     }
 
     await invitationsRef.doc(invitationId).update(updateData);
@@ -76,7 +82,7 @@ class InvitationResponseServices {
     required String eventId,
   }) async {
     return await invitationsRef
-        .where('email', isEqualTo: email)
+        .where('guestEmailLower', isEqualTo: email.trim().toLowerCase())
         .where('eventId', isEqualTo: eventId)
         .limit(1)
         .get();

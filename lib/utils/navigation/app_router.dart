@@ -266,6 +266,7 @@ GoRouter buildRouter() {
           // ✅ CREATE GuestLayoutController HERE (not later)
           final guestLayout =
               Get.put(GuestLayoutController(), tag: invitationId);
+
           // start loading event immediately
           guestLayout.loadEventCoverImageFromInvitation(invitationId);
 
