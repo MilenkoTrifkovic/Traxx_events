@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traxx_wepapp/utils/enums/attachment_type.dart';
 
-/// Represents an attachment in a message (image, pdf, etc.)
+//// Represents an attachment in a message (image, pdf, etc.)
 class MessageAttachment {
   final AttachmentType type;
   final String url;
@@ -48,6 +48,7 @@ class Message {
   final DateTime? modifiedAt;
   final List<MessageAttachment> attachments;
   final bool isDisabled;
+  final bool isHost; // True if message is sent by a host user
 
   Message({
     this.messageId,
@@ -59,6 +60,7 @@ class Message {
     this.modifiedAt,
     this.attachments = const [],
     this.isDisabled = false,
+    this.isHost = false,
   });
 
   /// Creates a Message instance from a Firestore document
@@ -89,6 +91,7 @@ class Message {
       modifiedAt: parseTimestamp(data['modifiedAt']),
       attachments: attachmentsList,
       isDisabled: data['isDisabled'] as bool? ?? false,
+      isHost: data['isHost'] as bool? ?? false,
     );
   }
 
@@ -101,10 +104,15 @@ class Message {
       'userName': userName,
       'userPhoto': userPhoto,
       'text': text,
-      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
-      'modifiedAt': modifiedAt != null ? Timestamp.fromDate(modifiedAt!) : FieldValue.serverTimestamp(),
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : FieldValue.serverTimestamp(),
+      'modifiedAt': modifiedAt != null
+          ? Timestamp.fromDate(modifiedAt!)
+          : FieldValue.serverTimestamp(),
       'attachments': attachments.map((e) => e.toJson()).toList(),
       'isDisabled': isDisabled,
+      'isHost': isHost,
     };
   }
 
@@ -121,6 +129,7 @@ class Message {
       'modifiedAt': FieldValue.serverTimestamp(),
       'attachments': attachments.map((e) => e.toJson()).toList(),
       'isDisabled': isDisabled,
+      'isHost': isHost,
     };
   }
 
@@ -135,6 +144,7 @@ class Message {
     DateTime? modifiedAt,
     List<MessageAttachment>? attachments,
     bool? isDisabled,
+    bool? isHost,
   }) {
     return Message(
       messageId: messageId ?? this.messageId,
@@ -146,6 +156,7 @@ class Message {
       modifiedAt: modifiedAt ?? this.modifiedAt,
       attachments: attachments ?? this.attachments,
       isDisabled: isDisabled ?? this.isDisabled,
+      isHost: isHost ?? this.isHost,
     );
   }
 
@@ -162,6 +173,7 @@ Message {
   modifiedAt: $modifiedAt
   attachments: $attachments
   isDisabled: $isDisabled
+  isHost: $isHost
 }''';
   }
 }
