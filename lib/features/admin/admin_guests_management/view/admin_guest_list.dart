@@ -8,7 +8,6 @@ import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/
 import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/utils/enums/genders.dart';
 
 class GuestListSection extends StatelessWidget {
   final String eventName;

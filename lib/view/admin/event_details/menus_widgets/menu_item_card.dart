@@ -49,6 +49,9 @@ class MenuItemCardWidget extends StatelessWidget {
           selected: selected,
           readOnly: readOnly,
           onTap: () => controller.toggleItem(item.id),
+
+          // ✅ NEW: image for ungrouped item
+          imageUrl: item.imageUrl,
         ),
       );
     });
@@ -64,6 +67,9 @@ class MenuSelectableTile extends StatelessWidget {
   final bool readOnly;
   final VoidCallback? onTap;
 
+  // ✅ NEW: image URL
+  final String? imageUrl;
+
   const MenuSelectableTile({
     super.key,
     required this.title,
@@ -73,6 +79,7 @@ class MenuSelectableTile extends StatelessWidget {
     required this.selected,
     required this.readOnly,
     required this.onTap,
+    this.imageUrl,
   });
 
   @override
@@ -88,6 +95,30 @@ class MenuSelectableTile extends StatelessWidget {
         : isVeg == false
             ? Colors.red.shade400
             : kBorder;
+
+    Widget thumb() {
+      final url = (imageUrl ?? '').trim();
+
+      // If no image -> fallback to veg/non-veg icon
+      if (url.isEmpty) return FoodTypeIcon(isVeg: isVeg);
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
+            loadingBuilder: (ctx, child, progress) {
+              if (progress == null) return child;
+              return _buildPlaceholder();
+            },
+          ),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -114,8 +145,9 @@ class MenuSelectableTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(
               children: [
-                FoodTypeIcon(isVeg: isVeg),
+                thumb(),
                 const SizedBox(width: 12),
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,7 +185,7 @@ class MenuSelectableTile extends StatelessWidget {
                   ),
                 ),
 
-                // ✅ right-side selection indicator (same as ungrouped)
+                // ✅ right-side selection indicator
                 if (!readOnly) ...[
                   const SizedBox(width: 8),
                   AnimatedContainer(
@@ -181,23 +213,17 @@ class MenuSelectableTile extends StatelessWidget {
     );
   }
 
-  /// Builds a placeholder widget for when image is not available
   Widget _buildPlaceholder() {
     return Container(
+      width: 52,
+      height: 52,
       color: Colors.grey.shade200,
+      alignment: Alignment.center,
       child: Icon(
         Icons.restaurant_menu,
-        size: 30,
+        size: 26,
         color: Colors.grey.shade400,
       ),
-    );
-  }
-
-  /// Shows the image in a full-screen viewer dialog
-  void _showImageViewer(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => ImageViewerModal(imageUrl: imageUrl),
     );
   }
 }

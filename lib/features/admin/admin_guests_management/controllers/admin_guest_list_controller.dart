@@ -414,8 +414,7 @@ class AdminGuestListController extends GetxController {
         'invitations': [
           {
             'guestEmail': guest.email.trim(),
-            // ✅ CRITICAL: MUST be the Firestore guest document id
-            'guestId': guestId,
+            'guestId': guestId, // ✅ doc.id
             'guestName': guest.name,
             'maxGuestInvite': guest.maxGuestInvite,
             if (guest.batchId != null && guest.batchId!.trim().isNotEmpty)
@@ -425,31 +424,35 @@ class AdminGuestListController extends GetxController {
       });
 
       final data = Map<String, dynamic>.from(res.data as Map);
-      final results = (data['results'] as List?) ?? const [];
 
-      final first = results.isNotEmpty
-          ? Map<String, dynamic>.from(results.first as Map)
-          : <String, dynamic>{};
+      final ok = data['ok'] == true;
 
-      final status = (first['status'] ?? '').toString();
+      final invitedCountRaw = data['invited'];
+      final invitedCount = invitedCountRaw is num
+          ? invitedCountRaw.toInt()
+          : int.tryParse((invitedCountRaw ?? '0').toString()) ?? 0;
 
-      if (status == 'sent') {
-        await FirebaseFirestore.instance
-            .collection('guests')
-            .doc(guestId)
-            .update({
-          'isInvited': true,
-          'modifiedAt': FieldValue.serverTimestamp(),
-          'lastInvitedAt': FieldValue.serverTimestamp(),
-          'inviteSentCount': FieldValue.increment(1),
-        });
-        return true;
+      final resultsRaw = data['results'];
+      final List results = resultsRaw is List ? resultsRaw : const [];
+
+      final bool sentByResult = results.any((r) {
+        if (r is! Map) return false;
+        final m = Map<String, dynamic>.from(r as Map);
+        final status = (m['status'] ?? '').toString().toLowerCase();
+        final rid = (m['guestId'] ?? '').toString().trim();
+        return status == 'sent' && (rid.isEmpty || rid == guestId);
+      });
+
+      final success = ok && (invitedCount > 0 || sentByResult);
+
+      if (!success) {
+        debugPrint('Invite failed response: $data');
       }
 
-// helpful debug
-      debugPrint(
-          'Invite failed: ${first['error'] ?? first['sendError'] ?? data}');
-      return false;
+      // ✅ IMPORTANT: do NOT update guests doc here anymore
+      // Cloud Function now updates guests/{guestId}.isInvited reliably.
+
+      return success;
     } on FirebaseFunctionsException catch (e, st) {
       debugPrint(
           'inviteGuest FirebaseFunctionsException: ${e.code} ${e.message}\n$st');

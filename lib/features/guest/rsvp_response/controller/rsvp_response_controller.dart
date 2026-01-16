@@ -323,63 +323,51 @@ class RsvpResponseController extends GetxController {
   }) async {
     if (invitationId == null || invitationId!.isEmpty) {
       error.value = 'Invitation ID is not available';
-      debugPrint('❌ createAndInviteGuest: invitationId is null or empty');
+      return null;
+    }
+    if (token == null || token!.isEmpty) {
+      error.value = 'Invalid invitation link';
       return null;
     }
 
-    if (eventId == null || eventId!.isEmpty) {
-      error.value = 'Event ID is not available';
-      debugPrint('❌ createAndInviteGuest: eventId is null or empty');
-      return null;
-    }
-
-    // Validate required fields
     if (name.trim().isEmpty || email.trim().isEmpty) {
       error.value = 'Name and email are required';
-      debugPrint('❌ createAndInviteGuest: name or email is empty');
       return null;
     }
 
-    // Email validation is now handled by validateCompanionEmail method
-    // This method is called from validateAndCreateCompanion which handles validation
-    // We still check here as a safety net, but validation should happen before calling this
-
     try {
-      // Create GuestModel instance
-      final guestModel = GuestModel(
-        name: name.trim(),
-        email: email.trim(),
-        eventId: eventId!,
-        maxGuestInvite: 0, // Companions can't invite others
-        address: address?.trim(),
-        city: city?.trim(),
-        state: state?.trim(),
-        country: country?.trim(),
-        gender: gender,
-        isDisabled: false,
-        isInvited: false,
-      );
+      final callable = _functions.httpsCallable('addCompanionToInvitation');
 
-      // Call service layer to perform atomic operation
-      final guestId =
-          await _firestoreService.createCompanionAndLinkToInvitation(
-        invitationId: invitationId!,
-        guest: guestModel,
-      );
+      final res = await callable.call({
+        'invitationId': invitationId!,
+        'token': token!,
+        'companion': {
+          'name': name.trim(),
+          'email': email.trim(),
+          'address': address?.trim(),
+          'city': city?.trim(),
+          'state': state?.trim(),
+          'country': country?.trim(),
+          'gender': gender?.name, // store as string
+        }
+      });
 
-      debugPrint(
-          '✅ createAndInviteGuest: companion created successfully, guestId=$guestId');
-      return guestId;
-    } catch (e, st) {
-      // Parse error message for better user feedback
-      if (e.toString().contains('already exists')) {
-        error.value = 'A companion with this email already exists';
-      } else if (e.toString().contains('not found')) {
-        error.value = 'Invitation not found';
-      } else {
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final guestId = (data['guestId'] ?? '').toString().trim();
+      if (guestId.isEmpty) {
         error.value = 'Failed to add companion. Please try again.';
+        return null;
       }
-      debugPrint('❌ createAndInviteGuest error: $e\n$st');
+
+      // ✅ refresh invitation status so saved/remaining counters update in UI
+      await checkExistingResponse();
+
+      return guestId;
+    } on FirebaseFunctionsException catch (e) {
+      error.value = e.message ?? 'Failed to add companion. Please try again.';
+      return null;
+    } catch (e) {
+      error.value = 'Failed to add companion. Please try again.';
       return null;
     }
   }
@@ -523,32 +511,25 @@ class RsvpResponseController extends GetxController {
   /// First creates guest documents, then sends invitations with guestId
   /// Returns true if all invitations were sent successfully, false otherwise
   Future<bool> sendCompanionInvitations({
-    required List<Map<String, dynamic>>
-        companionData, // List of {name, email, address, city, state, country, gender}
+    required List<Map<String, dynamic>> companionData,
   }) async {
     if (invitationId == null || invitationId!.isEmpty) {
       error.value = 'Invitation ID is not available';
-      debugPrint('❌ sendCompanionInvitations: invitationId is null or empty');
+      return false;
+    }
+    if (token == null || token!.isEmpty) {
+      error.value = 'Invalid invitation link';
       return false;
     }
 
     final status = invitationStatus.value;
     if (status == null) {
       error.value = 'Invitation status not available';
-      debugPrint('❌ sendCompanionInvitations: invitationStatus is null');
-      return false;
-    }
-
-    if (status.eventId.isEmpty || status.organisationId.isEmpty) {
-      error.value = 'Event or organisation information is missing';
-      debugPrint(
-          '❌ sendCompanionInvitations: eventId or organisationId is empty');
       return false;
     }
 
     if (companionData.isEmpty) {
       error.value = 'No companion data provided';
-      debugPrint('❌ sendCompanionInvitations: companionData is empty');
       return false;
     }
 
@@ -556,208 +537,132 @@ class RsvpResponseController extends GetxController {
       isSubmitting.value = true;
       error.value = null;
 
-      // Step 1: Create guest documents with groupId atomically
-      // This includes updating main guest and creating all companions in one batch
-      debugPrint(
-          '📝 Creating ${companionData.length} companion guest document(s) with groupId...');
+      // ✅ 1) Create companion guest docs + link to invitation (SERVER SIDE)
+      final addCompanion = _functions.httpsCallable('addCompanionToInvitation');
 
-      // Prepare companion GuestModel instances
-      final List<GuestModel> companionGuests = [];
-      for (final companion in companionData) {
-        final email = (companion['email'] as String?)?.trim() ?? '';
-        final name = (companion['name'] as String?)?.trim() ?? '';
-
-        if (email.isEmpty) {
-          debugPrint('⚠️ Skipping companion with empty email: $name');
-          continue;
-        }
-
-        // Create GuestModel (without guestId yet - will be assigned in batch)
-        final guest = GuestModel(
-          name: name,
-          email: email,
-          eventId: status.eventId,
-          address: companion['address'] as String?,
-          city: companion['city'] as String?,
-          country: companion['country'] as String?,
-          state: companion['state'] as String?,
-          gender: companion['gender'] as Gender?,
-          isDisabled: false,
-          isInvited: false, // Will be updated after email is sent
-          maxGuestInvite: companion['maxGuestInvite'] ?? 0,
-        );
-        companionGuests.add(guest);
-      }
-
-      if (companionGuests.isEmpty) {
-        error.value = 'No valid companion data provided';
-        debugPrint('❌ sendCompanionInvitations: No valid companions');
-        return false;
-      }
-
-      // Get main guest ID from invitation status
-      final mainGuestId = status.guestId;
-      if (mainGuestId.isEmpty) {
-        error.value = 'Main guest ID not found in invitation';
-        debugPrint('❌ sendCompanionInvitations: mainGuestId is empty');
-        return false;
-      }
-
-      // Create companions with groupId atomically (updates main guest + creates companions)
-      final groupResult = await _firestoreService.createCompanionsWithGroupId(
-        mainGuestId: mainGuestId,
-        companions: companionGuests,
-      );
-
-      final groupId = groupResult['groupId'] as String;
-      final createdGuestIds = groupResult['createdGuestIds'] as List<String>;
-
-      debugPrint(
-          '✅ Created ${createdGuestIds.length} companion(s) with groupId=$groupId');
-
-      // Step 2: Fetch created guests to get their batchId
-      final List<GuestModel> createdGuests = [];
-      for (final guestId in createdGuestIds) {
-        final guestDoc = await FirebaseFirestore.instance
-            .collection('guests')
-            .doc(guestId)
-            .get();
-        if (guestDoc.exists) {
-          createdGuests
-              .add(GuestModel.fromFirestore(guestDoc.data()!, guestDoc.id));
-        }
-      }
-
-      // Step 3: Prepare invitations array for Cloud Function
       final List<Map<String, dynamic>> invitations = [];
-      for (final guest in createdGuests) {
-        final invitation = {
-          'guestEmail': guest.email,
-          'guestName': guest.name,
-          'guestId': guest.guestId,
-          'maxGuestInvite': guest.maxGuestInvite,
-        };
 
-        // Include batchId if available
-        if (guest.batchId != null && guest.batchId!.trim().isNotEmpty) {
-          invitation['batchId'] = guest.batchId;
-        }
+      for (final c in companionData) {
+        final name = (c['name'] ?? '').toString().trim();
+        final email = (c['email'] ?? '').toString().trim();
 
-        invitations.add(invitation);
+        if (name.isEmpty || email.isEmpty) continue;
+
+        final res = await addCompanion.call({
+          'invitationId': invitationId!,
+          'token': token!,
+          'companion': {
+            'name': name,
+            'email': email,
+            'address': (c['address'] as String?)?.trim(),
+            'city': (c['city'] as String?)?.trim(),
+            'state': (c['state'] as String?)?.trim(),
+            'country': (c['country'] as String?)?.trim(),
+            'gender': (c['gender'] is Gender)
+                ? (c['gender'] as Gender).name
+                : c['gender'],
+          },
+        });
+
+        final data = Map<String, dynamic>.from(res.data as Map);
+        final createdGuestId = (data['guestId'] ?? '').toString().trim();
+        final createdBatchId = (data['batchId'] ?? '').toString().trim();
+        if (createdGuestId.isEmpty) continue;
+
+        // ✅ Build sendInvitations payload from form data (NO /guests reads)
+        invitations.add({
+          'guestEmail': email,
+          'guestId': createdGuestId,
+          'guestName': name,
+          'maxGuestInvite': 0, // companions can't invite others
+          if (createdBatchId.isNotEmpty) 'batchId': createdBatchId,
+        });
       }
 
       if (invitations.isEmpty) {
-        error.value = 'No valid email addresses found for companions';
-        debugPrint('❌ sendCompanionInvitations: No valid emails');
+        error.value = 'No valid companion invitations to send';
+        _snackbarController.showErrorMessage(error.value!);
         return false;
       }
 
-      debugPrint('📧 Sending ${invitations.length} companion invitation(s)...');
-
-      // Step 3: Get invitation code directly from event document
+      // ✅ 2) Fetch event invitationCode (event read is public in your rules)
       String? invitationCode;
       try {
         final eventDoc = await FirebaseFirestore.instance
             .collection('events')
             .doc(status.eventId)
             .get();
-
         if (eventDoc.exists) {
           invitationCode = eventDoc.data()?['invitationCode'] as String?;
-          debugPrint('📋 Fetched invitation code from event: $invitationCode');
         }
-      } catch (e) {
-        debugPrint('⚠️ Failed to fetch invitation code from event: $e');
-        // Continue without invitation code - it's optional
+      } catch (_) {
+        // optional
       }
 
-      // Step 4: Call Cloud Function to send invitations
-      final callable = _functions.httpsCallable('sendInvitations');
+      // ✅ 3) Send emails (Cloud Function also updates guests.isInvited server-side)
+      final sendInvites = _functions.httpsCallable('sendInvitations');
 
-      final cloudFunctionResult = await callable.call(<String, dynamic>{
+      final cfRes = await sendInvites.call({
         'eventId': status.eventId,
         'organisationId': status.organisationId,
-        'invitations': invitations,
         'demographicQuestionSetId': status.demographicQuestionSetId,
         if (invitationCode != null && invitationCode.trim().isNotEmpty)
           'invitationCode': invitationCode,
+        'invitations': invitations,
       });
 
-      final data = cloudFunctionResult.data as Map<String, dynamic>?;
-      if (data == null) {
-        error.value = 'Failed to send invitations. Please try again.';
-        debugPrint('❌ sendCompanionInvitations: Cloud function returned null');
+      final resp = Map<String, dynamic>.from(cfRes.data as Map);
+      final results = (resp['results'] as List?) ?? const [];
+      String? firstError;
+      for (final r in results) {
+        if (r is Map && (r['status'] ?? '') == 'failed') {
+          firstError =
+              (r['error'] ?? r['sendError'] ?? r['message'] ?? '').toString();
+          break;
+        }
+      }
+      final invitedRaw = resp['invited'];
+      final invited = invitedRaw is num
+          ? invitedRaw.toInt()
+          : int.tryParse((invitedRaw ?? '0').toString()) ?? 0;
+
+      // ✅ 4) Refresh local invitation status (saved/remaining etc)
+      if (invited == 0) {
+        _snackbarController.showErrorMessage(
+          firstError != null && firstError.trim().isNotEmpty
+              ? 'Failed to send: $firstError'
+              : 'Failed to send companion invitations. Please try again.',
+        );
         return false;
       }
-
-      final invited = (data['invited'] as int?) ?? 0;
-      final results = (data['results'] as List?) ?? [];
-
-      // Step 3: Update isInvited flag for successfully sent invitations
-      final sentEmails = results
-          .where((r) => r is Map && r['status'] == 'sent')
-          .map((r) => (r['guestEmail'] ?? '').toString().trim().toLowerCase())
-          .where((e) => e.isNotEmpty)
-          .toSet();
-
-      if (sentEmails.isNotEmpty) {
-        // Collect guest IDs for successfully sent invitations
-        final List<String> invitedGuestIds = [];
-        for (int i = 0; i < invitations.length; i++) {
-          final invitationEmail =
-              (invitations[i]['guestEmail'] as String).trim().toLowerCase();
-          if (sentEmails.contains(invitationEmail) &&
-              i < createdGuestIds.length) {
-            invitedGuestIds.add(createdGuestIds[i]);
-          }
-        }
-
-        // Update isInvited flag via service layer
-        if (invitedGuestIds.isNotEmpty) {
-          await _firestoreService.updateGuestsInvitedStatus(invitedGuestIds);
-        }
-      }
-
-      debugPrint(
-          '✅ Companion invitations sent: $invited of ${invitations.length}');
+      await checkExistingResponse();
 
       if (invited == invitations.length) {
         _snackbarController.showSuccessMessage(
           'All companion invitations sent successfully!',
         );
         return true;
-      } else if (invited > 0) {
-        // Some succeeded, some failed
-        final failed = results
-            .where((r) => r is Map && r['status'] == 'failed')
-            .map((r) => (r['guestEmail'] ?? 'Unknown').toString())
-            .join(', ');
+      }
+
+      if (invited > 0) {
         _snackbarController.showInfoMessage(
-          '$invited of ${invitations.length} invitations sent. Failed: $failed',
-        );
-        return false;
-      } else {
-        // All failed
-        error.value = 'Failed to send companion invitations. Please try again.';
-        _snackbarController.showErrorMessage(
-          'Failed to send companion invitations. Please try again.',
+          '$invited of ${invitations.length} companion invitations sent.',
         );
         return false;
       }
-    } on FirebaseFunctionsException catch (e) {
-      error.value =
-          'Failed to send invitations: ${e.message ?? 'Unknown error'}';
-      debugPrint('❌ sendCompanionInvitations FirebaseFunctionsException: $e');
-      _snackbarController.showErrorMessage(
-        'Failed to send invitations: ${e.message ?? 'Unknown error'}',
-      );
-      return false;
-    } catch (e, st) {
-      error.value = 'Failed to send companion invitations. Please try again.';
-      debugPrint('❌ sendCompanionInvitations error: $e\n$st');
+
       _snackbarController.showErrorMessage(
         'Failed to send companion invitations. Please try again.',
       );
+      return false;
+    } on FirebaseFunctionsException catch (e) {
+      error.value = e.message ?? 'Failed to send companion invitations';
+      _snackbarController.showErrorMessage(error.value!);
+      return false;
+    } catch (e, st) {
+      debugPrint('❌ sendCompanionInvitations error: $e\n$st');
+      error.value = 'Failed to send companion invitations. Please try again.';
+      _snackbarController.showErrorMessage(error.value!);
       return false;
     } finally {
       isSubmitting.value = false;
