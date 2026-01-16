@@ -62,6 +62,7 @@ export const saveCompanyInfo = onCall(async (request) => {
       timezone: request.data.timezone,
       currency: request.data.currency || "USD", // Default to USD if not provided
       logo: request.data.logo || null,
+      assignedSalesPersonId: request.data.assignedSalesPersonId || null, // Optional sales person reference
       isDisabled: false,
       createdAt: now,
       modifiedAt: now,

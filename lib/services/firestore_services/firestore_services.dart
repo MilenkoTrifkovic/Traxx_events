@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
+import 'package:traxx_wepapp/models/sales_person_model.dart';
 import 'package:traxx_wepapp/view/common/event_list_screen.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -42,6 +43,9 @@ class FirestoreServices {
   final CollectionReference<Map<String, dynamic>> menuItemsRef =
       FirebaseFirestore.instance.collection('menu_items');
 
+  /// Reference to sales_people collection in Firestore
+  late final CollectionReference<Map<String, dynamic>> salesPeopleRef;
+
   FirestoreServices() {
     usersRef = _db.collection(usersCol);
     eventsRef = _db.collection(eventsCol);
@@ -56,6 +60,7 @@ class FirestoreServices {
           fromFirestore: (snap, _) => Venue.fromFirestore(snap),
           toFirestore: (value, _) => value.toFirestore(),
         );
+    salesPeopleRef = _db.collection('sales_people');
   }
 
   Future<Event> copyEventAsDraft(
@@ -1039,6 +1044,43 @@ class FirestoreServices {
       rethrow;
     } catch (e) {
       print('Unknown error fetching venue: $e');
+      rethrow;
+    }
+  }
+
+  // SALES PERSON SERVICES
+
+  /// Fetches a sales person by their refCode field.
+  ///
+  /// Parameters:
+  /// - [refCode]: The reference code to search for (e.g., "MIL465")
+  ///
+  /// Returns the [SalesPersonModel] object if found, null otherwise.
+  /// Throws [FirebaseException] if the fetch operation fails.
+  Future<SalesPersonModel?> getSalesPersonByRefCode(String refCode) async {
+    try {
+      print('🔍 Searching for sales person with refCode: $refCode');
+
+      final querySnapshot = await salesPeopleRef
+          .where('refCode', isEqualTo: refCode.toUpperCase())
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        print('❌ No sales person found with refCode: $refCode');
+        return null;
+      }
+
+      final doc = querySnapshot.docs.first;
+      final salesPerson = SalesPersonModel.fromFirestore(doc.data(), doc.id);
+
+      print('✅ Sales person found: ${salesPerson.name} (${salesPerson.docId})');
+      return salesPerson;
+    } on FirebaseException catch (e) {
+      print('❌ Firebase error fetching sales person: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Unexpected error fetching sales person: $e');
       rethrow;
     }
   }

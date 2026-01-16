@@ -15,10 +15,12 @@ class Organisation {
   final String country; // address.country
 
   final String timezone; // Required
-  final String currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
+  final String
+      currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
   final String? logo; // Optional logo URL/path
   final String? photoUrl; // Local-only photo preview URL (not persisted)
   final List<String>? customMenuCategories; // Optional custom menu categories
+  final String? assignedSalesPersonId; // Optional assigned salesperson ID
 
   // Database fields
   final DateTime? createdAt;
@@ -40,6 +42,7 @@ class Organisation {
     this.logo,
     this.photoUrl,
     this.customMenuCategories,
+    this.assignedSalesPersonId,
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
@@ -55,7 +58,10 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Store currency ISO code
       'logo': logo,
-      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
+      if (customMenuCategories != null)
+        'customMenuCategories': customMenuCategories,
+      if (assignedSalesPersonId != null)
+        'assignedSalesPersonId': assignedSalesPersonId,
       'address': {
         'street': street,
         'city': city,
@@ -87,9 +93,12 @@ class Organisation {
       website: data['website'] as String?,
       timezone: data['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
-      currency: data['currency'] as String? ?? 'USD', // Default to USD if not in Firestore
+      currency: data['currency'] as String? ??
+          'USD', // Default to USD if not in Firestore
       logo: (data['logo'] as String?)?.trim(),
-      customMenuCategories: (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      customMenuCategories:
+          (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      assignedSalesPersonId: data['assignedSalesPersonId'] as String?,
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -112,9 +121,12 @@ class Organisation {
       website: json['website'] as String?,
       timezone: json['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
-      currency: json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
+      currency:
+          json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
       logo: json['logo'] as String?,
-      customMenuCategories: (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      customMenuCategories:
+          (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      assignedSalesPersonId: json['assignedSalesPersonId'] as String?,
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
@@ -139,7 +151,10 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Include currency in JSON
       'logo': logo,
-      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
+      if (customMenuCategories != null)
+        'customMenuCategories': customMenuCategories,
+      if (assignedSalesPersonId != null)
+        'assignedSalesPersonId': assignedSalesPersonId,
       'address': {
         'street': street,
         'city': city,
@@ -169,6 +184,7 @@ class Organisation {
     String? logo,
     String? photoUrl,
     List<String>? customMenuCategories,
+    String? assignedSalesPersonId,
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
@@ -188,6 +204,8 @@ class Organisation {
       logo: logo ?? this.logo,
       photoUrl: photoUrl ?? this.photoUrl,
       customMenuCategories: customMenuCategories ?? this.customMenuCategories,
+      assignedSalesPersonId:
+          assignedSalesPersonId ?? this.assignedSalesPersonId,
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,

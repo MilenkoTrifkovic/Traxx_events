@@ -40,13 +40,37 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
         OrganisationFormKeys.validateCurrentStep(controller.currentStep.value);
 
     if (isValid) {
-      if (controller.isLastStep) {
+      // Special handling for step 0 (sales person ref code)
+      if (controller.currentStep.value == 0) {
+        _handleSalesPersonStepValidation();
+      } else if (controller.isLastStep) {
         _handleFinish();
       } else {
         controller.nextStep();
       }
     }
     // If validation fails, the form will show error messages
+  }
+
+  Future<void> _handleSalesPersonStepValidation() async {
+    final controller = Get.find<OrganisationInfoController>();
+
+    try {
+      // Show loading indicator
+      showLoadingIndicator(status: 'Validating sales representative...');
+
+      // Validate and fetch sales person
+      final isValid = await controller.validateAndFetchSalesPerson();
+
+      if (isValid) {
+        // Proceed to next step
+        controller.nextStep();
+      }
+      // If invalid, validation message is already shown in the form
+    } finally {
+      // Always hide loading indicator
+      hideLoadingIndicator();
+    }
   }
 
   @override
