@@ -1672,4 +1672,78 @@ class FirestoreServices {
       rethrow;
     }
   }
+
+  // -----------------------------
+  // Hosts: Event assignment helpers
+  // -----------------------------
+
+  Future<void> addHostToEvent({
+    required String eventId,
+    required String hostUid,
+  }) async {
+    final ref = await _eventRefByEventId(eventId);
+    await ref.update({
+      'hostUserIds': FieldValue.arrayUnion([hostUid.trim()]),
+      'modifiedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> setPrimaryHostForEvent({
+    required String eventId,
+    required String hostUid,
+  }) async {
+    final ref = await _eventRefByEventId(eventId);
+    await ref.update({
+      'primaryHostUserId': hostUid.trim(),
+      'hostUserIds': FieldValue.arrayUnion([hostUid.trim()]),
+      'modifiedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Removes host from event.
+  /// If primary host is removed, picks a new primary from remaining hosts.
+  Future<void> removeHostFromEvent({
+    required String eventId,
+    required String hostUid,
+  }) async {
+    final ref = await _eventRefByEventId(eventId);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw Exception('Event not found');
+
+      final data = (snap.data() as Map<String, dynamic>? ?? {});
+      final currentHosts = (data['hostUserIds'] as List<dynamic>? ?? [])
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final uid = hostUid.trim();
+      if (!currentHosts.contains(uid)) return;
+
+      if (currentHosts.length <= 1) {
+        throw Exception('At least one host must remain.');
+      }
+
+      final newHosts = currentHosts.where((x) => x != uid).toList();
+
+      final currentPrimary =
+          (data['primaryHostUserId'] ?? '').toString().trim();
+      String? newPrimary = currentPrimary.isEmpty ? null : currentPrimary;
+
+      // If removed primary, set new primary to first remaining
+      if (newPrimary == uid) {
+        newPrimary = newHosts.isNotEmpty ? newHosts.first : null;
+      }
+
+      tx.update(ref, {
+        'hostUserIds': newHosts,
+        'primaryHostUserId': newPrimary,
+        'modifiedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
 }

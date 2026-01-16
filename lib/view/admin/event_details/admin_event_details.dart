@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/event_hosts_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
@@ -18,6 +20,7 @@ import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/menu_cateogory_utils.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_host_list_section.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
@@ -43,23 +46,40 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void initState() {
     super.initState();
+
     Get.put(AdminGuestListController());
     controller = AdminEventDetailsController();
+
     controller.loadEvent(widget.eventId).then((_) {
       final guestCtrl = Get.find<AdminGuestListController>();
       guestCtrl.setEventId(widget.eventId);
+
+      final evt = controller.event.value;
+      if (evt != null) {
+        final tag = widget.eventId;
+
+        if (!Get.isRegistered<EventHostsController>(tag: tag)) {
+          Get.put(
+            EventHostsController(
+              eventDocId: widget.eventId, // ✅ use widget.eventId
+              organisationId: evt
+                  .organisationId, // ✅ needed for loadAvailableHosts + resend
+            ),
+            tag: tag,
+          );
+        }
+      }
+
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+        setState(() => isLoading = false);
       }
     });
   }
 
   @override
   void dispose() {
-    controller.dispose();
-    Get.delete<AdminGuestListController>();
+    Get.delete<EventHostsController>(tag: widget.eventId, force: true);
+    Get.delete<AdminGuestListController>(force: true);
     super.dispose();
   }
 
@@ -141,6 +161,10 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
             Row(children: [
               Expanded(child: VenueSelectionCard(controller: controller)),
             ]),
+            const SizedBox(height: 24),
+
+            EventHostsSection(tag: widget.eventId),
+
             const SizedBox(height: 24),
 
             /// Guest list section (keep Milenko’s logic, but inside a card)
@@ -356,12 +380,17 @@ class _DemographicSetPickerDialogState
   String _search = '';
   QuestionSet? _selected;
 
+  // ✅ Preview questions state
+  bool _previewLoading = false;
+  String? _previewError;
+  List<_PreviewQuestion> _previewQuestions = const [];
+
   @override
   void initState() {
     super.initState();
-    // default selection
     if (widget.sets.isNotEmpty) {
       _selected = widget.sets.first;
+      _loadPreviewQuestions(_selected!.questionSetId);
     }
   }
 
@@ -372,20 +401,45 @@ class _DemographicSetPickerDialogState
     super.dispose();
   }
 
+  // ---------------------------
+  // Safe helpers (avoid nullable/non-nullable mismatch)
+  // ---------------------------
+  String _descOf(QuestionSet s) {
+    final d = (s as dynamic).description;
+    return d == null ? '' : d.toString();
+  }
+
+  String _idOf(QuestionSet s) {
+    final id = (s as dynamic).questionSetId;
+    return id == null ? '' : id.toString();
+  }
+
+  String _titleOf(QuestionSet s) {
+    final t = (s as dynamic).title;
+    return t == null ? '' : t.toString();
+  }
+
+  // ---------------------------
+  // Filtering
+  // ---------------------------
   List<QuestionSet> get _filteredSets {
     final q = _search.trim().toLowerCase();
     if (q.isEmpty) return widget.sets;
 
     return widget.sets.where((s) {
-      final t = (s.title).toLowerCase();
-      final d = (s.description).toLowerCase();
-      final id = (s.questionSetId).toLowerCase();
+      final t = _titleOf(s).toLowerCase();
+      final d = _descOf(s).toLowerCase();
+      final id = _idOf(s).toLowerCase();
       return t.contains(q) || d.contains(q) || id.contains(q);
     }).toList();
   }
 
   void _pick(QuestionSet s) {
     setState(() => _selected = s);
+
+    // ✅ load preview questions for the selected set
+    _loadPreviewQuestions(_idOf(s));
+
     if (_rightScrollController.hasClients) {
       _rightScrollController.animateTo(
         0,
@@ -399,11 +453,144 @@ class _DemographicSetPickerDialogState
     final s = _selected;
     if (s == null) return;
 
-    // If caller provided callback, fire it
     widget.onSelected?.call(s);
-
-    // Always return selected for callers who await showDialog()
     Navigator.of(context).pop(s);
+  }
+
+  // ---------------------------
+  // ✅ Load questions for preview + print Firestore index link (if required)
+  // ---------------------------
+  Future<void> _loadPreviewQuestions(String setId) async {
+    final cleanId = setId.trim();
+
+    if (cleanId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _previewQuestions = const [];
+        _previewError = null;
+        _previewLoading = false;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _previewLoading = true;
+      _previewError = null;
+      _previewQuestions = const [];
+    });
+
+    // Helper: fetch questions using a specific field name
+    Future<List<_PreviewQuestion>> _fetchBy({
+      required String fieldName,
+      required String value,
+    }) async {
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestions')
+          .where(fieldName, isEqualTo: value)
+          .get();
+
+      final out = <_PreviewQuestion>[];
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        // treat missing isDisabled as enabled
+        final isDisabled = (data['isDisabled'] == true);
+        if (isDisabled) continue;
+
+        final q = _PreviewQuestion.fromMap(d.id, data);
+        if (q.text.trim().isEmpty) continue;
+
+        out.add(q);
+      }
+
+      // Sort locally (no index needed)
+      out.sort((a, b) {
+        final ao = a.order ?? (1 << 30);
+        final bo = b.order ?? (1 << 30);
+        if (ao != bo) return ao.compareTo(bo);
+        return a.text.compareTo(b.text);
+      });
+
+      return out;
+    }
+
+    try {
+      debugPrint('🔎 Preview: loading questions for setId="$cleanId"');
+
+      List<_PreviewQuestion> list = await _fetchBy(
+        fieldName: 'questionSetId',
+        value: cleanId,
+      );
+
+      // ✅ If empty, try to resolve the SET DOC ID from demographicQuestionSets
+      // This fixes cases where QuestionSet.questionSetId != doc.id but questions use doc.id
+      if (list.isEmpty) {
+        final setSnap = await FirebaseFirestore.instance
+            .collection('demographicQuestionSets')
+            .where('questionSetId', isEqualTo: cleanId)
+            .limit(1)
+            .get();
+
+        if (setSnap.docs.isNotEmpty) {
+          final docId = setSnap.docs.first.id.trim();
+          if (docId.isNotEmpty && docId != cleanId) {
+            debugPrint(
+              'ℹ️ Preview: 0 questions for "$cleanId". Retrying with set docId="$docId".',
+            );
+            list = await _fetchBy(fieldName: 'questionSetId', value: docId);
+          }
+        }
+      }
+
+      // ✅ If still empty, try common alternate field names (old data / migrations)
+      if (list.isEmpty) {
+        const fallbacks = <String>[
+          'questionSetID',
+          'setId',
+          'demographicQuestionSetId',
+        ];
+
+        for (final f in fallbacks) {
+          debugPrint('ℹ️ Preview: retrying using "$f" == "$cleanId"');
+          final alt = await _fetchBy(fieldName: f, value: cleanId);
+          if (alt.isNotEmpty) {
+            list = alt;
+            break;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _previewQuestions = list);
+
+      if (list.isEmpty) {
+        debugPrint(
+          '⚠️ Preview: still 0 questions. Verify demographicQuestions has a field that matches this set id.',
+        );
+      } else {
+        debugPrint('✅ Preview: loaded ${list.length} questions.');
+      }
+    } catch (e, st) {
+      final msg = e.toString();
+
+      // Print Firestore "create index" link if it ever happens
+      final urlMatch = RegExp(r'(https?://[^\s\]]+)').firstMatch(msg);
+      final indexUrl = urlMatch?.group(1);
+      if (indexUrl != null) {
+        debugPrint('🔥 Firestore index required. Create it here:\n$indexUrl');
+      } else {
+        debugPrint('🔥 Preview query error:\n$msg');
+      }
+      debugPrint('Stack:\n$st');
+
+      if (!mounted) return;
+      setState(() => _previewError = msg);
+    } finally {
+      if (!mounted) return;
+      setState(() => _previewLoading = false);
+    }
   }
 
   @override
@@ -425,7 +612,7 @@ class _DemographicSetPickerDialogState
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
+              color: Colors.black.withOpacity(0.18),
               blurRadius: 24,
               offset: const Offset(0, 12),
             )
@@ -434,7 +621,7 @@ class _DemographicSetPickerDialogState
         padding: const EdgeInsets.all(18),
         child: Column(
           children: [
-            // HEADER (matches your dishes popup feel)
+            // HEADER
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -460,7 +647,6 @@ class _DemographicSetPickerDialogState
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
 
             // SEARCH ROW
@@ -496,16 +682,15 @@ class _DemographicSetPickerDialogState
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
 
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT LIST
+                  // ✅ LEFT LIST (reduced width)
                   Expanded(
-                    flex: 3,
+                    flex: 2, // was 3
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -530,8 +715,10 @@ class _DemographicSetPickerDialogState
                                     const SizedBox(height: 10),
                                 itemBuilder: (_, idx) {
                                   final s = sets[idx];
-                                  final isSelected = selected?.questionSetId ==
-                                      s.questionSetId;
+                                  final isSelected = selected != null &&
+                                      _idOf(selected) == _idOf(s);
+
+                                  final desc = _descOf(s);
 
                                   return InkWell(
                                     onTap: () => _pick(s),
@@ -578,7 +765,7 @@ class _DemographicSetPickerDialogState
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  s.title,
+                                                  _titleOf(s),
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -588,27 +775,18 @@ class _DemographicSetPickerDialogState
                                                   ),
                                                 ),
                                                 const SizedBox(height: 6),
-                                                if (s.description.isNotEmpty)
-                                                  Text(
-                                                    s.description,
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                  )
-                                                else
-                                                  Text(
-                                                    'No description',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                      color:
-                                                          Colors.grey.shade500,
-                                                    ),
+                                                Text(
+                                                  desc.trim().isEmpty
+                                                      ? 'No description'
+                                                      : desc,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: Colors.grey.shade700,
                                                   ),
+                                                ),
                                               ],
                                             ),
                                           ),
@@ -652,11 +830,11 @@ class _DemographicSetPickerDialogState
 
                   const SizedBox(width: 18),
 
-                  // RIGHT PREVIEW
+                  // ✅ RIGHT PREVIEW (extra width)
                   Expanded(
-                    flex: 2,
+                    flex: 3, // was 2
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
@@ -685,6 +863,8 @@ class _DemographicSetPickerDialogState
                                       ),
                                     ),
                                     const SizedBox(height: 10),
+
+                                    // Set details card
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
@@ -699,32 +879,141 @@ class _DemographicSetPickerDialogState
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            selected.title,
+                                            _titleOf(selected),
                                             style: GoogleFonts.poppins(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                           const SizedBox(height: 6),
-                                          if (selected.description.isNotEmpty)
-                                            Text(
-                                              selected.description,
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            )
-                                          else
-                                            Text(
-                                              'No description provided.',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                              ),
+                                          Text(
+                                            _descOf(selected).trim().isEmpty
+                                                ? 'No description provided.'
+                                                : _descOf(selected),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade700,
                                             ),
+                                          ),
                                         ],
                                       ),
                                     ),
+
+                                    const SizedBox(height: 14),
+
+                                    // ✅ Questions preview
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Questions',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        if (_previewLoading)
+                                          Text(
+                                            'Loading…',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade700,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            '${_previewQuestions.length}',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade700,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+
+                                    if (_previewLoading) ...[
+                                      const LinearProgressIndicator(
+                                          minHeight: 3),
+                                      const SizedBox(height: 10),
+                                    ] else if (_previewError != null) ...[
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: Colors.red.shade200,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Failed to load questions.\n$_previewError',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: Colors.red.shade700,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ] else if (_previewQuestions.isEmpty) ...[
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: Colors.grey.shade200,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'No questions found in this set.',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade700,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ] else ...[
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF9FAFB),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: const Color(0xFFE5E7EB),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            for (int i = 0;
+                                                i < _previewQuestions.length;
+                                                i++) ...[
+                                              _questionPreviewTile(
+                                                number: i + 1,
+                                                text: _previewQuestions[i].text,
+                                                isFollowUp: _previewQuestions[i]
+                                                    .parentId
+                                                    .trim()
+                                                    .isNotEmpty,
+                                              ),
+                                              if (i !=
+                                                  _previewQuestions.length - 1)
+                                                const Divider(height: 16),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+
                                     const SizedBox(height: 12),
                                     Text(
                                       'Tip: You can change this later anytime.',
@@ -779,27 +1068,48 @@ class _DemographicSetPickerDialogState
     );
   }
 
-  Widget _miniKeyValue(String k, String v) {
+  Widget _questionPreviewTile({
+    required int number,
+    required String text,
+    required bool isFollowUp,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ✅ Fixed-width number column so all text lines align perfectly
         SizedBox(
-          width: 56,
-          child: Text(
-            '$k:',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
+          width: 40, // constant column width
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  '$number',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
-            v,
+            isFollowUp ? '↳ $text' : text,
             style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey.shade800,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF111827),
+              height: 1.25,
             ),
           ),
         ),
@@ -834,6 +1144,46 @@ class _DemographicSetPickerDialogState
           color: color,
         ),
       ),
+    );
+  }
+}
+
+class _PreviewQuestion {
+  final String id;
+  final String text;
+  final int? order;
+  final String parentId;
+
+  const _PreviewQuestion({
+    required this.id,
+    required this.text,
+    required this.order,
+    required this.parentId,
+  });
+
+  factory _PreviewQuestion.fromMap(String id, Map<String, dynamic> m) {
+    final rawText = (m['questionText'] ??
+            m['text'] ??
+            m['title'] ??
+            m['question'] ??
+            m['label'] ??
+            '')
+        .toString()
+        .trim();
+
+    int? order;
+    final o = m['order'] ?? m['index'] ?? m['position'];
+    if (o is int) order = o;
+    if (o is num) order = o.toInt();
+    if (o is String) order = int.tryParse(o);
+
+    final parent = (m['parentQuestionId'] ?? '').toString();
+
+    return _PreviewQuestion(
+      id: id,
+      text: rawText,
+      order: order,
+      parentId: parent,
     );
   }
 }

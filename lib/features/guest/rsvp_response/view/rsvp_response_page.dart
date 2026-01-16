@@ -135,11 +135,30 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
 
     // 2) Declined -> show summary/completed widget
     if (status.isConfirmedNotAttending == true) {
-      return RsvpCompletedEventDetailsWidget(
-        isPhone: isPhone,
-        controller: c,
-        guestController: g,
-      );
+      final invId = c.invitationId;
+      final token = (c.token ?? '').trim();
+
+      final shouldAutoRoute = !_didAutoRoute || _autoRouteInvitationId != invId;
+
+      if (shouldAutoRoute && invId != null && invId.isNotEmpty) {
+        _didAutoRoute = true;
+        _autoRouteInvitationId = invId;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          pushAndRemoveAllRoute(
+            AppRoute.thankYou,
+            context,
+            queryParams: {
+              'invitationId': invId,
+              if (token.isNotEmpty) 'token': token,
+              'attending': '0',
+            },
+          );
+        });
+      }
+
+      return RsvpLoadingWidget(isPhone: isPhone);
     }
 
     // 3) Attending -> show completed widget ONLY if all steps are done
@@ -313,7 +332,7 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
                       final ok =
                           await c.submitNotAttending(declineReason: reason);
                       if (ok && mounted) {
-                        _navigateToGuestResponse(context, c);
+                        _navigateToThankYou(context, c, attending: false);
                       }
                     },
                   ),
@@ -364,17 +383,26 @@ class _RsvpResponsePageState extends State<RsvpResponsePage> {
     });
   }
 
-  void _navigateToGuestResponse(
-      BuildContext context, RsvpResponseController c) {
+  void _navigateToThankYou(
+    BuildContext context,
+    RsvpResponseController c, {
+    bool? attending,
+  }) {
     final invId = c.invitationId;
     if (invId == null || invId.isEmpty) return;
 
+    _didAutoRoute = true;
+    _autoRouteInvitationId = invId;
+
+    final token = (c.token ?? '').trim();
+
     pushAndRemoveAllRoute(
-      AppRoute.guestResponse,
+      AppRoute.thankYou,
       context,
       queryParams: {
         'invitationId': invId,
-        if (c.token != null) 'token': c.token!,
+        if (token.isNotEmpty) 'token': token,
+        if (attending != null) 'attending': attending ? '1' : '0',
       },
     );
   }

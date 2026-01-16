@@ -116,7 +116,7 @@ class CloudFunctionsService extends GetxService {
               'guestEmail': g.email.trim(),
               'guestId': g.guestId,
               'guestName': g.name,
-              if (g.batchId != null && g.batchId!.trim().isNotEmpty) 
+              if (g.batchId != null && g.batchId!.trim().isNotEmpty)
                 'batchId': g.batchId,
             })
         .toList();
@@ -230,5 +230,87 @@ class CloudFunctionsService extends GetxService {
     final data = result.data;
     if (data is Map) return Map<String, dynamic>.from(data);
     return {'data': data};
+  }
+
+  Future<Map<String, dynamic>> deleteHostUser({
+    required String organisationId,
+    required String hostUid,
+    bool deleteAuth = false,
+  }) async {
+    final callable = _functions.httpsCallable('deleteHostUser');
+    final result = await callable.call({
+      'organisationId': organisationId,
+      'hostUid': hostUid,
+      'deleteAuth': deleteAuth,
+    });
+    if (result.data is Map) return Map<String, dynamic>.from(result.data);
+    return {'data': result.data};
+  }
+
+  // -----------------------------
+  // Hosts: Create + Resend Verify
+  // -----------------------------
+
+  /// Creates/updates a Host user (Auth + Firestore) and optionally sends email.
+  /// For "Add Host" popup you will call with sendEmail=false.
+  Future<Map<String, dynamic>> createHostUser({
+    required String organisationId,
+    required String name,
+    required String email,
+    String? address,
+    String? country,
+    bool isDisabled = false,
+    bool sendEmail = false, // ✅ keep false for Add Host popup
+  }) async {
+    final callable = _functions.httpsCallable(
+      'createHostUser',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    try {
+      final result = await callable.call(<String, dynamic>{
+        'organisationId': organisationId.trim(),
+        'name': name.trim(),
+        'email': email.trim(),
+        'address': (address ?? '').trim(),
+        'country': (country ?? '').trim(),
+        'isDisabled': isDisabled,
+        'sendEmail': sendEmail,
+      });
+
+      final data = result.data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return {'data': data};
+    } on FirebaseFunctionsException catch (e) {
+      throw Exception(
+          'createHostUser failed: ${e.code} ${e.message} ${e.details ?? ''}');
+    }
+  }
+
+  /// Sends verification email (and optionally password link) from the Host table.
+  Future<Map<String, dynamic>> resendHostVerificationEmail({
+    required String organisationId,
+    required String hostUid,
+    bool sendPasswordLink = true,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'resendHostVerificationEmail',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    try {
+      final result = await callable.call(<String, dynamic>{
+        'organisationId': organisationId.trim(),
+        'hostUid': hostUid.trim(),
+        'sendPasswordLink': sendPasswordLink,
+      });
+
+      final data = result.data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return {'data': data};
+    } on FirebaseFunctionsException catch (e) {
+      throw Exception(
+          'resendHostVerificationEmail failed: ${e.code} ${e.message}');
+    }
   }
 }

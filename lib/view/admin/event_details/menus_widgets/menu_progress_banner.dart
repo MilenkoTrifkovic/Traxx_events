@@ -37,7 +37,7 @@ class MenuProgressBanner extends StatelessWidget {
                   Text(
                     controller.fillingForLabel,
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
                       color: kGfPurple,
                     ),
@@ -46,7 +46,7 @@ class MenuProgressBanner extends StatelessWidget {
                   Text(
                     'Person ${controller.currentPersonNumber} of ${controller.totalPeople} • ${controller.completedMenuCount} completed',
                     style: GoogleFonts.poppins(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: kTextBody,
                     ),
