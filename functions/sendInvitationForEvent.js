@@ -509,18 +509,6 @@ export const sendInvitations = onCall(
               invitationCode: guestInvitationCode || "",
             },
           });
-
-          await invRef.update({
-            sent: true,
-            sentAt: Timestamp.now(),
-            postmarkMessageId: resp.MessageID,
-            sendError: null,
-            sendErrorStatus: null,
-            sendErrorBody: null,
-            sendAttemptCount: FieldValue.increment(1),
-            sendSuccessCount: FieldValue.increment(1),
-          });
-
           results.push({
             guestEmail,
             guestId: gid || null,
@@ -528,6 +516,37 @@ export const sendInvitations = onCall(
             invitationCode: guestInvitationCode || null,
             status: "sent",
           });
+          try {
+             await invRef.update({
+              sent: true,
+              sentAt: Timestamp.now(),
+              postmarkMessageId: resp.MessageID,
+              sendError: null,
+              sendErrorStatus: null,
+              sendErrorBody: null,
+              sendAttemptCount: FieldValue.increment(1),
+              sendSuccessCount: FieldValue.increment(1),
+            });
+          } catch (e) {
+            console.error("⚠️ invRef.update failed AFTER email sent:", e);
+          }
+          try {
+            if (gid) {
+              await db.collection("guests").doc(gid).set(
+                {
+                  isInvited: true,
+                  modifiedAt: Timestamp.now(),
+                  lastInvitedAt: Timestamp.now(),
+                  inviteSentCount: FieldValue.increment(1),
+                },
+                { merge: true }
+              );
+            }
+          } catch (e) {
+            console.error("⚠️ guest update failed AFTER email sent:", e);
+          }
+
+          
         } catch (err) {
           const status = err?.statusCode ?? err?.code ?? null;
           const msg = err?.message ?? String(err);
@@ -561,9 +580,13 @@ export const sendInvitations = onCall(
         results,
       });
 
+      const sentUnique = new Set(
+        results.filter(r => r.status === "sent").map(r => r.invitationId)
+      );
+
       return {
         ok: true,
-        invited: results.filter((r) => r.status === "sent").length,
+        invited: sentUnique.size,
         results,
       };
     } catch (err) {

@@ -411,11 +411,14 @@ class MenuGroupCard extends StatelessWidget {
                         '${(it.isVeg == true) ? "Veg" : (it.isVeg == false) ? "Non-Veg" : ""}'
                         '${((it.isVeg == true) || (it.isVeg == false)) ? " • " : ""}'
                         '${it.categoryLabel}${it.price != null ? " • ${it.price}" : ""}',
-                    description: it.description ?? '',
-                    isVeg: it.isVeg, // ✅ make sure your dto has isVeg
+                    description: it.description,
+                    isVeg: it.isVeg,
                     selected: picked == it.id,
                     readOnly: readOnly,
                     onTap: () => controller.pickFromGroup(group.groupId, it.id),
+
+                    // ✅ NEW: image for group item
+                    imageUrl: it.imageUrl,
                   ),
                 ),
               ],

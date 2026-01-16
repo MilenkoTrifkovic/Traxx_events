@@ -19,5 +19,7 @@ export { createSalesPersonAccount } from "./createSalesPersonAccount.js";
 export { createHostUser } from "./createHostUser.js";
 export { resendHostVerificationEmail } from "./resendHostVerificationEmail.js";
 export { deleteHostUser } from "./deleteHostUser.js";
+export { addCompanionToInvitation } from "./addCompanionToInvitation.js";
+
 
 
