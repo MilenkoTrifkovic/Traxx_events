@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
@@ -18,6 +20,7 @@ class MenuItemSelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final org = Get.find<OrganisationController>();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -26,7 +29,7 @@ class MenuItemSelectionCard extends StatelessWidget {
           color: isSelected ? AppColors.primaryAccent : AppColors.borderSubtle,
           width: isSelected ? 1.5 : 1,
         ),
-        color: isSelected 
+        color: isSelected
             ? AppColors.primaryAccent.withOpacity(0.04)
             : Colors.white,
       ),
@@ -42,9 +45,12 @@ class MenuItemSelectionCard extends StatelessWidget {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryAccent : Colors.transparent,
+                  color:
+                      isSelected ? AppColors.primaryAccent : Colors.transparent,
                   border: Border.all(
-                    color: isSelected ? AppColors.primaryAccent : AppColors.borderInput,
+                    color: isSelected
+                        ? AppColors.primaryAccent
+                        : AppColors.borderInput,
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(4),
@@ -74,15 +80,20 @@ class MenuItemSelectionCard extends StatelessWidget {
                             weight: FontWeight.w600,
                           ),
                         ),
-                        if (menuItem.price != null) ...[
-                          const SizedBox(width: 8),
-                          AppText.styledLabelMedium(
-                            context,
-                            '\$${menuItem.price!.toStringAsFixed(2)}',
-                            weight: FontWeight.w600,
-                            color: AppColors.primaryAccent,
-                          ),
-                        ],
+                        Obx(() {
+                          final show = org.showMenuItemPrices.value;
+                          if (!show || menuItem.price == null)
+                            return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: AppText.styledLabelMedium(
+                              context,
+                              '\$${menuItem.price!.toStringAsFixed(2)}',
+                              weight: FontWeight.w600,
+                              color: AppColors.primaryAccent,
+                            ),
+                          );
+                        }),
                       ],
                     ),
 

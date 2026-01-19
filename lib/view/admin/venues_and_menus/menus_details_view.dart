@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/menus_details_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/menu_category_helper.dart';
@@ -300,6 +301,7 @@ class MenuSetDetailsView extends StatelessWidget {
     MenuSetDetailsController controller,
   ) {
     final theme = Theme.of(context);
+    final org = Get.find<OrganisationController>();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -345,9 +347,58 @@ class MenuSetDetailsView extends StatelessWidget {
               // Sort dropdown
               Expanded(
                 flex: 2,
-                child: Obx(
-                  () => DropdownButtonFormField<MenuItemsSortType>(
-                    initialValue: controller.sortType.value,
+                child: Obx(() {
+                  final showPrices = org.showMenuItemPrices.value;
+
+                  // ✅ allowed sort options based on toggle
+                  final allowedSorts = <MenuItemsSortType>[
+                    MenuItemsSortType.nameAZ,
+                    MenuItemsSortType.nameZA,
+                    if (showPrices) MenuItemsSortType.priceLowHigh,
+                    if (showPrices) MenuItemsSortType.priceHighLow,
+                    MenuItemsSortType.dateNewest,
+                    MenuItemsSortType.dateOldest,
+                  ];
+
+                  // ✅ If currently on a price sort but prices are hidden, force fallback
+                  if (!showPrices &&
+                      (controller.sortType.value ==
+                              MenuItemsSortType.priceLowHigh ||
+                          controller.sortType.value ==
+                              MenuItemsSortType.priceHighLow)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (controller.sortType.value !=
+                          MenuItemsSortType.nameAZ) {
+                        controller.setSortType(MenuItemsSortType.nameAZ);
+                      }
+                    });
+                  }
+
+                  String labelFor(MenuItemsSortType t) {
+                    switch (t) {
+                      case MenuItemsSortType.nameAZ:
+                        return 'Name (A–Z)';
+                      case MenuItemsSortType.nameZA:
+                        return 'Name (Z–A)';
+                      case MenuItemsSortType.priceLowHigh:
+                        return 'Price (Low–High)';
+                      case MenuItemsSortType.priceHighLow:
+                        return 'Price (High–Low)';
+                      case MenuItemsSortType.dateNewest:
+                        return 'Date (Newest)';
+                      case MenuItemsSortType.dateOldest:
+                        return 'Date (Oldest)';
+                    }
+                  }
+
+                  // ✅ pick a safe value (in case current isn't allowed anymore)
+                  final current =
+                      allowedSorts.contains(controller.sortType.value)
+                          ? controller.sortType.value
+                          : MenuItemsSortType.nameAZ;
+
+                  return DropdownButtonFormField<MenuItemsSortType>(
+                    value: current,
                     onChanged: (v) {
                       if (v != null) controller.setSortType(v);
                     },
@@ -364,42 +415,17 @@ class MenuSetDetailsView extends StatelessWidget {
                         vertical: 8,
                       ),
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.nameAZ,
-                        child: Text('Name (A–Z)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.nameZA,
-                        child: Text('Name (Z–A)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.priceLowHigh,
-                        child: Text('Price (Low–High)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.priceHighLow,
-                        child: Text('Price (High–Low)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.dateNewest,
-                        child: Text('Date (Newest)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.dateOldest,
-                        child: Text('Date (Oldest)'),
-                      ),
-                    ].map((e) {
-                      return DropdownMenuItem<MenuItemsSortType>(
-                        value: e.value,
-                        child: Text(
-                          (e.child as Text).data!,
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
+                    items: allowedSorts
+                        .map((t) => DropdownMenuItem<MenuItemsSortType>(
+                              value: t,
+                              child: Text(
+                                labelFor(t),
+                                style: GoogleFonts.poppins(fontSize: 13),
+                              ),
+                            ))
+                        .toList(),
+                  );
+                }),
               ),
             ],
           ),
@@ -444,56 +470,70 @@ class MenuSetDetailsView extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
 
-              // Min price
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: controller.setMinPrice,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Min price',
-                    prefixText: '\$',
-                    labelStyle: GoogleFonts.poppins(fontSize: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
+              // ✅ Price range (only when showPrices == true)
+              Obx(() {
+                final showPrices = org.showMenuItemPrices.value;
+                if (!showPrices) return const SizedBox.shrink();
 
-              // Max price
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: controller.setMaxPrice,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Max price',
-                    prefixText: '\$',
-                    labelStyle: GoogleFonts.poppins(fontSize: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
+                return Expanded(
+                  flex: 2, // price fields take remaining space
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+
+                      // Min price
+                      Expanded(
+                        child: TextField(
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          onChanged: controller.setMinPrice,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            labelText: 'Min price',
+                            prefixText: '\$',
+                            labelStyle: GoogleFonts.poppins(fontSize: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(999),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Max price
+                      Expanded(
+                        child: TextField(
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          onChanged: controller.setMaxPrice,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            labelText: 'Max price',
+                            prefixText: '\$',
+                            labelStyle: GoogleFonts.poppins(fontSize: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(999),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
+                );
+              }),
             ],
           ),
         ],
@@ -505,107 +545,66 @@ class MenuSetDetailsView extends StatelessWidget {
     List<MenuItem> items,
     MenuSetDetailsController controller,
   ) {
-    // group manually by category (now String-based)
+    final org = Get.find<OrganisationController>();
+
+    // group manually by category (String-based)
     final Map<String, List<MenuItem>> grouped = {};
     for (final i in items) {
       grouped.putIfAbsent(i.category, () => []).add(i);
     }
 
-    // build a section per category
-    return Column(
-      children: grouped.entries.map((entry) {
-        final category = entry.key;
-        final list = entry.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _prettyCategory(category),
-                style: GoogleFonts.poppins(
-                    fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // the section card
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                    color: Colors.black.withOpacity(0.03),
+    return Obx(() {
+      final showPrices = org.showMenuItemPrices.value;
+
+      return Column(
+        children: grouped.entries.map((entry) {
+          final category = entry.key;
+          final list = entry.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _prettyCategory(category),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
+                ),
               ),
-              child: Column(
-                children: [
-                  // header row
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF3F4F6),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                      color: Colors.black.withOpacity(0.03),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: Text(
-                            'Item',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Category',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Price',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Created',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.centerRight,
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // header row
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF3F4F6),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(12)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 4,
                             child: Text(
-                              'Actions',
+                              'Item',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -613,34 +612,90 @@ class MenuSetDetailsView extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Category',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
 
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    itemBuilder: (context, index) =>
-                        _buildItemRow(context, list[index], controller),
-                  ),
-                ],
+                          // ✅ Price header only when enabled
+                          if (showPrices)
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'Price',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Created',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                'Actions',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                      itemBuilder: (context, index) => _buildItemRow(
+                        context,
+                        list[index],
+                        controller,
+                        showPrices, // ✅ pass down
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        );
-      }).toList(),
-    );
+            ],
+          );
+        }).toList(),
+      );
+    });
   }
 
   Widget _buildItemRow(
     BuildContext context,
     MenuItem item,
     MenuSetDetailsController controller,
+    bool showPrices,
   ) {
     final theme = Theme.of(context);
 
@@ -743,17 +798,20 @@ class MenuSetDetailsView extends StatelessWidget {
             ),
           ),
 
-          // Price
-          Expanded(
-            flex: 2,
-            child: Text(
-              item.price != null ? '\$${item.price!.toStringAsFixed(0)}' : '-',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: const Color(0xFF111827),
+          // ✅ Price cell only when enabled
+          if (showPrices)
+            Expanded(
+              flex: 2,
+              child: Text(
+                item.price != null
+                    ? '\$${item.price!.toStringAsFixed(0)}'
+                    : '-',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: const Color(0xFF111827),
+                ),
               ),
             ),
-          ),
 
           // Created date
           Expanded(

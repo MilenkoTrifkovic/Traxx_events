@@ -21,7 +21,7 @@ class Organisation {
   final String? photoUrl; // Local-only photo preview URL (not persisted)
   final List<String>? customMenuCategories; // Optional custom menu categories
   final String? assignedSalesPersonId; // Optional assigned salesperson ID
-
+  final bool? showMenuItemPrices;
   // Database fields
   final DateTime? createdAt;
   final DateTime? modifiedDate;
@@ -46,6 +46,7 @@ class Organisation {
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
+    this.showMenuItemPrices = true,
   });
 
   // Convert to Map for Firestore
@@ -72,6 +73,7 @@ class Organisation {
       // 'createdAt': createdAt?.toIso8601String(),
       // 'modifiedDate': modifiedDate?.toIso8601String(),
       'isDisabled': isDisabled,
+      'showMenuItemPrices': showMenuItemPrices,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -105,6 +107,7 @@ class Organisation {
       zip: address['zip'] as String? ?? '',
       country: address['country'] as String? ?? '',
       isDisabled: data['isDisabled'] as bool? ?? false,
+      showMenuItemPrices: data['showMenuItemPrices'] as bool? ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       modifiedDate: (data['modifiedDate'] as Timestamp?)?.toDate(),
     );
@@ -133,6 +136,7 @@ class Organisation {
       zip: address['zip'] as String? ?? '',
       country: address['country'] as String? ?? '',
       isDisabled: json['isDisabled'] as bool? ?? false,
+      showMenuItemPrices: json['showMenuItemPrices'] as bool? ?? false,
       createdAt:
           json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       modifiedDate: json['modifiedDate'] != null
@@ -163,6 +167,7 @@ class Organisation {
         'country': country,
       },
       'isDisabled': isDisabled,
+      'showMenuItemPrices': showMenuItemPrices,
       'createdAt': createdAt?.toIso8601String(),
       'modifiedDate': modifiedDate?.toIso8601String(),
     };
@@ -188,6 +193,7 @@ class Organisation {
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
+    bool? showMenuItemPrices,
   }) {
     return Organisation(
       organisationId: organisationId ?? this.organisationId,
@@ -209,6 +215,7 @@ class Organisation {
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,
+      showMenuItemPrices: showMenuItemPrices ?? this.showMenuItemPrices,
     );
   }
 

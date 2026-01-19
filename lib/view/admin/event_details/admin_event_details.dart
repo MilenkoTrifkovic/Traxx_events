@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/event_hosts_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
@@ -1491,6 +1492,7 @@ class MenuSelectionCard extends StatelessWidget {
 
       // grouped count for chip
       final groupedCount = groupedIds.length;
+      final org = Get.find<OrganisationController>();
 
       return Container(
         padding: const EdgeInsets.all(18),
@@ -1583,27 +1585,28 @@ class MenuSelectionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    hasGroups ? 'Estimated total' : 'Total',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+              Obx(() {
+                if (!org.showMenuItemPrices.value)
+                  return const SizedBox.shrink();
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      hasGroups ? 'Estimated total' : 'Total',
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  Text(
-                    showRange
-                        ? '${AppCurrency.format(minTotal)} - ${AppCurrency.format(maxTotal)}'
-                        : AppCurrency.format(maxTotal),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                    Text(
+                      showRange
+                          ? '${AppCurrency.format(minTotal)} - ${AppCurrency.format(maxTotal)}'
+                          : AppCurrency.format(maxTotal),
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w700),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              }),
             ],
           ],
         ),
@@ -1615,6 +1618,7 @@ class MenuSelectionCard extends StatelessWidget {
     final String ftLabel = _foodTypeLabel(item);
     final String catLabel = _categoryLabel(item);
     final bool isVeg = ftLabel.toLowerCase() == 'veg' || _isVegByCategory(item);
+    final org = Get.find<OrganisationController>();
 
     final price = item.price;
     final double p = (price == null)
@@ -1714,10 +1718,13 @@ class MenuSelectionCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            AppCurrency.format(p),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-          ),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(p),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            );
+          }),
         ],
       ),
     );
@@ -1853,6 +1860,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
 
   final TextEditingController _leftSearchCtrl = TextEditingController();
   final TextEditingController _rightSearchCtrl = TextEditingController();
+  final OrganisationController org = Get.find<OrganisationController>();
 
   String _leftSearch = '';
   String _rightSearch = '';
@@ -2386,6 +2394,8 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
         ? (isVeg ? Colors.green.shade700 : Colors.red.shade700)
         : Colors.grey.shade300;
 
+    final org = Get.find<OrganisationController>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _toggleSelection(item),
@@ -2431,14 +2441,14 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              AppCurrency.format(price),
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                color: const Color(0xFF111827),
-              ),
-            ),
+            Obx(() {
+              if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+              return Text(
+                AppCurrency.format(price),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800, fontSize: 13),
+              );
+            }),
             const SizedBox(width: 10),
             SizedBox(
               height: 34,
@@ -2983,39 +2993,44 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                           const SizedBox(width: 14),
 
                           // Total pill (range aware)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  _hasAnyGroupsWithItems
-                                      ? 'Estimated Total'
-                                      : 'Total',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.w600,
+                          Obx(() {
+                            if (!org.showMenuItemPrices.value)
+                              return const SizedBox.shrink();
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _hasAnyGroupsWithItems
+                                        ? 'Estimated Total'
+                                        : 'Total',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  showRange
-                                      ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
-                                      : AppCurrency.format(range.max),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    showRange
+                                        ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
+                                        : AppCurrency.format(range.max),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
+                                ],
+                              ),
+                            );
+                          }),
 
                           const Spacer(),
 
@@ -3148,7 +3163,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               final hasAnyPriceLoaded =
                   g.itemIds.any((id) => _selectedCache[id] != null);
 
-              final subtitleText = !hasAnyPriceLoaded
+              final showPrices = org.showMenuItemPrices.value;
+
+              final subtitleText = (!showPrices || !hasAnyPriceLoaded)
                   ? 'Guest can pick ${g.maxPick} item'
                   : (r.min == r.max
                       ? 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)}'
@@ -3172,13 +3189,20 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                       fontSize: 13,
                     ),
                   ),
-                  subtitle: Text(
-                    subtitleText,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
+                  subtitle: Obx(() {
+                    final showPrices = org.showMenuItemPrices.value;
+                    final txt = (!showPrices || !hasAnyPriceLoaded)
+                        ? 'Guest can pick ${g.maxPick} item'
+                        : (r.min == r.max
+                            ? 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)}'
+                            : 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)} - ${AppCurrency.format(r.max)}');
+
+                    return Text(
+                      txt,
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.grey.shade700),
+                    );
+                  }),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -3268,8 +3292,13 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ],
             ),
           ),
-          Text(AppCurrency.format(price),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            );
+          }),
           IconButton(
             tooltip: 'Remove from selection',
             icon: const Icon(Icons.close, size: 18),
@@ -3317,8 +3346,13 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ],
             ),
           ),
-          Text(AppCurrency.format(price),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            );
+          }),
           IconButton(
             tooltip: 'Remove from group (keep selected)',
             icon: const Icon(Icons.link_off, size: 18),

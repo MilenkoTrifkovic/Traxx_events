@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 
@@ -94,8 +95,7 @@ class AppPrimaryButton extends StatelessWidget {
                   Flexible(
                     child: Text(
                       text,
-                      style: TextStyle(
-                        fontFamily: Constants.font2,
+                      style: GoogleFonts.poppins(
                         fontSize: fontSize ?? Constants.bodyMediumFontSize,
                         fontWeight: fontWeight ?? FontWeight.w500,
                         height: Constants.bodyLineHeight,
