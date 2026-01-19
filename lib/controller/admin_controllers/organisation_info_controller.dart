@@ -34,7 +34,7 @@ class OrganisationInfoController extends GetxController {
   final zipController = TextEditingController();
 
   var selectedCountry = 'United States'.obs;
-  var selectedState = 'California'.obs; // default state
+  final Rxn<String> selectedState = Rxn<String>('California'); // default state for USA, nullable for other countries
   var selectedTimezone =
       'America/Los_Angeles (Pacific Time)'.obs; // default timezone
 
@@ -72,6 +72,8 @@ class OrganisationInfoController extends GetxController {
     super.onInit();
     // Add listener to refCodeController to validate format in real-time
     refCodeController.addListener(_validateRefCodeFormat);
+    // Add listener to selectedCountry to handle state field visibility
+    ever(selectedCountry, _handleCountryChange);
   }
 
   @override
@@ -86,6 +88,17 @@ class OrganisationInfoController extends GetxController {
     phoneController.dispose();
     websiteController.dispose();
     super.onClose();
+  }
+
+  /// Handles country change to manage state field
+  void _handleCountryChange(String country) {
+    if (country != 'United States') {
+      // Clear state for non-USA countries
+      selectedState.value = null;
+    } else {
+      // Set state to null for USA so user must select
+      selectedState.value = null;
+    }
   }
 
   /// Validates the ref code format (LLLnnn) in real-time
@@ -326,7 +339,7 @@ class OrganisationInfoController extends GetxController {
 
       return savedOrganisation;
     } catch (e) {
-      print('Error saving organisation: $e');
+      print('Error saving organisation 2: $e');
       if (errorMessage.value == null) {
         errorMessage.value = 'Failed to save organisation. Please try again.';
       }

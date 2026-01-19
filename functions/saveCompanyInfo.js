@@ -55,7 +55,7 @@ export const saveCompanyInfo = onCall(async (request) => {
       address: {
         street: request.data.address.street,
         city: request.data.address.city,
-        state: request.data.address.state,
+        ...(request.data.address.country === "United States" && request.data.address.state && { state: request.data.address.state }), // Only include state for USA
         zip: request.data.address.zip.toString(),
         country: request.data.address.country,
       },

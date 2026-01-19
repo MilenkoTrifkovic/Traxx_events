@@ -27,7 +27,7 @@ class Venue {
   final String street; // address.street
   final String city; // address.city
   final String zip; // address.zip
-  final String state; // address.state
+  final String? state; // address.state - Optional (only for USA)
   final String country; // address.country
 
   /// Optional in-memory download URL for the venue's photo.
@@ -59,7 +59,10 @@ class Venue {
 
   /// Creates a new Venue instance
   String get fullAddress {
-    return '$street, $city, $state, $zip, $country';
+    final parts = [street, city];
+    if (state != null) parts.add(state!);
+    parts.addAll([zip, country]);
+    return parts.join(', ');
   }
 
   Venue({
@@ -77,7 +80,7 @@ class Venue {
     required this.street,
     required this.city,
     required this.zip,
-    required this.state,
+    this.state,
     required this.country,
   });
 
@@ -148,7 +151,7 @@ class Venue {
         'street': street,
         'city': city,
         'zip': zip,
-        'state': state,
+        if (state != null) 'state': state,
         'country': country,
       },
     };
@@ -171,7 +174,7 @@ class Venue {
         'street': street,
         'city': city,
         'zip': zip,
-        'state': state,
+        if (state != null) 'state': state,
         'country': country,
       },
     };
@@ -192,7 +195,7 @@ class Venue {
         'street': street,
         'city': city,
         'zip': zip,
-        'state': state,
+        if (state != null) 'state': state,
         'country': country,
       },
     };
@@ -213,7 +216,7 @@ class Venue {
         'street': street,
         'city': city,
         'zip': zip,
-        'state': state,
+        if (state != null) 'state': state,
         'country': country,
       },
     };
@@ -237,6 +240,7 @@ class Venue {
     String? zip,
     String? state,
     String? country,
+    bool clearState = false, // Special flag to explicitly clear state
   }) {
     return Venue(
       venueID: venueID ?? this.venueID,
@@ -253,7 +257,7 @@ class Venue {
       street: street ?? this.street,
       city: city ?? this.city,
       zip: zip ?? this.zip,
-      state: state ?? this.state,
+      state: clearState ? null : (state ?? this.state),
       country: country ?? this.country,
     );
   }

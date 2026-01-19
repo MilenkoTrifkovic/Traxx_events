@@ -40,7 +40,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
             child: child,
           );
 
-      final fields = [
+      return Obx(() {
+        final List<Widget> fields = [
         wrapChild(Obx(() => AppTextInputField(
               label: 'Company Name',
               controller: controller.companyNameController,
@@ -117,23 +118,29 @@ class OrganisationInfoFormSection extends StatelessWidget {
               validator: (v) =>
                   ValidationHelper.validateDropdownSelection(v, 'country'),
             ))),
-        wrapChild(Obx(() => AppDropdownMenu<String>(
-              label: 'State',
-              value: controller.selectedState.value,
-              hintText: 'Select state',
-              enabled: controller.isEditing.value,
-              items: USData.states
-                  .map((s) => DropdownMenuItem<String>(
-                        value: s,
-                        child: Text(s),
-                      ))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) controller.selectedState.value = v;
-              },
-              validator: (v) =>
-                  ValidationHelper.validateDropdownSelection(v, 'state'),
-            ))),
+        // State dropdown - Only for United States (reactive to country changes)
+        // Use conditional spread operator to completely exclude from list when not USA
+        ...controller.selectedCountry.value == 'United States'
+            ? [
+                wrapChild(Obx(() => AppDropdownMenu<String>(
+                      label: 'State',
+                      value: controller.selectedState.value,
+                      hintText: 'Select state',
+                      enabled: controller.isEditing.value,
+                      items: USData.states
+                          .map((s) => DropdownMenuItem<String>(
+                                value: s,
+                                child: Text(s),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) controller.selectedState.value = v;
+                      },
+                      validator: (v) =>
+                          ValidationHelper.validateDropdownSelection(v, 'state'),
+                    )))
+              ]
+            : [],
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Currency',
               value: controller.selectedCurrency.value,
@@ -154,11 +161,11 @@ class OrganisationInfoFormSection extends StatelessWidget {
               validator: (v) =>
                   ValidationHelper.validateDropdownSelection(v, 'currency'),
             ))),
-      ];
+        ];
 
-      return Form(
-        key: _formKey,
-        child: Column(
+        return Form(
+          key: _formKey,
+          child: Column(
           // crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (isDesktop)
@@ -269,7 +276,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               ),
           ],
         ),
-      );
+        );
+      });
     });
   }
 }

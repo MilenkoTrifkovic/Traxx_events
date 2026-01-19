@@ -11,7 +11,7 @@ class Organisation {
   final String street; // address.street
   final String city; // address.city
   final String zip; // address.zip
-  final String state; // address.state
+  final String? state; // address.state - Optional (only for USA)
   final String country; // address.country
 
   final String timezone; // Required
@@ -35,7 +35,7 @@ class Organisation {
     required this.street,
     required this.city,
     required this.zip,
-    required this.state,
+    this.state, // Optional - only required for USA
     required this.country,
     required this.timezone,
     this.currency = 'USD', // Default to USD if not provided
@@ -65,7 +65,7 @@ class Organisation {
       'address': {
         'street': street,
         'city': city,
-        'state': state,
+        if (state != null) 'state': state,
         'zip': zip,
         'country': country,
       },
@@ -158,7 +158,7 @@ class Organisation {
       'address': {
         'street': street,
         'city': city,
-        'state': state,
+        if (state != null) 'state': state,
         'zip': zip,
         'country': country,
       },
@@ -188,6 +188,7 @@ class Organisation {
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
+    bool clearState = false, // Special flag to explicitly clear state
   }) {
     return Organisation(
       organisationId: organisationId ?? this.organisationId,
@@ -196,7 +197,7 @@ class Organisation {
       website: website ?? this.website,
       street: street ?? this.street,
       city: city ?? this.city,
-      state: state ?? this.state,
+      state: clearState ? null : (state ?? this.state),
       zip: zip ?? this.zip,
       country: country ?? this.country,
       timezone: timezone ?? this.timezone,
