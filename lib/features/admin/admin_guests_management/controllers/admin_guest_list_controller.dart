@@ -73,6 +73,17 @@ class AdminGuestListController extends GetxController {
     return (_uuid.v4() + _uuid.v4()).replaceAll('-', '');
   }
 
+  @override
+  void onInit() {
+    super.onInit();
+    // Listen to country changes and clear state when country is not USA
+    ever(selectedCountry, (country) {
+      if (country != null && country != 'United States') {
+        selectedState.value = null;
+      }
+    });
+  }
+
   // ---------------------------
   // Realtime listener
   // ---------------------------

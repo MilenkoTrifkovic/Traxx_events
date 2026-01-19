@@ -77,6 +77,8 @@ class _LocationTimeFormState extends State<LocationTimeForm> {
                       label: 'Country',
                       value: controller.selectedCountry.value,
                       hintText: 'Select country',
+                      enableSearch: true,
+                      searchExtractor: (country) => country,
                       validator: (value) =>
                           ValidationHelper.validateDropdownSelection(
                               value, 'country'),
@@ -104,6 +106,8 @@ class _LocationTimeFormState extends State<LocationTimeForm> {
                               label: 'State',
                               value: controller.selectedState.value,
                               hintText: 'Select state',
+                              enableSearch: true,
+                              searchExtractor: (state) => state,
                               validator: (value) =>
                                   ValidationHelper.validateDropdownSelection(
                                       value, 'state'),
@@ -140,6 +144,8 @@ class _LocationTimeFormState extends State<LocationTimeForm> {
                       label: 'Timezone',
                       value: controller.selectedTimezone.value,
                       hintText: 'Select timezone',
+                      enableSearch: true,
+                      searchExtractor: (timezone) => timezone,
                       validator: (value) =>
                           ValidationHelper.validateDropdownSelection(
                               value, 'timezone'),

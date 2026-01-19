@@ -250,8 +250,9 @@ class USData {
     'Zimbabwe',
   ];
 
-  // US Timezones
+  // Major World Timezones
   static const List<String> timezones = [
+    // North America
     'America/New_York (Eastern Time)',
     'America/Chicago (Central Time)',
     'America/Denver (Mountain Time)',
@@ -259,5 +260,77 @@ class USData {
     'America/Phoenix (Mountain Time - Arizona)',
     'America/Anchorage (Alaska Time)',
     'Pacific/Honolulu (Hawaii Time)',
+    'America/Toronto (Eastern Time - Canada)',
+    'America/Vancouver (Pacific Time - Canada)',
+    'America/Mexico_City (Central Time - Mexico)',
+    
+    // South America
+    'America/Sao_Paulo (Brasília Time)',
+    'America/Buenos_Aires (Argentina Time)',
+    'America/Santiago (Chile Time)',
+    'America/Lima (Peru Time)',
+    'America/Bogota (Colombia Time)',
+    'America/Caracas (Venezuela Time)',
+    
+    // Europe
+    'Europe/London (GMT/BST)',
+    'Europe/Paris (Central European Time)',
+    'Europe/Berlin (Central European Time)',
+    'Europe/Rome (Central European Time)',
+    'Europe/Madrid (Central European Time)',
+    'Europe/Amsterdam (Central European Time)',
+    'Europe/Brussels (Central European Time)',
+    'Europe/Vienna (Central European Time)',
+    'Europe/Athens (Eastern European Time)',
+    'Europe/Moscow (Moscow Time)',
+    'Europe/Istanbul (Turkey Time)',
+    'Europe/Stockholm (Central European Time)',
+    'Europe/Oslo (Central European Time)',
+    'Europe/Copenhagen (Central European Time)',
+    'Europe/Warsaw (Central European Time)',
+    'Europe/Zurich (Central European Time)',
+    'Europe/Lisbon (Western European Time)',
+    'Europe/Dublin (GMT/IST)',
+    
+    // Africa
+    'Africa/Cairo (Eastern European Time)',
+    'Africa/Johannesburg (South Africa Time)',
+    'Africa/Lagos (West Africa Time)',
+    'Africa/Nairobi (East Africa Time)',
+    'Africa/Casablanca (Western European Time)',
+    'Africa/Algiers (Central European Time)',
+    
+    // Asia
+    'Asia/Dubai (Gulf Standard Time)',
+    'Asia/Riyadh (Arabia Standard Time)',
+    'Asia/Karachi (Pakistan Standard Time)',
+    'Asia/Kolkata (India Standard Time)',
+    'Asia/Dhaka (Bangladesh Standard Time)',
+    'Asia/Bangkok (Indochina Time)',
+    'Asia/Singapore (Singapore Time)',
+    'Asia/Hong_Kong (Hong Kong Time)',
+    'Asia/Shanghai (China Standard Time)',
+    'Asia/Tokyo (Japan Standard Time)',
+    'Asia/Seoul (Korea Standard Time)',
+    'Asia/Manila (Philippine Time)',
+    'Asia/Jakarta (Western Indonesia Time)',
+    'Asia/Tehran (Iran Standard Time)',
+    'Asia/Jerusalem (Israel Standard Time)',
+    'Asia/Taipei (Taipei Time)',
+    'Asia/Kuala_Lumpur (Malaysia Time)',
+    'Asia/Ho_Chi_Minh (Indochina Time)',
+    
+    // Oceania
+    'Australia/Sydney (Australian Eastern Time)',
+    'Australia/Melbourne (Australian Eastern Time)',
+    'Australia/Brisbane (Australian Eastern Standard Time)',
+    'Australia/Perth (Australian Western Standard Time)',
+    'Australia/Adelaide (Australian Central Time)',
+    'Pacific/Auckland (New Zealand Time)',
+    'Pacific/Fiji (Fiji Time)',
+    
+    // Atlantic
+    'Atlantic/Reykjavik (Greenwich Mean Time)',
+    'Atlantic/Azores (Azores Time)',
   ];
 }

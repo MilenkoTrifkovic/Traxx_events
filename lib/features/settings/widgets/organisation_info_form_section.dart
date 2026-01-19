@@ -89,6 +89,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               value: controller.selectedTimezone.value,
               hintText: 'Select timezone',
               enabled: controller.isEditing.value,
+              enableSearch: true,
+              searchExtractor: (timezone) => timezone,
               items: USData.timezones
                   .map((tz) => DropdownMenuItem<String>(
                         value: tz,
@@ -106,6 +108,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               value: controller.selectedCountry.value,
               hintText: 'Select country',
               enabled: controller.isEditing.value,
+              enableSearch: true,
+              searchExtractor: (country) => country,
               items: USData.countries
                   .map((c) => DropdownMenuItem<String>(
                         value: c,
@@ -127,6 +131,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
                       value: controller.selectedState.value,
                       hintText: 'Select state',
                       enabled: controller.isEditing.value,
+                      enableSearch: true,
+                      searchExtractor: (state) => state,
                       items: USData.states
                           .map((s) => DropdownMenuItem<String>(
                                 value: s,

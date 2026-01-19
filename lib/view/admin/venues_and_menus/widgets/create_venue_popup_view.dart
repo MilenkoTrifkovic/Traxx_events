@@ -112,6 +112,8 @@ class CreateVenuePopupView extends StatelessWidget {
                       label: 'Country',
                       value: controller.selectedCountry.value,
                       hintText: 'Select country',
+                      enableSearch: true,
+                      searchExtractor: (country) => country,
                       validator: (value) =>
                           ValidationHelper.validateDropdownSelection(
                               value, 'country'),
@@ -138,6 +140,8 @@ class CreateVenuePopupView extends StatelessWidget {
                               label: 'State',
                               value: controller.selectedState.value,
                               hintText: 'Select state',
+                              enableSearch: true,
+                              searchExtractor: (state) => state,
                               validator: (value) =>
                                   ValidationHelper.validateDropdownSelection(
                                       value, 'state'),
