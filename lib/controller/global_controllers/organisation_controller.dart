@@ -103,6 +103,7 @@ class OrganisationController extends GetxController {
   /// Returns true if update succeeded, false otherwise.
   Future<bool> updateOrganisation(Organisation org) async {
     try {
+      print(  'Updating organisation: ${org.toJson()}');
       // isLoading.value = true;
       final updated = await _firestoreServices.updateOrganisation(org);
       organisation.value = updated;

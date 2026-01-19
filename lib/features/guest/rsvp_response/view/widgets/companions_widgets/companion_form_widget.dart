@@ -100,6 +100,8 @@ class CompanionFormWidget extends StatelessWidget {
               value: selectedCountry.value,
               hintText: 'Select country',
               enabled: !readOnly,
+              enableSearch: true,
+              searchExtractor: (country) => country,
               items: USData.countries.map((String country) {
                 return DropdownMenuItem<String>(
                   value: country,
@@ -108,26 +110,39 @@ class CompanionFormWidget extends StatelessWidget {
               }).toList(),
               onChanged: readOnly ? null : (String? newValue) {
                 selectedCountry.value = newValue;
+                // Clear state when country changes
+                if (newValue != 'United States') {
+                  selectedState.value = null;
+                }
               },
             );
           }),
 
-          // State dropdown
-          Obx(() => AppDropdownMenu<String>(
-                label: 'State (Optional)',
-                value: selectedState.value,
-                hintText: 'Select state',
-                enabled: !readOnly,
-                items: USData.states.map((String state) {
-                  return DropdownMenuItem<String>(
-                    value: state,
-                    child: Text(state),
-                  );
-                }).toList(),
-                onChanged: readOnly ? null : (String? newValue) {
-                  selectedState.value = newValue;
-                },
-              )),
+          // State dropdown - Only for United States
+          Obx(() {
+            if (selectedCountry.value != 'United States') {
+              return const SizedBox.shrink();
+            }
+            return AppDropdownMenu<String>(
+              label: 'State (Optional)',
+              value: selectedState.value,
+              hintText: 'Select state',
+              enabled: !readOnly,
+              enableSearch: true,
+              searchExtractor: (state) => state,
+              items: USData.states.map((String state) {
+                return DropdownMenuItem<String>(
+                  value: state,
+                  child: Text(state),
+                );
+              }).toList(),
+              onChanged: readOnly
+                  ? null
+                  : (String? newValue) {
+                      selectedState.value = newValue;
+                    },
+            );
+          }),
 
           // Gender dropdown
           Obx(() {

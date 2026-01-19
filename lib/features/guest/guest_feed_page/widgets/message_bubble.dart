@@ -95,10 +95,32 @@ class _MessageBubbleState extends State<MessageBubble> {
                 // Name and timestamp row with small avatar
                 Row(
                   children: [
+                    // Host badge (if message is from host)
+                    if (widget.message.isHost) ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isPhone ? 6 : 8,
+                          vertical: isPhone ? 2 : 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryAccent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: AppText.styledBodySmall(
+                          context,
+                          'HOST',
+                          color: AppColors.white,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      AppSpacing.horizontalXxs(context),
+                    ],
                     AppText.styledLabelMedium(
                       context,
                       widget.message.userName,
-                      color: AppColors.primary,
+                      color: widget.message.isHost
+                          ? AppColors.primaryAccent
+                          : AppColors.primary,
                       weight: FontWeight.w600,
                     ),
                     AppSpacing.horizontalXxs(context),
@@ -106,8 +128,10 @@ class _MessageBubbleState extends State<MessageBubble> {
                     if (widget.message.userPhoto != null) ...[
                       CircleAvatar(
                         radius: isPhone ? 6.0 : 7.0,
-                        backgroundColor: AppColors.primaryAccent.withOpacity(0.1),
-                        backgroundImage: NetworkImage(widget.message.userPhoto!),
+                        backgroundColor:
+                            AppColors.primaryAccent.withOpacity(0.1),
+                        backgroundImage:
+                            NetworkImage(widget.message.userPhoto!),
                       ),
                       AppSpacing.horizontalXxxs(context),
                     ],
@@ -126,7 +150,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                     vertical: AppSpacing.sm(context),
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceCard,
+                    color: widget.message.isHost
+                        ? AppColors.primaryAccent.withOpacity(0.08)
+                        : AppColors.surfaceCard,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(isPhone ? 4 : 6),
                       topRight: Radius.circular(isPhone ? 16 : 20),
@@ -134,13 +160,17 @@ class _MessageBubbleState extends State<MessageBubble> {
                       bottomRight: Radius.circular(isPhone ? 16 : 20),
                     ),
                     border: Border.all(
-                      color: AppColors.borderSubtle,
-                      width: 1,
+                      color: widget.message.isHost
+                          ? AppColors.primaryAccent.withOpacity(0.3)
+                          : AppColors.borderSubtle,
+                      width: widget.message.isHost ? 1.5 : 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.black.withOpacity(0.03),
-                        blurRadius: 8,
+                        color: widget.message.isHost
+                            ? AppColors.primaryAccent.withOpacity(0.08)
+                            : AppColors.black.withOpacity(0.03),
+                        blurRadius: widget.message.isHost ? 12 : 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -161,7 +191,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                         Wrap(
                           spacing: AppSpacing.xs(context),
                           runSpacing: AppSpacing.xs(context),
-                          children: widget.message.attachments.map((attachment) {
+                          children:
+                              widget.message.attachments.map((attachment) {
                             return AttachmentChip(
                               fileName: attachment.name,
                               type: attachment.type.displayName,
@@ -246,17 +277,41 @@ class _MessageBubbleState extends State<MessageBubble> {
                           AppSpacing.horizontalXxxs(context),
                           CircleAvatar(
                             radius: isPhone ? 6.0 : 7.0,
-                            backgroundColor: AppColors.primaryAccent.withOpacity(0.2),
-                            backgroundImage: NetworkImage(widget.message.userPhoto!),
+                            backgroundColor:
+                                AppColors.primaryAccent.withOpacity(0.2),
+                            backgroundImage:
+                                NetworkImage(widget.message.userPhoto!),
                           ),
                         ],
                         AppSpacing.horizontalXxs(context),
                         AppText.styledLabelMedium(
                           context,
                           widget.message.userName,
-                          color: AppColors.primary,
+                          color: widget.message.isHost
+                              ? AppColors.primaryAccent
+                              : AppColors.primary,
                           weight: FontWeight.w600,
                         ),
+                        // Host badge (if message is from host)
+                        if (widget.message.isHost) ...[
+                          AppSpacing.horizontalXxs(context),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isPhone ? 6 : 8,
+                              vertical: isPhone ? 2 : 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryAccent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: AppText.styledBodySmall(
+                              context,
+                              'HOST',
+                              color: AppColors.white,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     AppSpacing.verticalXxs(context),
@@ -406,7 +461,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       // We need to get the controller from the widget tree
       final controller = Get.find<GuestFeedController>();
       controller.deleteMessage(widget.message.messageId!);
-      
+
       // Optional: Show a success message
       print('✅ Message deleted successfully');
     } catch (e) {

@@ -2,6 +2,50 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { db } from "./admin.js";
 
+async function requireAdminForOrg(request, organisationId) {
+  if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const adminUid = request.auth.uid;
+  const snap = await db.collection("users").doc(adminUid).get();
+  if (!snap.exists) throw new HttpsError("permission-denied", "User profile not found.");
+
+  const u = snap.data() || {};
+  const role = (u.role || "").toString();
+
+  const isSuper =
+    role === "superAdmin" || role === "super_admin" || role === "superadmin";
+  const isAdmin = role === "admin";
+  const isHost = role === "host";
+
+  // Allow superAdmin, admin, or host to delete host users
+  if (!isSuper && !isAdmin && !isHost) {
+    throw new HttpsError("permission-denied", "Only admins or hosts can delete other hosts.");
+  }
+
+  // SuperAdmin can delete hosts from any organisation
+  if (isSuper) {
+    return;
+  }
+
+  // Admin must match organisationId
+  if (isAdmin) {
+    const myOrg = (u.organisationId || "").toString();
+    if (!myOrg || myOrg !== organisationId) {
+      throw new HttpsError("permission-denied", "You can only delete hosts from your organisation.");
+    }
+    return;
+  }
+
+  // Host must be managed by the organisation
+  if (isHost) {
+    const managedByOrgIds = u.managedByOrgIds || [];
+    if (!Array.isArray(managedByOrgIds) || !managedByOrgIds.includes(organisationId)) {
+      throw new HttpsError("permission-denied", "You can only delete hosts from organisations that manage you.");
+    }
+    return;
+  }
+}
+
 export const deleteHostUser = onCall(async (request) => {
   try {
     const { organisationId, hostUid, deleteAuth = false } = request.data || {};

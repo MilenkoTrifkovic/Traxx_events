@@ -29,11 +29,20 @@ function validateAddress(address) {
         );
     }
 
-    // Required address fields
-    const requiredAddressFields = ["street", "city", "state", "zip", "country"];
+    // Required address fields (state is optional - only for USA)
+    const requiredAddressFields = ["street", "city", "zip", "country"];
 
     for (const field of requiredAddressFields) {
         validateRequiredString(address[field], `Address ${field}`);
+    }
+
+    // State is required only for United States
+    console.log(`Validating address for country: ${address.country}`);
+    if (address.country === "United States") {
+        console.log(`Country is USA, validating state: ${address.state}`);
+        validateRequiredString(address.state, "State");
+    } else {
+        console.log(`Country is NOT USA (${address.country}), skipping state validation`);
     }
 
     // Additional validation for specific fields
@@ -102,12 +111,16 @@ export function validateCompanyInfo(data) {
         );
     }
 
-    // Validate required address fields
+    // Validate required address fields (state is optional - only for USA)
     validateRequiredString(data.address.street, "Street address");
     validateRequiredString(data.address.city, "City");
-    validateRequiredString(data.address.state, "State");
     validateRequiredString(data.address.zip, "ZIP code");
     validateRequiredString(data.address.country, "Country");
+    
+    // State is required only for United States
+    if (data.address.country === "United States") {
+        validateRequiredString(data.address.state, "State");
+    }
 
     // Additional validation for zip code
     if (data.address.zip && typeof data.address.zip === "string") {

@@ -161,10 +161,14 @@ class ValidationHelper {
     required String? zipCode,
     required String? timezone,
   }) {
+    // State validation only required for United States
+    final stateValid = country != 'United States' || 
+        validateDropdownSelection(state, 'state') == null;
+    
     return validateAddress(address) == null &&
         validateCity(city) == null &&
         validateDropdownSelection(country, 'country') == null &&
-        validateDropdownSelection(state, 'state') == null &&
+        stateValid &&
         validateZipCode(zipCode) == null &&
         validateDropdownSelection(timezone, 'timezone') == null;
   }

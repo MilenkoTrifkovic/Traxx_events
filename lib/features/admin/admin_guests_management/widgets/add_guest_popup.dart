@@ -168,6 +168,8 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
                 label: 'Country',
                 value: controller.selectedCountry.value,
                 hintText: 'Select country',
+                enableSearch: true,
+                searchExtractor: (country) => country,
                 items: USData.countries.map((String country) {
                   return DropdownMenuItem<String>(
                     value: country,
@@ -182,23 +184,30 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
               );
             }),
 
-            // State dropdown
-            Obx(() => AppDropdownMenu<String>(
-                  label: 'State',
-                  value: controller.selectedState.value,
-                  hintText: 'Select state',
-                  items: USData.states.map((String state) {
-                    return DropdownMenuItem<String>(
-                      value: state,
-                      child: Text(state),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      controller.selectedState.value = newValue;
-                    }
-                  },
-                )),
+            // State dropdown - Only for United States
+            Obx(() {
+              if (controller.selectedCountry.value != 'United States') {
+                return const SizedBox.shrink();
+              }
+              return AppDropdownMenu<String>(
+                label: 'State',
+                value: controller.selectedState.value,
+                hintText: 'Select state',
+                enableSearch: true,
+                searchExtractor: (state) => state,
+                items: USData.states.map((String state) {
+                  return DropdownMenuItem<String>(
+                    value: state,
+                    child: Text(state),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    controller.selectedState.value = newValue;
+                  }
+                },
+              );
+            }),
 
             // Gender dropdown
             Obx(() {

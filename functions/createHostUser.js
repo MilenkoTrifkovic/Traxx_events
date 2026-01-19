@@ -24,16 +24,34 @@ async function requireAdminForOrg(request, organisationId) {
   const isSuper =
     role === "superAdmin" || role === "super_admin" || role === "superadmin";
   const isAdmin = role === "admin";
+  const isHost = role === "host";
 
-  if (!isSuper && !isAdmin) {
-    throw new HttpsError("permission-denied", "Only admins can create hosts.");
+  // Allow superAdmin, admin, or host to create host users
+  if (!isSuper && !isAdmin && !isHost) {
+    throw new HttpsError("permission-denied", "Only admins or hosts can create other hosts.");
   }
 
-  if (!isSuper) {
+  // SuperAdmin can create hosts for any organisation
+  if (isSuper) {
+    return;
+  }
+
+  // Admin must match organisationId
+  if (isAdmin) {
     const myOrg = (u.organisationId || "").toString();
     if (!myOrg || myOrg !== organisationId) {
       throw new HttpsError("permission-denied", "You can only create hosts for your organisation.");
     }
+    return;
+  }
+
+  // Host must be managed by the organisation
+  if (isHost) {
+    const managedByOrgIds = u.managedByOrgIds || [];
+    if (!Array.isArray(managedByOrgIds) || !managedByOrgIds.includes(organisationId)) {
+      throw new HttpsError("permission-denied", "You can only create hosts for organisations that manage you.");
+    }
+    return;
   }
 }
 

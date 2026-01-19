@@ -177,7 +177,7 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
       pushAndRemoveAllRoute(AppRoute.hostEvents, context);
     } catch (e) {
       hideLoadingIndicator();
-      print('❌ Error saving organisation: $e');
+      print('❌ Error saving organisation 1: $e');
       /* SnackBarUtils.showError(
         context,
         'Failed to save organisation: $e',
