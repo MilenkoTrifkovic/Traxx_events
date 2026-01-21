@@ -1,59 +1,108 @@
 import 'package:flutter/material.dart';
-import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
-import 'package:traxx_wepapp/utils/enums/sizes.dart';
+
+const double kNavCollapseWidth = 900;
 
 class AppBarCustom extends StatelessWidget implements PreferredSizeWidget {
   final Widget content;
+
+  /// If null = full width
+  final double? maxContentWidth;
+
+  /// Mobile drawer support
+  final GlobalKey<ScaffoldState>? drawerScaffoldKey;
+
+  /// Optional overrides
   final Color? backgroundColor;
   final Color? foregroundColor;
 
   const AppBarCustom({
     super.key,
     required this.content,
+    this.maxContentWidth = Constants.maxContentWidth,
+    this.drawerScaffoldKey,
     this.backgroundColor,
     this.foregroundColor,
   });
 
+  static const double _barHeight = 90.0;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.white,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadow(context).withOpacity(0.1),
-            offset: const Offset(0, 2),
-            blurRadius: 12,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor:
-            foregroundColor ?? Theme.of(context).colorScheme.onPrimary,
-        automaticallyImplyLeading: false,
-        toolbarHeight: 68.0,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        title: Center(
-          child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: Constants.maxContentWidth),
-            child: Padding(
-              padding: AppPadding.vertical(context, paddingType: Sizes.xs),
-              child: content,
+    final w = MediaQuery.sizeOf(context).width;
+    final isMobile = w < kNavCollapseWidth;
+
+    // ✅ Match Sidebar color by default
+    final bg = backgroundColor ?? AppColors.primary;
+
+    // ✅ On dark header, default foreground should be white
+    final fg = foregroundColor ?? Colors.white;
+
+    Widget body = content;
+
+    if (maxContentWidth != null) {
+      body = Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth!),
+          child: body,
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: _barHeight,
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.white.withOpacity(0.10),
+              width: 1,
             ),
           ),
+
+          // ✅ Proper shadow without adding layout height (removes the gap)
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.20),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-        titleSpacing: 0.0,
+        padding: EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: isMobile ? 10 : 14,
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Row(
+            children: [
+              if (isMobile)
+                IconButton(
+                  icon: const Icon(Icons.menu),
+                  color: fg,
+                  onPressed: () =>
+                      drawerScaffoldKey?.currentState?.openDrawer(),
+                ),
+              Expanded(
+                child: IconTheme(
+                  data: IconThemeData(color: fg),
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(color: fg),
+                    child: body,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(68.0);
+  Size get preferredSize => const Size.fromHeight(_barHeight);
 }

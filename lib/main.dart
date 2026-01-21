@@ -30,9 +30,7 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize date formatting for table_calendar locale support
   await initializeDateFormatting();
-
   tzdata.initializeTimeZones();
   setPathUrlStrategy();
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -42,7 +40,6 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize Nominatim Geocoding (works on web)
   await NominatimGeocoding.init(reqCacheNum: 50);
 
   Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
@@ -58,36 +55,44 @@ Future<void> main() async {
 
   Get.put<EventController>(EventController(), permanent: true);
 
-  // Initialize GuestSessionController to restore session if exists
-  // This must happen BEFORE router is created so redirect guards can check authentication
-  // Using putAsync ensures async session restoration completes before routing starts
+  // ✅ Put this ONCE (NOT inside MyApp.build)
+  Get.put(SnackbarMessageController(), permanent: true);
+
   await Get.putAsync(() => GuestSessionController().init(), permanent: true);
 
   final authController = Get.find<AuthController>();
-
-  // 🔄 read userRole + organisationId from /users/{uid} if logged in
   await authController.loadUserProfile();
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    Get.put(SnackbarMessageController());
+  State<MyApp> createState() => _MyAppState();
+}
 
+class _MyAppState extends State<MyApp> {
+  late final GoRouter _router;
+  late final TransitionBuilder _easyBuilder;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = buildRouter(); // ✅ once
+    _easyBuilder = EasyLoading.init(); // ✅ once
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'Trax Events',
-      // builder: EasyLoading.init(),
-      builder: (context, child) {
-        return EasyLoading.init()(context, child);
-      },
       theme: AppTheme.light,
-      routerConfig: buildRouter(),
+      builder: _easyBuilder, // ✅ use cached builder
+      routerConfig: _router, // ✅ use cached router
     );
   }
 }

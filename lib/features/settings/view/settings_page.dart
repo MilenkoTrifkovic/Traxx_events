@@ -42,16 +42,28 @@ class SettingsPage extends StatelessWidget {
   Widget _buildContent(BuildContext context) {
     hideLoadingIndicator();
     final SettingsScreenController controller = SettingsScreenController();
+
+    final w = MediaQuery.sizeOf(context).width;
+    final outerPad = w < 600 ? 14.0 : 24.0;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(outerPad),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1440),
-          child: Card(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            elevation: 0,
-            color: AppColors.white,
+          constraints: const BoxConstraints(maxWidth: 1180),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
             child: OrganisationEdit(controller: controller),
           ),
         ),

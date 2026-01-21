@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
@@ -27,89 +28,123 @@ class _SalesPersonRefFormState extends State<SalesPersonRefForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: OrganisationFormKeys.salesPersonRefFormKey,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SectionHeader(
-              icon: Icons.badge,
-              title: 'Sales Representative',
-              description: 'Enter your sales representative reference code',
-            ),
-            const SizedBox(height: 24),
+    return _PoppinsScope(
+      child: Form(
+        key: OrganisationFormKeys.salesPersonRefFormKey,
+        child: Center(
+          child: ConstrainedBox(
+            constraints:
+                BoxConstraints(maxWidth: _responsiveFormMaxWidth(context)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(
+                  icon: Icons.badge,
+                  title: 'Sales Representative',
+                  description: 'Enter your sales representative reference code',
+                ),
+                const SizedBox(height: 20),
 
-            // Reference Code Field
-            AppTextInputField(
-              label: 'Reference Code (Optional)',
-              controller: controller.refCodeController,
-              hintText: 'e.g., PER234',
-              validator: (value) {
-                // Allow empty (optional field)
-                if (value == null || value.trim().isEmpty) {
-                  return null;
-                }
+                // Reference Code Field
+                AppTextInputField(
+                  label: 'Reference Code (Optional)',
+                  controller: controller.refCodeController,
+                  hintText: 'e.g., PER234',
+                  width: double.infinity, // ✅ full width
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return null;
+                    final refCodeRegex = RegExp(r'^[A-Za-z]{3}\d{3}$');
+                    if (!refCodeRegex.hasMatch(value.trim())) {
+                      return 'Invalid format. Expected: 3 letters + 3 digits (e.g., PER234)';
+                    }
+                    return null;
+                  },
+                  textCapitalization: TextCapitalization.characters,
+                ),
 
-                // Validate format: 3 letters followed by 3 digits (LLLnnn)
-                final refCodeRegex = RegExp(r'^[A-Za-z]{3}\d{3}$');
-                if (!refCodeRegex.hasMatch(value.trim())) {
-                  return 'Invalid format. Expected: 3 letters + 3 digits (e.g., PER234)';
-                }
+                const SizedBox(height: 10),
 
-                return null;
-              },
-              textCapitalization: TextCapitalization.characters,
-            ),
+                // Validation message
+                Obx(() {
+                  final msg = controller.salesPersonValidationMessage.value;
+                  if (msg.isEmpty) return const SizedBox.shrink();
 
-            const SizedBox(height: 12),
+                  final ok = controller.salesPersonFound.value;
+                  final c = ok ? AppColors.success : AppColors.inputError;
 
-            // Validation message
-            Obx(() => controller.salesPersonValidationMessage.value.isNotEmpty
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6.0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          controller.salesPersonFound.value
-                              ? Icons.check_circle
-                              : Icons.error,
+                          ok ? Icons.check_circle : Icons.error,
                           size: 16,
-                          color: controller.salesPersonFound.value
-                              ? AppColors.success
-                              : AppColors.inputError,
+                          color: c,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: AppText.styledBodySmall(
-                            context,
-                            controller.salesPersonValidationMessage.value,
-                            color: controller.salesPersonFound.value
-                                ? AppColors.success
-                                : AppColors.inputError,
-                            weight: AppFontWeight.medium,
-                            textAlign: TextAlign.left,
+                          child: Text(
+                            msg,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: c,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  )
-                : const SizedBox.shrink()),
+                  );
+                }),
 
-            AppSpacing.verticalXs(context),
+                const SizedBox(height: 14),
 
-            // Helper text
-            AppText.styledBodySmall(
-              context,
-              'Enter your sales representative reference code in the format: 3 letters + 3 digits (e.g., PER234)',
-              color: AppColors.textMuted,
-              textAlign: TextAlign.left,
+                Text(
+                  'Enter your sales representative reference code in the format: 3 letters + 3 digits (e.g., PER234)',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _PoppinsScope extends StatelessWidget {
+  final Widget child;
+  const _PoppinsScope({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context);
+    return Theme(
+      data: base.copyWith(
+        textTheme: GoogleFonts.poppinsTextTheme(base.textTheme),
+        primaryTextTheme: GoogleFonts.poppinsTextTheme(base.primaryTextTheme),
+        inputDecorationTheme: base.inputDecorationTheme.copyWith(
+          labelStyle: GoogleFonts.poppins(),
+          hintStyle: GoogleFonts.poppins(),
+          floatingLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+      ),
+      child: DefaultTextStyle(
+        style: GoogleFonts.poppins(),
+        child: child,
+      ),
+    );
+  }
+}
+
+double _responsiveFormMaxWidth(BuildContext context) {
+  final w = MediaQuery.sizeOf(context).width;
+  if (w < 600) return double.infinity; // phone: full width
+  if (w < 1100) return 520; // tablet
+  return 720; // desktop
 }

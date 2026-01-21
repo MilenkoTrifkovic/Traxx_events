@@ -66,7 +66,6 @@ class _CalendarPageState extends State<CalendarPage> {
       padding: const EdgeInsets.all(24.0),
       child: Column(
         children: [
-          // Calendar widget with navigation
           CalendarWidget(
             focusedDay: _focusedDay,
             selectedDay: _selectedDay,
@@ -78,32 +77,20 @@ class _CalendarPageState extends State<CalendarPage> {
                 _focusedDay = focusedDay;
               });
             },
-            onFormatChanged: (format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            },
-            onPageChanged: (focusedDay) {
-              setState(() {
-                _focusedDay = focusedDay;
-              });
-            },
+            onFormatChanged: (format) =>
+                setState(() => _calendarFormat = format),
+            onPageChanged: (focusedDay) =>
+                setState(() => _focusedDay = focusedDay),
             onPreviousMonth: () {
               setState(() {
-                _focusedDay = DateTime(
-                  _focusedDay.year,
-                  _focusedDay.month - 1,
-                  1,
-                );
+                _focusedDay =
+                    DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
               });
             },
             onNextMonth: () {
               setState(() {
-                _focusedDay = DateTime(
-                  _focusedDay.year,
-                  _focusedDay.month + 1,
-                  1,
-                );
+                _focusedDay =
+                    DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
               });
             },
             onTodayPressed: () {
@@ -122,10 +109,7 @@ class _CalendarPageState extends State<CalendarPage> {
               });
             },
           ),
-
-          const SizedBox(height: 24.0),
-
-          // Event list for selected day
+          const SizedBox(height: 24),
           EventListSection(
             selectedDay: _selectedDay,
             calendarController: _calendarController,

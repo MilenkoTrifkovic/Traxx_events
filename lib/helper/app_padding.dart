@@ -3,6 +3,7 @@ import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 
 abstract class AppPadding {
+  // ✅ Your existing phone values (unchanged)
   static const Map<Sizes, double> mobileValues = {
     Sizes.xxxxs: 2.0,
     Sizes.xxxs: 4.0,
@@ -18,6 +19,23 @@ abstract class AppPadding {
     Sizes.xxxxxl: 56.0,
   };
 
+  // ✅ NEW: tablet values (between mobile & desktop)
+  static const Map<Sizes, double> tabletValues = {
+    Sizes.xxxxs: 3.0,
+    Sizes.xxxs: 6.0,
+    Sizes.xxs: 9.0,
+    Sizes.xs: 12.0,
+    Sizes.sm: 18.0,
+    Sizes.md: 24.0,
+    Sizes.lg: 30.0,
+    Sizes.xl: 36.0,
+    Sizes.xxl: 42.0,
+    Sizes.xxxl: 48.0,
+    Sizes.xxxxl: 60.0,
+    Sizes.xxxxxl: 84.0,
+  };
+
+  // ✅ Your existing desktop values (unchanged)
   static const Map<Sizes, double> desktopValues = {
     Sizes.xxxxs: 4.0,
     Sizes.xxxs: 8.0,
@@ -33,55 +51,47 @@ abstract class AppPadding {
     Sizes.xxxxxl: 112.0,
   };
 
+  static double _value(BuildContext context, Sizes type) {
+    if (ScreenSize.isPhone(context)) return mobileValues[type]!;
+    if (ScreenSize.isTablet(context)) return tabletValues[type]!;
+    return desktopValues[type]!;
+  }
+
   static EdgeInsets all(BuildContext context, {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.all(value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.all(v);
   }
 
   static EdgeInsets horizontal(BuildContext context,
       {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.symmetric(horizontal: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.symmetric(horizontal: v);
   }
 
   static EdgeInsets vertical(BuildContext context,
       {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.symmetric(vertical: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.symmetric(vertical: v);
   }
 
   static EdgeInsets bottom(BuildContext context, {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.only(bottom: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.only(bottom: v);
   }
 
   static EdgeInsets top(BuildContext context, {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.only(top: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.only(top: v);
   }
 
   static EdgeInsets left(BuildContext context, {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.only(left: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.only(left: v);
   }
 
   static EdgeInsets right(BuildContext context, {required Sizes paddingType}) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
-    return EdgeInsets.only(right: value);
+    final v = _value(context, paddingType);
+    return EdgeInsets.only(right: v);
   }
 
   static EdgeInsets only(
@@ -92,14 +102,12 @@ abstract class AppPadding {
     bool right = false,
     bool bottom = false,
   }) {
-    final value = ScreenSize.isPhone(context)
-        ? mobileValues[paddingType]!
-        : desktopValues[paddingType]!;
+    final v = _value(context, paddingType);
     return EdgeInsets.only(
-      left: left ? value : 0,
-      top: top ? value : 0,
-      right: right ? value : 0,
-      bottom: bottom ? value : 0,
+      left: left ? v : 0,
+      top: top ? v : 0,
+      right: right ? v : 0,
+      bottom: bottom ? v : 0,
     );
   }
 
@@ -108,21 +116,10 @@ abstract class AppPadding {
     Sizes? horizontalPadding,
     Sizes? verticalPadding,
   }) {
-    final horizontalValue = horizontalPadding != null
-        ? (ScreenSize.isPhone(context)
-            ? mobileValues[horizontalPadding]!
-            : desktopValues[horizontalPadding]!)
-        : 0.0;
-    
-    final verticalValue = verticalPadding != null
-        ? (ScreenSize.isPhone(context)
-            ? mobileValues[verticalPadding]!
-            : desktopValues[verticalPadding]!)
-        : 0.0;
-    
-    return EdgeInsets.symmetric(
-      horizontal: horizontalValue,
-      vertical: verticalValue,
-    );
+    final h =
+        horizontalPadding == null ? 0.0 : _value(context, horizontalPadding);
+    final v = verticalPadding == null ? 0.0 : _value(context, verticalPadding);
+
+    return EdgeInsets.symmetric(horizontal: h, vertical: v);
   }
 }

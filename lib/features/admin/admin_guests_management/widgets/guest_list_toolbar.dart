@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/add_guest_popup.dart';
@@ -16,7 +17,7 @@ class GuestListToolbar extends StatelessWidget {
   final bool canInvite;
   final int maxInviteByGuest;
 
-  const GuestListToolbar({
+  GuestListToolbar({
     super.key,
     required this.controller,
     required this.eventName,
@@ -25,82 +26,216 @@ class GuestListToolbar extends StatelessWidget {
     required this.maxInviteByGuest,
   });
 
+  final RxBool isExpanded = true.obs;
+
+  void toggleExpanded() => isExpanded.value = !isExpanded.value;
+
   void _showSetupHint(BuildContext context) {
-    final snackbarController = Get.find<SnackbarMessageController>();
-    snackbarController.showInfoMessage(
+    Get.find<SnackbarMessageController>().showInfoMessage(
       'Before inviting guests, please select Menu & dishes and Demographic questions for this event.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    final w = MediaQuery.sizeOf(context).width;
+    final isPhone = w < 600;
+
+    // ✅ actions that NEVER depend on non-reactive values here
+    final actions = <_ToolbarAction>[
+      _ToolbarAction(
+        text: 'Download Guest List',
+        icon: Icons.download_outlined,
+        onPressed: () => _downloadGuestList(context), // ✅ always enabled
+      ),
+      _ToolbarAction(
+        text: 'Download Template',
+        icon: Icons.download,
+        onPressed: () => _downloadTemplate(context),
+      ),
+      _ToolbarAction(
+        text: 'Upload CSV',
+        icon: Icons.upload_file,
+        onPressed: () => _uploadGuestsFile(context),
+      ),
+      _ToolbarAction(
+        text: 'Invite All',
+        icon: Icons.send,
+        onPressed: () => _inviteAllGuests(context),
+      ),
+      _ToolbarAction(
+        text: '+ Add Guest',
+        icon: Icons.person_add_alt_1_rounded,
+        onPressed: () => _addGuest(context),
+      ),
+    ];
+
+    // ✅ Desktop/tablet wrap layout
+    if (!isPhone) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final maxW = constraints.maxWidth;
+
+          final searchW = (maxW * 0.35).clamp(260.0, 420.0);
+          final remaining = (maxW - searchW - 12).clamp(320.0, 20000.0);
+
+          int cols;
+          if (remaining >= 1200) {
+            cols = 5;
+          } else if (remaining >= 980) {
+            cols = 4;
+          } else if (remaining >= 760) {
+            cols = 3;
+          } else if (remaining >= 520) {
+            cols = 2;
+          } else {
+            cols = 1;
+          }
+
+          const gap = 10.0;
+          final btnW =
+              ((remaining - gap * (cols - 1)) / cols).clamp(170.0, 260.0);
+
+          return Wrap(
+            spacing: gap,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: searchW,
+                child: AppSearchInputField(
+                  hintText: 'Search by name or email',
+                  controller: controller.searchController,
+                  onChanged: controller.filterGuests,
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: controller.clearFilter,
+                  ),
+                ),
+              ),
+              ...actions.map(
+                (a) => SizedBox(
+                  width: btnW,
+                  child: AppPrimaryButton(
+                    onPressed: a.onPressed,
+                    text: a.text,
+                    icon: a.icon,
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    // ✅ Phone: search + toggle + grid actions
+    const cols = 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Search field
-        SizedBox(
-          width: 280,
-          child: AppSearchInputField(
-            hintText: 'Search by name or email',
-            controller: controller.searchController,
-            onChanged: controller.filterGuests,
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: controller.clearFilter,
+        Row(
+          children: [
+            Expanded(
+              child: AppSearchInputField(
+                hintText: 'Search by name or email',
+                controller: controller.searchController,
+                onChanged: controller.filterGuests,
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: controller.clearFilter,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 10),
+            Obx(() {
+              final expanded = isExpanded.value;
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: toggleExpanded,
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        expanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        expanded ? 'Hide' : 'Actions',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
         ),
+        const SizedBox(height: 12),
+        Obx(() {
+          if (!isExpanded.value) return const SizedBox.shrink();
 
-        // Download Guest List button (disabled if no guests)
-        Obx(() => AppPrimaryButton(
-              onPressed: controller.guests.isEmpty
-                  ? null
-                  : () => _downloadGuestList(context),
-              text: 'Download Guest List',
-              icon: Icons.download_outlined,
-            )),
-
-        // Download Template button
-        AppPrimaryButton(
-          onPressed: () => _downloadTemplate(context),
-          text: 'Download Template',
-          icon: Icons.download,
-        ),
-
-        // Upload CSV/XLSX button
-        AppPrimaryButton(
-          onPressed: () => _uploadGuestsFile(context),
-          text: 'Upload CSV',
-          icon: Icons.upload_file,
-        ),
-
-        // Invite All button
-        AppPrimaryButton(
-          onPressed: () => _inviteAllGuests(context),
-          text: 'Invite All',
-          icon: Icons.send,
-        ),
-
-        // Add Guest button
-        AppPrimaryButton(
-          onPressed: () => _addGuest(context),
-          text: '+ Add Guest',
-        ),
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: actions.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 3.0,
+            ),
+            itemBuilder: (_, i) {
+              final a = actions[i];
+              return AppPrimaryButton(
+                onPressed: a.onPressed,
+                text: a.text,
+                icon: a.icon,
+                height: 44,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              );
+            },
+          );
+        }),
       ],
     );
   }
 
+  // ✅ Always allowed. If 0 guests, show message instead of disabling.
   void _downloadGuestList(BuildContext context) {
+    final totalGuests = controller.guests.length;
+
+    if (totalGuests == 0) {
+      Get.find<SnackbarMessageController>()
+          .showInfoMessage('No guests to export yet.');
+      return;
+    }
+
     GuestTemplateGenerator.downloadGuestList(
       eventName: eventName.trim().isEmpty ? 'Event' : eventName,
       controller: controller,
     );
 
-    final snackbarController = Get.find<SnackbarMessageController>();
-    snackbarController.showSuccessMessage(
-      '${controller.guests.length} guests exported successfully',
+    Get.find<SnackbarMessageController>().showSuccessMessage(
+      '$totalGuests guests exported successfully',
     );
   }
 
@@ -111,8 +246,7 @@ class GuestListToolbar extends StatelessWidget {
       capacity: capacity,
     );
 
-    final snackbarController = Get.find<SnackbarMessageController>();
-    snackbarController.showSuccessMessage(
+    Get.find<SnackbarMessageController>().showSuccessMessage(
       capacity != null
           ? 'Excel template with $capacity rows downloaded successfully'
           : 'Excel template downloaded successfully',
@@ -124,7 +258,6 @@ class GuestListToolbar extends StatelessWidget {
       type: FileType.custom,
       allowedExtensions: ['csv', 'xlsx'],
     );
-
     if (result == null || !context.mounted) return;
 
     final file = result.files.first;
@@ -135,28 +268,23 @@ class GuestListToolbar extends StatelessWidget {
       final skipped = res['skipped'] ?? 0;
 
       if (!context.mounted) return;
-
-      final snackbarController = Get.find<SnackbarMessageController>();
+      final snackbar = Get.find<SnackbarMessageController>();
 
       if (added > 0 && skipped > 0) {
-        snackbarController.showInfoMessage(
+        snackbar.showInfoMessage(
           'Added $added new guest(s). $skipped guest(s) were already in the system.',
         );
       } else if (added > 0) {
-        snackbarController.showSuccessMessage(
-          'Successfully uploaded $added guest(s)',
-        );
+        snackbar.showSuccessMessage('Successfully uploaded $added guest(s)');
       } else if (skipped > 0) {
-        snackbarController.showInfoMessage(
-          'All $skipped guest(s) were already in the system.',
-        );
+        snackbar.showInfoMessage(
+            'All $skipped guest(s) were already in the system.');
       } else {
-        snackbarController.showInfoMessage('No guests found in file');
+        snackbar.showInfoMessage('No guests found in file');
       }
     } catch (e) {
       if (!context.mounted) return;
-      final snackbarController = Get.find<SnackbarMessageController>();
-      snackbarController.showErrorMessage(e.toString());
+      Get.find<SnackbarMessageController>().showErrorMessage(e.toString());
     }
   }
 
@@ -190,11 +318,11 @@ class GuestListToolbar extends StatelessWidget {
       final count = await controller.inviteAllGuests();
       if (!context.mounted) return;
 
-      final snackbarController = Get.find<SnackbarMessageController>();
+      final snackbar = Get.find<SnackbarMessageController>();
       if (count > 0) {
-        snackbarController.showSuccessMessage('Invited $count guest(s)');
+        snackbar.showSuccessMessage('Invited $count guest(s)');
       } else {
-        snackbarController.showInfoMessage('No uninvited guests found');
+        snackbar.showInfoMessage('No uninvited guests found');
       }
     }
   }
@@ -211,9 +339,20 @@ class GuestListToolbar extends StatelessWidget {
     ).then((added) {
       controller.clearForm();
       if (added == true) {
-        final snackbarController = Get.find<SnackbarMessageController>();
-        snackbarController.showSuccessMessage('Guest added');
+        Get.find<SnackbarMessageController>().showSuccessMessage('Guest added');
       }
     });
   }
+}
+
+class _ToolbarAction {
+  final String text;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  const _ToolbarAction({
+    required this.text,
+    required this.icon,
+    required this.onPressed,
+  });
 }

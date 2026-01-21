@@ -3,48 +3,49 @@ import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/controllers/admin_user_list_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/widgets/role_management_popup_popup.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AdminUserManagementHeader extends StatelessWidget {
   AdminUserManagementHeader({super.key});
+
   final AdminUserListController controller = AdminUserListController();
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
+
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final titleSize = w < 600 ? 26.0 : (w < 1200 ? 32.0 : 40.0);
+    final isMobile = w < 600;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AppText.styledHeadingLarge(context, 'User Management'),
-        Row(
-          children: [
-            // if (ScreenSize.isDesktop(context) == true)
-            //   AppSearchInputField(
-            //     hintText: 'Search users...',
-            //     onChanged: (value) {
-            //       menusController.filterMenus(value);
-            //     },
-            //   ),
-            // AppSpacing.horizontalXs(context),
-            AppPrimaryButton(
-                icon: Icons.add,
-                text: 'Add User',
+        Text(
+          'User Management',
+          style: GoogleFonts.poppins(
+            fontSize: titleSize,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+
+        // ✅ keep button compact on mobile
+        isMobile
+            ? IconButton(
+                icon: const Icon(Icons.add, color: Colors.white),
                 onPressed: () {
                   showDialog(
                     context: context,
-                    builder: (context) {
-                      return RoleManagementPopup(
-                        controller: controller,
-                      );
-                    },
+                    builder: (_) => RoleManagementPopup(controller: controller),
                   ).then((value) async {
-                    if (value != null && value is bool && value) {
+                    if (value == true) {
                       try {
                         showLoadingIndicator();
                         await controller.submitForm();
-                      } on Exception {
+                      } catch (_) {
                         snackbarMessageController
                             .showErrorMessage('Error creating user');
                       } finally {
@@ -52,10 +53,30 @@ class AdminUserManagementHeader extends StatelessWidget {
                       }
                     }
                   });
-                  // AppSpacing.horizontalXs(context),
-                })
-          ],
-        )
+                },
+              )
+            : AppPrimaryButton(
+                icon: Icons.add,
+                text: 'Add User',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => RoleManagementPopup(controller: controller),
+                  ).then((value) async {
+                    if (value == true) {
+                      try {
+                        showLoadingIndicator();
+                        await controller.submitForm();
+                      } catch (_) {
+                        snackbarMessageController
+                            .showErrorMessage('Error creating user');
+                      } finally {
+                        hideLoadingIndicator();
+                      }
+                    }
+                  });
+                },
+              ),
       ],
     );
   }

@@ -90,10 +90,12 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
   late FocusNode _focusNode;
   bool _isHovered = false;
   bool _isFocused = false;
-  
-  // Search-related state
+
+  // Search/overlay state
   final LayerLink _layerLink = LayerLink();
   final TextEditingController _searchController = TextEditingController();
+  final GlobalKey _targetKey = GlobalKey(); // ✅ stable render box lookup
+
   OverlayEntry? _overlayEntry;
   bool _isOverlayOpen = false;
   List<DropdownMenuItem<T>> _filteredItems = [];
@@ -107,81 +109,139 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
   }
 
   @override
+  void didUpdateWidget(covariant AppDropdownMenu<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If items change, keep filtered list in sync
+    if (oldWidget.items != widget.items) {
+      _filteredItems = widget.items;
+      if (_isOverlayOpen) {
+        _overlayEntry?.markNeedsBuild();
+      }
+    }
+
+    // If disabled while open, close it safely
+    if (oldWidget.enabled != widget.enabled && widget.enabled == false) {
+      _closeOverlay(fromDispose: false);
+    }
+  }
+
+  @override
   void dispose() {
+    // ✅ Close overlay without setState
+    _closeOverlay(fromDispose: true);
+
+    _searchController.dispose();
+
     if (widget.focusNode == null) {
       _focusNode.removeListener(_onFocusChange);
       _focusNode.dispose();
+    } else {
+      _focusNode.removeListener(_onFocusChange);
     }
-    _closeOverlay();
-    _searchController.dispose();
+
     super.dispose();
   }
 
   void _onFocusChange() {
-    setState(() {
-      _isFocused = _focusNode.hasFocus;
-    });
+    if (!mounted) return;
+    setState(() => _isFocused = _focusNode.hasFocus);
   }
 
   void _openOverlay() {
+    if (!mounted) return;
     if (widget.enabled == false) return;
+    if (_isOverlayOpen) return;
+
+    // ✅ Ensure target renderbox is ready/active
+    final ctx = _targetKey.currentContext;
+    if (ctx == null) return;
+    final ro = ctx.findRenderObject();
+    if (ro == null || ro is! RenderBox || !ro.attached) return;
+
     _overlayEntry = _createOverlay();
-    Overlay.of(context).insert(_overlayEntry!);
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+
+    overlay.insert(_overlayEntry!);
+
     setState(() => _isOverlayOpen = true);
   }
 
-  void _closeOverlay() {
-    _overlayEntry?.remove();
+  void _closeOverlay({required bool fromDispose}) {
+    // remove overlay safely
+    try {
+      _overlayEntry?.remove();
+    } catch (_) {}
     _overlayEntry = null;
+
     _searchController.clear();
     _filteredItems = widget.items;
-    if (mounted) {
-      setState(() => _isOverlayOpen = false);
+
+    if (fromDispose) {
+      _isOverlayOpen = false;
+      return;
     }
+
+    if (!mounted) {
+      _isOverlayOpen = false;
+      return;
+    }
+
+    setState(() => _isOverlayOpen = false);
   }
 
   void _toggleOverlay() {
     if (_isOverlayOpen) {
-      _closeOverlay();
+      _closeOverlay(fromDispose: false);
     } else {
       _openOverlay();
     }
   }
 
   void _filterItems(String query) {
+    if (!mounted) return;
+
     setState(() {
       if (query.isEmpty) {
         _filteredItems = widget.items;
       } else {
         _filteredItems = widget.items.where((item) {
+          final v = item.value;
+          if (v == null) return false;
           final searchText = widget.searchExtractor != null
-              ? widget.searchExtractor!(item.value as T)
-              : item.value.toString();
+              ? widget.searchExtractor!(v as T)
+              : v.toString();
           return searchText.toLowerCase().contains(query.toLowerCase());
         }).toList();
       }
     });
 
-    if (!_isOverlayOpen) _openOverlay();
-    _overlayEntry?.markNeedsBuild();
+    if (!_isOverlayOpen) {
+      _openOverlay();
+    } else {
+      _overlayEntry?.markNeedsBuild();
+    }
   }
 
   OverlayEntry _createOverlay() {
-    RenderBox box = context.findRenderObject() as RenderBox;
+    // ✅ Use targetKey context, not this widget context
+    final ctx = _targetKey.currentContext!;
+    final box = ctx.findRenderObject() as RenderBox;
     final size = box.size;
 
     return OverlayEntry(
-      builder: (context) {
+      builder: (overlayContext) {
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: _closeOverlay,
+          onTap: () => _closeOverlay(fromDispose: false),
           child: Stack(
             children: [
               Positioned(
                 width: size.width,
                 child: CompositedTransformFollower(
                   link: _layerLink,
-                  offset: Offset(0, 52),
+                  offset: const Offset(0, 52),
                   showWhenUnlinked: false,
                   child: Material(
                     elevation: 8,
@@ -201,7 +261,6 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Search field at the top
                           Container(
                             padding: const EdgeInsets.all(8.0),
                             decoration: BoxDecoration(
@@ -225,21 +284,18 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                                 ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(6),
-                                  borderSide: BorderSide(
-                                    color: AppColors.borderInput,
-                                  ),
+                                  borderSide:
+                                      BorderSide(color: AppColors.borderInput),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(6),
-                                  borderSide: BorderSide(
-                                    color: AppColors.borderInput,
-                                  ),
+                                  borderSide:
+                                      BorderSide(color: AppColors.borderInput),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(6),
                                   borderSide: BorderSide(
-                                    color: AppColors.primaryAccent,
-                                  ),
+                                      color: AppColors.primaryAccent),
                                 ),
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -249,13 +305,12 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                               ),
                             ),
                           ),
-                          // Results list
                           Flexible(
                             child: _filteredItems.isEmpty
                                 ? Padding(
                                     padding: const EdgeInsets.all(16.0),
                                     child: AppText.styledBodyMedium(
-                                      context,
+                                      overlayContext,
                                       'No results found',
                                       color: AppColors.textMuted,
                                       textAlign: TextAlign.center,
@@ -267,12 +322,13 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                                     itemCount: _filteredItems.length,
                                     itemBuilder: (context, index) {
                                       final item = _filteredItems[index];
-                                      final isSelected = item.value == widget.value;
+                                      final isSelected =
+                                          item.value == widget.value;
 
                                       return InkWell(
                                         onTap: () {
                                           widget.onChanged?.call(item.value);
-                                          _closeOverlay();
+                                          _closeOverlay(fromDispose: false);
                                         },
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
@@ -316,26 +372,15 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
   }
 
   Color _getBorderColor() {
-    if (widget.errorText != null) {
-      return AppColors.inputError;
-    }
-    if (_isFocused || _isOverlayOpen) {
-      return AppColors.primaryAccent;
-    }
-    if (_isHovered) {
-      return AppColors.borderHover;
-    }
+    if (widget.errorText != null) return AppColors.inputError;
+    if (_isFocused || _isOverlayOpen) return AppColors.primaryAccent;
+    if (_isHovered) return AppColors.borderHover;
     return AppColors.borderInput;
   }
 
   @override
   Widget build(BuildContext context) {
-    // If search is enabled, render search field with overlay
-    if (widget.enableSearch) {
-      return _buildSearchableDropdown();
-    }
-    
-    // Otherwise, render standard dropdown
+    if (widget.enableSearch) return _buildSearchableDropdown();
     return _buildStandardDropdown();
   }
 
@@ -350,15 +395,12 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
         : null;
 
     return Container(
-      constraints: BoxConstraints(
-        maxWidth: widget.width ?? 360.0,
-      ),
+      constraints: BoxConstraints(maxWidth: widget.width ?? 360.0),
       margin: EdgeInsets.only(bottom: AppSpacing.xxxs(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Label
           SizedBox(
             height: 20.0,
             child: AppText.styledBodyMedium(
@@ -369,12 +411,20 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
             ),
           ),
           const SizedBox(height: 4.0),
-          // Dropdown field with overlay
+
+          // ✅ key on the target so overlay can measure safely
           CompositedTransformTarget(
+            key: _targetKey,
             link: _layerLink,
             child: MouseRegion(
-              onEnter: (_) => setState(() => _isHovered = true),
-              onExit: (_) => setState(() => _isHovered = false),
+              onEnter: (_) {
+                if (!mounted) return;
+                setState(() => _isHovered = true);
+              },
+              onExit: (_) {
+                if (!mounted) return;
+                setState(() => _isHovered = false);
+              },
               child: GestureDetector(
                 onTap: widget.enabled == false ? null : _toggleOverlay,
                 child: Container(
@@ -383,10 +433,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                   decoration: BoxDecoration(
                     color: widget.fillColor ?? AppColors.white,
                     borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(
-                      color: _getBorderColor(),
-                      width: 1.0,
-                    ),
+                    border: Border.all(color: _getBorderColor(), width: 1.0),
                   ),
                   child: Row(
                     children: [
@@ -395,7 +442,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
                           context,
                           displayText != null
                               ? (displayText is Text
-                                  ? displayText.data ?? ''
+                                  ? (displayText.data ?? '')
                                   : widget.value.toString())
                               : widget.hintText ?? 'Select...',
                           color: displayText != null
@@ -417,7 +464,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
               ),
             ),
           ),
-          // Error or helper text
+
           if (widget.errorText != null) ...[
             const SizedBox(height: 4.0),
             Padding(
@@ -446,16 +493,12 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
 
   Widget _buildStandardDropdown() {
     return Container(
-      constraints: BoxConstraints(
-        maxWidth: widget.width ?? 360.0,
-        // Remove minHeight constraint to allow proper expansion for helper/error text
-      ),
+      constraints: BoxConstraints(maxWidth: widget.width ?? 360.0),
       margin: EdgeInsets.only(bottom: AppSpacing.xxxs(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Label
           SizedBox(
             height: 20.0,
             child: AppText.styledBodyMedium(
@@ -466,14 +509,18 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
             ),
           ),
           const SizedBox(height: 4.0),
-          // Dropdown field
           MouseRegion(
-            onEnter: (_) => setState(() => _isHovered = true),
-            onExit: (_) => setState(() => _isHovered = false),
+            onEnter: (_) {
+              if (!mounted) return;
+              setState(() => _isHovered = true);
+            },
+            onExit: (_) {
+              if (!mounted) return;
+              setState(() => _isHovered = false);
+            },
             child: DropdownButtonFormField<T>(
               initialValue: widget.value,
               items: widget.items,
-              // Respect the enabled flag: when disabled, onChanged must be null
               onChanged: widget.enabled == false ? null : widget.onChanged,
               validator: widget.validator,
               focusNode: _focusNode,
@@ -489,7 +536,6 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
               onTap: widget.onTap,
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                // Remove helperText and errorText from InputDecoration - render them separately
                 helperText: null,
                 errorText: null,
                 filled: true,
@@ -512,7 +558,6 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
               ),
             ),
           ),
-          // Render helper text or error text separately below the dropdown
           if (widget.errorText != null) ...[
             const SizedBox(height: 4.0),
             Padding(
@@ -542,10 +587,7 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
   OutlineInputBorder _buildBorder(Color color) {
     return OutlineInputBorder(
       borderRadius: BorderRadius.circular(8.0),
-      borderSide: BorderSide(
-        color: _getBorderColor(),
-        width: 1.0,
-      ),
+      borderSide: BorderSide(color: _getBorderColor(), width: 1.0),
     );
   }
 }

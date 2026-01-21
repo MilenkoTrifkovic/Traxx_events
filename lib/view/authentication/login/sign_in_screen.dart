@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
+import 'package:traxx_wepapp/theme/app_font_poppins.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
@@ -63,54 +65,75 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   @override
   Widget build(BuildContext context) {
     // Initialize the controller
-  final controller = Get.put(SignInController());
+    final controller = Get.put(SignInController());
 
-  // Setup listeners for messages and navigation
-  _setupListeners(controller, context);
+    // Setup listeners for messages and navigation
+    _setupListeners(controller, context);
 
-    return SingleChildScrollView(
-      child: SizedBox(
-        width: 400,
-        child: Card(
-          elevation: 0,
-          color: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Section
-                SignInHeader(controller: controller),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
 
-                // Form Section
-                SignInForm(
-                  controller: controller,
-                  formKey: _formKey,
-                  emailController: _emailController,
-                  passwordController: _passwordController,
-                  confirmPasswordController: _confirmPasswordController,
-                  onSubmit: () => _handleEmailPasswordAuth(controller),
-                  onForgotPassword: () => _handleForgotPassword(controller),
+        // responsive card width
+        final cardW = w < 520.0
+            ? w - 32.0 // phone: full width with side padding
+            : (w < 900.0 ? 460.0 : 520.0); // tablet/desktop
+
+        final pad = w < 520 ? 16.0 : 24.0;
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: w < 520 ? 16 : 24,
+              vertical: w < 520 ? 18 : 32,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: cardW),
+              child: PoppinsTheme(
+                child: Card(
+                  elevation: 0,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(w < 520 ? 20 : 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SignInHeader(controller: controller),
+                        SignInForm(
+                          controller: controller,
+                          formKey: _formKey,
+                          emailController: _emailController,
+                          passwordController: _passwordController,
+                          confirmPasswordController: _confirmPasswordController,
+                          onSubmit: () => _handleEmailPasswordAuth(controller),
+                          onForgotPassword: () =>
+                              _handleForgotPassword(controller),
+                        ),
+                        SignInToggle(
+                          controller: controller,
+                          onToggle: () => _clearFormAndToggleMode(controller),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-
-                // Toggle Section
-                SignInToggle(
-                  controller: controller,
-                  onToggle: () => _clearFormAndToggleMode(controller),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   /// Setup all GetX listeners for messages and navigation
   /// Setup all GetX listeners for messages and navigation
   void _setupListeners(SignInController controller, BuildContext context) {
-  // use snackbarController initialized in initState
+    // use snackbarController initialized in initState
     // Watch for success messages
     ever(controller.successMessage, (String? message) {
       if (message != null && message.isNotEmpty) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/venue_screen_controller.dart';
@@ -14,53 +15,49 @@ class VenuesManagementHeader extends StatelessWidget {
   final VenuesController venuesController = Get.find<VenuesController>();
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
+
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final titleSize = w < 600 ? 26.0 : (w < 1200 ? 32.0 : 40.0);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AppText.styledHeadingLarge(context, 'Venues'),
+        Text(
+          'Venues',
+          style: GoogleFonts.poppins(
+            fontSize: titleSize,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
         Row(
           children: [
-            // if (ScreenSize.isDesktop(context) == true)
-            //   AppSearchInputField(
-            //     hintText: 'Search events...',
-            //     onChanged: (value) {
-            //       eventListController.filterEvents(value);
-            //     },
-            //   ),
-            // AppSpacing.horizontalXs(context),
             AppPrimaryButton(
-                icon: Icons.add,
-                text: 'Add Venue',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return CreateVenuePopupView(
-                        controller: controller,
-                        venuesController: venuesController,
-                      );
-                    },
-                  ).then(
-                    (value) async {
-                      if (value != null && value is bool && value) {
-                        try {
-                          showLoadingIndicator();
-                          final createdVenue = await controller.submitForm();
-                          // venuesController.addVenue(createdVenue);
-                        } on Exception {
-                          // snackbarMessageController
-                          //     .showErrorMessage('Error creating venue');
-                        } finally {
-                          hideLoadingIndicator();
-                        }
-                      } else {}
-                    },
-                  );
-                  // Handle add event action
-                }),
-            // AppSpacing.horizontalXs(context),
+              icon: Icons.add,
+              text: 'Add Venue',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return CreateVenuePopupView(
+                      controller: controller,
+                      venuesController: venuesController,
+                    );
+                  },
+                ).then((value) async {
+                  if (value != null && value is bool && value) {
+                    try {
+                      showLoadingIndicator();
+                      await controller.submitForm();
+                    } finally {
+                      hideLoadingIndicator();
+                    }
+                  }
+                });
+              },
+            ),
           ],
         )
       ],

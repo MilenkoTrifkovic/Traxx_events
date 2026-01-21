@@ -5,20 +5,19 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/add_guest_popup.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/widgets/guest_list_toolbar.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
+import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'dart:math' as math;
+
+import 'package:traxx_wepapp/view/admin/venues_and_menus/venues_view.dart';
+import 'package:traxx_wepapp/widgets/bottom_scrollbar.dart';
 
 class GuestListSection extends StatelessWidget {
   final String eventName;
   final int? capacity;
-
-  /// Invite is enabled only when both:
-  /// - demographic question set selected
-  /// - menu items selected
   final bool canInvite;
-
-  /// Maximum number of guests each invitee can bring
   final int maxInviteByGuest;
 
   const GuestListSection({
@@ -33,9 +32,12 @@ class GuestListSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final AdminGuestListController controller =
         Get.find<AdminGuestListController>();
+    final w = MediaQuery.sizeOf(context).width;
+    final isNarrow = w < 900;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding:
+          EdgeInsets.fromLTRB(isNarrow ? 14 : 20, 16, isNarrow ? 14 : 20, 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -51,18 +53,18 @@ class GuestListSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: title + toolbar
-          Row(
+          // ✅ Header + toolbar (ONLY)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Text(
-                  'Guest list',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Text(
+                'Guest list',
+                style: GoogleFonts.poppins(
+                  fontSize: isNarrow ? 14.5 : 15,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 10),
               GuestListToolbar(
                 controller: controller,
                 eventName: eventName,
@@ -75,7 +77,7 @@ class GuestListSection extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Setup hint when invites are blocked
+          // ✅ Setup hint once
           if (!canInvite)
             Container(
               width: double.infinity,
@@ -92,7 +94,7 @@ class GuestListSection extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Invites are disabled until you publish the event and complete the following: Menu & dishes selection and Demographic questions.',
+                      'Invites are disabled until you publish the event and complete: Menu & dishes selection and Demographic questions.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -106,7 +108,7 @@ class GuestListSection extends StatelessWidget {
 
           if (!canInvite) const SizedBox(height: 12),
 
-          // Body
+          // ✅ Body
           Obx(() {
             if (!controller.isInitialized.value) {
               return const Center(
@@ -117,7 +119,18 @@ class GuestListSection extends StatelessWidget {
               );
             }
 
+            const pageSize = 15;
             final allFiltered = controller.filteredGuests;
+            final total =
+                (allFiltered.length / pageSize).ceil().clamp(1, 999999);
+
+            // ✅ Summary counts (filtered)
+            int current = controller.currentPage.value;
+            final rsvpMap = controller.rsvpByGuestId;
+            int yesCount = 0, noCount = 0, pendingCount = 0;
+            final start = current * pageSize;
+            final end = math.min(start + pageSize, allFiltered.length);
+            final list = allFiltered.sublist(start, end);
             if (allFiltered.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24.0),
@@ -129,13 +142,6 @@ class GuestListSection extends StatelessWidget {
               );
             }
 
-            // ✅ Summary counts (based on filtered list)
-            final rsvpMap = controller.rsvpByGuestId;
-
-            int yesCount = 0;
-            int noCount = 0;
-            int pendingCount = 0;
-
             for (final g in allFiltered) {
               final id = g.guestId ?? '';
               final rsvp = rsvpMap[id];
@@ -146,23 +152,28 @@ class GuestListSection extends StatelessWidget {
                 continue;
               }
 
-              if (rsvp?.isAttending == true) {
+              if (rsvp.isAttending == true)
                 yesCount++;
-              } else if (rsvp?.isAttending == false) {
+              else if (rsvp.isAttending == false)
                 noCount++;
-              } else {
+              else
                 pendingCount++;
-              }
             }
 
-            final list = controller.pagedGuests;
-            final current = controller.currentPage.value;
-            final total = controller.totalPages;
+            if (current >= total) {
+              // clamp if filters changed
+              current = total - 1;
+              controller.currentPage.value = current;
+            }
+            if (current < 0) {
+              current = 0;
+              controller.currentPage.value = 0;
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ Summary row (above table)
+                // Summary row
                 Container(
                   width: double.infinity,
                   padding:
@@ -203,303 +214,285 @@ class GuestListSection extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                LayoutBuilder(builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth;
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: tableWidth),
-                      child: DataTable(
-                        headingRowColor:
-                            MaterialStateProperty.all(Colors.grey.shade50),
-                        dividerThickness: 1,
-                        columns: const [
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Name'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Email'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Max Guest Invite'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Status'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Event Presence'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Invited'),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Actions'),
-                            ),
-                          ),
-                        ],
-                        rows: list.map((guest) {
-                          final isDisabledGuest = guest.isDisabled == true;
-                          final canInviteThisGuest =
-                              canInvite && !isDisabledGuest;
+                // ✅ Table with perfect width + scrollbar when needed
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final available = constraints.maxWidth;
 
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(guest.name),
-                                ),
-                              ),
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(guest.email),
-                                ),
-                              ),
+                    // minimum readable width for all columns
+                    const minTableWidth = 1100.0;
 
-                              // Max Invite dropdown (unchanged)
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: DropdownButton<int>(
-                                    value: guest.maxGuestInvite,
-                                    underline: const SizedBox(),
-                                    isDense: true,
-                                    focusColor: Colors.transparent,
-                                    style: const TextStyle(
-                                        fontSize: 14, color: Colors.black),
-                                    items: List.generate(
-                                      maxInviteByGuest + 1,
-                                      (index) => DropdownMenuItem(
-                                        value: index,
-                                        child: Text(
-                                          index == 0 ? 'None' : '$index',
-                                          style: const TextStyle(fontSize: 14),
+                    // ✅ perfect behavior:
+                    // if available is larger -> table expands to available width
+                    // if available is smaller -> keep min width and scrollbar appears
+                    final tableWidth =
+                        available > minTableWidth ? available : minTableWidth;
+
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: BottomHScrollbar(
+                          minWidth: tableWidth,
+                          child: DataTable(
+                            showCheckboxColumn: false,
+                            headingRowHeight: 48,
+                            dataRowMinHeight: 56,
+                            dataRowMaxHeight: 64,
+
+                            headingRowColor: MaterialStateProperty.all(
+                                const Color(0xFFF3F4F6)),
+                            headingTextStyle: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF111827),
+                            ),
+                            dataTextStyle: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF111827),
+                            ),
+
+                            // ✅ full border + row separators
+                            border: const TableBorder(
+                              top: BorderSide(color: Color(0xFFE5E7EB)),
+                              bottom: BorderSide(color: Color(0xFFE5E7EB)),
+                              left: BorderSide(color: Color(0xFFE5E7EB)),
+                              right: BorderSide(color: Color(0xFFE5E7EB)),
+                              horizontalInside:
+                                  BorderSide(color: Color(0xFFE5E7EB)),
+                              verticalInside: BorderSide.none,
+                            ),
+
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Email')),
+                              DataColumn(label: Text('Max Guest Invite')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Event Presence')),
+                              DataColumn(label: Text('Invited')),
+                              DataColumn(label: Text('Actions')),
+                            ],
+
+                            rows: list.map((guest) {
+                              final isDisabledGuest = guest.isDisabled == true;
+                              final canInviteThisGuest =
+                                  canInvite && !isDisabledGuest;
+
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(guest.name)),
+                                  DataCell(Text(guest.email)),
+                                  DataCell(
+                                    DropdownButton<int>(
+                                      value: guest.maxGuestInvite,
+                                      underline: const SizedBox(),
+                                      isDense: true,
+                                      focusColor: Colors.transparent,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF111827),
+                                      ),
+                                      items: List.generate(
+                                        maxInviteByGuest + 1,
+                                        (index) => DropdownMenuItem(
+                                          value: index,
+                                          child: Text(
+                                              index == 0 ? 'None' : '$index'),
                                         ),
                                       ),
-                                    ),
-                                    onChanged: (newValue) async {
-                                      if (newValue != null &&
-                                          guest.guestId != null) {
-                                        final updatedGuest = guest.copyWith(
-                                            maxGuestInvite: newValue);
-                                        final success = await controller
-                                            .updateGuestDirectly(updatedGuest);
-
-                                        final snackbarController = Get.find<
-                                            SnackbarMessageController>();
-                                        if (success) {
-                                          snackbarController.showSuccessMessage(
-                                            'Max invite updated to ${newValue == 0 ? 'None' : newValue}',
-                                          );
-                                        } else {
-                                          snackbarController.showErrorMessage(
-                                            'Failed to update max invite',
-                                          );
-                                        }
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
-
-                              // Status (enabled/disabled)
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    guest.isDisabled == true
-                                        ? 'Disabled'
-                                        : 'Enabled',
-                                  ),
-                                ),
-                              ),
-
-                              // RSVP badge
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: _rsvpBadge(
-                                    controller
-                                        .rsvpByGuestId[guest.guestId ?? ''],
-                                  ),
-                                ),
-                              ),
-
-                              // Invited cell (Invite/Re-send)
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: IconButton(
-                                    icon: Icon(
-                                      guest.isInvited == true
-                                          ? Icons.refresh
-                                          : Icons.send,
-                                      size: 18,
-                                      color: (canInvite &&
-                                              guest.isDisabled != true)
-                                          ? (guest.isInvited == true
-                                              ? Colors.green
-                                              : Colors.blue)
-                                          : Colors.grey,
-                                    ),
-                                    tooltip: isDisabledGuest
-                                        ? 'Guest is disabled'
-                                        : (!canInvite
-                                            ? 'Publish event and select menu + demographic set first'
-                                            : (guest.isInvited == true
-                                                ? 'Already invited — click to re-send'
-                                                : 'Invite guest')),
-                                    onPressed: canInviteThisGuest
-                                        ? () async {
-                                            if (guest.guestId == null) return;
-
-                                            final isResend =
-                                                guest.isInvited == true;
-                                            final success =
-                                                await controller.inviteGuest(
-                                              guest.guestId!,
-                                              forceResend: isResend,
-                                            );
-
-                                            final snackbarController = Get.find<
-                                                SnackbarMessageController>();
-                                            if (success) {
-                                              snackbarController
-                                                  .showSuccessMessage(
-                                                isResend
-                                                    ? 'Invitation re-sent'
-                                                    : 'Guest invited',
-                                              );
-                                            } else {
-                                              snackbarController
-                                                  .showErrorMessage(
-                                                isResend
-                                                    ? 'Failed to re-send invitation'
-                                                    : 'Failed to invite guest',
-                                              );
-                                            }
-                                          }
-                                        : () {
-                                            if (!canInvite) {
-                                              final snackbarController = Get.find<
-                                                  SnackbarMessageController>();
-                                              snackbarController
-                                                  .showInfoMessage(
-                                                'Before inviting guests, please publish the event and complete: Menu & dishes selection and Demographic questions.',
-                                              );
-                                            }
-                                          },
-                                  ),
-                                ),
-                              ),
-
-                              // Actions
-                              DataCell(
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, size: 18),
-                                      tooltip: 'Edit',
-                                      onPressed: () {
-                                        controller.updateAllFields(guest);
-                                        showDialog(
-                                          context: context,
-                                          builder: (ctx) => AddGuestPopup(
-                                            controller: controller,
-                                            isEditMode: true,
-                                            maxInviteByGuest: maxInviteByGuest,
-                                          ),
-                                        ).then((_) => controller.clearForm());
-                                      },
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          size: 18, color: Colors.redAccent),
-                                      tooltip: 'Delete',
-                                      onPressed: () async {
-                                        final ok = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            title: const Text('Delete guest?'),
-                                            content:
-                                                Text('Delete "${guest.name}"?'),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(ctx)
-                                                        .pop(false),
-                                                child: const Text('Cancel'),
-                                              ),
-                                              ElevatedButton(
-                                                onPressed: () =>
-                                                    Navigator.of(ctx).pop(true),
-                                                child: const Text('Delete'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-
-                                        if (ok == true &&
+                                      onChanged: (newValue) async {
+                                        if (newValue != null &&
                                             guest.guestId != null) {
-                                          await controller
-                                              .deleteGuest(guest.guestId!);
+                                          final updatedGuest = guest.copyWith(
+                                              maxGuestInvite: newValue);
+                                          final success = await controller
+                                              .updateGuestDirectly(
+                                                  updatedGuest);
+
                                           final snackbarController = Get.find<
                                               SnackbarMessageController>();
-                                          snackbarController.showSuccessMessage(
-                                            'Guest deleted',
-                                          );
+                                          if (success) {
+                                            snackbarController
+                                                .showSuccessMessage(
+                                              'Max invite updated to ${newValue == 0 ? 'None' : newValue}',
+                                            );
+                                          } else {
+                                            snackbarController.showErrorMessage(
+                                              'Failed to update max invite',
+                                            );
+                                          }
                                         }
                                       },
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+                                  ),
+                                  DataCell(Text(isDisabledGuest
+                                      ? 'Disabled'
+                                      : 'Enabled')),
+                                  DataCell(_rsvpBadge(
+                                    controller
+                                        .rsvpByGuestId[guest.guestId ?? ''],
+                                  )),
+                                  DataCell(
+                                    IconButton(
+                                      icon: Icon(
+                                        guest.isInvited == true
+                                            ? Icons.refresh
+                                            : Icons.send,
+                                        size: 18,
+                                        color: canInviteThisGuest
+                                            ? (guest.isInvited == true
+                                                ? Colors.green
+                                                : Colors.blue)
+                                            : Colors.grey,
+                                      ),
+                                      tooltip: isDisabledGuest
+                                          ? 'Guest is disabled'
+                                          : (!canInvite
+                                              ? 'Publish event and select menu + demographic set first'
+                                              : (guest.isInvited == true
+                                                  ? 'Already invited — click to re-send'
+                                                  : 'Invite guest')),
+                                      onPressed: canInviteThisGuest
+                                          ? () async {
+                                              if (guest.guestId == null) return;
+                                              final isResend =
+                                                  guest.isInvited == true;
+
+                                              final success =
+                                                  await controller.inviteGuest(
+                                                guest.guestId!,
+                                                forceResend: isResend,
+                                              );
+
+                                              final snackbarController = Get.find<
+                                                  SnackbarMessageController>();
+                                              if (success) {
+                                                snackbarController
+                                                    .showSuccessMessage(
+                                                  isResend
+                                                      ? 'Invitation re-sent'
+                                                      : 'Guest invited',
+                                                );
+                                              } else {
+                                                snackbarController
+                                                    .showErrorMessage(
+                                                  isResend
+                                                      ? 'Failed to re-send invitation'
+                                                      : 'Failed to invite guest',
+                                                );
+                                              }
+                                            }
+                                          : (!canInvite && !isDisabledGuest)
+                                              ? () => Get.find<
+                                                          SnackbarMessageController>()
+                                                      .showInfoMessage(
+                                                    'Before inviting guests, please publish the event and complete: Menu & dishes selection and Demographic questions.',
+                                                  )
+                                              : null,
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon:
+                                              const Icon(Icons.edit, size: 18),
+                                          tooltip: 'Edit',
+                                          onPressed: () {
+                                            controller.updateAllFields(guest);
+                                            showDialog(
+                                              context: context,
+                                              builder: (ctx) => AddGuestPopup(
+                                                controller: controller,
+                                                isEditMode: true,
+                                                maxInviteByGuest:
+                                                    maxInviteByGuest,
+                                              ),
+                                            ).then(
+                                                (_) => controller.clearForm());
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete,
+                                              size: 18,
+                                              color: Colors.redAccent),
+                                          tooltip: 'Delete',
+                                          onPressed: () async {
+                                            final ok = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title:
+                                                    const Text('Delete guest?'),
+                                                content: Text(
+                                                    'Delete "${guest.name}"?'),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(ctx)
+                                                            .pop(false),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(ctx)
+                                                            .pop(true),
+                                                    child: const Text('Delete'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (ok == true &&
+                                                guest.guestId != null) {
+                                              await controller
+                                                  .deleteGuest(guest.guestId!);
+                                              Get.find<
+                                                      SnackbarMessageController>()
+                                                  .showSuccessMessage(
+                                                      'Guest deleted');
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
 
                 const SizedBox(height: 12),
 
                 if (total > 1)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       TextButton(
-                        onPressed: current > 0 ? controller.prevPage : null,
+                        onPressed: current > 0
+                            ? () => controller.currentPage.value = current - 1
+                            : null,
                         child: const Text('Previous'),
                       ),
-                      const SizedBox(width: 12),
                       Text('Page ${current + 1} of $total'),
-                      const SizedBox(width: 12),
                       TextButton(
-                        onPressed:
-                            current < total - 1 ? controller.nextPage : null,
+                        onPressed: current < total - 1
+                            ? () => controller.currentPage.value = current + 1
+                            : null,
                         child: const Text('Next'),
                       ),
                     ],
@@ -512,28 +505,23 @@ class GuestListSection extends StatelessWidget {
     );
   }
 
-  Widget _rsvpBadge(GuestRsvpStatus? rsvp) {
+  static Widget _rsvpBadge(GuestRsvpStatus? rsvp) {
     if (rsvp == null) {
-      return _pill('—', const Color(0xFFF3F4F6),
-          const Color.fromARGB(255, 204, 221, 255));
+      return _pill('—', const Color(0xFFF3F4F6), const Color(0xFF6B7280));
     }
-
     if (!rsvp.hasResponded) {
       return _pill('Pending', const Color(0xFFF3F4F6), const Color(0xFF6B7280));
     }
-
     if (rsvp.isAttending == true) {
       return _pill('Yes', const Color(0xFFECFDF3), const Color(0xFF027A48));
     }
-
     if (rsvp.isAttending == false) {
       return _pill('No', const Color(0xFFFFF1F2), const Color(0xFFB42318));
     }
-
     return _pill('Responded', const Color(0xFFF3F4F6), const Color(0xFF6B7280));
   }
 
-  Widget _pill(String text, Color bg, Color fg) {
+  static Widget _pill(String text, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -552,7 +540,7 @@ class GuestListSection extends StatelessWidget {
     );
   }
 
-  Widget _statPill({
+  static Widget _statPill({
     required String label,
     required int value,
     required Color bg,

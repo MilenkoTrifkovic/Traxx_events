@@ -8,26 +8,62 @@ import 'package:traxx_wepapp/utils/data/us_data.dart';
 // import your controller + HostUserRow
 // import 'event_hosts_controller.dart';
 
-class EventHostsSection extends StatelessWidget {
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// Your project imports here:
+// import '...controllers/event_hosts_controller.dart';
+// import '...models/host_user_row.dart';
+// import '...routes/app_route.dart';
+// import '...helpers/navigation_helpers.dart';
+// import '...dialogs/create_host_dialog.dart';
+// import '...dialogs/edit_host_dialog.dart';
+// import '...services/us_data.dart';
+
+class EventHostsSection extends StatefulWidget {
   final String tag; // use eventId as tag
   const EventHostsSection({super.key, required this.tag});
 
   @override
+  State<EventHostsSection> createState() => _EventHostsSectionState();
+}
+
+class _EventHostsSectionState extends State<EventHostsSection> {
+  final ScrollController _hCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _hCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // ✅ Avoid crash if controller not registered for a frame
-    if (!Get.isRegistered<EventHostsController>(tag: tag)) {
+    if (!Get.isRegistered<EventHostsController>(tag: widget.tag)) {
       return const SizedBox.shrink();
     }
 
-    final c = Get.find<EventHostsController>(tag: tag);
+    final c = Get.find<EventHostsController>(tag: widget.tag);
 
-    final titleStyle =
-        GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700);
-    final chipStyle =
-        GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600);
+    final w = MediaQuery.sizeOf(context).width;
+    final isMobile = w < 900;
+
+    final titleStyle = GoogleFonts.poppins(
+      fontSize: isMobile ? 14.5 : 16,
+      fontWeight: FontWeight.w700,
+    );
+
+    final chipStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+    );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding:
+          EdgeInsets.fromLTRB(isMobile ? 14 : 20, 16, isMobile ? 14 : 20, 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -53,62 +89,83 @@ class EventHostsSection extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header row
-            Row(
-              children: [
-                Text('Hosts', style: titleStyle),
-                const SizedBox(width: 14),
+            // ✅ Responsive header
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 900;
 
-                // Search within assigned hosts table
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: TextField(
-                      onChanged: (v) => c.search.value = v,
-                      decoration: InputDecoration(
-                        hintText: 'Search by name or email',
-                        prefixIcon: const Icon(Icons.search, size: 18),
-                        suffixIcon: Obx(() {
-                          if (c.search.value.trim().isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => c.search.value = '',
-                          );
-                        }),
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
+                final searchBox = SizedBox(
+                  height: 40,
+                  child: TextField(
+                    onChanged: (v) => c.search.value = v,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name or email',
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      suffixIcon: Obx(() {
+                        if (c.search.value.trim().isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => c.search.value = '',
+                        );
+                      }),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                       ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF9FAFB),
                     ),
                   ),
-                ),
+                );
 
-                const SizedBox(width: 12),
-
-                // Add Host -> Create Host modal
-                ElevatedButton.icon(
+                final addBtn = ElevatedButton.icon(
                   onPressed: () => _openCreateHostDialog(context, c),
                   icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('Add Host'),
+                  label: Text(isNarrow ? 'Add' : 'Add Host'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 12),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                ),
-              ],
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Hosts', style: titleStyle),
+                          const Spacer(),
+                          addBtn,
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      searchBox,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Text('Hosts', style: titleStyle),
+                    const SizedBox(width: 14),
+                    Expanded(child: searchBox),
+                    const SizedBox(width: 12),
+                    addBtn,
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 12),
@@ -151,75 +208,143 @@ class EventHostsSection extends StatelessWidget {
                 ),
               )
             else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  headingRowHeight: 44,
-                  dataRowMinHeight: 52,
-                  dataRowMaxHeight: 60,
-                  columns: const [
-                    DataColumn(label: Text('Name')),
-                    DataColumn(label: Text('Email')),
-                    DataColumn(label: Text('Status')),
-                    DataColumn(label: Text('Primary')),
-                    DataColumn(label: Text('Actions')),
-                  ],
-                  rows: rows.map((h) {
-                    final isPrimary = (c.primaryHostUserId.value == h.userId);
+              // ✅ Bottom scrollbar + horizontal scroll
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final available = constraints.maxWidth;
 
-                    return DataRow(cells: [
-                      DataCell(Text(
-                        h.name?.trim().isNotEmpty == true
-                            ? h.name!.trim()
-                            : '—',
-                      )),
-                      DataCell(Text(h.email)),
-                      DataCell(_statusPill(
-                        h.isDisabled ? 'Disabled' : 'Enabled',
-                        h.isDisabled,
-                      )),
-                      DataCell(
-                        isPrimary
-                            ? _pill('Primary', const Color(0xFFECFDF3),
-                                const Color(0xFF027A48))
-                            : TextButton(
-                                onPressed: () => c.setPrimary(h.userId),
-                                child: const Text('Set Primary'),
-                              ),
+                  // minimum readable width for host columns
+                  const minTableWidth = 980.0;
+
+                  // ✅ same "perfect width then scroll" behavior
+                  final tableWidth =
+                      available > minTableWidth ? available : minTableWidth;
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              tooltip: 'Send verification email',
-                              icon:
-                                  const Icon(Icons.mark_email_unread_outlined),
-                              onPressed: () => _sendVerification(
-                                  context, c, h.userId, h.email),
+                      child: Scrollbar(
+                        controller: _hCtrl,
+                        thumbVisibility: true,
+                        trackVisibility: true,
+                        interactive: true,
+                        scrollbarOrientation: ScrollbarOrientation.bottom,
+                        child: SingleChildScrollView(
+                          controller: _hCtrl,
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: tableWidth),
+                            child: DataTable(
+                              showCheckboxColumn: false,
+                              headingRowHeight: 48,
+                              dataRowMinHeight: 56,
+                              dataRowMaxHeight: 64,
+
+                              // ✅ header background like Guest table
+                              headingRowColor: MaterialStateProperty.all(
+                                  const Color(0xFFF3F4F6)),
+                              headingTextStyle: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF111827),
+                              ),
+                              dataTextStyle: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF111827),
+                              ),
+
+                              // ✅ full border + row dividers like Guest table
+                              border: const TableBorder(
+                                top: BorderSide(color: Color(0xFFE5E7EB)),
+                                bottom: BorderSide(color: Color(0xFFE5E7EB)),
+                                left: BorderSide(color: Color(0xFFE5E7EB)),
+                                right: BorderSide(color: Color(0xFFE5E7EB)),
+                                horizontalInside:
+                                    BorderSide(color: Color(0xFFE5E7EB)),
+                                verticalInside: BorderSide.none,
+                              ),
+
+                              columns: const [
+                                DataColumn(label: Text('Name')),
+                                DataColumn(label: Text('Email')),
+                                DataColumn(label: Text('Status')),
+                                DataColumn(label: Text('Primary')),
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: rows.map((h) {
+                                final isPrimary =
+                                    (c.primaryHostUserId.value == h.userId);
+
+                                return DataRow(cells: [
+                                  DataCell(Text(
+                                    h.name?.trim().isNotEmpty == true
+                                        ? h.name!.trim()
+                                        : '—',
+                                  )),
+                                  DataCell(Text(h.email)),
+                                  DataCell(_statusPill(
+                                    h.isDisabled ? 'Disabled' : 'Enabled',
+                                    h.isDisabled,
+                                  )),
+                                  DataCell(
+                                    isPrimary
+                                        ? _pill(
+                                            'Primary',
+                                            const Color(0xFFECFDF3),
+                                            const Color(0xFF027A48))
+                                        : TextButton(
+                                            onPressed: () =>
+                                                c.setPrimary(h.userId),
+                                            child: const Text('Set Primary'),
+                                          ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Send verification email',
+                                          icon: const Icon(
+                                              Icons.mark_email_unread_outlined),
+                                          onPressed: () => _sendVerification(
+                                              context, c, h.userId, h.email),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Set Primary',
+                                          icon: const Icon(Icons.star_outline),
+                                          onPressed: () =>
+                                              c.setPrimary(h.userId),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Edit Host',
+                                          icon: const Icon(Icons.edit_outlined),
+                                          onPressed: () => _openEditHostDialog(
+                                              context, c, h),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Remove Host',
+                                          icon: const Icon(Icons.delete,
+                                              color: Colors.red),
+                                          onPressed: () => _confirmRemove(
+                                              context, c, h.userId),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ]);
+                              }).toList(),
                             ),
-                            IconButton(
-                              tooltip: 'Set Primary',
-                              icon: const Icon(Icons.star_outline),
-                              onPressed: () => c.setPrimary(h.userId),
-                            ),
-                            IconButton(
-                              tooltip: 'Edit Host',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () =>
-                                  _openEditHostDialog(context, c, h),
-                            ),
-                            IconButton(
-                              tooltip: 'Remove Host',
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () =>
-                                  _confirmRemove(context, c, h.userId),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ]);
-                  }).toList(),
-                ),
+                    ),
+                  );
+                },
               ),
           ],
         );
@@ -247,7 +372,10 @@ class EventHostsSection extends StatelessWidget {
       child: Text(
         text,
         style: GoogleFonts.poppins(
-            fontSize: 12, fontWeight: FontWeight.w600, color: fg),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
       ),
     );
   }
@@ -386,6 +514,10 @@ class EventHostsSection extends StatelessWidget {
   }
 }
 
+// =======================================================
+// Dialogs (unchanged from your version)
+// =======================================================
+
 class CreateHostDialog extends StatefulWidget {
   final EventHostsController controller;
 
@@ -405,8 +537,8 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
   late final TextEditingController _emailCtrl;
   late final TextEditingController _addressCtrl;
 
-  String? _selectedCountry; // required
-  bool _isDisabled = false; // enabled by default (switch = true when enabled)
+  String? _selectedCountry;
+  bool _isDisabled = false;
   bool _isSubmitting = false;
   String? _errorText;
 
@@ -429,7 +561,7 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
       prefixIcon: prefixIcon,
       isDense: true,
       filled: true,
-      fillColor: Colors.white, // ✅ makes border pop on grey background
+      fillColor: Colors.white,
       border: _border,
       enabledBorder: _border,
       focusedBorder: _focusedBorder,
@@ -497,11 +629,10 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      backgroundColor:
-          const Color(0xFFF3F4F6), // light grey like your screenshot
+      backgroundColor: const Color(0xFFF3F4F6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640), // medium width
+        constraints: const BoxConstraints(maxWidth: 640),
         child: Stack(
           children: [
             SingleChildScrollView(
@@ -547,7 +678,6 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                                 : null,
                           ),
                           const SizedBox(height: 14),
-
                           _label('Email Address *'),
                           TextFormField(
                             controller: _emailCtrl,
@@ -567,7 +697,6 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                             },
                           ),
                           const SizedBox(height: 14),
-
                           _label('Address (Optional)'),
                           TextFormField(
                             controller: _addressCtrl,
@@ -579,7 +708,6 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                             ),
                           ),
                           const SizedBox(height: 14),
-
                           _label('Country *'),
                           DropdownButtonFormField<String>(
                             value: _selectedCountry,
@@ -594,15 +722,11 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                             onChanged: _isSubmitting
                                 ? null
                                 : (v) => setState(() => _selectedCountry = v),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty)
-                                return 'Country is required';
-                              return null;
-                            },
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Country is required'
+                                : null,
                           ),
                           const SizedBox(height: 14),
-
-                          // ✅ Status row: switch next to label
                           Row(
                             children: [
                               Text(
@@ -614,7 +738,7 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                               ),
                               const SizedBox(width: 10),
                               Switch.adaptive(
-                                value: !_isDisabled, // true = Enabled
+                                value: !_isDisabled,
                                 onChanged: _isSubmitting
                                     ? null
                                     : (val) =>
@@ -631,7 +755,6 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                               ),
                             ],
                           ),
-
                           if (_errorText != null) ...[
                             const SizedBox(height: 10),
                             Text(
@@ -643,9 +766,7 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                               ),
                             ),
                           ],
-
                           const SizedBox(height: 18),
-
                           Row(
                             children: [
                               Expanded(
@@ -692,8 +813,7 @@ class _CreateHostDialogState extends State<CreateHostDialog> {
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.grey.shade700,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ),
@@ -887,7 +1007,7 @@ class _EditHostDialogState extends State<EditHostDialog> {
                           _label('Email Address'),
                           TextFormField(
                             controller: _emailCtrl,
-                            enabled: false, // ✅ read-only
+                            enabled: false,
                             decoration: _decoration(
                               hintText: 'Email',
                               prefixIcon:
@@ -1011,8 +1131,7 @@ class _EditHostDialogState extends State<EditHostDialog> {
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.grey.shade700,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ),
