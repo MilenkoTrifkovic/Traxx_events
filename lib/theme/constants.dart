@@ -1,20 +1,37 @@
-/// Design system constants for the Traxx application
+import 'package:package_info_plus/package_info_plus.dart';
+
 class Constants {
   static String appName = 'Trax';
-  static String traxVersion = '1.0.19';
+
+  /// Will be set at startup via [initAppInfo]
+  static String traxVersion = '';
+
+  /// Optional: full text like "v1.0.0 (1)"
+  static String traxVersionText = '';
+
+  /// Call this once in main() before runApp()
+  static Future<void> initAppInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    traxVersion = info.version; // e.g. "1.0.0"
+    traxVersionText =
+        'v${info.version} (${info.buildNumber})'; // e.g. "v1.0.0 (1)"
+  }
 
   static const double maxContentWidth = 1600;
-  //Configuration
+
+  // Configuration
   static const String webClientId =
-      '781524162883-udea4nakjljeig3iau98m3u26rhaapj9.apps.googleusercontent.com';
+      '781524162883-udea4nakjljeig3iau98m3m26rhaapj9.apps.googleusercontent.com';
+
   // Font families
   static const font1 = 'Blanka';
   static const font2 = 'Inter';
 
-  static String lightLogo = 'assets/icons/light-logo.png';
-  static String darkLogo = 'assets/icons/dark-logo.png';
-  static String cartoonRestaurant = 'assets/photos/cartoon_restaurant.png';
-  static String emptyMenu = 'assets/photos/empty_menu.png';
+  static const String lightLogo = 'assets/icons/light-logo.png';
+  static const String darkLogo = 'assets/icons/dark-logo.png';
+  static const String cartoonRestaurant =
+      'assets/photos/cartoon_restaurant.png';
+  static const String emptyMenu = 'assets/photos/empty_menu.png';
 
   static const String googleMapsApiKey =
       'AIzaSyDt2ZfJjvYxeOHITwVOLG45EqJuQRy9j9o';

@@ -16,6 +16,7 @@ import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 import 'package:traxx_wepapp/theme/app_theme.dart';
+import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/utils/navigation/app_router.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:url_strategy/url_strategy.dart';
@@ -54,14 +55,14 @@ Future<void> main() async {
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
 
   Get.put<EventController>(EventController(), permanent: true);
-
-  // ✅ Put this ONCE (NOT inside MyApp.build)
   Get.put(SnackbarMessageController(), permanent: true);
+  Get.put(AuthController(), permanent: true);
 
   await Get.putAsync(() => GuestSessionController().init(), permanent: true);
 
   final authController = Get.find<AuthController>();
   await authController.loadUserProfile();
+  await Constants.initAppInfo();
 
   runApp(const MyApp());
 }

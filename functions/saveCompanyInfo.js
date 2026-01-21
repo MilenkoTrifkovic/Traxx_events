@@ -27,49 +27,76 @@ export const saveCompanyInfo = onCall(async (request) => {
 
     if (!existingAdminRole.empty) {
       const existingRole = existingAdminRole.docs[0].data();
-      logger.info(
-        `User ${userId} already has an admin role for organisation ${existingRole.organisationId}`
-      );
-
-      throw new HttpsError(
-        "already-exists",
-        "You have already created an organisation. Each user can only create one organisation."
-      );
+      return {
+        success: true,
+        message: "Organisation already exists for this user",
+        organisationId: existingRole.organisationId,
+        role: "admin",
+      };
     }
 
-    // 3️⃣ Validate incoming payload
-    validateCompanyInfo(request.data);
 
-    // 4️⃣ Generate UUIDs *without hyphens*
-    // e.g. "8a21b09dec5f4734865cd7d194f0af6f"
+    // 3️⃣ ✅ Sanitize payload (Option A: ignore unexpected fields)
+    const d = request.data || {};
+
+    const sanitized = {
+      name: d.name,
+      phone: d.phone,
+      website: d.website ?? null,
+      timezone: d.timezone,
+      currency: d.currency ?? "USD",
+      logo: d.logo ?? null,
+      assignedSalesPersonId:
+        typeof d.assignedSalesPersonId === "string" && d.assignedSalesPersonId.trim()
+          ? d.assignedSalesPersonId.trim()
+          : null,
+      address: d.address
+        ? {
+            street: d.address.street,
+            city: d.address.city,
+            state: d.address.state ?? null,
+            zip: d.address.zip,
+            country: d.address.country,
+          }
+        : null,
+    };
+
+    // 4️⃣ Validate incoming payload (now only the allowed shape is checked)
+    validateCompanyInfo(sanitized);
+
+    // 5️⃣ Generate UUIDs *without hyphens*
     const organisationId = uuidv4().replace(/-/g, "");
     const roleId = uuidv4().replace(/-/g, "");
 
     const now = FieldValue.serverTimestamp();
 
     const organisationData = {
-      organisationId, // no hyphens
-      name: request.data.name,
-      phone: request.data.phone.toString(),
-      website: request.data.website || null,
+      organisationId,
+      name: sanitized.name,
+      phone: String(sanitized.phone),
+      website: sanitized.website || null,
       address: {
-        street: request.data.address.street,
-        city: request.data.address.city,
-        ...(request.data.address.country === "United States" && request.data.address.state && { state: request.data.address.state }), // Only include state for USA
-        zip: request.data.address.zip.toString(),
-        country: request.data.address.country,
+        street: sanitized.address.street,
+        city: sanitized.address.city,
+
+        // Only include state for USA
+        ...(sanitized.address.country === "United States" &&
+          sanitized.address.state && { state: sanitized.address.state }),
+
+        zip: String(sanitized.address.zip),
+        country: sanitized.address.country,
       },
-      timezone: request.data.timezone,
-      currency: request.data.currency || "USD", // Default to USD if not provided
-      logo: request.data.logo || null,
-      assignedSalesPersonId: request.data.assignedSalesPersonId || null, // Optional sales person reference
+      timezone: sanitized.timezone,
+      currency: sanitized.currency || "USD",
+      logo: sanitized.logo || null,
+      assignedSalesPersonId: sanitized.assignedSalesPersonId || null,
       isDisabled: false,
       createdAt: now,
       modifiedAt: now,
     };
 
     const roleData = {
-      roleId,        // no hyphens
+      roleId,
       userId,
       organisationId,
       role: "admin",
@@ -79,22 +106,20 @@ export const saveCompanyInfo = onCall(async (request) => {
     };
 
     const result = await db.runTransaction(async (transaction) => {
-      // 5️⃣ Use hyphen-less organisationId as Firestore document ID
-      const organisationRef = db
-        .collection("organisations")
-        .doc(organisationId);
+      // 6️⃣ Use hyphen-less organisationId as Firestore document ID
+      const organisationRef = db.collection("organisations").doc(organisationId);
       transaction.set(organisationRef, organisationData);
 
       // Use hyphen-less roleId as Firestore document ID
       const roleRef = db.collection("roles").doc(roleId);
       transaction.set(roleRef, roleData);
 
-      // 6️⃣ Update users/{userId} with organisationId + role
+      // 7️⃣ Update users/{userId} with organisationId + role
       const userRef = db.collection("users").doc(userId);
       transaction.set(
         userRef,
         {
-          organisationId, // 👈 hyphen-less UUID string
+          organisationId,
           role: "admin",
           modifiedAt: now,
         },
@@ -116,8 +141,8 @@ export const saveCompanyInfo = onCall(async (request) => {
     return {
       success: true,
       message: "Company information and admin role created successfully",
-      organisationDocumentId: result.organisationDocId, // == organisationId (no hyphens)
-      roleDocumentId: result.roleDocId,                 // == roleId (no hyphens)
+      organisationDocumentId: result.organisationDocId,
+      roleDocumentId: result.roleDocId,
       organisationId,
       roleId,
       role: "admin",
@@ -135,3 +160,4 @@ export const saveCompanyInfo = onCall(async (request) => {
     );
   }
 });
+
