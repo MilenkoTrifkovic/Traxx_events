@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/menus_details_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/menu_category_helper.dart';
+import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
@@ -67,12 +69,13 @@ class MenuSetDetailsView extends StatelessWidget {
         children: [
           _buildDetailsAppBar(context, menuSet.name),
           SingleChildScrollView(
-            padding: AppPadding.all(context, paddingType: Sizes.lg),
+            padding: AppPadding.all(
+              context,
+              paddingType: ScreenSize.isPhone(context) ? Sizes.sm : Sizes.lg,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // _buildMenuSetHeader(context, controller, menuSet),
-                // AppSpacing.verticalSm(context),
                 _buildItemsSection(context, controller),
               ],
             ),
@@ -233,6 +236,7 @@ class MenuSetDetailsView extends StatelessWidget {
       }
 
       final items = controller.filteredItems;
+      final isPhone = ScreenSize.isPhone(context);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,31 +244,46 @@ class MenuSetDetailsView extends StatelessWidget {
           // Top row: title + Add Item button (top-right)
           _buildFilterSortBar(context, controller),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Text(
-                'Menu Items',
+          if (isPhone) ...[
+            Text('Menu Items',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              AppPrimaryButton(
+                    fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: AppPrimaryButton(
                 text: 'Add New Item',
                 icon: Icons.add,
                 onPressed: () async {
-                  final created = await showDialog<bool>(
+                  await showDialog<bool>(
                     context: context,
-                    barrierDismissible: false, // ← IMPORTANT
-                    builder: (_) => AddMenuItemDialog(
-                      controller: controller,
-                    ),
+                    barrierDismissible: false,
+                    builder: (_) => AddMenuItemDialog(controller: controller),
                   );
                 },
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Text('Menu Items',
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                const Spacer(),
+                AppPrimaryButton(
+                  text: 'Add New Item',
+                  icon: Icons.add,
+                  onPressed: () async {
+                    await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => AddMenuItemDialog(controller: controller),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
 
           // If no items
@@ -288,8 +307,9 @@ class MenuSetDetailsView extends StatelessWidget {
               ),
             )
           else
-            // Group items by category and render each group
-            _buildGroupedItemsTable(items, controller),
+            isPhone
+                ? _buildGroupedItemsCards(items, controller)
+                : _buildGroupedItemsTable(items, controller),
         ],
       );
     });
@@ -299,10 +319,189 @@ class MenuSetDetailsView extends StatelessWidget {
     BuildContext context,
     MenuSetDetailsController controller,
   ) {
-    final theme = Theme.of(context);
+    final org = Get.find<OrganisationController>();
+    final isPhone = ScreenSize.isPhone(context);
+
+    Widget searchField() {
+      return TextField(
+        onChanged: controller.setSearchQuery,
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: const Icon(Icons.search, size: 18),
+          hintText: 'Search items…',
+          hintStyle: GoogleFonts.poppins(fontSize: 13),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        ),
+      );
+    }
+
+    Widget sortDropdown() {
+      return Obx(() {
+        final showPrices = org.showMenuItemPrices.value;
+
+        final allowedSorts = <MenuItemsSortType>[
+          MenuItemsSortType.nameAZ,
+          MenuItemsSortType.nameZA,
+          if (showPrices) MenuItemsSortType.priceLowHigh,
+          if (showPrices) MenuItemsSortType.priceHighLow,
+          MenuItemsSortType.dateNewest,
+          MenuItemsSortType.dateOldest,
+        ];
+
+        if (!showPrices &&
+            (controller.sortType.value == MenuItemsSortType.priceLowHigh ||
+                controller.sortType.value == MenuItemsSortType.priceHighLow)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            controller.setSortType(MenuItemsSortType.nameAZ);
+          });
+        }
+
+        String labelFor(MenuItemsSortType t) {
+          switch (t) {
+            case MenuItemsSortType.nameAZ:
+              return 'Name (A–Z)';
+            case MenuItemsSortType.nameZA:
+              return 'Name (Z–A)';
+            case MenuItemsSortType.priceLowHigh:
+              return 'Price (Low–High)';
+            case MenuItemsSortType.priceHighLow:
+              return 'Price (High–Low)';
+            case MenuItemsSortType.dateNewest:
+              return 'Date (Newest)';
+            case MenuItemsSortType.dateOldest:
+              return 'Date (Oldest)';
+          }
+        }
+
+        final current = allowedSorts.contains(controller.sortType.value)
+            ? controller.sortType.value
+            : MenuItemsSortType.nameAZ;
+
+        return DropdownButtonFormField<MenuItemsSortType>(
+          value: current,
+          onChanged: (v) {
+            if (v != null) controller.setSortType(v);
+          },
+          isDense: true,
+          decoration: InputDecoration(
+            labelText: 'Sort by',
+            labelStyle: GoogleFonts.poppins(fontSize: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
+          items: allowedSorts
+              .map((t) => DropdownMenuItem(
+                    value: t,
+                    child: Text(labelFor(t),
+                        style: GoogleFonts.poppins(fontSize: 13)),
+                  ))
+              .toList(),
+        );
+      });
+    }
+
+    Widget categoryDropdown() {
+      return Obx(() => DropdownButtonFormField<String?>(
+            key: ValueKey(controller.selectedCategory.value),
+            initialValue: controller.selectedCategory.value,
+            onChanged: (v) => controller.setCategoryFilter(v),
+            isDense: true,
+            decoration: InputDecoration(
+              labelText: 'Category',
+              labelStyle: GoogleFonts.poppins(fontSize: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            ),
+            items: MenuCategoryHelper.getCategoryFilterItems()
+                .map((item) => DropdownMenuItem<String?>(
+                      value: item.value,
+                      child: Text(
+                        (item.child as Text?)?.data ?? '',
+                        style: GoogleFonts.poppins(fontSize: 13),
+                      ),
+                    ))
+                .toList(),
+          ));
+    }
+
+    Widget priceRange() {
+      return Obx(() {
+        if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+
+        final minField = TextField(
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: controller.setMinPrice,
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: 'Min',
+            prefixText: '\$',
+            labelStyle: GoogleFonts.poppins(fontSize: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
+        );
+
+        final maxField = TextField(
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: controller.setMaxPrice,
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: 'Max',
+            prefixText: '\$',
+            labelStyle: GoogleFonts.poppins(fontSize: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
+        );
+
+        if (isPhone) {
+          return Column(
+            children: [
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: minField),
+                  const SizedBox(width: 10),
+                  Expanded(child: maxField),
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: minField),
+            const SizedBox(width: 12),
+            Expanded(child: maxField),
+          ],
+        );
+      });
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -314,190 +513,40 @@ class MenuSetDetailsView extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // ROW 1: Search + Sort
-          Row(
-            children: [
-              // Search by item name / description
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  onChanged: controller.setSearchQuery,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    hintText: 'Search items…',
-                    hintStyle: GoogleFonts.poppins(fontSize: 13),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                  ),
+      child: isPhone
+          ? Column(
+              children: [
+                searchField(),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: sortDropdown()),
+                    const SizedBox(width: 10),
+                    Expanded(child: categoryDropdown()),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 16),
-
-              // Sort dropdown
-              Expanded(
-                flex: 2,
-                child: Obx(
-                  () => DropdownButtonFormField<MenuItemsSortType>(
-                    initialValue: controller.sortType.value,
-                    onChanged: (v) {
-                      if (v != null) controller.setSortType(v);
-                    },
-                    isDense: true,
-                    decoration: InputDecoration(
-                      labelText: 'Sort by',
-                      labelStyle: GoogleFonts.poppins(fontSize: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.nameAZ,
-                        child: Text('Name (A–Z)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.nameZA,
-                        child: Text('Name (Z–A)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.priceLowHigh,
-                        child: Text('Price (Low–High)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.priceHighLow,
-                        child: Text('Price (High–Low)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.dateNewest,
-                        child: Text('Date (Newest)'),
-                      ),
-                      DropdownMenuItem(
-                        value: MenuItemsSortType.dateOldest,
-                        child: Text('Date (Oldest)'),
-                      ),
-                    ].map((e) {
-                      return DropdownMenuItem<MenuItemsSortType>(
-                        value: e.value,
-                        child: Text(
-                          (e.child as Text).data!,
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                priceRange(),
+              ],
+            )
+          : Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(flex: 3, child: searchField()),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: sortDropdown()),
+                  ],
                 ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // ROW 2: Category + Price range
-          Row(
-            children: [
-              // Category filter
-              Expanded(
-                flex: 2,
-                child: Obx(
-                  () => DropdownButtonFormField<String?>(
-                    key: ValueKey(controller.selectedCategory.value),
-                    initialValue: controller.selectedCategory.value,
-                    onChanged: (v) => controller.setCategoryFilter(v),
-                    isDense: true,
-                    decoration: InputDecoration(
-                      labelText: 'Category',
-                      labelStyle: GoogleFonts.poppins(fontSize: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                    ),
-                    items: MenuCategoryHelper.getCategoryFilterItems()
-                        .map((item) => DropdownMenuItem<String?>(
-                              value: item.value,
-                              child: Text(
-                                item.child is Text
-                                    ? (item.child as Text).data ?? ''
-                                    : '',
-                                style: GoogleFonts.poppins(fontSize: 13),
-                              ),
-                            ))
-                        .toList(),
-                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(flex: 2, child: categoryDropdown()),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: priceRange()),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 16),
-
-              // Min price
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: controller.setMinPrice,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Min price',
-                    prefixText: '\$',
-                    labelStyle: GoogleFonts.poppins(fontSize: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Max price
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: controller.setMaxPrice,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Max price',
-                    prefixText: '\$',
-                    labelStyle: GoogleFonts.poppins(fontSize: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+              ],
+            ),
     );
   }
 
@@ -505,107 +554,66 @@ class MenuSetDetailsView extends StatelessWidget {
     List<MenuItem> items,
     MenuSetDetailsController controller,
   ) {
-    // group manually by category (now String-based)
+    final org = Get.find<OrganisationController>();
+
+    // group manually by category (String-based)
     final Map<String, List<MenuItem>> grouped = {};
     for (final i in items) {
       grouped.putIfAbsent(i.category, () => []).add(i);
     }
 
-    // build a section per category
-    return Column(
-      children: grouped.entries.map((entry) {
-        final category = entry.key;
-        final list = entry.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _prettyCategory(category),
-                style: GoogleFonts.poppins(
-                    fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // the section card
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                    color: Colors.black.withOpacity(0.03),
+    return Obx(() {
+      final showPrices = org.showMenuItemPrices.value;
+
+      return Column(
+        children: grouped.entries.map((entry) {
+          final category = entry.key;
+          final list = entry.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _prettyCategory(category),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
+                ),
               ),
-              child: Column(
-                children: [
-                  // header row
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF3F4F6),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                      color: Colors.black.withOpacity(0.03),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: Text(
-                            'Item',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Category',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Price',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'Created',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.centerRight,
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // header row
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF3F4F6),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(12)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 4,
                             child: Text(
-                              'Actions',
+                              'Item',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -613,34 +621,90 @@ class MenuSetDetailsView extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Category',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
 
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    itemBuilder: (context, index) =>
-                        _buildItemRow(context, list[index], controller),
-                  ),
-                ],
+                          // ✅ Price header only when enabled
+                          if (showPrices)
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'Price',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Created',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                'Actions',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                      itemBuilder: (context, index) => _buildItemRow(
+                        context,
+                        list[index],
+                        controller,
+                        showPrices, // ✅ pass down
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        );
-      }).toList(),
-    );
+            ],
+          );
+        }).toList(),
+      );
+    });
   }
 
   Widget _buildItemRow(
     BuildContext context,
     MenuItem item,
     MenuSetDetailsController controller,
+    bool showPrices,
   ) {
     final theme = Theme.of(context);
 
@@ -743,17 +807,20 @@ class MenuSetDetailsView extends StatelessWidget {
             ),
           ),
 
-          // Price
-          Expanded(
-            flex: 2,
-            child: Text(
-              item.price != null ? '\$${item.price!.toStringAsFixed(0)}' : '-',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: const Color(0xFF111827),
+          // ✅ Price cell only when enabled
+          if (showPrices)
+            Expanded(
+              flex: 2,
+              child: Text(
+                item.price != null
+                    ? '\$${item.price!.toStringAsFixed(0)}'
+                    : '-',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: const Color(0xFF111827),
+                ),
               ),
             ),
-          ),
 
           // Created date
           Expanded(
@@ -839,6 +906,178 @@ class MenuSetDetailsView extends StatelessWidget {
   String _prettyCategory(String category) {
     // Category is already formatted by MenuCategoryHelper
     return category;
+  }
+
+  Widget _buildGroupedItemsCards(
+    List<MenuItem> items,
+    MenuSetDetailsController controller,
+  ) {
+    final org = Get.find<OrganisationController>();
+
+    final Map<String, List<MenuItem>> grouped = {};
+    for (final i in items) {
+      grouped.putIfAbsent(i.category, () => []).add(i);
+    }
+
+    return Obx(() {
+      final showPrices = org.showMenuItemPrices.value;
+
+      return Column(
+        children: grouped.entries.map((entry) {
+          final category = entry.key;
+          final list = entry.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 14),
+              Text(
+                _prettyCategory(category),
+                style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: list.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final item = list[index];
+                  return _mobileItemCard(context, item, controller, showPrices);
+                },
+              ),
+            ],
+          );
+        }).toList(),
+      );
+    });
+  }
+
+  Widget _mobileItemCard(
+    BuildContext context,
+    MenuItem item,
+    MenuSetDetailsController controller,
+    bool showPrices,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _foodTypeBadge(item.foodType),
+          const SizedBox(width: 8),
+
+          // Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                  ? Image.network(item.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Container(color: Colors.grey.shade200))
+                  : Container(color: Colors.grey.shade200),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                      fontSize: 14.5, fontWeight: FontWeight.w700),
+                ),
+                if (item.description != null &&
+                    item.description!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12.5, color: const Color(0xFF6B7280)),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _chip(_prettyCategory(item.category)),
+                    if (showPrices)
+                      _chip(item.price != null
+                          ? '\$${item.price!.toStringAsFixed(0)}'
+                          : '-'),
+                    _chip(controller.formatDate(item.createdAt)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Actions
+          Column(
+            children: [
+              IconButton(
+                tooltip: 'Edit',
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                onPressed: () async {
+                  await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => AddMenuItemDialog(
+                        controller: controller, existing: item),
+                  );
+                },
+              ),
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline,
+                    size: 18, color: Colors.redAccent),
+                onPressed: () => controller.deleteItem(item),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600),
+      ),
+    );
   }
 }
 
@@ -1001,130 +1240,393 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return AlertDialog(
-      // 2) DON’T CLOSE ON OUTSIDE TAP: this is handled in showDialog() call (see below)
-      title: Text(isEdit ? 'Edit Item' : 'Add New Item',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _nameC,
-                decoration: const InputDecoration(labelText: 'Item name'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Enter name' : null,
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _category,
-                items: MenuCategoryHelper.getCategoryDropdownItems(),
-                onChanged: (v) {
-                  if (v != null) setState(() => _category = v);
-                },
-                decoration: const InputDecoration(labelText: 'Category'),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<FoodType>(
-                initialValue: _foodType,
-                decoration: const InputDecoration(labelText: 'Food type'),
-                items: const [
-                  DropdownMenuItem(
-                    value: FoodType.veg,
-                    child: Text('Veg'),
-                  ),
-                  DropdownMenuItem(
-                    value: FoodType.nonVeg,
-                    child: Text('Non-veg'),
-                  ),
-                ],
-                onChanged: (v) {
-                  if (v != null) setState(() => _foodType = v);
-                },
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _priceC,
-                decoration: const InputDecoration(labelText: 'Price (USD)'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
-                  return double.tryParse(v.trim()) == null
-                      ? 'Enter valid number'
-                      : null;
-                },
-              ),
-              const SizedBox(height: 12),
 
-              // ---- IMAGE UPLOAD + URL ----
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _imageUrlC,
-                      decoration: const InputDecoration(
-                        labelText: 'Image URL (optional)',
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Material(
+            color: Colors.white,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ Fancy header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primaryAccent.withOpacity(0.18),
+                        Colors.white,
+                      ],
+                    ),
+                    border: const Border(
+                      bottom: BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryAccent.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          isEdit ? Icons.edit_outlined : Icons.add_rounded,
+                          color: AppColors.primaryAccent,
+                          size: 22,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEdit ? 'Edit Item' : 'Add New Item',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF111827),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isEdit
+                                  ? 'Update item details and save changes.'
+                                  : 'Fill the details to create a menu item.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _isUploadingImage ? null : _pickAndUploadImage,
-                    icon: _isUploadingImage
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file, size: 18),
-                    label: Text(
-                      _isUploadingImage ? 'Uploading...' : 'Upload',
-                      style: GoogleFonts.poppins(fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+                ),
 
-              if (_imageUrlC.text.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: SizedBox(
-                    height: 100,
-                    child: Image.network(
-                      _imageUrlC.text,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(),
+                // ✅ Body
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // Item name
+                          TextFormField(
+                            controller: _nameC,
+                            decoration: InputDecoration(
+                              labelText: 'Item name',
+                              labelStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Enter name'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Category + Food type (responsive row)
+                          LayoutBuilder(
+                            builder: (context, c) {
+                              final stack = c.maxWidth < 420;
+                              final cat = DropdownButtonFormField<String>(
+                                initialValue: _category,
+                                items: MenuCategoryHelper
+                                    .getCategoryDropdownItems(),
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _category = v);
+                                },
+                                decoration: InputDecoration(
+                                  labelText: 'Category',
+                                  labelStyle: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              );
+
+                              final type = DropdownButtonFormField<FoodType>(
+                                initialValue: _foodType,
+                                decoration: InputDecoration(
+                                  labelText: 'Food type',
+                                  labelStyle: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: FoodType.veg,
+                                    child: Text('Veg'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: FoodType.nonVeg,
+                                    child: Text('Non-veg'),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _foodType = v);
+                                },
+                              );
+
+                              if (stack) {
+                                return Column(
+                                  children: [
+                                    cat,
+                                    const SizedBox(height: 12),
+                                    type,
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  Expanded(child: cat),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: type),
+                                ],
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Price
+                          TextFormField(
+                            controller: _priceC,
+                            decoration: InputDecoration(
+                              labelText: 'Price (USD)',
+                              labelStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600),
+                              prefixText: '\$ ',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null;
+                              return double.tryParse(v.trim()) == null
+                                  ? 'Enter valid number'
+                                  : null;
+                            },
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Image URL + upload
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(14),
+                              border:
+                                  Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Image',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                LayoutBuilder(
+                                  builder: (context, c) {
+                                    final stack = c.maxWidth < 420;
+
+                                    final urlField = TextFormField(
+                                      controller: _imageUrlC,
+                                      decoration: InputDecoration(
+                                        labelText: 'Image URL (optional)',
+                                        labelStyle: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w600),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                        ),
+                                      ),
+                                    );
+
+                                    final uploadBtn = SizedBox(
+                                      height: 46,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _isUploadingImage
+                                            ? null
+                                            : _pickAndUploadImage,
+                                        icon: _isUploadingImage
+                                            ? const SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : const Icon(Icons.upload_file,
+                                                size: 18),
+                                        label: Text(
+                                          _isUploadingImage
+                                              ? 'Uploading…'
+                                              : 'Upload',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+
+                                    if (stack) {
+                                      return Column(
+                                        children: [
+                                          urlField,
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                              width: double.infinity,
+                                              child: uploadBtn),
+                                        ],
+                                      );
+                                    }
+
+                                    return Row(
+                                      children: [
+                                        Expanded(child: urlField),
+                                        const SizedBox(width: 10),
+                                        uploadBtn,
+                                      ],
+                                    );
+                                  },
+                                ),
+                                if (_imageUrlC.text.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      height: 120,
+                                      width: double.infinity,
+                                      color: Colors.white,
+                                      child: Image.network(
+                                        _imageUrlC.text,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const SizedBox(),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Description
+                          TextFormField(
+                            controller: _descC,
+                            decoration: InputDecoration(
+                              labelText: 'Description',
+                              labelStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            maxLines: 3,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
-              TextFormField(
-                controller: _descC,
-                decoration: const InputDecoration(labelText: 'Description'),
-                maxLines: 3,
-              ),
-            ],
+                // ✅ Fancy footer actions
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                    color: Color(0xFFFBFBFB),
+                  ),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  isEdit ? 'Save changes' : 'Create item',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
-          child: Text('Cancel', style: GoogleFonts.poppins()),
-        ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _submit,
-          child: _isSaving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(isEdit ? 'Save' : 'Create', style: GoogleFonts.poppins()),
-        ),
-      ],
     );
   }
 }

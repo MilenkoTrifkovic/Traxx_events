@@ -59,7 +59,8 @@ export const getSelectedMenuItemsForInvitation = onCall(async (request) => {
     const items = [];
     for (const id of ungroupedIds) {
       if (groupedSet.has(id)) continue;
-      if (mapById[id]) items.push(mapById[id]);
+      const item = mapById[id];
+      if (item) items.push(item);
     }
 
     return { ok: true, eventId, eventName: eventData.name || "Event", groups, items };

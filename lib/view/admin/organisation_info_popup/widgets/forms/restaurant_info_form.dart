@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/theme/app_font_weight.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/section_header.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/utils/organisation_form_keys.dart';
@@ -28,21 +27,36 @@ class _RestaurantInfoFormState extends State<RestaurantInfoForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: OrganisationFormKeys.restaurantInfoFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SectionHeader(
-            icon: Icons.restaurant,
-            title: 'Restaurant Info',
-            description: 'Provide basic information about your restaurant.',
-          ),
-          const SizedBox(height: 32),
+    return _PoppinsScope(
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth;
 
-          // Only NEW restaurant form – existing restaurant logic removed
-          _NewRestaurantForm(controller: controller),
-        ],
+          // nice readable width for forms
+          final maxFormWidth = w < 600 ? w : (w < 1100 ? 560.0 : 720.0);
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxFormWidth),
+              child: Form(
+                key: OrganisationFormKeys.restaurantInfoFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SectionHeader(
+                      icon: Icons.restaurant,
+                      title: 'Restaurant Info',
+                      description:
+                          'Provide basic information about your restaurant.',
+                    ),
+                    const SizedBox(height: 24),
+                    _NewRestaurantForm(controller: controller),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -56,476 +70,266 @@ class _NewRestaurantForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // 1. Brand Logo Upload
-        SizedBox(
-          width: 230,
-          height: 180,
-          child: Column(
-            children: [
-              Expanded(
-                child: Obx(
-                  () => Container(
-                    width: 230,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: controller.selectedImagePath.value == null
-                        ? InkWell(
-                            onTap: controller.selectLogo,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Center(
-                              child: Icon(
-                                Icons.photo_library_outlined,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                          )
-                        : Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: kIsWeb
-                                    ? Image.network(
-                                        controller.selectedImagePath.value!,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return _fallbackLogoBox();
-                                        },
-                                      )
-                                    : Image.file(
-                                        File(
-                                          controller.selectedImagePath.value!,
-                                        ),
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return _fallbackLogoBox();
-                                        },
-                                      ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: InkWell(
-                                  onTap: controller.removeLogo,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.error(context),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: 230,
-                height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: controller.selectLogo,
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: AppColors.white,
-                    side: BorderSide(color: AppColors.primaryAccent),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: Icon(
-                    Icons.file_upload_outlined,
-                    color: AppColors.primaryAccent,
-                    size: 24,
-                  ),
-                  label: AppText.styledBodyMedium(
-                    weight: AppFontWeight.semiBold,
-                    context,
-                    color: AppColors.primaryAccent,
-                    'Upload the brand logo',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        final isPhone = w < 600;
 
-        // 2. Company Name
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Company Name',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.companyNameController,
-          validator: ValidationHelper.validateCompanyName,
-          decoration: const InputDecoration(
-            hintText: 'Enter your company name',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 24),
+        final cardPad = isPhone ? 16.0 : 20.0;
+        final fieldGap = isPhone ? 16.0 : 20.0;
 
-        // 3. Phone Number
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Phone Number',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.phoneController,
-          keyboardType: TextInputType.phone,
-          validator: ValidationHelper.validatePhoneNumber,
-          decoration: const InputDecoration(
-            hintText: 'Enter your phone number',
-            border: OutlineInputBorder(),
-            prefixText: '+1 ',
-          ),
-        ),
-        const SizedBox(height: 24),
+        // Logo area width: full on phone, fixed on larger screens
+        final logoW = isPhone ? w : 260.0;
+        final logoH = 180.0;
 
-        // 4. Website (Optional)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Row(
-            children: [
-              Text(
-                'Website',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '(Optional)',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.websiteController,
-          keyboardType: TextInputType.url,
-          validator: ValidationHelper.validateOptionalWebsite,
-          decoration: const InputDecoration(
-            hintText: 'Enter your website URL',
-            border: OutlineInputBorder(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _fallbackLogoBox() {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.grey[100],
-      ),
-      child: Center(
-        child: Icon(
-          Icons.image,
-          size: 50,
-          color: Colors.grey[600],
-        ),
-      ),
-    );
-  }
-}
-
-/* /// NEW: selector for existing restaurants
-class _ExistingRestaurantSelector extends StatelessWidget {
-  final OrganisationInfoController controller;
-
-  const _ExistingRestaurantSelector({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      if (controller.isLoadingExistingOrganisations.value) {
-        return const SizedBox(
-          height: 120,
-          child: Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      }
-
-      final orgs = controller.existingOrganisations;
-      if (orgs.isEmpty) {
-        return const Padding(
-          padding: EdgeInsets.only(top: 16.0),
-          child: Text(
-            'No restaurants found yet. Please create a new one.',
-            style: TextStyle(color: Colors.black54),
-          ),
-        );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Select a restaurant',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+        InputDecoration deco(String hint, {String? prefixText}) {
+          return InputDecoration(
+            hintText: hint,
+            prefixText: prefixText,
+            hintStyle: GoogleFonts.poppins(
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
             ),
-          ),
-          const SizedBox(height: 12),
-          ...orgs.map((org) {
-            return RadioListTile<String>(
-              value: org.id,
-              groupValue: controller.selectedExistingOrganisationId.value,
-              onChanged: (val) {
-                if (val != null) {
-                  controller.selectExistingOrganisation(val);
-                }
-              },
-              title: Text(org.name),
-              subtitle: org.city.isNotEmpty ? Text(org.city) : const SizedBox(),
-            );
-          }).toList(),
-        ],
-      );
-    });
-  }
-}
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            enabledBorder:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  BorderSide(color: AppColors.primaryAccent, width: 1.2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          );
+        }
 
-/// Original "new restaurant" form extracted into its own widget
-class _NewRestaurantForm extends StatelessWidget {
-  final OrganisationInfoController controller;
-
-  const _NewRestaurantForm({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // 1. Brand Logo Upload
-        SizedBox(
-          width: 230,
-          height: 180,
-          child: Column(
+        Widget label(String text, {Widget? trailing}) {
+          return Row(
             children: [
               Expanded(
-                child: Obx(
-                  () => Container(
-                    width: 230,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: controller.selectedImagePath.value == null
-                        ? InkWell(
-                            onTap: controller.selectLogo,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Center(
-                              child: Icon(
-                                Icons.photo_library_outlined,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                          )
-                        : Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: kIsWeb
-                                    ? Image.network(
-                                        controller.selectedImagePath.value!,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return _fallbackLogoBox();
-                                        },
-                                      )
-                                    : Image.file(
-                                        File(controller
-                                            .selectedImagePath.value!),
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return _fallbackLogoBox();
-                                        },
-                                      ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: InkWell(
-                                  onTap: controller.removeLogo,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.error(context),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                child: Text(
+                  text,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111827),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: 230,
-                height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: controller.selectLogo,
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: AppColors.white,
-                    side: BorderSide(color: AppColors.primaryAccent),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: Icon(
-                    Icons.file_upload_outlined,
-                    color: AppColors.primaryAccent,
-                    size: 24,
-                  ),
-                  label: AppText.styledBodyMedium(
-                    weight: AppFontWeight.semiBold,
-                    context,
-                    color: AppColors.primaryAccent,
-                    'Upload the brand logo',
-                  ),
-                ),
+              if (trailing != null) trailing,
+            ],
+          );
+        }
+
+        return Container(
+          padding: EdgeInsets.all(cardPad),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 24),
-
-        // 2. Company Name
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Company Name',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.companyNameController,
-          validator: ValidationHelper.validateCompanyName,
-          decoration: const InputDecoration(
-            hintText: 'Enter your company name',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // 3. Phone Number
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Phone Number',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.phoneController,
-          keyboardType: TextInputType.phone,
-          validator: ValidationHelper.validatePhoneNumber,
-          decoration: const InputDecoration(
-            hintText: 'Enter your phone number',
-            border: OutlineInputBorder(),
-            prefixText: '+1 ',
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // 4. Website (Optional)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Website',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+              // 1) Logo upload (responsive width)
+              Center(
+                child: SizedBox(
+                  width: logoW,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: logoH,
+                        child: Obx(
+                          () => Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.grey[300]!),
+                            ),
+                            child: controller.selectedImagePath.value == null
+                                ? InkWell(
+                                    onTap: controller.selectLogo,
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.photo_library_outlined,
+                                        size: 46,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  )
+                                : Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: kIsWeb
+                                            ? Image.network(
+                                                controller
+                                                    .selectedImagePath.value!,
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    _fallbackLogoBox(),
+                                              )
+                                            : Image.file(
+                                                File(controller
+                                                    .selectedImagePath.value!),
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    _fallbackLogoBox(),
+                                              ),
+                                      ),
+                                      Positioned(
+                                        top: 10,
+                                        right: 10,
+                                        child: InkWell(
+                                          onTap: controller.removeLogo,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.error(context),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: controller.selectLogo,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: BorderSide(color: AppColors.primaryAccent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: Icon(Icons.file_upload_outlined,
+                              color: AppColors.primaryAccent, size: 20),
+                          label: Text(
+                            'Upload brand logo',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(width: 4),
-              Text(
-                '(Optional)',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
+
+              SizedBox(height: fieldGap),
+
+              // 2) Company + Phone (responsive: stacked on phone, 2-col on desktop)
+              if (isPhone) ...[
+                label('Company Name'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: controller.companyNameController,
+                  validator: ValidationHelper.validateCompanyName,
+                  decoration: deco('Enter your company name'),
+                ),
+                SizedBox(height: fieldGap),
+                label('Phone Number'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: controller.phoneController,
+                  keyboardType: TextInputType.phone,
+                  validator: ValidationHelper.validatePhoneNumber,
+                  decoration:
+                      deco('Enter your phone number', prefixText: '+1 '),
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          label('Company Name'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: controller.companyNameController,
+                            validator: ValidationHelper.validateCompanyName,
+                            decoration: deco('Enter your company name'),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          label('Phone Number'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: controller.phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: ValidationHelper.validatePhoneNumber,
+                            decoration: deco('Enter your phone number',
+                                prefixText: '+1 '),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              SizedBox(height: fieldGap),
+
+              // 3) Website (optional)
+              label(
+                'Website',
+                trailing: Text(
+                  '(Optional)',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: controller.websiteController,
+                keyboardType: TextInputType.url,
+                validator: ValidationHelper.validateOptionalWebsite,
+                decoration: deco('Enter your website URL'),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller.websiteController,
-          keyboardType: TextInputType.url,
-          validator: ValidationHelper.validateOptionalWebsite,
-          decoration: const InputDecoration(
-            hintText: 'Enter your website URL',
-            border: OutlineInputBorder(),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -547,4 +351,29 @@ class _NewRestaurantForm extends StatelessWidget {
     );
   }
 }
- */
+
+class _PoppinsScope extends StatelessWidget {
+  final Widget child;
+  const _PoppinsScope({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context);
+
+    return Theme(
+      data: base.copyWith(
+        textTheme: GoogleFonts.poppinsTextTheme(base.textTheme),
+        primaryTextTheme: GoogleFonts.poppinsTextTheme(base.primaryTextTheme),
+        inputDecorationTheme: base.inputDecorationTheme.copyWith(
+          labelStyle: GoogleFonts.poppins(),
+          hintStyle: GoogleFonts.poppins(),
+          floatingLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+      ),
+      child: DefaultTextStyle(
+        style: GoogleFonts.poppins(),
+        child: child,
+      ),
+    );
+  }
+}

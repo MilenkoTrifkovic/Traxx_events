@@ -5,8 +5,8 @@ import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_count_page.
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
-import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage_refactored.dart';
-import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage_refactored.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographic_response_page.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menu_response_page.dart';
 
 /// Widget that displays preview content for a selected step
 class PreviewStepContent extends StatelessWidget {
@@ -49,7 +49,8 @@ class PreviewStepContent extends StatelessWidget {
           questionSetId: event.selectedDemographicQuestionSetId!,
         );
       case 'menu':
-        if (event.selectedMenuItemIds == null || event.selectedMenuItemIds!.isEmpty) {
+        if (event.selectedMenuItemIds == null ||
+            event.selectedMenuItemIds!.isEmpty) {
           return _buildPlaceholder('No menu items configured');
         }
         return GuestMenuSelectionPage.preview(
@@ -83,4 +84,3 @@ class PreviewStepContent extends StatelessWidget {
     );
   }
 }
-

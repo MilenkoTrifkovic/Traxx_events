@@ -117,11 +117,13 @@ class OrganisationLeftSection extends StatelessWidget {
   IconData _getStepIcon(int index) {
     switch (index) {
       case 0:
-        return Icons.check_circle_outline;
+        return Icons.badge_outlined; // Sales Representative
       case 1:
-        return Icons.check_circle_outline;
+        return Icons.location_on_outlined; // Location & Time
+      case 2:
+        return Icons.restaurant_outlined; // Restaurant Info
       default:
-        return Icons.circle;
+        return Icons.circle_outlined;
     }
   }
 }

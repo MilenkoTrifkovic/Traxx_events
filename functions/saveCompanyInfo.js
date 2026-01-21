@@ -55,13 +55,14 @@ export const saveCompanyInfo = onCall(async (request) => {
       address: {
         street: request.data.address.street,
         city: request.data.address.city,
-        state: request.data.address.state,
+        ...(request.data.address.country === "United States" && request.data.address.state && { state: request.data.address.state }), // Only include state for USA
         zip: request.data.address.zip.toString(),
         country: request.data.address.country,
       },
       timezone: request.data.timezone,
       currency: request.data.currency || "USD", // Default to USD if not provided
       logo: request.data.logo || null,
+      assignedSalesPersonId: request.data.assignedSalesPersonId || null, // Optional sales person reference
       isDisabled: false,
       createdAt: now,
       modifiedAt: now,

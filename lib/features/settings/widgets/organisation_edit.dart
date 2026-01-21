@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/features/settings/controllers/settings_screen_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
@@ -16,120 +17,156 @@ class OrganisationEdit extends StatelessWidget {
   final SettingsScreenController controller;
   const OrganisationEdit({super.key, required this.controller});
 
-  Widget buildPhoneLayout(
-      BuildContext context, OrganisationController organisationController) {
-    return Padding(
-      padding: AppPadding.all(context, paddingType: Sizes.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Profile photo at top
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.md),
-            child: ProfilePhotoSection(controller: controller),
-          ),
-          AppSpacing.verticalXxs(context),
-          SectionDivider(),
-          AppSpacing.verticalXxs(context),
-          // Organisation info form next
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.md),
-            child: OrganisationInfoFormSection(
-              controller: controller,
-              organisationController: organisationController,
-            ),
-          ),
-          AppSpacing.verticalXxs(context),
-          SectionDivider(),
-          AppSpacing.verticalXxs(context),
-          // Change password at bottom
-          Padding(
-            padding: AppPadding.horizontal(context, paddingType: Sizes.md),
-            child: ChangePasswordSection(controller: controller),
-          ),
-        ],
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final organisationController = Get.find<OrganisationController>();
+    final isPhone = ScreenSize.isPhone(context);
 
-  Widget buildDesktopTabletLayout(
-      BuildContext context, OrganisationController organisationController) {
+    if (isPhone) {
+      return Padding(
+        padding: AppPadding.all(context, paddingType: Sizes.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SectionCard(
+              title: 'Profile',
+              subtitle: 'Update logo and account info',
+              child: ProfilePhotoSection(controller: controller),
+            ),
+            AppSpacing.verticalSm(context),
+            _SectionCard(
+              title: 'Organisation',
+              subtitle: 'Company details and preferences',
+              child: OrganisationInfoFormSection(
+                controller: controller,
+                organisationController: organisationController,
+              ),
+            ),
+            AppSpacing.verticalSm(context),
+            _SectionCard(
+              title: 'Security',
+              subtitle: 'Change your password',
+              child: ChangePasswordSection(controller: controller),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ✅ Desktop / Tablet: 2-column grid with clean divider
     return Padding(
       padding: AppPadding.all(context, paddingType: Sizes.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final isTablet = ScreenSize.isTablet(context);
+
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Left column with a right border to simulate a divider
-              Expanded(
-                flex: 2,
-                child: Container(
-                  decoration: BoxDecoration(
-                    // color: Colors.red,
-                    border: Border(
-                      right: BorderSide(
-                        color: Theme.of(context).dividerColor,
-                        width: 1.0,
-                      ),
+              // Left column
+              SizedBox(
+                width: isTablet ? 340 : 380,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SectionCard(
+                      title: 'Profile',
+                      subtitle: 'Update logo and account info',
+                      child: ProfilePhotoSection(controller: controller),
                     ),
-                  ),
-                  child: Padding(
-                    padding:
-                        AppPadding.horizontal(context, paddingType: Sizes.md),
-                    child: Column(
-                      // crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ProfilePhotoSection(controller: controller),
-                        ChangePasswordSection(controller: controller),
-                      ],
+                    AppSpacing.verticalSm(context),
+                    _SectionCard(
+                      title: 'Security',
+                      subtitle: 'Change your password',
+                      child: ChangePasswordSection(controller: controller),
                     ),
-                  ),
+                  ],
                 ),
               ),
-              // Right column (no left border) — keep divider only on left Expanded
+
+              const SizedBox(width: 18),
+
+              // Divider (subtle)
+              Container(
+                width: 1,
+                height: 680,
+                color: const Color(0xFFE5E7EB),
+              ),
+
+              const SizedBox(width: 18),
+
+              // Right column (form)
               Expanded(
-                flex: ScreenSize.isDesktop(context) ? 5 : 3,
-                child: Transform.translate(
-                  offset: const Offset(-1, 0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        left: BorderSide(
-                          color: AppColors.textMuted,
-                          width: 1.0,
-                        ),
-                      ),
-                    ),
-                    child: Padding(
-                      padding:
-                          AppPadding.horizontal(context, paddingType: Sizes.md),
-                      child: OrganisationInfoFormSection(
-                        controller: controller,
-                        organisationController: organisationController,
-                      ),
-                    ),
+                child: _SectionCard(
+                  title: 'Organisation',
+                  subtitle: 'Company details and preferences',
+                  child: OrganisationInfoFormSection(
+                    controller: controller,
+                    organisationController: organisationController,
                   ),
                 ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  const _SectionCard({
+    required this.title,
+    this.subtitle,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final organisationController = Get.find<OrganisationController>();
-
-    // Return phone layout (column of three sections) when on small screens,
-    // otherwise keep the existing row-based layout used for tablet/desktop.
-    if (ScreenSize.isPhone(context)) {
-      return buildPhoneLayout(context, organisationController);
-    }
-
-    return buildDesktopTabletLayout(context, organisationController);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF111827),
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle!,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
   }
 }

@@ -353,23 +353,32 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   }
 }
 
-/// ✅ Radio group card (guest must pick 1)
 class MenuGroupCard extends StatelessWidget {
   final MenuGroupDto group;
   final MenuSelectionController controller;
+  final bool readOnly;
 
   const MenuGroupCard({
     super.key,
     required this.group,
     required this.controller,
+    this.readOnly = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, // ✅ same base as ungrouped
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: kBorder),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -390,32 +399,28 @@ class MenuGroupCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'Choose 1 item',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: kTextBody,
-                ),
+                style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               for (final it in group.items) ...[
-                RadioListTile<String>(
-                  value: it.id,
-                  groupValue: picked,
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (v) {
-                    if (v == null) return;
-                    controller.pickFromGroup(group.groupId, v);
-                  },
-                  title: Text(
-                    it.name,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    '${it.categoryLabel}${it.price != null ? " • ${it.price}" : ""}',
-                    style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: MenuSelectableTile(
+                    title: it.name,
+                    subtitle:
+                        '${(it.isVeg == true) ? "Veg" : (it.isVeg == false) ? "Non-Veg" : ""}'
+                        '${((it.isVeg == true) || (it.isVeg == false)) ? " • " : ""}'
+                        '${it.categoryLabel}${it.price != null ? " • ${it.price}" : ""}',
+                    description: it.description,
+                    isVeg: it.isVeg,
+                    selected: picked == it.id,
+                    readOnly: readOnly,
+                    onTap: () => controller.pickFromGroup(group.groupId, it.id),
+
+                    // ✅ NEW: image for group item
+                    imageUrl: it.imageUrl,
                   ),
                 ),
-                const Divider(height: 1),
               ],
             ],
           );

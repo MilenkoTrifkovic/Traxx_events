@@ -26,8 +26,8 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
-import 'package:traxx_wepapp/view/admin/event_details/demographicResponsePage_refactored.dart';
-import 'package:traxx_wepapp/view/admin/event_details/menuResponsePage_refactored.dart';
+import 'package:traxx_wepapp/view/admin/event_details/demographic_response_page.dart';
+import 'package:traxx_wepapp/view/admin/event_details/menu_response_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_rules_screen.dart';
@@ -35,6 +35,8 @@ import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dar
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_details_view.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/menus_view.dart';
 import 'package:traxx_wepapp/features/admin/admin_user_management/view/admin_user_list_page.dart';
+import 'package:traxx_wepapp/view/admin/widgets/sidebar.dart';
+import 'package:traxx_wepapp/view/admin/widgets/sidebar_nav_tiles.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
@@ -74,6 +76,9 @@ final GlobalKey<NavigatorState> guestNavigationKey =
     GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestAuthNavigatorKey =
     GlobalKey<NavigatorState>();
+const double kNavCollapseWidth = 900; // when to switch sidebar -> drawer
+final GlobalKey<ScaffoldState> hostShellScaffoldKey =
+    GlobalKey<ScaffoldState>();
 
 ///
 /// Structure:
@@ -266,6 +271,7 @@ GoRouter buildRouter() {
           // ✅ CREATE GuestLayoutController HERE (not later)
           final guestLayout =
               Get.put(GuestLayoutController(), tag: invitationId);
+
           // start loading event immediately
           guestLayout.loadEventCoverImageFromInvitation(invitationId);
 
@@ -294,7 +300,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-
           GoRoute(
             path: AppRoute.guestCompanionsInfo.path,
             builder: (context, state) {
@@ -373,13 +378,6 @@ GoRouter buildRouter() {
               );
             },
           ),
-          // GoRoute(
-          //   path: AppRoute.menuSelection.path,
-          //   builder: (context, state) {
-          //     final invitationId = state.uri.queryParameters['invitationId'] ?? '';
-          //     return GuestMenuSelectionPage(invitationId: invitationId);
-          //   },
-          // ),
           GoRoute(
             path: AppRoute.thankYou.path,
             redirect: (context, state) {
@@ -410,76 +408,93 @@ GoRouter buildRouter() {
       //HOST SHELL ROUTE
       ShellRoute(
         redirect: (context, state) {
-          if (!authController.isAuthenticated) {
-            print('Redirecting to welcome');
-            return AppRoute.welcome.path;
-          }
-
+          if (!authController.isAuthenticated) return AppRoute.welcome.path;
           if (!authController.isAuthenticatedAndVerified) {
-            print('Redirecting to email verification');
             return AppRoute.emailVerification.path;
           }
-
           if (!authController.companyInfoExists) {
-            print('Redirecting to organisation info form');
             return AppRoute.hostOrganisationInfoForm.path;
           }
-          print('redirecting in host shell route passed');
           return null;
         },
         navigatorKey: hostNavigatorKey,
         builder: (context, state, child) {
-          // Check if user is authenticated
           final User? currentUser = FirebaseAuth.instance.currentUser;
-          // if (currentUser == null || !currentUser.emailVerified) {
+
           if (currentUser == null) {
-            // If user is not authenticated, redirect to welcome
             WidgetsBinding.instance.addPostFrameCallback((_) {
               pushAndRemoveAllRoute(AppRoute.welcome, context);
-              // pushAndRemoveAllRoute(AppRoute.emailVerification, context);
             });
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
           final eventListController = Get.find<EventListController>();
-          final authController = Get.find<AuthController>();
-          Get.put(VenuesController());
-          Get.put(MenusListController());
-          Get.put(MenusScreenController());
-          Get.put(EventsController());
-          Get.put(OrganisationController(authController.organisationId!));
-          Get.put(UsersAndRolesController());
+          final authCtrl = Get.find<AuthController>();
+
+          if (!Get.isRegistered<VenuesController>())
+            Get.put(VenuesController());
+          if (!Get.isRegistered<MenusListController>())
+            Get.put(MenusListController());
+          if (!Get.isRegistered<MenusScreenController>())
+            Get.put(MenusScreenController());
+          if (!Get.isRegistered<EventsController>())
+            Get.put(EventsController());
+          if (!Get.isRegistered<OrganisationController>()) {
+            Get.put(OrganisationController(authCtrl.organisationId!));
+          }
+          if (!Get.isRegistered<UsersAndRolesController>())
+            Get.put(UsersAndRolesController());
 
           return Obx(() {
-            try {
-              if (eventListController.isLoading.value ||
-                  authController.isLoading.value) {
-                return Center(child: CircularProgressIndicator());
-              }
-              final location = state.matchedLocation;
-
-              // Treat these paths as Google Forms–style question pages
-              final isQuestionsPage = location
-                      .startsWith(AppRoute.hostQuestionSets.path) ||
-                  location.startsWith(AppRoute.hostQuestions.path) ||
-                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
-
-              const Color gfBackground = Color(0xFFF4F0FB);
-
-              return NavigationRailWrapper(
-                child: ContentWrapper(
-                  contentColor: isQuestionsPage
-                      ? gfBackground // Color(0xFFF4F0FB)
-                      : const Color.fromARGB(255, 247, 247, 247),
-                  header: getPageHeader(state, context: context),
-                  child: child,
-                ),
-              );
-            } catch (e) {
-              print('Exception in host shell route builder: $e');
-              return Center(child: Text('Error: $e'));
-              // Error Handling or redirection
+            if (eventListController.isLoading.value ||
+                authCtrl.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
             }
+
+            final location = state.matchedLocation;
+
+            // keep your lavender background for questions if you want
+            final isQuestionsPage = location
+                    .startsWith(AppRoute.hostQuestionSets.path) ||
+                location.startsWith(AppRoute.hostQuestions.path) ||
+                location.startsWith(AppRoute.hostQuestionSetQuestions.path) ||
+                location.startsWith(AppRoute.hostQuestionRules.path);
+
+            const Color gfBackground = Color(0xFFF4F0FB);
+            final contentColor = isQuestionsPage
+                ? gfBackground
+                : const Color.fromARGB(255, 247, 247, 247);
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < kNavCollapseWidth;
+
+                final header = getPageHeader(
+                  state,
+                  drawerScaffoldKey: isMobile ? hostShellScaffoldKey : null,
+                );
+
+                final page = ContentWrapper(
+                  contentColor: contentColor,
+                  header: header, // ✅ ALWAYS render header here
+                  child: child,
+                );
+
+                return KeyedSubtree(
+                  key: ValueKey('host_shell_${isMobile ? 'm' : 'd'}'),
+                  child: isMobile
+                      ? Scaffold(
+                          key: hostShellScaffoldKey,
+                          drawer: Drawer(
+                            child: HostDrawerMenuSidebar(
+                                location: state.matchedLocation),
+                          ),
+                          body: page,
+                        )
+                      : NavigationRailWrapper(child: page),
+                );
+              },
+            );
           });
         },
         routes: [
@@ -670,63 +685,20 @@ GoRouter buildRouter() {
         builder: (context, state, child) {
           final eventListController = Get.find<EventListController>();
           final authController = Get.find<AuthController>();
+
           return Obx(() {
-            try {
-              if (eventListController.isLoading.value ||
-                  authController.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final location = state.matchedLocation;
-
-              // Treat these paths as Google Forms–style question pages
-              final isQuestionsPage = location
-                      .startsWith(AppRoute.hostQuestionSets.path) ||
-                  location.startsWith(AppRoute.hostQuestions.path) ||
-                  location.startsWith(AppRoute.hostQuestionSetQuestions.path);
-
-              const Color gfBackground = Color(0xFFF4F0FB);
-
-              if (isQuestionsPage) {
-                // ✅ QUESTION PAGES:
-                // Header is drawn OUTSIDE ContentWrapper so it spans full width.
-                return NavigationRailWrapper(
-                  child: Column(
-                    children: [
-                      // full-width header
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 40,
-                          right: 40,
-                          top: 24,
-                          bottom: 8,
-                        ),
-                        child: getPageHeader(state, context: context),
-                      ),
-                      // content area with lavender background + limited-width body
-                      Expanded(
-                        child: ContentWrapper(
-                          contentColor: gfBackground,
-                          // no header here – body only
-                          child: child,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                // ✅ ALL OTHER PAGES – behave exactly as before
-                return NavigationRailWrapper(
-                  child: ContentWrapper(
-                    contentColor: const Color.fromARGB(255, 247, 247, 247),
-                    header: getPageHeader(state, context: context),
-                    child: child,
-                  ),
-                );
-              }
-            } catch (e) {
-              return Container(); //Temporary
+            if (eventListController.isLoading.value ||
+                authController.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
             }
+
+            return NavigationRailWrapper(
+              child: ContentWrapper(
+                contentColor: const Color.fromARGB(255, 247, 247, 247),
+                header: getPageHeader(state),
+                child: child,
+              ),
+            );
           });
         },
         routes: [
@@ -798,4 +770,198 @@ GoRouter buildRouter() {
     ],
     errorBuilder: (context, state) => CustomErrorPage(),
   );
+}
+
+Widget _buildHostBody({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+  required Color contentColor,
+  required bool isQuestionsPage,
+  required bool isMobile,
+  required Widget header,
+}) {
+  if (isQuestionsPage) {
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(
+            left: isMobile ? 16 : 40,
+            right: isMobile ? 16 : 40,
+            top: isMobile ? 12 : 24,
+            bottom: 8,
+          ),
+          child: header,
+        ),
+        Expanded(
+          child: ContentWrapper(
+            contentColor: contentColor,
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+
+  return ContentWrapper(
+    contentColor: contentColor,
+    header: header,
+    child: child,
+  );
+}
+
+class HostDrawerMenuSidebar extends StatelessWidget {
+  final String location;
+  const HostDrawerMenuSidebar({super.key, required this.location});
+
+  int _selectedIndexForLocation(String location) {
+    if (location.startsWith(AppRoute.hostEvents.path)) return 0;
+    if (location.startsWith(AppRoute.calendarView.path)) return 1;
+    if (location.startsWith(AppRoute.hostVenues.path)) return 2;
+    if (location.startsWith(AppRoute.hostMenus.path)) return 3;
+    if (location.startsWith(AppRoute.hostQuestionSets.path) ||
+        location.startsWith(AppRoute.hostQuestions.path) ||
+        location.startsWith(AppRoute.hostQuestionSetQuestions.path) ||
+        location.startsWith(AppRoute.hostQuestionRules.path)) {
+      return 4;
+    }
+    if (location.startsWith(AppRoute.hostRoleSelection.path)) return 5;
+    if (location.startsWith(AppRoute.hostSettings.path)) return 6;
+    return 0;
+  }
+
+  Future<void> _onTapFromDrawer(BuildContext drawerCtx, int index) async {
+    // ✅ close drawer first
+    Navigator.of(drawerCtx).pop();
+
+    // ✅ choose where to navigate
+    AppRoute? route;
+    switch (index) {
+      case 0:
+        route = AppRoute.hostEvents;
+        break;
+      case 1:
+        route = AppRoute.calendarView;
+        break;
+      case 2:
+        route = AppRoute.hostVenues;
+        break;
+      case 3:
+        route = AppRoute.hostMenus;
+        break;
+      case 4:
+        route = AppRoute.hostQuestionSets;
+        break;
+      case 5:
+        route = AppRoute.hostRoleSelection;
+        break;
+      case 6:
+        route = AppRoute.hostSettings;
+        break;
+      case 7:
+        // Logout
+        try {
+          await Get.find<AuthController>().logout();
+        } catch (_) {}
+        final navCtx = hostNavigatorKey.currentContext ??
+            hostShellScaffoldKey.currentContext;
+        if (navCtx != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            pushAndRemoveAllRoute(AppRoute.welcome, navCtx);
+          });
+        }
+        return;
+    }
+
+    final navCtx =
+        hostNavigatorKey.currentContext ?? hostShellScaffoldKey.currentContext;
+    if (navCtx == null || route == null) return;
+
+    // ✅ navigate AFTER drawer closes (prevents deactivated ancestor errors)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      pushAndRemoveAllRoute(route!, navCtx);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIndex = _selectedIndexForLocation(location);
+
+    // Same items as your sidebar
+    final items = <NavItemData>[
+      const NavItemData(
+        label: 'Events',
+        icon: Icons.wine_bar_outlined,
+        selectedIcon: Icons.wine_bar,
+      ),
+      const NavItemData(
+        label: 'Calendar',
+        icon: Icons.calendar_month_outlined,
+        selectedIcon: Icons.calendar_month,
+      ),
+      const NavItemData(
+        label: 'Venues',
+        icon: Icons.location_on_outlined,
+        selectedIcon: Icons.location_on,
+      ),
+      const NavItemData(
+        label: 'Menus',
+        icon: Icons.restaurant_menu_outlined,
+        selectedIcon: Icons.restaurant_menu,
+      ),
+      const NavItemData(
+        label: 'Questions',
+        icon: Icons.quiz_outlined,
+        selectedIcon: Icons.quiz,
+      ),
+      const NavItemData(
+        label: 'Users',
+        icon: Icons.group_outlined,
+        selectedIcon: Icons.group,
+      ),
+      const NavItemData(
+        label: 'Settings',
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings,
+      ),
+      const NavItemData(
+        label: 'Logout',
+        icon: Icons.logout_outlined,
+        selectedIcon: Icons.logout,
+      ),
+    ];
+
+    final organisationName = Get.isRegistered<OrganisationController>()
+        ? Get.find<OrganisationController>().getOrganisationName()
+        : 'Trax Events';
+
+    final organisationPhotoUrl = Get.isRegistered<OrganisationController>()
+        ? Get.find<OrganisationController>().getOrganisationPhotoUrl()
+        : null;
+
+    // ✅ CRITICAL:
+    // Disable tooltips/hover effects inside Drawer to avoid "multiple tickers"
+    // and pointer hover issues on web.
+    return TooltipVisibility(
+      visible: false,
+      child: MouseRegion(
+        opaque: true,
+        onHover: (_) {}, // no-op to prevent hover-triggered rebuilds
+        child: Sidebar(
+          selectedIndex: selectedIndex,
+          items: items,
+          onTap: (i) => _onTapFromDrawer(context, i),
+
+          // Drawer should be expanded always (same look)
+          isExpanded: true,
+
+          organisationName: organisationName,
+          organisationPhotoUrl: organisationPhotoUrl,
+
+          // Drawer doesn't need collapse toggle, keep no-op
+          onToggleExpand: () {},
+        ),
+      ),
+    );
+  }
 }

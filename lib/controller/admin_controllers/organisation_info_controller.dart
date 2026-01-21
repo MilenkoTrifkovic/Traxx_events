@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 
 class OrganisationInfoController extends GetxController {
@@ -15,9 +16,17 @@ class OrganisationInfoController extends GetxController {
   final CloudFunctionsService _cloudFunctionsService =
       Get.find<CloudFunctionsService>();
   final AuthController _authController = Get.find<AuthController>();
+  final FirestoreServices _firestoreServices = FirestoreServices();
 
   // Current active step (0-indexed)
   var currentStep = 0.obs;
+
+  // Sales Person Form Controllers and Data
+  final refCodeController = TextEditingController();
+  var salesPersonValidationMessage = ''.obs;
+  var salesPersonFound = false.obs;
+  var assignedSalesPersonId = Rxn<String>();
+  var isRefCodeFormatValid = false.obs;
 
   // Location & Time Form Controllers and Data
   final addressController = TextEditingController();
@@ -25,7 +34,7 @@ class OrganisationInfoController extends GetxController {
   final zipController = TextEditingController();
 
   var selectedCountry = 'United States'.obs;
-  var selectedState = 'California'.obs; // default state
+  final Rxn<String> selectedState = Rxn<String>('California'); // default state for USA, nullable for other countries
   var selectedTimezone =
       'America/Los_Angeles (Pacific Time)'.obs; // default timezone
 
@@ -42,6 +51,11 @@ class OrganisationInfoController extends GetxController {
   // List of steps with their information
   final List<StepInfo> steps = [
     StepInfo(
+      icon: 'assets/icons/badge.png',
+      title: 'Sales Representative',
+      description: 'Enter your sales rep reference code (optional)',
+    ),
+    StepInfo(
       icon: 'assets/icons/location.png',
       title: 'Location & Time',
       description: 'Set your business location and time',
@@ -54,8 +68,19 @@ class OrganisationInfoController extends GetxController {
   ];
 
   @override
+  void onInit() {
+    super.onInit();
+    // Add listener to refCodeController to validate format in real-time
+    refCodeController.addListener(_validateRefCodeFormat);
+    // Add listener to selectedCountry to handle state field visibility
+    ever(selectedCountry, _handleCountryChange);
+  }
+
+  @override
   void onClose() {
-    // Dispose controllers when controller is destroyed
+    // Remove listener and dispose controllers when controller is destroyed
+    refCodeController.removeListener(_validateRefCodeFormat);
+    refCodeController.dispose();
     addressController.dispose();
     cityController.dispose();
     zipController.dispose();
@@ -63,6 +88,44 @@ class OrganisationInfoController extends GetxController {
     phoneController.dispose();
     websiteController.dispose();
     super.onClose();
+  }
+
+  /// Handles country change to manage state field
+  void _handleCountryChange(String country) {
+    if (country != 'United States') {
+      // Clear state for non-USA countries
+      selectedState.value = null;
+    } else {
+      // Set state to null for USA so user must select
+      selectedState.value = null;
+    }
+  }
+
+  /// Validates the ref code format (LLLnnn) in real-time
+  void _validateRefCodeFormat() {
+    final refCode = refCodeController.text.trim();
+
+    // Empty is considered valid (optional field)
+    if (refCode.isEmpty) {
+      isRefCodeFormatValid.value = false;
+      return;
+    }
+
+    // Validate format: 3 letters followed by 3 digits
+    final refCodeRegex = RegExp(r'^[A-Za-z]{3}\d{3}$');
+    isRefCodeFormatValid.value = refCodeRegex.hasMatch(refCode);
+  }
+
+  /// Skips the sales person step
+  void skipSalesPersonStep() {
+    // Clear any validation messages
+    salesPersonValidationMessage.value = '';
+    salesPersonFound.value = false;
+    assignedSalesPersonId.value = null;
+    refCodeController.clear();
+
+    // Move to next step
+    nextStep();
   }
 
   // Logo selection method
@@ -89,6 +152,59 @@ class OrganisationInfoController extends GetxController {
 
   void removeLogo() {
     selectedImagePath.value = null;
+  }
+
+  /// Validates sales person reference code and fetches sales person data
+  /// Returns true if valid or if ref code is empty (optional field)
+  /// Returns false if ref code format is invalid or sales person not found
+  Future<bool> validateAndFetchSalesPerson() async {
+    final refCode = refCodeController.text.trim().toUpperCase();
+
+    // Reset validation state
+    salesPersonValidationMessage.value = '';
+    salesPersonFound.value = false;
+    assignedSalesPersonId.value = null;
+
+    // If empty, it's optional - allow to proceed
+    if (refCode.isEmpty) {
+      return true;
+    }
+
+    // Validate format: 3 letters followed by 3 digits
+    final refCodeRegex = RegExp(r'^[A-Za-z]{3}\d{3}$');
+    if (!refCodeRegex.hasMatch(refCode)) {
+      salesPersonValidationMessage.value =
+          'Invalid format. Expected: 3 letters + 3 digits (e.g., PER234)';
+      return false;
+    }
+
+    try {
+      // Fetch sales person from Firestore
+      print('🔍 Fetching sales person with refCode: $refCode');
+      final salesPerson =
+          await _firestoreServices.getSalesPersonByRefCode(refCode);
+
+      if (salesPerson != null) {
+        // Sales person found
+        salesPersonFound.value = true;
+        assignedSalesPersonId.value = salesPerson.docId;
+        salesPersonValidationMessage.value =
+            'Sales representative found: ${salesPerson.name}';
+        print(
+            '✅ Sales person found: ${salesPerson.name} (${salesPerson.docId})');
+        return true;
+      } else {
+        // Sales person not found
+        salesPersonValidationMessage.value =
+            'Invalid reference code: $refCode';
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error fetching sales person: $e');
+      salesPersonValidationMessage.value =
+          'Error validating reference code. Please try again.';
+      return false;
+    }
   }
 
   /// Clears the current error message
@@ -177,6 +293,8 @@ class OrganisationInfoController extends GetxController {
       country: selectedCountry.value,
       timezone: _extractTimezoneId(selectedTimezone.value),
       logo: uploadedLogoPath.value, // storage path
+      assignedSalesPersonId:
+          assignedSalesPersonId.value, // assigned sales person
       createdAt: DateTime.now(),
       modifiedDate: DateTime.now(),
       isDisabled: false,
@@ -221,7 +339,7 @@ class OrganisationInfoController extends GetxController {
 
       return savedOrganisation;
     } catch (e) {
-      print('Error saving organisation: $e');
+      print('Error saving organisation 2: $e');
       if (errorMessage.value == null) {
         errorMessage.value = 'Failed to save organisation. Please try again.';
       }

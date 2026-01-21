@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
@@ -40,7 +41,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
             child: child,
           );
 
-      final fields = [
+      return Obx(() {
+        final List<Widget> fields = [
         wrapChild(Obx(() => AppTextInputField(
               label: 'Company Name',
               controller: controller.companyNameController,
@@ -88,6 +90,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               value: controller.selectedTimezone.value,
               hintText: 'Select timezone',
               enabled: controller.isEditing.value,
+              enableSearch: true,
+              searchExtractor: (timezone) => timezone,
               items: USData.timezones
                   .map((tz) => DropdownMenuItem<String>(
                         value: tz,
@@ -105,6 +109,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               value: controller.selectedCountry.value,
               hintText: 'Select country',
               enabled: controller.isEditing.value,
+              enableSearch: true,
+              searchExtractor: (country) => country,
               items: USData.countries
                   .map((c) => DropdownMenuItem<String>(
                         value: c,
@@ -117,48 +123,54 @@ class OrganisationInfoFormSection extends StatelessWidget {
               validator: (v) =>
                   ValidationHelper.validateDropdownSelection(v, 'country'),
             ))),
-        wrapChild(Obx(() => AppDropdownMenu<String>(
-              label: 'State',
-              value: controller.selectedState.value,
-              hintText: 'Select state',
-              enabled: controller.isEditing.value,
-              items: USData.states
-                  .map((s) => DropdownMenuItem<String>(
-                        value: s,
-                        child: Text(s),
-                      ))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) controller.selectedState.value = v;
-              },
-              validator: (v) =>
-                  ValidationHelper.validateDropdownSelection(v, 'state'),
-            ))),
+        // State dropdown - Only for United States (reactive to country changes)
+        // Use conditional spread operator to completely exclude from list when not USA
+        ...controller.selectedCountry.value == 'United States'
+            ? [
+                wrapChild(Obx(() => AppDropdownMenu<String>(
+                      label: 'State',
+                      value: controller.selectedState.value,
+                      hintText: 'Select state',
+                      enabled: controller.isEditing.value,
+                      enableSearch: true,
+                      searchExtractor: (state) => state,
+                      items: USData.states
+                          .map((s) => DropdownMenuItem<String>(
+                                value: s,
+                                child: Text(s),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) controller.selectedState.value = v;
+                      },
+                      validator: (v) =>
+                          ValidationHelper.validateDropdownSelection(v, 'state'),
+                    )))
+              ]
+            : [],
         wrapChild(Obx(() => AppDropdownMenu<String>(
               label: 'Currency',
               value: controller.selectedCurrency.value,
               hintText: 'Select currency',
               enabled: controller.isEditing.value,
-              items: MoneyHelper.commonCurrencyCodes
-                  .map((code) {
-                    final symbol = MoneyHelper.getSymbol(code);
-                    return DropdownMenuItem<String>(
-                      value: code,
-                      child: Text('$code ($symbol)'),
-                    );
-                  })
-                  .toList(),
+              items: MoneyHelper.commonCurrencyCodes.map((code) {
+                final symbol = MoneyHelper.getSymbol(code);
+                return DropdownMenuItem<String>(
+                  value: code,
+                  child: Text('$code ($symbol)'),
+                );
+              }).toList(),
               onChanged: (v) {
                 if (v != null) controller.selectedCurrency.value = v;
               },
               validator: (v) =>
                   ValidationHelper.validateDropdownSelection(v, 'currency'),
             ))),
-      ];
+        ];
 
-      return Form(
-        key: _formKey,
-        child: Column(
+        return Form(
+          key: _formKey,
+          child: Column(
           // crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (isDesktop)
@@ -173,6 +185,58 @@ class OrganisationInfoFormSection extends StatelessWidget {
                         ))
                     .toList(),
               ),
+            // ✅ Toggle row
+            Obx(() {
+              final show = organisationController.showMenuItemPrices.value;
+              final saving = organisationController.isLoading.value;
+
+              return Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            show
+                                ? 'Show Menu Items Price'
+                                : 'Hide menu items price',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Applies across menus, event details, and selection popup.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: const Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: show,
+                      onChanged: saving
+                          ? null
+                          : (v) => organisationController
+                              .updateShowMenuItemPrices(v),
+                    ),
+                  ],
+                ),
+              );
+            }),
 
             AppSpacing.verticalSm(context),
             // Actions: align the buttons' right edge with the form fields above.
@@ -269,7 +333,8 @@ class OrganisationInfoFormSection extends StatelessWidget {
               ),
           ],
         ),
-      );
+        );
+      });
     });
   }
 }

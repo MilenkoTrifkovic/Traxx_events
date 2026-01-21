@@ -182,6 +182,7 @@ export async function fetchMenuItemsByIds(allIds) {
         name: d.name || d.title || "Menu item",
         description: (d.description ?? "").toString(),
         price: d.price ?? null,
+        imageUrl: d.imageUrl ?? null,
         categoryKey,
         categoryLabel: categoryLabelFromKey(categoryKey),
         isVeg: deriveIsVeg(d),

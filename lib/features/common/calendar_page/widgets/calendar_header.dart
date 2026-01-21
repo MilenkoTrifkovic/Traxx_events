@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
-import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
 /// Calendar header widget with responsive layouts for different screen sizes
 ///
@@ -29,178 +27,100 @@ class CalendarHeader extends StatelessWidget {
     required this.onFormatToggle,
   });
 
-  /// Helper method to get month name
-  String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
-    return months[month - 1];
-  }
-
-  /// Desktop/Tablet header layout - Single row with three sections
-  Widget _buildDesktopHeader(BuildContext context) {
-    return Row(
-      children: [
-        // Left section: Format button
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: AppPrimaryButton(
-              text: calendarFormat == CalendarFormat.month
-                  ? 'Month'
-                  : (calendarFormat == CalendarFormat.twoWeeks
-                      ? '2 weeks'
-                      : 'Week'),
-              onPressed: onFormatToggle,
-              height: 36.0,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              fontSize: 13.0,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-
-        // Center section: Month navigation
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(Icons.chevron_left,
-                  size: 24.0, color: AppColors.primaryAccent),
-              onPressed: onPreviousMonth,
-              padding: const EdgeInsets.all(8.0),
-              constraints: const BoxConstraints(),
-              tooltip: 'Previous month',
-            ),
-            const SizedBox(width: 8.0),
-            AppText.styledBodyLarge(
-              context,
-              '${_getMonthName(focusedDay.month)} ${focusedDay.year}',
-              weight: AppFontWeight.semiBold,
-              color: AppColors.primaryAccent,
-            ),
-            const SizedBox(width: 8.0),
-            IconButton(
-              icon: Icon(Icons.chevron_right,
-                  size: 24.0, color: AppColors.primaryAccent),
-              onPressed: onNextMonth,
-              padding: const EdgeInsets.all(8.0),
-              constraints: const BoxConstraints(),
-              tooltip: 'Next month',
-            ),
-          ],
-        ),
-
-        // Right section: Today button
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: AppPrimaryButton(
-              text: 'Today',
-              icon: Icons.today,
-              onPressed: onTodayPressed,
-              height: 36.0,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              fontSize: 13.0,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Phone header layout - Two rows for better mobile UX
-  Widget _buildPhoneHeader(BuildContext context) {
-    return Column(
-      children: [
-        // First row: Format and Today buttons
-        Row(
-          children: [
-            Expanded(
-              child: AppPrimaryButton(
-                text: calendarFormat == CalendarFormat.month
-                    ? 'Month'
-                    : (calendarFormat == CalendarFormat.twoWeeks
-                        ? '2 weeks'
-                        : 'Week'),
-                onPressed: onFormatToggle,
-                height: 36.0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                fontSize: 13.0,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 12.0),
-            Expanded(
-              child: AppPrimaryButton(
-                text: 'Today',
-                icon: Icons.today,
-                onPressed: onTodayPressed,
-                height: 36.0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                fontSize: 13.0,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12.0),
-
-        // Second row: Month navigation
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              icon: Icon(Icons.chevron_left,
-                  size: 24.0, color: AppColors.primaryAccent),
-              onPressed: onPreviousMonth,
-              padding: const EdgeInsets.all(8.0),
-              constraints: const BoxConstraints(),
-              tooltip: 'Previous month',
-            ),
-            const SizedBox(width: 12.0),
-            AppText.styledBodyLarge(
-              context,
-              '${_getMonthName(focusedDay.month)} ${focusedDay.year}',
-              weight: AppFontWeight.semiBold,
-              color: AppColors.primaryAccent,
-            ),
-            const SizedBox(width: 12.0),
-            IconButton(
-              icon: Icon(Icons.chevron_right,
-                  size: 24.0, color: AppColors.primaryAccent),
-              onPressed: onNextMonth,
-              padding: const EdgeInsets.all(8.0),
-              constraints: const BoxConstraints(),
-              tooltip: 'Next month',
-            ),
-          ],
-        ),
-      ],
-    );
+  String get _formatLabel {
+    switch (calendarFormat) {
+      case CalendarFormat.month:
+        return "Month";
+      case CalendarFormat.twoWeeks:
+        return "2 Weeks";
+      case CalendarFormat.week:
+        return "Week";
+      default:
+        return "Month";
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isPhone = ScreenSize.isPhone(context);
+    final monthTitle = DateFormat.yMMMM().format(focusedDay);
 
-    return isPhone ? _buildPhoneHeader(context) : _buildDesktopHeader(context);
+    final formatChip = TextButton.icon(
+      onPressed: onFormatToggle,
+      icon: const Icon(Icons.view_agenda_rounded, size: 18),
+      label: Text(_formatLabel),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.onSurface(context),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    final monthNav = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _iconCircle(
+          context,
+          icon: Icons.chevron_left_rounded,
+          onTap: onPreviousMonth,
+        ),
+        const SizedBox(width: 10),
+        Text(
+          monthTitle,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: AppFontWeight.bold,
+            color: AppColors.onSurface(context),
+          ),
+        ),
+        const SizedBox(width: 10),
+        _iconCircle(
+          context,
+          icon: Icons.chevron_right_rounded,
+          onTap: onNextMonth,
+        ),
+      ],
+    );
+
+    final todayBtn = TextButton.icon(
+      onPressed: onTodayPressed,
+      icon: const Icon(Icons.calendar_today_rounded, size: 16),
+      label: const Text("Today"),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.onSurface(context),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    // ✅ Wrap handles narrow widths without LayoutBuilder/Spacer issues
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        formatChip,
+        monthNav,
+        todayBtn,
+      ],
+    );
+  }
+
+  Widget _iconCircle(BuildContext context,
+      {required IconData icon, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.onSurface(context).withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderInput.withOpacity(0.55)),
+        ),
+        child: Icon(icon, color: AppColors.onSurface(context), size: 22),
+      ),
+    );
   }
 }

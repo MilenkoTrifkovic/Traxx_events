@@ -8,12 +8,6 @@ import { getStorage } from "firebase-admin/storage";
 import postmark from "postmark";
 import { randomBytes } from "crypto";
 
-
-// ✅ ESM-safe firebase-admin init
-// if (!getApps().length) initializeApp();
-// const db = getFirestore();
-
-// Secret
 const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
 // Config
@@ -48,38 +42,6 @@ function makeInvitationCode(len = 8) {
   return out;
 }
 
-async function generateUniqueInvitationCodeTx(tx, ignoreInvitationId) {
-  // In-transaction uniqueness check
-  for (let i = 0; i < 10; i++) {
-    const code = makeInvitationCode();
-    const q = db.collection("invitations").where("invitationCode", "==", code).limit(1);
-    const snap = await tx.get(q);
-
-    if (snap.empty) return code;
-
-    const existingId = snap.docs[0].id;
-    if (existingId === ignoreInvitationId) return code;
-  }
-  throw new Error("Failed to generate unique invitationCode (tx)");
-}
-
-async function generateUniqueInvitationCode(ignoreInvitationId) {
-  // Non-transaction uniqueness check (for case B)
-  for (let i = 0; i < 10; i++) {
-    const code = makeInvitationCode();
-    const snap = await db
-      .collection("invitations")
-      .where("invitationCode", "==", code)
-      .limit(1)
-      .get();
-
-    if (snap.empty) return code;
-
-    const existingId = snap.docs[0].id;
-    if (existingId === ignoreInvitationId) return code;
-  }
-  throw new Error("Failed to generate unique invitationCode");
-}
 function escapeHtml(s) {
   const str = (s ?? "").toString();
   return str
@@ -109,11 +71,6 @@ function pointerId(eventId, guestId) {
   return `${eventId}_${guestId}`;
 }
 
-/**
- * Converts a Firebase Storage path to a public URL
- * @param {string} storagePath - Path like "uploads/1767147239502.jpg"
- * @returns {Promise<string>} - Public URL or empty string if fails
- */
 async function getPublicUrlFromStoragePath(storagePath) {
   if (!storagePath || typeof storagePath !== "string") {
     console.warn("⚠️ getPublicUrlFromStoragePath: Empty or invalid storagePath", { storagePath });
@@ -552,18 +509,6 @@ export const sendInvitations = onCall(
               invitationCode: guestInvitationCode || "",
             },
           });
-
-          await invRef.update({
-            sent: true,
-            sentAt: Timestamp.now(),
-            postmarkMessageId: resp.MessageID,
-            sendError: null,
-            sendErrorStatus: null,
-            sendErrorBody: null,
-            sendAttemptCount: FieldValue.increment(1),
-            sendSuccessCount: FieldValue.increment(1),
-          });
-
           results.push({
             guestEmail,
             guestId: gid || null,
@@ -571,6 +516,37 @@ export const sendInvitations = onCall(
             invitationCode: guestInvitationCode || null,
             status: "sent",
           });
+          try {
+             await invRef.update({
+              sent: true,
+              sentAt: Timestamp.now(),
+              postmarkMessageId: resp.MessageID,
+              sendError: null,
+              sendErrorStatus: null,
+              sendErrorBody: null,
+              sendAttemptCount: FieldValue.increment(1),
+              sendSuccessCount: FieldValue.increment(1),
+            });
+          } catch (e) {
+            console.error("⚠️ invRef.update failed AFTER email sent:", e);
+          }
+          try {
+            if (gid) {
+              await db.collection("guests").doc(gid).set(
+                {
+                  isInvited: true,
+                  modifiedAt: Timestamp.now(),
+                  lastInvitedAt: Timestamp.now(),
+                  inviteSentCount: FieldValue.increment(1),
+                },
+                { merge: true }
+              );
+            }
+          } catch (e) {
+            console.error("⚠️ guest update failed AFTER email sent:", e);
+          }
+
+          
         } catch (err) {
           const status = err?.statusCode ?? err?.code ?? null;
           const msg = err?.message ?? String(err);
@@ -604,9 +580,13 @@ export const sendInvitations = onCall(
         results,
       });
 
+      const sentUnique = new Set(
+        results.filter(r => r.status === "sent").map(r => r.invitationId)
+      );
+
       return {
         ok: true,
-        invited: results.filter((r) => r.status === "sent").length,
+        invited: sentUnique.size,
         results,
       };
     } catch (err) {
@@ -617,351 +597,3 @@ export const sendInvitations = onCall(
     }
   }
 );
-
-
-// function emailLower(s) {
-//   return (s ?? "").toString().trim().toLowerCase();
-// }
-
-// function pickEarliestByCreatedAt(docs) {
-//   let chosen = docs[0];
-//   let chosenMs =
-//     chosen.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-
-//   for (const d of docs) {
-//     const ms = d.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-//     if (ms < chosenMs) {
-//       chosen = d;
-//       chosenMs = ms;
-//     }
-//   }
-//   return chosen;
-// }
-
-// async function findExistingInvitationDoc({ eventId, guestId, guestEmail }) {
-//   const eid = (eventId ?? "").toString().trim();
-//   const gid = (guestId ?? "").toString().trim();
-//   const email = (guestEmail ?? "").toString().trim();
-//   const emailL = emailLower(email);
-
-//   if (!eid) return null;
-
-//   // ✅ If guestId is provided, ONLY match by guestId (no email fallback)
-//   if (gid) {
-//     const snapById = await db
-//       .collection("invitations")
-//       .where("eventId", "==", eid)
-//       .where("guestId", "==", gid)
-//       .limit(10)
-//       .get();
-
-//     if (!snapById.empty) return pickEarliestByCreatedAt(snapById.docs);
-
-//     // Optional legacy-claim:
-//     // If old invites were created without guestId, we can "claim" only those where guestId is missing.
-//     if (emailL) {
-//       const snapLegacy = await db
-//         .collection("invitations")
-//         .where("eventId", "==", eid)
-//         .where("guestEmailLower", "==", emailL)
-//         .limit(20)
-//         .get();
-
-//       if (!snapLegacy.empty) {
-//         const candidates = snapLegacy.docs.filter((d) => {
-//           const existingGid = (d.data()?.guestId ?? "").toString().trim();
-//           return !existingGid; // only if guestId missing
-//         });
-
-//         if (candidates.length) return pickEarliestByCreatedAt(candidates);
-//       }
-//     }
-
-//     return null;
-//   }
-
-//   // ✅ If guestId is NOT provided, fallback to email-based match
-//   if (emailL) {
-//     const snapByLower = await db
-//       .collection("invitations")
-//       .where("eventId", "==", eid)
-//       .where("guestEmailLower", "==", emailL)
-//       .limit(10)
-//       .get();
-
-//     if (!snapByLower.empty) return pickEarliestByCreatedAt(snapByLower.docs);
-//   }
-
-//   if (email) {
-//     const snapByExact = await db
-//       .collection("invitations")
-//       .where("eventId", "==", eid)
-//       .where("guestEmail", "==", email)
-//       .limit(10)
-//       .get();
-
-//     if (!snapByExact.empty) return pickEarliestByCreatedAt(snapByExact.docs);
-//   }
-
-//   return null;
-// }
-
-
-
-
-// function makeToken() {
-//   return randomBytes(24).toString("hex");
-// }
-
-// function escapeHtml(s) {
-//   const str = (s ?? "").toString();
-//   return str
-//     .replaceAll("&", "&amp;")
-//     .replaceAll("<", "&lt;")
-//     .replaceAll(">", "&gt;")
-//     .replaceAll('"', "&quot;")
-//     .replaceAll("'", "&#039;");
-// }
-
-// export const sendInvitations = onCall(
-//   { secrets: [POSTMARK_SERVER_TOKEN] },
-//   async (request) => {
-//     try {
-//       if (!APP_BASE_URL) {
-//         throw new HttpsError("failed-precondition", "APP_BASE_URL missing");
-//       }
-
-//       const {
-//         eventId,
-//         organisationId,
-//         invitations,
-//         demographicQuestionSetId,
-//         staticLink, // not used
-//         invitationCode,
-//       } = request.data || {};
-
-//       if (!eventId) {
-//         throw new HttpsError("invalid-argument", "eventId is required");
-//       }
-
-//       if (!Array.isArray(invitations) || invitations.length === 0) {
-//         throw new HttpsError("invalid-argument", "invitations array required");
-//       }
-
-//       const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
-//       console.log("Postmark token length:", token.length);
-
-//       if (!token) {
-//         throw new HttpsError(
-//           "failed-precondition",
-//           "POSTMARK_SERVER_TOKEN missing/empty at runtime."
-//         );
-//       }
-
-//       const client = new postmark.ServerClient(token);
-
-//       const createdAt = Timestamp.now();
-//       const results = [];
-
-//       for (const guest of invitations) {
-//         const guestEmail = (guest?.guestEmail || "").trim();
-//         const guestName = (guest?.guestName || "").trim();
-//         const guestId = guest?.guestId || null;
-
-//         const maxGuestInvite =
-//           typeof guest?.maxGuestInvite === "number" ? guest.maxGuestInvite : 0;
-
-//         const batchId = guest?.batchId || null;
-
-//         if (!guestEmail) continue;
-
-//         // ✅ Find existing invitation (for resend)
-//         const existing = await findExistingInvitationDoc({
-//           eventId,
-//           guestId,
-//           guestEmail,
-//         });
-
-//         // ✅ Reuse same doc id if found, else create new
-//         let ref;
-
-//       if (existing) {
-//         ref = existing.ref;
-//       } else if (guestId) {
-//         // ✅ deterministic doc id per event+guest
-//         ref = db.collection("invitations").doc(invitationDocId(eventId, guestId));
-//       } else {
-//         // fallback when guestId missing
-//         ref = db.collection("invitations").doc();
-//       }
-
-//         const invitationId = ref.id;
-
-//         // ✅ Keep SAME token if exists (so link remains same)
-//         let inviteToken = existing?.data()?.token;
-//         if (!inviteToken) inviteToken = makeToken();
-
-//         // ✅ Refresh expiry on every send/resend
-//         const expiresAt = Timestamp.fromMillis(
-//           Date.now() + INV_EXPIRY_DAYS * 24 * 60 * 60 * 1000
-//         );
-
-//         // ✅ Upsert invitation doc (merge so we don't wipe fields)
-//         await ref.set(
-//           {
-//             invitationId,
-//             eventId,
-//             organisationId: organisationId || null,
-//             guestId,
-//             guestEmail,
-//             guestEmailLower: emailLower(guestEmail),
-//             guestName,
-//             maxGuestInvite,
-//             demographicQuestionSetId: demographicQuestionSetId || null,
-//             token: inviteToken,
-
-//             used: existing?.data()?.used ?? false,
-//             createdAt: existing?.data()?.createdAt ?? createdAt,
-//             expiresAt,
-
-//             sent: false,
-
-//             ...(invitationCode && { invitationCode }),
-//             ...(batchId && { batchId }),
-
-//             lastSendAttemptAt: Timestamp.now(),
-//           },
-//           { merge: true }
-//         );
-
-//         const link =
-//           `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invitationId)}` +
-//           `&token=${encodeURIComponent(inviteToken)}` +
-//           `&v=${Date.now()}`;
-
-//         const subject = "RSVP & Complete your details";
-
-//         const textBody =
-//           `Hello${guestName ? " " + guestName : ""},\n\n` +
-//           `Please open this link to RSVP and complete your details:\n${link}\n\n` +
-//           `You may be asked companion questions depending on your RSVP and guest count.\n\n` +
-//           `This link expires in ${INV_EXPIRY_DAYS} days.\n\n— ${FROM_NAME}`;
-
-//         const safeName = guestName ? escapeHtml(guestName) : "";
-
-//         // Build HTML reference information
-//         let htmlReferenceInfo = "";
-//         if (invitationCode || batchId) {
-//           htmlReferenceInfo =
-//             '<p style="color:#6b7280;font-size:13px;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb">';
-//           htmlReferenceInfo += "<strong>Reference Information:</strong><br/>";
-//           if (invitationCode)
-//             htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(
-//               invitationCode
-//             )}</strong><br/>`;
-//           if (batchId)
-//             htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
-//           htmlReferenceInfo += "</p>";
-//         }
-
-//         const htmlBody = `
-//           <div style="font-family: Poppins, sans-serif; line-height: 1.5;">
-//             <p>Hello${safeName ? " " + safeName : ""},</p>
-
-//             <p>Please click the button below to RSVP, complete demographics, then choose your preferred menu items.</p>
-
-//             <p style="color:#6b7280;font-size:13px;margin-top:10px">
-//               You may see follow-up questions depending on your answers.
-//             </p>
-
-//             <p style="margin: 18px 0;">
-//               <a href="${link}" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">
-//                 Open RSVP
-//               </a>
-//             </p>
-
-//             <p style="color:#6b7280;font-size:13px">
-//               If the button doesn’t work, copy and paste this link into your browser:<br/>
-//               <a href="${link}">${link}</a>
-//             </p>
-
-//             <p style="color:#6b7280;font-size:13px">
-//               This link expires in ${INV_EXPIRY_DAYS} days.
-//             </p>
-
-//             ${htmlReferenceInfo}
-
-//             <p>— ${escapeHtml(FROM_NAME)}</p>
-//           </div>
-//         `;
-
-//         try {
-//           const resp = await client.sendEmail({
-//             From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-//             To: guestEmail,
-//             Subject: subject,
-//             TextBody: textBody,
-//             HtmlBody: htmlBody,
-//             MessageStream: MESSAGE_STREAM,
-//             Metadata: { invitationId, eventId },
-//           });
-
-//           await ref.update({
-//             sent: true,
-//             sentAt: Timestamp.now(),
-//             postmarkMessageId: resp.MessageID,
-
-//             sendError: null,
-//             sendErrorStatus: null,
-//             sendErrorBody: null,
-
-//             sendAttemptCount: FieldValue.increment(1),
-//             sendSuccessCount: FieldValue.increment(1),
-//           });
-
-//           results.push({ guestEmail, invitationId, status: "sent" });
-//         } catch (err) {
-//           const status = err?.statusCode ?? err?.code ?? null;
-//           const msg = err?.message ?? String(err);
-//           const body = err?.response?.body ?? err?.body ?? null;
-
-//           await ref.update({
-//             sent: false,
-//             sentAt: Timestamp.now(),
-//             sendError: msg,
-//             sendErrorStatus: status,
-//             sendErrorBody: body,
-
-//             sendAttemptCount: FieldValue.increment(1),
-//           });
-
-//           results.push({
-//             guestEmail,
-//             invitationId,
-//             status: "failed",
-//             error: msg,
-//             statusCode: status,
-//           });
-//         }
-//       }
-
-//       await db.collection("invitationLogs").add({
-//         eventId,
-//         organisationId: organisationId || null,
-//         createdAt: Timestamp.now(),
-//         results,
-//       });
-
-//       return {
-//         ok: true,
-//         invited: results.filter((r) => r.status === "sent").length,
-//         results,
-//       };
-//     } catch (err) {
-//       console.error("sendInvitations error:", err);
-//       throw err instanceof HttpsError
-//         ? err
-//         : new HttpsError("internal", err?.message ?? "Unknown error");
-//     }
-//   }
-// );

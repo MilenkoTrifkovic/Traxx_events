@@ -7,97 +7,107 @@ import 'package:traxx_wepapp/controller/menus_screen_controller.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/add_menu_category_popup.dart';
 import 'package:traxx_wepapp/view/admin/venues_and_menus/widgets/create_menu_popup_view.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
-import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 import 'package:traxx_wepapp/widgets/app_search_input_field.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class MenusManagementHeader extends StatelessWidget {
   MenusManagementHeader({super.key});
 
-  // use existing controllers registered with Get
   final MenusScreenController createController =
       Get.find<MenusScreenController>();
   final MenusListController listController = Get.find<MenusListController>();
   final SnackbarMessageController snackbarMessageController =
       Get.find<SnackbarMessageController>();
-  
-  // create controller for category management
+
   final MenuCategoryController categoryController =
       Get.put(MenuCategoryController());
 
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final isDesktop = ScreenSize.isDesktop(context);
+    final titleSize = w < 600 ? 26.0 : (w < 1200 ? 32.0 : 40.0);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AppText.styledHeadingLarge(context, 'Menus'),
+        // ✅ White Poppins heading
+        Text(
+          'Menus',
+          style: GoogleFonts.poppins(
+            fontSize: titleSize,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+
         Row(
           children: [
-            if (ScreenSize.isDesktop(context) == true)
+            if (isDesktop) ...[
               AppSearchInputField(
                 hintText: 'Search menus...',
                 onChanged: (value) {
-                  // this will trigger _applyFilters() in controller
                   listController.searchQuery.value = value;
                 },
               ),
-            AppSpacing.horizontalXs(context),
-            AppSecondaryButton(
+              AppSpacing.horizontalXs(context),
+            ],
+
+            // ✅ Menu Categories — SAME style as "Preview Guest Page"
+            AppPrimaryButton(
+              text: isDesktop ? 'Menu Categories' : '',
               icon: Icons.category_outlined,
-              text: 'Menu Categories',
+              height: 44,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(1),
+                  Colors.white.withOpacity(0.8),
+                ],
+              ),
               onPressed: () {
-                // Clear form before opening dialog to ensure fresh state
                 categoryController.clearForm();
-                
+
                 showDialog(
                   context: context,
                   barrierDismissible: true,
-                  builder: (context) {
-                    return AddMenuCategoryPopup(
-                      controller: categoryController,
-                    );
-                  },
-                ).then((categoryName) async {
-                  // Clear form after dialog closes as well (for safety)
+                  builder: (_) => AddMenuCategoryPopup(
+                    controller: categoryController,
+                  ),
+                ).then((_) {
                   categoryController.clearForm();
-                  
-                  if (categoryName != null && categoryName is String) {
-                    // Category already saved by controller
-                    // Success message already shown
-                  }
                 });
               },
             ),
+
             AppSpacing.horizontalXs(context),
+
+            // ✅ Add Menu (keep your primary style)
             AppPrimaryButton(
               icon: Icons.add,
-              text: 'Add Menu',
+              text: isDesktop ? 'Add Menu' : '',
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (context) {
-                    return CreateMenuPopupView(
-                      controller: createController,
-                    );
-                  },
+                  builder: (_) => CreateMenuPopupView(
+                    controller: createController,
+                  ),
                 ).then((value) async {
-                  if (value != null && value is bool && value) {
+                  if (value == true) {
                     try {
                       showLoadingIndicator();
-                      // submitForm now returns MenuModel
                       final MenuModel createdMenuSet =
                           await createController.submitForm();
-
-                      // update list UI (expects MenuModel)
                       listController.addMenuSet(createdMenuSet);
 
                       snackbarMessageController
                           .showSuccessMessage('Menu created successfully.');
-                    } on Exception {
+                    } catch (_) {
                       snackbarMessageController
                           .showErrorMessage('Error creating menu');
                     } finally {

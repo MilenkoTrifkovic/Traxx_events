@@ -112,6 +112,8 @@ class CreateVenuePopupView extends StatelessWidget {
                       label: 'Country',
                       value: controller.selectedCountry.value,
                       hintText: 'Select country',
+                      enableSearch: true,
+                      searchExtractor: (country) => country,
                       validator: (value) =>
                           ValidationHelper.validateDropdownSelection(
                               value, 'country'),
@@ -129,31 +131,35 @@ class CreateVenuePopupView extends StatelessWidget {
                     )),
 
                 // State and Zip Row
-                Row(
+                Obx(() => Row(
                   children: [
-                    // State Dropdown
-                    Expanded(
-                      child: Obx(() => AppDropdownMenu<String>(
-                            label: 'State',
-                            value: controller.selectedState.value,
-                            hintText: 'Select state',
-                            validator: (value) =>
-                                ValidationHelper.validateDropdownSelection(
-                                    value, 'state'),
-                            items: USData.states.map((String state) {
-                              return DropdownMenuItem<String>(
-                                value: state,
-                                child: Text(state),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                controller.selectedState.value = newValue;
-                              }
-                            },
-                          )),
-                    ),
-                    const SizedBox(width: 16),
+                    // State Dropdown - Only for United States
+                    if (controller.selectedCountry.value == 'United States')
+                      Expanded(
+                        child: AppDropdownMenu<String>(
+                              label: 'State',
+                              value: controller.selectedState.value,
+                              hintText: 'Select state',
+                              enableSearch: true,
+                              searchExtractor: (state) => state,
+                              validator: (value) =>
+                                  ValidationHelper.validateDropdownSelection(
+                                      value, 'state'),
+                              items: USData.states.map((String state) {
+                                return DropdownMenuItem<String>(
+                                  value: state,
+                                  child: Text(state),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  controller.selectedState.value = newValue;
+                                }
+                              },
+                            ),
+                      ),
+                    if (controller.selectedCountry.value == 'United States')
+                      const SizedBox(width: 16),
                     // Zip Field
                     Expanded(
                       child: AppTextInputField(
@@ -164,7 +170,7 @@ class CreateVenuePopupView extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
+                )),
                 const SizedBox(height: 16),
               ],
             ),

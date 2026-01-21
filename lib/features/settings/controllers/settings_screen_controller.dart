@@ -24,7 +24,7 @@ class SettingsScreenController extends GetxController {
   late final TextEditingController zipController;
 
   var selectedCountry = ''.obs;
-  var selectedState = ''.obs;
+  final Rxn<String> selectedState = Rxn<String>(); // Nullable for non-USA countries
   var selectedTimezone = ''.obs;
   var selectedCurrency = ''.obs;
   var isEditing = false.obs;
@@ -62,6 +62,24 @@ class SettingsScreenController extends GetxController {
       orElse: () => USData.timezones.first,
     );
     selectedCurrency.value = organisation.currency;
+    
+    // Add listener to handle country changes
+    ever(selectedCountry, _handleCountryChange);
+  }
+
+  /// Handles country change to manage state field
+  void _handleCountryChange(String country) {
+    print('🌍 Country changed to: $country');
+    if (country != 'United States') {
+      // Clear state for non-USA countries
+      selectedState.value = null;
+      print('❌ Clearing state (country is not USA)');
+      print('State is now: ${selectedState.value}');
+    } else {
+      // Set state to null for USA so user must select
+      selectedState.value = null;
+      print('⚠️ Clearing state - user must select a state for USA');
+    }
   }
 
   /// Pick an image from gallery (or camera) and upload it to Firebase Storage.
@@ -126,6 +144,7 @@ class SettingsScreenController extends GetxController {
         city: cityController.text.trim(),
         zip: zipController.text.trim(),
         state: selectedState.value,
+        clearState: selectedState.value == null, // Explicitly clear state when null
         country: selectedCountry.value,
         timezone: selectedTimezone.value,
         currency: selectedCurrency.value,

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/features/guest/guest_login/controllers/guest_login_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
+import 'package:traxx_wepapp/theme/app_font_poppins.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/constants.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -34,11 +36,9 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     super.initState();
     controller = Get.put(GuestLoginController());
 
-    // ✅ keep form validity updated no matter what
     _invitationCodeController.addListener(_onFieldChanged);
     _batchIdController.addListener(_onFieldChanged);
 
-    // run once for initial state (optional)
     _onFieldChanged();
   }
 
@@ -46,13 +46,11 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
   void dispose() {
     _invitationCodeController.removeListener(_onFieldChanged);
     _batchIdController.removeListener(_onFieldChanged);
-
     _invitationCodeController.dispose();
     _batchIdController.dispose();
     super.dispose();
   }
 
-  /// Handle form submission
   Future<void> _handleNext() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -63,7 +61,6 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     );
   }
 
-  /// Handle field changes to validate form
   void _onFieldChanged() {
     controller.validateForm(
       _invitationCodeController.text,
@@ -73,98 +70,82 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BackgroundScaffold(
-      child: SizedBox.expand(
-        child: Padding(
-          padding: AppPadding.all(context, paddingType: Sizes.xl),
-          child: Row(
-            children: [
-              // Left Panel - Guest Login Form
-              _buildLeftPanel(context),
-              // Right Panel - Guest Welcome Content
-              _buildRightPanel(context),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    return PoppinsTheme(
+      child: BackgroundScaffold(
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            final isPhone = w < 900;
 
-  /// Build left panel with login form
-  Widget _buildLeftPanel(BuildContext context) {
-    return Expanded(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: SingleChildScrollView(
-            child: Card(
-              elevation: 0,
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header Section
-                      _buildHeader(context),
+            final outerPad = w < 520 ? 16.0 : (w < 1200 ? 24.0 : 32.0);
+            final cardMaxW = w < 520 ? w : (w < 900 ? 460.0 : 420.0);
 
-                      SizedBox(height: AppSpacing.md(context)),
-
-                      // Form Section
-                      _buildForm(context),
-
-                      SizedBox(height: AppSpacing.lg(context)),
-
-                      // Next Button
-                      _buildNextButton(),
-                    ],
+            if (isPhone) {
+              // ✅ Phone: only form card, centered
+              return SizedBox.expand(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(outerPad),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: cardMaxW),
+                      child: _buildFormCard(context, pad: w < 520 ? 20 : 28),
+                    ),
                   ),
                 ),
+              );
+            }
+
+            // ✅ Tablet/Desktop: two panels
+            return SizedBox.expand(
+              child: Padding(
+                padding: EdgeInsets.all(outerPad),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: _buildFormCard(context, pad: 32),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 28),
+                    Expanded(
+                      flex: 7,
+                      child: _buildRightPanel(context),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  /// Build right panel with welcome message for guests
-  Widget _buildRightPanel(BuildContext context) {
-    // Only show on desktop/tablet, not on phone
-    if (ScreenSize.isPhone(context)) {
-      return const SizedBox.shrink();
-    }
-
-    return Expanded(
+  Widget _buildFormCard(BuildContext context, {required double pad}) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
       child: Padding(
-        padding: AppPadding.left(context, paddingType: Sizes.xl),
-        child: Container(
-          color: Colors.transparent,
+        padding: EdgeInsets.all(pad),
+        child: Form(
+          key: _formKey,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppText.styledHeadingLarge(
-                family: Constants.font2,
-                weight: FontWeight.bold,
-                context,
-                'Welcome, Guest!',
-                color: AppColors.white,
-              ),
-              SectionDivider(
-                height: 30,
-                thickness: 2,
-                color: AppColors.white,
-              ),
-              AppText.styledHeadingMedium(
-                weight: FontWeight.bold,
-                context,
-                'Enter your invitation code to access your personalized event experience',
-                color: AppColors.white,
-              ),
+              _buildHeader(context),
+              SizedBox(height: AppSpacing.md(context)),
+              _buildForm(context),
+              SizedBox(height: AppSpacing.lg(context)),
+              _buildNextButton(),
             ],
           ),
         ),
@@ -172,44 +153,69 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     );
   }
 
-  /// Build header with logo and title
+  Widget _buildRightPanel(BuildContext context) {
+    return Padding(
+      padding: AppPadding.left(context, paddingType: Sizes.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome, Guest!',
+            style: GoogleFonts.poppins(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          SectionDivider(
+            height: 30,
+            thickness: 2,
+            color: AppColors.white,
+          ),
+          Text(
+            'Enter your invitation code to access your personalized event experience',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.92),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Logo
-        Image.asset(
-          Constants.lightLogo,
-          height: 32,
-        ),
-
+        Image.asset(Constants.lightLogo, height: 32),
         SizedBox(height: AppSpacing.lg(context)),
-
-        // Title
-        AppText.styledHeadingSmall(
-          context,
+        Text(
           "Guest Login",
-          weight: AppFontWeight.bold,
-          color: AppColors.primary,
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primary,
+          ),
         ),
-
         SizedBox(height: AppSpacing.xxxs(context)),
-
-        // Subtitle
-        AppText.styledBodyMedium(
-          context,
+        Text(
           "Enter your invitation code and batch ID to continue",
-          color: AppColors.textMuted,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textMuted,
+          ),
         ),
       ],
     );
   }
 
-  /// Build form with two input fields
   Widget _buildForm(BuildContext context) {
     return Column(
       children: [
-        // Invitation Code Field
         AppTextInputField(
           label: 'Invitation Code',
           hintText: '9MTYJ7V5',
@@ -218,6 +224,7 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.characters,
+          width: double.infinity, // ✅ allow full width on small screens
           validator: (value) {
             final v = (value ?? '').trim().toUpperCase();
             if (v.isEmpty) return 'Invitation code is required';
@@ -228,10 +235,7 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
           },
           onChanged: (_) => _onFieldChanged(),
         ),
-
         SizedBox(height: AppSpacing.sm(context)),
-
-        // Batch ID Field
         AppTextInputField(
           label: 'Batch ID',
           hintText: '123456',
@@ -239,6 +243,7 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
           controller: _batchIdController,
           keyboardType: TextInputType.number,
           textInputAction: TextInputAction.done,
+          width: double.infinity, // ✅ allow full width on small screens
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'Batch ID is required';
@@ -255,7 +260,6 @@ class _GuestLoginPageState extends State<GuestLoginPage> {
     );
   }
 
-  /// Build Next button with loading state
   Widget _buildNextButton() {
     return Obx(
       () => AppPrimaryButton(

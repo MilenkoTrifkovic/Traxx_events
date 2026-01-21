@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -5,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/admin_event_details_controllers/admin_event_details_controller.dart';
+import 'package:traxx_wepapp/controller/admin_controllers/event_hosts_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/view/admin_guest_list.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
@@ -18,8 +21,10 @@ import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 import 'package:traxx_wepapp/utils/menu_cateogory_utils.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
+import 'package:traxx_wepapp/view/admin/event_details/widgets/event_host_list_section.dart';
 import 'package:traxx_wepapp/widgets/app_currency.dart';
 import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
+import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
@@ -43,23 +48,40 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
   @override
   void initState() {
     super.initState();
+
     Get.put(AdminGuestListController());
     controller = AdminEventDetailsController();
+
     controller.loadEvent(widget.eventId).then((_) {
       final guestCtrl = Get.find<AdminGuestListController>();
       guestCtrl.setEventId(widget.eventId);
+
+      final evt = controller.event.value;
+      if (evt != null) {
+        final tag = widget.eventId;
+
+        if (!Get.isRegistered<EventHostsController>(tag: tag)) {
+          Get.put(
+            EventHostsController(
+              eventDocId: widget.eventId, // ✅ use widget.eventId
+              organisationId: evt
+                  .organisationId, // ✅ needed for loadAvailableHosts + resend
+            ),
+            tag: tag,
+          );
+        }
+      }
+
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+        setState(() => isLoading = false);
       }
     });
   }
 
   @override
   void dispose() {
-    controller.dispose();
-    Get.delete<AdminGuestListController>();
+    Get.delete<EventHostsController>(tag: widget.eventId, force: true);
+    Get.delete<AdminGuestListController>(force: true);
     super.dispose();
   }
 
@@ -87,72 +109,90 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
       final isPublished = evt.status == EventStatus.published;
       final canInvite = hasDemo && hasMenu && isPublished;
 
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // EventDetailsHeader(
-            //   title: evt.name,
-            //   status: evt.status,
-            //   date: dateStr,
-            //   time: timeStr,
-            //   location: organisation?.city ?? '',
-            //   serviceType: evt.serviceType,
-            //   venue: venue?.name ?? '',
-            // ),
-            // const SizedBox(height: 24),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
 
-            /// Event details section
-            EventSummarySection(controller: controller),
+          final isPhone = w < 600;
+          final isTablet = w >= 600 && w < 1024;
+          final isNarrow = w < 1000; // stack columns below this
 
-            const SizedBox(height: 24),
+          final pagePadding = EdgeInsets.fromLTRB(
+            isPhone ? 16 : 24,
+            isPhone ? 12 : 16,
+            isPhone ? 16 : 24,
+            isPhone ? 24 : 40,
+          );
 
-            /// Row with Menu card + Demographic column (Demographic + Additional Info)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          final gap = isPhone ? 16.0 : 24.0;
+
+          return SingleChildScrollView(
+            padding: pagePadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: MenuSelectionCard(controller: controller),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Column(
+                // ✅ Event cover/summary
+                EventSummarySection(controller: controller),
+
+                SizedBox(height: gap),
+
+                // ✅ Menu + Demographic + Invitation (responsive)
+                if (isNarrow) ...[
+                  MenuSelectionCard(controller: controller),
+                  const SizedBox(height: 16),
+                  DemographicSelectionCard(controller: controller),
+                  const SizedBox(height: 16),
+                  Obx(() {
+                    final event = controller.event.value;
+                    if (event == null) return const SizedBox.shrink();
+                    return InvitationLetterSection(event: event);
+                  }),
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DemographicSelectionCard(controller: controller),
-                      const SizedBox(height: 16),
-                      Obx(() {
-                        final event = controller.event.value;
-                        if (event == null) return const SizedBox.shrink();
-                        return InvitationLetterSection(event: event);
-                      }),
+                      Expanded(
+                          child: MenuSelectionCard(controller: controller)),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            DemographicSelectionCard(controller: controller),
+                            const SizedBox(height: 16),
+                            Obx(() {
+                              final event = controller.event.value;
+                              if (event == null) return const SizedBox.shrink();
+                              return InvitationLetterSection(event: event);
+                            }),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
+                ],
+
+                SizedBox(height: gap),
+                EventAnalyzerCard(eventId: widget.eventId),
+
+                SizedBox(height: gap),
+
+                // ✅ Venue (already single column)
+                VenueSelectionCard(controller: controller),
+
+                SizedBox(height: gap),
+                EventHostsSection(tag: widget.eventId),
+
+                SizedBox(height: gap),
+                GuestListSection(
+                  eventName: evt.name,
+                  capacity: evt.capacity,
+                  canInvite: canInvite,
+                  maxInviteByGuest: evt.maxInviteByGuest,
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            EventAnalyzerCard(eventId: widget.eventId),
-
-            const SizedBox(height: 24),
-
-            /// Venue section
-            // VenueSelectionCard(controller: controller),
-            Row(children: [
-              Expanded(child: VenueSelectionCard(controller: controller)),
-            ]),
-            const SizedBox(height: 24),
-
-            /// Guest list section (keep Milenko’s logic, but inside a card)
-            /// Guest list section class returned to Original Folder from line 1905-2080
-            GuestListSection(
-              eventName: evt.name,
-              capacity: evt.capacity,
-              canInvite: canInvite,
-              maxInviteByGuest: evt.maxInviteByGuest,
-            ),
-          ],
-        ),
+          );
+        },
       );
     });
   }
@@ -333,8 +373,6 @@ class DemographicQuestionsPanelBody extends StatelessWidget {
 
 class DemographicSetPickerDialog extends StatefulWidget {
   final List<QuestionSet> sets;
-
-  /// Optional: if you still want the callback style.
   final ValueChanged<QuestionSet>? onSelected;
 
   const DemographicSetPickerDialog({
@@ -356,12 +394,20 @@ class _DemographicSetPickerDialogState
   String _search = '';
   QuestionSet? _selected;
 
+  // ✅ Phone: 0 = Sets, 1 = Preview
+  int _paneIndex = 0;
+
+  // ✅ Preview questions state
+  bool _previewLoading = false;
+  String? _previewError;
+  List<_PreviewQuestion> _previewQuestions = const [];
+
   @override
   void initState() {
     super.initState();
-    // default selection
     if (widget.sets.isNotEmpty) {
       _selected = widget.sets.first;
+      _loadPreviewQuestions(_selected!.questionSetId);
     }
   }
 
@@ -372,20 +418,45 @@ class _DemographicSetPickerDialogState
     super.dispose();
   }
 
+  // ---------------------------
+  // Safe helpers
+  // ---------------------------
+  String _descOf(QuestionSet s) {
+    final d = (s as dynamic).description;
+    return d == null ? '' : d.toString();
+  }
+
+  String _idOf(QuestionSet s) {
+    final id = (s as dynamic).questionSetId;
+    return id == null ? '' : id.toString();
+  }
+
+  String _titleOf(QuestionSet s) {
+    final t = (s as dynamic).title;
+    return t == null ? '' : t.toString();
+  }
+
+  // ---------------------------
+  // Filtering
+  // ---------------------------
   List<QuestionSet> get _filteredSets {
     final q = _search.trim().toLowerCase();
     if (q.isEmpty) return widget.sets;
 
     return widget.sets.where((s) {
-      final t = (s.title).toLowerCase();
-      final d = (s.description).toLowerCase();
-      final id = (s.questionSetId).toLowerCase();
+      final t = _titleOf(s).toLowerCase();
+      final d = _descOf(s).toLowerCase();
+      final id = _idOf(s).toLowerCase();
       return t.contains(q) || d.contains(q) || id.contains(q);
     }).toList();
   }
 
-  void _pick(QuestionSet s) {
+  void _pick(QuestionSet s, {required bool isPhone}) {
     setState(() => _selected = s);
+
+    // load preview
+    _loadPreviewQuestions(_idOf(s));
+
     if (_rightScrollController.hasClients) {
       _rightScrollController.animateTo(
         0,
@@ -393,17 +464,496 @@ class _DemographicSetPickerDialogState
         curve: Curves.easeInOut,
       );
     }
+
+    // ✅ on phone switch to preview pane automatically
+    if (isPhone) {
+      setState(() => _paneIndex = 1);
+    }
   }
 
   void _confirm() {
     final s = _selected;
     if (s == null) return;
 
-    // If caller provided callback, fire it
     widget.onSelected?.call(s);
-
-    // Always return selected for callers who await showDialog()
     Navigator.of(context).pop(s);
+  }
+
+  // ---------------------------
+  // Preview loader (unchanged logic)
+  // ---------------------------
+  Future<void> _loadPreviewQuestions(String setId) async {
+    final cleanId = setId.trim();
+
+    if (cleanId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _previewQuestions = const [];
+        _previewError = null;
+        _previewLoading = false;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _previewLoading = true;
+      _previewError = null;
+      _previewQuestions = const [];
+    });
+
+    Future<List<_PreviewQuestion>> _fetchBy({
+      required String fieldName,
+      required String value,
+    }) async {
+      final snap = await FirebaseFirestore.instance
+          .collection('demographicQuestions')
+          .where(fieldName, isEqualTo: value)
+          .get();
+
+      final out = <_PreviewQuestion>[];
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        final isDisabled = (data['isDisabled'] == true);
+        if (isDisabled) continue;
+
+        final q = _PreviewQuestion.fromMap(d.id, data);
+        if (q.text.trim().isEmpty) continue;
+
+        out.add(q);
+      }
+
+      out.sort((a, b) {
+        final ao = a.order ?? (1 << 30);
+        final bo = b.order ?? (1 << 30);
+        if (ao != bo) return ao.compareTo(bo);
+        return a.text.compareTo(b.text);
+      });
+
+      return out;
+    }
+
+    try {
+      List<_PreviewQuestion> list = await _fetchBy(
+        fieldName: 'questionSetId',
+        value: cleanId,
+      );
+
+      if (list.isEmpty) {
+        final setSnap = await FirebaseFirestore.instance
+            .collection('demographicQuestionSets')
+            .where('questionSetId', isEqualTo: cleanId)
+            .limit(1)
+            .get();
+
+        if (setSnap.docs.isNotEmpty) {
+          final docId = setSnap.docs.first.id.trim();
+          if (docId.isNotEmpty && docId != cleanId) {
+            list = await _fetchBy(fieldName: 'questionSetId', value: docId);
+          }
+        }
+      }
+
+      if (list.isEmpty) {
+        const fallbacks = <String>[
+          'questionSetID',
+          'setId',
+          'demographicQuestionSetId',
+        ];
+
+        for (final f in fallbacks) {
+          final alt = await _fetchBy(fieldName: f, value: cleanId);
+          if (alt.isNotEmpty) {
+            list = alt;
+            break;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _previewQuestions = list);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _previewError = e.toString());
+    } finally {
+      if (!mounted) return;
+      setState(() => _previewLoading = false);
+    }
+  }
+
+  // ---------------------------
+  // UI pieces
+  // ---------------------------
+  Widget _infoChip(String text, {bool highlight = false}) {
+    final bg = highlight ? Colors.green.shade50 : Colors.grey.shade50;
+    final border = highlight ? Colors.green.shade200 : Colors.grey.shade200;
+    final color = highlight ? Colors.green.shade800 : Colors.black87;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _setsPane({
+    required bool isPhone,
+    required List<QuestionSet> sets,
+    required QuestionSet? selected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E9EE)),
+      ),
+      child: sets.isEmpty
+          ? Center(
+              child: Text(
+                'No sets match your search',
+                style: GoogleFonts.poppins(color: Colors.grey),
+              ),
+            )
+          : Scrollbar(
+              controller: _leftScrollController,
+              thumbVisibility: true,
+              child: ListView.separated(
+                controller: _leftScrollController,
+                itemCount: sets.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, idx) {
+                  final s = sets[idx];
+                  final isSelected =
+                      selected != null && _idOf(selected) == _idOf(s);
+
+                  final desc = _descOf(s);
+
+                  return InkWell(
+                    onTap: () => _pick(s, isPhone: isPhone),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.blue.shade50 : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.blue.shade700
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.blue.shade600
+                                  : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.assignment_outlined,
+                              size: 18,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _titleOf(s),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  desc.trim().isEmpty ? 'No description' : desc,
+                                  maxLines: isPhone ? 1 : 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          TextButton(
+                            onPressed: () {
+                              _pick(s, isPhone: isPhone);
+                              _confirm();
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor:
+                                  isSelected ? Colors.black : Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: Text(
+                              isSelected ? 'Selected' : 'Pick',
+                              style: GoogleFonts.poppins(
+                                color: isSelected ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+
+  Widget _previewPane({
+    required bool isPhone,
+    required QuestionSet selected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Scrollbar(
+        controller: _rightScrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _rightScrollController,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Preview',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Selected details
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _titleOf(selected),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _descOf(selected).trim().isEmpty
+                          ? 'No description provided.'
+                          : _descOf(selected),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Questions',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (_previewLoading)
+                    Text(
+                      'Loading…',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    Text(
+                      '${_previewQuestions.length}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              if (_previewLoading) ...[
+                const LinearProgressIndicator(minHeight: 3),
+                const SizedBox(height: 10),
+              ] else if (_previewError != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    'Failed to load questions.\n$_previewError',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ] else if (_previewQuestions.isEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Text(
+                    'No questions found in this set.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < _previewQuestions.length; i++) ...[
+                        _questionPreviewTile(
+                          number: i + 1,
+                          text: _previewQuestions[i].text,
+                          isFollowUp:
+                              _previewQuestions[i].parentId.trim().isNotEmpty,
+                        ),
+                        if (i != _previewQuestions.length - 1)
+                          const Divider(height: 16),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 12),
+              Text(
+                'Tip: You can change this later anytime.',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _questionPreviewTile({
+    required int number,
+    required String text,
+    required bool isFollowUp,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 40,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  '$number',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            isFollowUp ? '↳ $text' : text,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF111827),
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -411,30 +961,40 @@ class _DemographicSetPickerDialogState
     final sets = _filteredSets;
     final selected = _selected;
 
+    final s = MediaQuery.sizeOf(context);
+    final isPhone = s.width < 600;
+    final isTablet = s.width >= 600 && s.width < 1024;
+
+    final dialogW = (s.width * (isPhone ? 0.98 : 0.94)).clamp(360.0, 1240.0);
+    final dialogH = (s.height * (isPhone ? 0.96 : 0.92)).clamp(560.0, 820.0);
+
     final totalCount = widget.sets.length;
     final filteredCount = sets.length;
 
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isPhone ? 10 : 20,
+        vertical: isPhone ? 10 : 20,
+      ),
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 1240,
-        height: 820,
+        width: dialogW,
+        height: dialogH,
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
+              color: Colors.black.withOpacity(0.18),
               blurRadius: 24,
               offset: const Offset(0, 12),
             )
           ],
         ),
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(isPhone ? 12 : 18),
         child: Column(
           children: [
-            // HEADER (matches your dishes popup feel)
+            // HEADER
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -447,7 +1007,7 @@ class _DemographicSetPickerDialogState
                     child: Text(
                       'Select demographic question set',
                       style: GoogleFonts.poppins(
-                        fontSize: 20,
+                        fontSize: isPhone ? 16 : 20,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -460,14 +1020,13 @@ class _DemographicSetPickerDialogState
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
 
-            // SEARCH ROW
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
+            // SEARCH ROW (wrap on phone)
+            if (isPhone)
+              Column(
+                children: [
+                  TextField(
                     style: GoogleFonts.poppins(),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.search),
@@ -486,264 +1045,175 @@ class _DemographicSetPickerDialogState
                     ),
                     onChanged: (v) => setState(() => _search = v),
                   ),
-                ),
-                const SizedBox(width: 12),
-                _infoChip('Total • $totalCount'),
-                const SizedBox(width: 8),
-                _infoChip(
-                  'Showing • $filteredCount',
-                  highlight: _search.trim().isNotEmpty,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // LEFT LIST
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE6E9EE)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _infoChip('Total • $totalCount'),
+                      _infoChip(
+                        'Showing • $filteredCount',
+                        highlight: _search.trim().isNotEmpty,
                       ),
-                      child: sets.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No sets match your search',
-                                style: GoogleFonts.poppins(color: Colors.grey),
-                              ),
-                            )
-                          : Scrollbar(
-                              controller: _leftScrollController,
-                              thumbVisibility: true,
-                              child: ListView.separated(
-                                controller: _leftScrollController,
-                                itemCount: sets.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 10),
-                                itemBuilder: (_, idx) {
-                                  final s = sets[idx];
-                                  final isSelected = selected?.questionSetId ==
-                                      s.questionSetId;
-
-                                  return InkWell(
-                                    onTap: () => _pick(s),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.blue.shade50
-                                            : Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? Colors.blue.shade700
-                                              : Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 34,
-                                            height: 34,
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? Colors.blue.shade600
-                                                  : Colors.grey.shade200,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: Icon(
-                                              Icons.assignment_outlined,
-                                              size: 18,
-                                              color: isSelected
-                                                  ? Colors.white
-                                                  : Colors.grey.shade700,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  s.title,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                if (s.description.isNotEmpty)
-                                                  Text(
-                                                    s.description,
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                  )
-                                                else
-                                                  Text(
-                                                    'No description',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                      color:
-                                                          Colors.grey.shade500,
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          TextButton(
-                                            onPressed: () {
-                                              _pick(s);
-                                              _confirm();
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: isSelected
-                                                  ? Colors.black
-                                                  : Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                side: BorderSide(
-                                                  color: Colors.grey.shade300,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              isSelected ? 'Selected' : 'Pick',
-                                              style: GoogleFonts.poppins(
-                                                color: isSelected
-                                                    ? Colors.white
-                                                    : Colors.black,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      style: GoogleFonts.poppins(),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: 'Search set name, description, or id…',
+                        hintStyle: GoogleFonts.poppins(),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      onChanged: (v) => setState(() => _search = v),
                     ),
                   ),
-
-                  const SizedBox(width: 18),
-
-                  // RIGHT PREVIEW
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: selected == null
-                          ? Center(
-                              child: Text(
-                                'Select a set to preview',
-                                style: GoogleFonts.poppins(color: Colors.grey),
-                              ),
-                            )
-                          : Scrollbar(
-                              controller: _rightScrollController,
-                              thumbVisibility: true,
-                              child: SingleChildScrollView(
-                                controller: _rightScrollController,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Preview',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade50,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.grey.shade200,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            selected.title,
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          if (selected.description.isNotEmpty)
-                                            Text(
-                                              selected.description,
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            )
-                                          else
-                                            Text(
-                                              'No description provided.',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'Tip: You can change this later anytime.',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                    ),
+                  const SizedBox(width: 12),
+                  _infoChip('Total • $totalCount'),
+                  const SizedBox(width: 8),
+                  _infoChip(
+                    'Showing • $filteredCount',
+                    highlight: _search.trim().isNotEmpty,
                   ),
                 ],
               ),
+
+            const SizedBox(height: 12),
+
+            // BODY
+            Expanded(
+              child: isPhone
+                  ? Column(
+                      children: [
+                        // Sets/Preview toggle
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () =>
+                                      setState(() => _paneIndex = 0),
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: _paneIndex == 0
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Sets',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                      color: _paneIndex == 0
+                                          ? Colors.black
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () =>
+                                      setState(() => _paneIndex = 1),
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: _paneIndex == 1
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Preview',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                      color: _paneIndex == 1
+                                          ? Colors.black
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        Expanded(
+                          child: _paneIndex == 0
+                              ? _setsPane(
+                                  isPhone: true,
+                                  sets: sets,
+                                  selected: selected,
+                                )
+                              : (selected == null
+                                  ? Center(
+                                      child: Text(
+                                        'Select a set to preview',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.grey,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    )
+                                  : _previewPane(
+                                      isPhone: true, selected: selected)),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: isTablet ? 2 : 2,
+                          child: _setsPane(
+                            isPhone: false,
+                            sets: sets,
+                            selected: selected,
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          flex: isTablet ? 3 : 3,
+                          child: selected == null
+                              ? Center(
+                                  child: Text(
+                                    'Select a set to preview',
+                                    style:
+                                        GoogleFonts.poppins(color: Colors.grey),
+                                  ),
+                                )
+                              : _previewPane(
+                                  isPhone: false, selected: selected),
+                        ),
+                      ],
+                    ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // FOOTER ACTIONS
             Row(
@@ -778,62 +1248,44 @@ class _DemographicSetPickerDialogState
       ),
     );
   }
+}
 
-  Widget _miniKeyValue(String k, String v) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 56,
-          child: Text(
-            '$k:',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            v,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey.shade800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+class _PreviewQuestion {
+  final String id;
+  final String text;
+  final int? order;
+  final String parentId;
 
-  Widget _infoChip(String text,
-      {bool highlight = false, bool negative = false}) {
-    final bg = highlight
-        ? Colors.green.shade50
-        : (negative ? Colors.red.shade50 : Colors.grey.shade50);
-    final border = highlight
-        ? Colors.green.shade200
-        : (negative ? Colors.red.shade200 : Colors.grey.shade200);
-    final color = highlight
-        ? Colors.green.shade800
-        : (negative ? Colors.red.shade800 : Colors.black87);
+  const _PreviewQuestion({
+    required this.id,
+    required this.text,
+    required this.order,
+    required this.parentId,
+  });
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
-      ),
-      child: Text(
-        text,
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
+  factory _PreviewQuestion.fromMap(String id, Map<String, dynamic> m) {
+    final rawText = (m['questionText'] ??
+            m['text'] ??
+            m['title'] ??
+            m['question'] ??
+            m['label'] ??
+            '')
+        .toString()
+        .trim();
+
+    int? order;
+    final o = m['order'] ?? m['index'] ?? m['position'];
+    if (o is int) order = o;
+    if (o is num) order = o.toInt();
+    if (o is String) order = int.tryParse(o);
+
+    final parent = (m['parentQuestionId'] ?? '').toString();
+
+    return _PreviewQuestion(
+      id: id,
+      text: rawText,
+      order: order,
+      parentId: parent,
     );
   }
 }
@@ -1066,6 +1518,19 @@ class MenuSelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final h = MediaQuery.sizeOf(context).height;
+
+    final isPhone = w < 600;
+    final isTablet = w >= 600 && w < 1024;
+
+    final cardPad = isPhone ? 14.0 : (isTablet ? 16.0 : 18.0);
+    final titleFont = isPhone ? 14.5 : 16.0;
+    final bodyFont = isPhone ? 12.5 : 13.0;
+
+    // Adaptive list height (prevents overflow on small screens)
+    final maxListHeight = (h * (isPhone ? 0.28 : 0.34)).clamp(200.0, 360.0);
+
     return Obx(() {
       final selectedIds = controller.selectedMenuItemIds.toList();
       final selectedItems = controller.selectedMenuItems.toList();
@@ -1074,9 +1539,7 @@ class MenuSelectionCard extends StatelessWidget {
       final bool hasSelection = selectedIds.isNotEmpty;
       final bool isLoadingSelectedDocs = hasSelection && selectedItems.isEmpty;
 
-      // -----------------------------
-      // Group mapping: itemId -> groupName
-      // -----------------------------
+      // Group mapping
       final Map<String, String> groupNameByItemId = {};
       final Set<String> groupedIds = {};
       for (final g in groups) {
@@ -1088,18 +1551,14 @@ class MenuSelectionCard extends StatelessWidget {
         }
       }
 
-      // Map for quick lookup
+      // item map
       final Map<String, MenuItem> itemById = {};
       for (final it in selectedItems) {
         final id = (it.menuItemId ?? '').trim();
         if (id.isNotEmpty) itemById[id] = it;
       }
 
-      // -----------------------------
-      // Estimated Total (range)
-      // base = ungrouped items total
-      // range add = for each group, min..max
-      // -----------------------------
+      // Estimated total range
       double ungroupedTotal = 0.0;
       for (final it in selectedItems) {
         final id = (it.menuItemId ?? '').trim();
@@ -1126,10 +1585,9 @@ class MenuSelectionCard extends StatelessWidget {
 
       final bool hasGroups = groups.isNotEmpty;
       final bool showRange = hasGroups && (minTotal != maxTotal);
+      final groupedCount = groupedIds.length;
 
-      // -----------------------------
       // counts (chips)
-      // -----------------------------
       final Map<String, int> typeCounts = {};
       final Map<String, int> catCounts = {};
       for (final i in selectedItems) {
@@ -1139,11 +1597,10 @@ class MenuSelectionCard extends StatelessWidget {
         catCounts[cat] = (catCounts[cat] ?? 0) + 1;
       }
 
-      // grouped count for chip
-      final groupedCount = groupedIds.length;
+      final org = Get.find<OrganisationController>();
 
       return Container(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(cardPad),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -1159,45 +1616,61 @@ class MenuSelectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Header row
+            /// Header row (responsive action)
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Menu & dishes',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF111827),
+                Expanded(
+                  child: Text(
+                    'Menu & dishes',
+                    style: GoogleFonts.poppins(
+                      fontSize: titleFont,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF111827),
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: hasSelection ? 'Edit selection' : 'Select dishes',
-                  icon: Icon(hasSelection ? Icons.edit_outlined : Icons.add),
-                  onPressed: () => _openMenuDialog(context),
-                ),
+                if (isPhone)
+                  IconButton(
+                    tooltip: hasSelection ? 'Edit selection' : 'Select dishes',
+                    icon: Icon(hasSelection ? Icons.edit_outlined : Icons.add),
+                    onPressed: () => _openMenuDialog(context),
+                  )
+                else
+                  AppPrimaryButton(
+                    text: hasSelection ? 'Edit' : 'Select',
+                    icon: hasSelection ? Icons.edit_outlined : Icons.add,
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    onPressed: () => _openMenuDialog(context),
+                  ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             if (!hasSelection) ...[
               Text(
                 'No dishes selected for this event.',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: bodyFont,
                   color: const Color(0xFF6B7280),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => _openMenuDialog(context),
-                child: Text('Select dishes', style: GoogleFonts.poppins()),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => _openMenuDialog(context),
+                  child: Text(
+                    'Select dishes',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ] else if (isLoadingSelectedDocs) ...[
               Text(
                 'Loading selected dishes...',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: bodyFont,
                   color: const Color(0xFF6B7280),
                 ),
               ),
@@ -1215,9 +1688,9 @@ class MenuSelectionCard extends StatelessWidget {
                   ...catCounts.entries.map((e) => _summaryChip(e.key, e.value)),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 340),
+                constraints: BoxConstraints(maxHeight: maxListHeight),
                 child: Scrollbar(
                   thumbVisibility: true,
                   child: ListView.separated(
@@ -1227,33 +1700,44 @@ class MenuSelectionCard extends StatelessWidget {
                       final it = selectedItems[idx];
                       final id = (it.menuItemId ?? '').trim();
                       final groupName = groupNameByItemId[id];
-                      return _selectedDishRow(it, groupName: groupName);
+                      return _selectedDishRow(
+                        context,
+                        it,
+                        groupName: groupName,
+                        isPhone: isPhone,
+                      );
                     },
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    hasGroups ? 'Estimated total' : 'Total',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+              Obx(() {
+                if (!org.showMenuItemPrices.value) {
+                  return const SizedBox.shrink();
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      hasGroups ? 'Estimated total' : 'Total',
+                      style: GoogleFonts.poppins(
+                        fontSize: isPhone ? 13 : 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  Text(
-                    showRange
-                        ? '${AppCurrency.format(minTotal)} - ${AppCurrency.format(maxTotal)}'
-                        : AppCurrency.format(maxTotal),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                    Text(
+                      showRange
+                          ? '${AppCurrency.format(minTotal)} - ${AppCurrency.format(maxTotal)}'
+                          : AppCurrency.format(maxTotal),
+                      style: GoogleFonts.poppins(
+                        fontSize: isPhone ? 13 : 14,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              }),
             ],
           ],
         ),
@@ -1261,10 +1745,16 @@ class MenuSelectionCard extends StatelessWidget {
     });
   }
 
-  Widget _selectedDishRow(MenuItem item, {String? groupName}) {
+  Widget _selectedDishRow(
+    BuildContext context,
+    MenuItem item, {
+    String? groupName,
+    required bool isPhone,
+  }) {
     final String ftLabel = _foodTypeLabel(item);
     final String catLabel = _categoryLabel(item);
     final bool isVeg = ftLabel.toLowerCase() == 'veg' || _isVegByCategory(item);
+    final org = Get.find<OrganisationController>();
 
     final price = item.price;
     final double p = (price == null)
@@ -1308,14 +1798,17 @@ class MenuSelectionCard extends StatelessWidget {
               children: [
                 Text(
                   item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: isPhone ? 13.5 : 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
+                  runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (ftLabel.isNotEmpty)
@@ -1337,8 +1830,6 @@ class MenuSelectionCard extends StatelessWidget {
                           color: const Color(0xFF6B7280),
                         ),
                       ),
-
-                    // ✅ Group label
                     if (groupName != null && groupName.trim().isNotEmpty) ...[
                       const Text('•',
                           style: TextStyle(color: Color(0xFFCBD5E1))),
@@ -1351,6 +1842,8 @@ class MenuSelectionCard extends StatelessWidget {
                         ),
                         child: Text(
                           'Group: $groupName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
@@ -1364,10 +1857,13 @@ class MenuSelectionCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            AppCurrency.format(p),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-          ),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(p),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            );
+          }),
         ],
       ),
     );
@@ -1503,6 +1999,7 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
 
   final TextEditingController _leftSearchCtrl = TextEditingController();
   final TextEditingController _rightSearchCtrl = TextEditingController();
+  final OrganisationController org = Get.find<OrganisationController>();
 
   String _leftSearch = '';
   String _rightSearch = '';
@@ -1514,13 +2011,27 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   FoodType? _rightFoodType;
 
   Size _calcDialogSize(BuildContext context) {
-    final s = MediaQuery.of(context).size;
-    final w = (s.width * 0.92).clamp(980.0, 1480.0); // bigger + capped
-    final h = (s.height * 0.92).clamp(720.0, 940.0); // bigger + capped
-    return Size(w, h);
+    final s = MediaQuery.sizeOf(context);
+    final w = s.width;
+    final h = s.height;
+
+    // ✅ fully responsive:
+    // phone: almost full-screen
+    // tablet/desktop: your capped dialog
+    if (w < 600) {
+      return Size(
+        (w * 0.98).clamp(360.0, 700.0),
+        (h * 0.96).clamp(620.0, 980.0),
+      );
+    }
+
+    return Size(
+      (w * 0.92).clamp(760.0, 1480.0),
+      (h * 0.92).clamp(680.0, 940.0),
+    );
   }
 
-  bool _isNarrowLayout(double dialogWidth) => dialogWidth < 1180;
+  bool _isNarrowLayout(double dialogWidth) => dialogWidth < 1100;
 
   EdgeInsets get _dialogOuterPadding => const EdgeInsets.all(14);
   EdgeInsets get _bodyPadding => const EdgeInsets.fromLTRB(28, 22, 28, 26);
@@ -2036,6 +2547,8 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
         ? (isVeg ? Colors.green.shade700 : Colors.red.shade700)
         : Colors.grey.shade300;
 
+    final org = Get.find<OrganisationController>();
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _toggleSelection(item),
@@ -2081,14 +2594,14 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              AppCurrency.format(price),
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                color: const Color(0xFF111827),
-              ),
-            ),
+            Obx(() {
+              if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+              return Text(
+                AppCurrency.format(price),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800, fontSize: 13),
+              );
+            }),
             const SizedBox(width: 10),
             SizedBox(
               height: 34,
@@ -2116,92 +2629,117 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
   }
 
   Widget _buildHeader(
-      BuildContext context, List<MenuModel> menus, double dialogWidth) {
-    final dropdownWidth = (dialogWidth * 0.42).clamp(380.0, 560.0);
+    BuildContext context,
+    List<MenuModel> menus,
+    double dialogWidth,
+  ) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isTight = dialogWidth < 720 || isPhone;
+
+    final dropdownWidth =
+        isTight ? double.infinity : (dialogWidth * 0.42).clamp(360.0, 560.0);
+
+    final title = Text(
+      'Select menu & dishes',
+      style: GoogleFonts.poppins(
+        fontSize: isPhone ? 18 : 22,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
+    );
+
+    final dropdown = SizedBox(
+      width: dropdownWidth,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Menu (browse)',
+          labelStyle: GoogleFonts.poppins(color: Colors.white70),
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.18),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white24),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white54),
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _menuId,
+            isExpanded: true,
+            dropdownColor: Colors.white,
+            iconEnabledColor: Colors.white,
+            selectedItemBuilder: (_) => menus
+                .map(
+                  (m) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      m.name,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            items: menus
+                .map(
+                  (m) => DropdownMenuItem(
+                    value: m.id,
+                    child: Text(
+                      m.name,
+                      style: GoogleFonts.poppins(color: Colors.black),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _menuId = value;
+                _items = [];
+              });
+              widget.controller.lastBrowsedMenuId.value = value;
+              _loadItems(value);
+            },
+          ),
+        ),
+      ),
+    );
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isPhone ? 16 : 26,
+        vertical: isPhone ? 12 : 16,
+      ),
       decoration: const BoxDecoration(
         color: Colors.black,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Select menu & dishes',
-              style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
+      child: isTight
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 12),
+                dropdown,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: title),
+                const SizedBox(width: 14),
+                dropdown,
+              ],
             ),
-          ),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: dropdownWidth,
-            child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: 'Menu (browse)',
-                labelStyle: GoogleFonts.poppins(color: Colors.white70),
-                filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.18),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white54),
-                ),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _menuId,
-                  isExpanded: true,
-                  dropdownColor: Colors.white,
-                  iconEnabledColor: Colors.white,
-                  selectedItemBuilder: (_) => menus
-                      .map((m) => Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              m.name,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ))
-                      .toList(),
-                  items: menus
-                      .map((m) => DropdownMenuItem(
-                            value: m.id,
-                            child: Text(
-                              m.name,
-                              style: GoogleFonts.poppins(color: Colors.black),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _menuId = value;
-                      _items = [];
-                    });
-                    widget.controller.lastBrowsedMenuId.value = value;
-                    _loadItems(value);
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2509,6 +3047,18 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     final dialogSize = _calcDialogSize(context);
     final isNarrow = _isNarrowLayout(dialogSize.width);
 
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isPhone = screenW < 600;
+
+    // ✅ responsive padding
+    final dialogOuterPadding = EdgeInsets.all(isPhone ? 8 : 14);
+    final bodyPadding = EdgeInsets.fromLTRB(
+      isPhone ? 14 : 28,
+      isPhone ? 14 : 22,
+      isPhone ? 14 : 28,
+      isPhone ? 16 : 26,
+    );
+
     // LEFT filtered list
     final filteredLeft = _items.where((it) {
       final q = _leftSearch.toLowerCase().trim();
@@ -2523,16 +3073,15 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       return nameOk && catOk && ftOk;
     }).toList();
 
-    // precompute estimated total range for bottom bar
     final range = _estimatedTotalRange;
     final showRange = _hasAnyGroupsWithItems && (range.min != range.max);
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(
-        textScaler: const TextScaler.linear(1.05), // slightly calmer
+        textScaler: const TextScaler.linear(1.0),
       ),
       child: Dialog(
-        insetPadding: _dialogOuterPadding,
+        insetPadding: dialogOuterPadding,
         backgroundColor: Colors.transparent,
         child: SafeArea(
           child: ConstrainedBox(
@@ -2546,25 +3095,20 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                 color: Theme.of(context).cardColor,
                 child: Column(
                   children: [
-                    // HEADER (sticky)
+                    // ✅ Sticky Header
                     _buildHeader(context, menus, dialogSize.width),
 
-                    // BODY
+                    // ✅ Body
                     Expanded(
                       child: Padding(
-                        padding: _bodyPadding,
+                        padding: bodyPadding,
                         child: isNarrow
                             ? Column(
                                 children: [
-                                  // LEFT block
                                   Expanded(
-                                    child: _buildLeftPanel(filteredLeft),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  // RIGHT block
-                                  Expanded(
-                                    child: _buildRightPanel(),
-                                  ),
+                                      child: _buildLeftPanel(filteredLeft)),
+                                  const SizedBox(height: 14),
+                                  Expanded(child: _buildRightPanel()),
                                 ],
                               )
                             : Row(
@@ -2572,153 +3116,189 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                                 children: [
                                   Expanded(
                                       child: _buildLeftPanel(filteredLeft)),
-                                  const SizedBox(width: 22),
+                                  const SizedBox(width: 18),
                                   Container(
                                       width: 1, color: const Color(0xFFE5E7EB)),
-                                  const SizedBox(width: 22),
+                                  const SizedBox(width: 18),
                                   Expanded(child: _buildRightPanel()),
                                 ],
                               ),
                       ),
                     ),
 
-                    // FOOTER (sticky)
+                    // ✅ Sticky Footer (responsive)
                     Container(
-                      padding: const EdgeInsets.fromLTRB(26, 14, 26, 18),
+                      padding: EdgeInsets.fromLTRB(
+                        isPhone ? 14 : 26,
+                        14,
+                        isPhone ? 14 : 26,
+                        isPhone ? 14 : 18,
+                      ),
                       decoration: const BoxDecoration(
                         color: Color(0xFFF9FAFB),
-                        border: Border(
-                          top: BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
+                        border:
+                            Border(top: BorderSide(color: Color(0xFFE5E7EB))),
                       ),
-                      child: Row(
-                        children: [
-                          // Items pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(22),
-                              border:
-                                  Border.all(color: const Color(0xFFE5E7EB)),
-                            ),
-                            child: Row(
+                      child: isPhone
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text('Items:',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600)),
-                                const SizedBox(width: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF3F4F6),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                        color: const Color(0xFFE5E7EB)),
-                                  ),
-                                  child: Text(
-                                    '${_selectedOrder.length}',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(width: 14),
-
-                          // Total pill (range aware)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  _hasAnyGroupsWithItems
-                                      ? 'Estimated Total'
-                                      : 'Total',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  showRange
-                                      ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
-                                      : AppCurrency.format(range.max),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const Spacer(),
-
-                          TextButton(
-                            onPressed: _saving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text('Cancel', style: GoogleFonts.poppins()),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: _saving
-                                ? null
-                                : () async {
-                                    setState(() => _saving = true);
-                                    try {
-                                      widget.controller.lastBrowsedMenuId
-                                          .value = _menuId;
-                                      await widget.controller
-                                          .applyMenuSelectionAndGroups(
-                                        newItemIds: _selectedOrder,
-                                        groups: _groups,
+                                // Items + Total row (wrap)
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: [
+                                    _footerItemsPill(),
+                                    Obx(() {
+                                      if (!org.showMenuItemPrices.value) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return _footerTotalPill(
+                                        label: _hasAnyGroupsWithItems
+                                            ? 'Estimated Total'
+                                            : 'Total',
+                                        value: showRange
+                                            ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
+                                            : AppCurrency.format(range.max),
                                       );
-                                      if (mounted) Navigator.of(context).pop();
-                                    } finally {
-                                      if (mounted)
-                                        setState(() => _saving = false);
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 12),
-                            ),
-                            child: _saving
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
+                                    }),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        onPressed: _saving
+                                            ? null
+                                            : () => Navigator.of(context).pop(),
+                                        child: Text('Cancel',
+                                            style: GoogleFonts.poppins()),
+                                      ),
                                     ),
-                                  )
-                                : Text(
-                                    'Confirm',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: _saving
+                                            ? null
+                                            : () async {
+                                                setState(() => _saving = true);
+                                                try {
+                                                  widget
+                                                      .controller
+                                                      .lastBrowsedMenuId
+                                                      .value = _menuId;
+                                                  await widget.controller
+                                                      .applyMenuSelectionAndGroups(
+                                                    newItemIds: _selectedOrder,
+                                                    groups: _groups,
+                                                  );
+                                                  if (mounted)
+                                                    Navigator.of(context).pop();
+                                                } finally {
+                                                  if (mounted)
+                                                    setState(
+                                                        () => _saving = false);
+                                                }
+                                              },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.black,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 12),
+                                        ),
+                                        child: _saving
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : Text(
+                                                'Confirm',
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                _footerItemsPill(),
+                                const SizedBox(width: 14),
+                                Obx(() {
+                                  if (!org.showMenuItemPrices.value) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return _footerTotalPill(
+                                    label: _hasAnyGroupsWithItems
+                                        ? 'Estimated Total'
+                                        : 'Total',
+                                    value: showRange
+                                        ? '${AppCurrency.format(range.min)} - ${AppCurrency.format(range.max)}'
+                                        : AppCurrency.format(range.max),
+                                  );
+                                }),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => Navigator.of(context).pop(),
+                                  child: Text('Cancel',
+                                      style: GoogleFonts.poppins()),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () async {
+                                          setState(() => _saving = true);
+                                          try {
+                                            widget.controller.lastBrowsedMenuId
+                                                .value = _menuId;
+                                            await widget.controller
+                                                .applyMenuSelectionAndGroups(
+                                              newItemIds: _selectedOrder,
+                                              groups: _groups,
+                                            );
+                                            if (mounted)
+                                              Navigator.of(context).pop();
+                                          } finally {
+                                            if (mounted)
+                                              setState(() => _saving = false);
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 18, vertical: 12),
                                   ),
-                          ),
-                        ],
-                      ),
+                                  child: _saving
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(
+                                          'Confirm',
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
                     ),
                   ],
                 ),
@@ -2726,6 +3306,71 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// --- Footer pills (helpers) ---
+  Widget _footerItemsPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Items:',
+              style: GoogleFonts.poppins(
+                  fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Text(
+              '${_selectedOrder.length}',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footerTotalPill({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2798,7 +3443,9 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               final hasAnyPriceLoaded =
                   g.itemIds.any((id) => _selectedCache[id] != null);
 
-              final subtitleText = !hasAnyPriceLoaded
+              final showPrices = org.showMenuItemPrices.value;
+
+              final subtitleText = (!showPrices || !hasAnyPriceLoaded)
                   ? 'Guest can pick ${g.maxPick} item'
                   : (r.min == r.max
                       ? 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)}'
@@ -2822,13 +3469,20 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                       fontSize: 13,
                     ),
                   ),
-                  subtitle: Text(
-                    subtitleText,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
+                  subtitle: Obx(() {
+                    final showPrices = org.showMenuItemPrices.value;
+                    final txt = (!showPrices || !hasAnyPriceLoaded)
+                        ? 'Guest can pick ${g.maxPick} item'
+                        : (r.min == r.max
+                            ? 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)}'
+                            : 'Guest can pick ${g.maxPick} item • ${AppCurrency.format(r.min)} - ${AppCurrency.format(r.max)}');
+
+                    return Text(
+                      txt,
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.grey.shade700),
+                    );
+                  }),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2918,8 +3572,13 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ],
             ),
           ),
-          Text(AppCurrency.format(price),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            );
+          }),
           IconButton(
             tooltip: 'Remove from selection',
             icon: const Icon(Icons.close, size: 18),
@@ -2967,8 +3626,13 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               ],
             ),
           ),
-          Text(AppCurrency.format(price),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          Obx(() {
+            if (!org.showMenuItemPrices.value) return const SizedBox.shrink();
+            return Text(
+              AppCurrency.format(price),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+            );
+          }),
           IconButton(
             tooltip: 'Remove from group (keep selected)',
             icon: const Icon(Icons.link_off, size: 18),
@@ -3111,8 +3775,7 @@ class DemographicSelectionCard extends StatelessWidget {
 
   const DemographicSelectionCard({super.key, required this.controller});
 
-  void _openDialog(BuildContext context) async {
-    // Defensive: ensure the event has been loaded before allowing selection
+  Future<void> _openDialog(BuildContext context) async {
     if (controller.eventDocId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -3129,7 +3792,6 @@ class DemographicSelectionCard extends StatelessWidget {
       return;
     }
 
-    // Keep sets that have a valid id; titles are safe in the model
     final cleanedSets = controller.availableQuestionSets
         .where((s) => s.questionSetId.trim().isNotEmpty)
         .toList();
@@ -3149,12 +3811,8 @@ class DemographicSelectionCard extends StatelessWidget {
 
     if (picked == null) return;
 
-    // Persist selection and handle errors here, AFTER the dialog is closed.
     try {
       await controller.chooseDemographicSet(picked.questionSetId);
-      // If you need to navigate somewhere after successful selection,
-      // do it here using `context` (caller context), e.g.:
-      // if (mounted) context.push('/some-target');  <-- only if you actually need to navigate
     } catch (e, st) {
       debugPrint('Error selecting demographic set: $e\n$st');
       if (context.mounted) {
@@ -3167,11 +3825,17 @@ class DemographicSelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final isPhone = w < 600;
+    final isTablet = w >= 600 && w < 1024;
+
+    final pad = isPhone ? 14.0 : (isTablet ? 18.0 : 20.0);
+    final titleFont = isPhone ? 14.5 : 15.0;
+
     return Obx(() {
       final questions = controller.availableQuestionSets;
       final selectedId = controller.selectedDemographicSetId.value;
 
-      // find selected set (safe)
       QuestionSet? selectedSet;
       if ((selectedId ?? '').trim().isNotEmpty) {
         try {
@@ -3183,7 +3847,7 @@ class DemographicSelectionCard extends StatelessWidget {
       }
 
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(pad),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -3199,73 +3863,103 @@ class DemographicSelectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// header
+            /// header row
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Demographic questions',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    'Demographic questions',
+                    style: GoogleFonts.poppins(
+                      fontSize: titleFont,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: selectedSet == null
-                      ? 'Select question set'
-                      : 'Change selection',
-                  icon: Icon(
-                      selectedSet == null ? Icons.add : Icons.edit_outlined),
-                  onPressed: () {
-                    if (questions.isEmpty) {
-                      context.push(AppRoute.hostQuestionSets.path);
-                      return;
-                    }
-                    _openDialog(context);
-                  },
-                ),
+                if (isPhone)
+                  IconButton(
+                    tooltip: selectedSet == null
+                        ? 'Select question set'
+                        : 'Change selection',
+                    icon: Icon(
+                        selectedSet == null ? Icons.add : Icons.edit_outlined),
+                    onPressed: () {
+                      if (questions.isEmpty) {
+                        context.push(AppRoute.hostQuestionSets.path);
+                        return;
+                      }
+                      _openDialog(context);
+                    },
+                  )
+                else
+                  AppPrimaryButton(
+                    text: selectedSet == null ? 'Select' : 'Change',
+                    icon: selectedSet == null ? Icons.add : Icons.edit_outlined,
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    onPressed: () {
+                      if (questions.isEmpty) {
+                        context.push(AppRoute.hostQuestionSets.path);
+                        return;
+                      }
+                      _openDialog(context);
+                    },
+                  ),
               ],
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 10),
 
             if (questions.isEmpty) ...[
               Text(
                 "You haven't created any demographic question sets yet.",
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: isPhone ? 12.5 : 13,
                   color: const Color(0xFF6B7280),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => context.push(AppRoute.hostQuestionSets.path),
-                child: const Text('Create demographic questions'),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => context.push(AppRoute.hostQuestionSets.path),
+                  child: Text(
+                    'Create demographic questions',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ] else if (selectedSet == null) ...[
               Text(
                 'Please select a question set for this event.',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: isPhone ? 12.5 : 13,
                   color: const Color(0xFF6B7280),
                 ),
               ),
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: () => _openDialog(context),
-                child: const Text('Choose set'),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => _openDialog(context),
+                  child: Text('Choose set', style: GoogleFonts.poppins()),
+                ),
               ),
             ] else ...[
               Text(
                 selectedSet.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: isPhone ? 13.5 : 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               if (selectedSet.description.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   selectedSet.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: const Color(0xFF6B7280),
@@ -3697,4 +4391,388 @@ class _PriceRange {
   final double min;
   final double max;
   const _PriceRange(this.min, this.max);
+}
+
+class EventSummarySection extends StatelessWidget {
+  final AdminEventDetailsController controller;
+
+  const EventSummarySection({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final evt = controller.event.value;
+      if (evt == null) return const SizedBox.shrink();
+
+      final organisation = controller.organisation;
+      final venue = controller.venue;
+
+      // Format date/time safely (your current code uses evt.date for both date+time)
+      final dateStr =
+          "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
+      final timeStr =
+          "${evt.date.hour.toString().padLeft(2, '0')}:${evt.date.minute.toString().padLeft(2, '0')}";
+
+      final hasCoverImage = (evt.coverImageDownloadUrl ?? '').trim().isNotEmpty;
+
+      final w = MediaQuery.sizeOf(context).width;
+      final isPhone = w < 600;
+      final isTablet = w >= 600 && w < 1024;
+
+      final cardH = isPhone ? 220.0 : (isTablet ? 260.0 : 280.0);
+      final pad = isPhone ? 16.0 : 28.0;
+      final titleSize = isPhone ? 22.0 : (isTablet ? 28.0 : 32.0);
+
+      final city = (organisation?.city ?? '').trim();
+      final venueName = (venue.value?.name ?? '').trim();
+
+      final serviceName = evt.serviceType.name.trim().isEmpty
+          ? 'Service type'
+          : evt.serviceType.name[0].toUpperCase() +
+              evt.serviceType.name.substring(1);
+
+      return Container(
+        height: cardH,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // =======================
+            // Background (image/grad)
+            // =======================
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasCoverImage)
+                      Image.network(
+                        evt.coverImageDownloadUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            color: Colors.grey.shade800,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF1F2937),
+                                  Color(0xFF111827),
+                                ],
+                              ),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                size: 64,
+                                color: Colors.white38,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF1F2937),
+                              Color(0xFF111827),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Dark gradient overlay for readability
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.25),
+                            Colors.black.withValues(alpha: 0.75),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Side depth overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.38),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.22),
+                          ],
+                          stops: const [0.0, 0.55, 1.0],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // =======================
+            // Foreground content
+            // =======================
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.all(pad),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top controls row (responsive)
+                    Row(
+                      children: [
+                        // Change cover
+                        _glassAction(
+                          onTap: () => controller.pickAndUploadCoverImage(),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                hasCoverImage
+                                    ? Icons.edit_outlined
+                                    : Icons.add_photo_alternate_outlined,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 8),
+                              if (!isPhone)
+                                Text(
+                                  hasCoverImage ? 'Change Cover' : 'Add Cover',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const Spacer(),
+
+                        // Settings / edit event
+                        _glassIconAction(
+                          tooltip: 'Edit event details',
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => EditEventDetailsDialog(
+                                controller: controller,
+                                initialEvent: evt,
+                              ),
+                            );
+                          },
+                          icon: Icons.settings_outlined,
+                        ),
+                      ],
+                    ),
+
+                    const Spacer(),
+
+                    // Title (responsive + safe wrapping)
+                    Text(
+                      evt.name,
+                      maxLines: isPhone ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: titleSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.12,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            offset: const Offset(0, 2),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Pills (wrap already helps, but reduce spacing on phone)
+                    Wrap(
+                      spacing: isPhone ? 8 : 12,
+                      runSpacing: isPhone ? 8 : 10,
+                      children: [
+                        _glassPill(
+                          icon: Icons.event_outlined,
+                          label: '$dateStr • $timeStr',
+                          isPhone: isPhone,
+                        ),
+                        _glassPill(
+                          icon: Icons.place_outlined,
+                          label: city.isEmpty ? 'Location not set' : city,
+                          isPhone: isPhone,
+                        ),
+                        _glassPill(
+                          icon: Icons.location_city_outlined,
+                          label:
+                              venueName.isEmpty ? 'Venue not set' : venueName,
+                          isPhone: isPhone,
+                        ),
+                        _glassPill(
+                          icon: Icons.restaurant_outlined,
+                          label: serviceName,
+                          isPhone: isPhone,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // ---------------------------
+  // Glass actions
+  // ---------------------------
+  Widget _glassAction({
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.30),
+              width: 1,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _glassIconAction({
+    required String tooltip,
+    required VoidCallback onTap,
+    required IconData icon,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.30),
+                width: 1,
+              ),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------
+  // Glass pill (responsive)
+  // ---------------------------
+  Widget _glassPill({
+    required IconData icon,
+    required String label,
+    required bool isPhone,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isPhone ? 10 : 14,
+        vertical: isPhone ? 7 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.30),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: isPhone ? 14 : 16, color: Colors.white),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isPhone ? 210 : 360, // ✅ prevents long text overflow
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: isPhone ? 12 : 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                height: 1.15,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.30),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -58,6 +58,24 @@ class VenueScreenController extends GetxController {
   // final venues = <Venue>[].obs;
 
   @override
+  void onInit() {
+    super.onInit();
+    // Add listener to handle country changes
+    ever(selectedCountry, _handleCountryChange);
+  }
+
+  /// Handles country change to manage state field
+  void _handleCountryChange(String? country) {
+    if (country == null || country != 'United States') {
+      // Clear state for non-USA countries
+      selectedState.value = null;
+    } else {
+      // Set state to null for USA so user must select
+      selectedState.value = null;
+    }
+  }
+
+  @override
   void onClose() {
     nameController.dispose();
     descriptionController.dispose();
@@ -123,9 +141,15 @@ class VenueScreenController extends GetxController {
       if (streetController.text.trim().isEmpty ||
           cityController.text.trim().isEmpty ||
           zipController.text.trim().isEmpty ||
-          selectedState.value!.trim().isEmpty ||
+          selectedCountry.value == null ||
           selectedCountry.value!.trim().isEmpty) {
         throw Exception('Complete address is required');
+      }
+      
+      // State is required only for United States
+      if (selectedCountry.value == 'United States' &&
+          (selectedState.value == null || selectedState.value!.trim().isEmpty)) {
+        throw Exception('State is required for United States');
       }
 
       final organisationId = _authController.organisationId;
@@ -164,7 +188,7 @@ class VenueScreenController extends GetxController {
           street: streetController.text.trim(),
           city: cityController.text.trim(),
           zip: zipController.text.trim(),
-          state: selectedState.value!.trim(),
+          state: selectedState.value?.trim(),
           country: selectedCountry.value!.trim(),
           venueID: venueId);
       return venue;

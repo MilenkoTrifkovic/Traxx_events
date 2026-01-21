@@ -76,10 +76,10 @@ class GeocodingHelper {
       // so we catch all errors and try simpler addresses
       
       // Try 1: City, State, Country (most likely to work)
-      print('Trying: ${venue.city}, ${venue.state}, ${venue.country}');
+      print('Trying: ${venue.city}, ${venue.state ?? 'no-state'}, ${venue.country}');
       final address1 = Address(
         city: venue.city,
-        state: venue.state,
+        state: venue.state ?? '', // Provide empty string if null
         postalCode: postalCode,
         country: venue.country,
       );
@@ -106,11 +106,12 @@ class GeocodingHelper {
       }
       print('City/Country - No results found');
       
-      // Try 3: State and Country (if city is not recognized)
-      if (venue.state.isNotEmpty) {
-        print('Trying: ${venue.state}, ${venue.country}');
+      // Try 3: State and Country (if city is not recognized and state exists)
+      if (venue.state != null && venue.state!.isNotEmpty) {
+        final stateName = venue.state!; // Capture non-null value
+        print('Trying: $stateName, ${venue.country}');
         final address3 = Address(
-          city: venue.state, // Use state as city for broader search
+          city: stateName, // Use state as city for broader search
           postalCode: postalCode,
           country: venue.country,
         );

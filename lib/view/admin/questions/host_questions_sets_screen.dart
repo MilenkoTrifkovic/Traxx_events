@@ -82,54 +82,94 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final isPhone = w < 600;
+
+    final horizontalPad = isPhone ? 16.0 : 40.0;
+    final topPad = isPhone ? 16.0 : 24.0;
+    final bottomPad = isPhone ? 24.0 : 40.0;
+
+    // Slightly narrower on phone
+    final maxWidth = isPhone ? 560.0 : 960.0;
+
+    InputDecoration fieldDeco(String hint) {
+      return InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              BorderSide(color: Colors.black.withOpacity(0.18), width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              BorderSide(color: Colors.black.withOpacity(0.18), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _gfPurple.withOpacity(0.9), width: 1.4),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        filled: true,
+        fillColor: Colors.white,
+      );
+    }
+
+    TextStyle labelStyle() => GoogleFonts.poppins(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: _gfTextColor,
+        );
+
     return DefaultTextStyle(
-      // Force Poppins for everything on this page
       style: GoogleFonts.poppins(),
       child: Container(
-        color: Colors
-            .transparent, // ContentWrapper already painted the lavender background
+        color: Colors.transparent,
         width: double.infinity,
-        child: Center(
-          // Center the content column
-          child: ConstrainedBox(
-            // 🔹 Reduce width of content on this page only
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(40, 24, 40, 40),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              horizontalPad, topPad, horizontalPad, bottomPad),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🚫 REMOVE this duplicate big heading – header bar already shows it
-                  // Text(
-                  //   'Demographic Questions',
-                  //   style: GoogleFonts.poppins(
-                  //     fontSize: 28,
-                  //     fontWeight: FontWeight.w700,
-                  //     color: _gfTextColor,
-                  //   ),
-                  // ),
-                  // const SizedBox(height: 16),
-
+                  // Subtitle (responsive)
                   Text(
                     'Create and manage question sets to gather important information from your event guests.',
                     style: GoogleFonts.poppins(
-                      fontSize: 22,
+                      fontSize: isPhone ? 16 : 22,
                       fontWeight: FontWeight.w600,
                       color: _gfTextColor,
+                      height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // CREATE SET CARD – pure white
-                  Card(
-                    color: Colors.white,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: AppColors.borderSubtle),
+                  // ✅ Create Set Card (responsive + modern)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.borderSubtle),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 16,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                      padding: EdgeInsets.fromLTRB(
+                        isPhone ? 14 : 20,
+                        isPhone ? 16 : 20,
+                        isPhone ? 14 : 20,
+                        isPhone ? 14 : 16,
+                      ),
                       child: Form(
                         key: _formKey,
                         child: Column(
@@ -138,231 +178,134 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                             Text(
                               'Create a new question set',
                               style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w800,
                                 color: _gfTextColor,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
 
-                            // Title label
-                            Text(
-                              'Question set title',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _gfTextColor,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-
-                            // Title field – darker outline
+                            Text('Question set title', style: labelStyle()),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _titleCtrl,
-                              decoration: InputDecoration(
-                                hintText: 'e.g. Questions for birthday dinner',
-                                hintStyle: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                focusedBorder: const OutlineInputBorder(
-                                  borderRadius: BorderRadius.all(
-                                    Radius.circular(4),
-                                  ),
-                                  borderSide: BorderSide(
-                                    color: Colors.black,
-                                    width: 1.3,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                              ),
+                              decoration: fieldDeco(
+                                  'e.g. Questions for birthday dinner'),
                               style: GoogleFonts.poppins(fontSize: 14),
                               validator: (v) => (v == null || v.trim().isEmpty)
                                   ? 'Please enter a title'
                                   : null,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
 
-                            // Celebration type label
-                            Text(
-                              'Celebration type',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _gfTextColor,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
+                            // ✅ On phone: dropdown stacked. On wide: row layout.
+                            LayoutBuilder(
+                              builder: (context, c) {
+                                final stack = c.maxWidth < 520;
 
-                            // Celebration type dropdown – same darker border
-                            DropdownButtonFormField<String>(
-                              initialValue: _celebrationType,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                focusedBorder: const OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.all(Radius.circular(4)),
-                                  borderSide: BorderSide(
-                                    color: Colors.black,
-                                    width: 1.3,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Birthday',
-                                  child: Text('Birthday'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Wedding',
-                                  child: Text('Wedding'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Engagement',
-                                  child: Text('Engagement'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Anniversary',
-                                  child: Text('Anniversary'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Baby shower',
-                                  child: Text('Baby shower'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Ceremony',
-                                  child: Text('Ceremony / Function'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Other',
-                                  child: Text('Other'),
-                                ),
-                              ],
-                              style: GoogleFonts.poppins(fontSize: 14),
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _celebrationType = v);
-                                }
+                                final celebration = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Celebration type',
+                                        style: labelStyle()),
+                                    const SizedBox(height: 6),
+                                    DropdownButtonFormField<String>(
+                                      initialValue: _celebrationType,
+                                      isExpanded: true,
+                                      decoration: fieldDeco(''),
+                                      items: const [
+                                        DropdownMenuItem(
+                                            value: 'Birthday',
+                                            child: Text('Birthday')),
+                                        DropdownMenuItem(
+                                            value: 'Wedding',
+                                            child: Text('Wedding')),
+                                        DropdownMenuItem(
+                                            value: 'Engagement',
+                                            child: Text('Engagement')),
+                                        DropdownMenuItem(
+                                            value: 'Anniversary',
+                                            child: Text('Anniversary')),
+                                        DropdownMenuItem(
+                                            value: 'Baby shower',
+                                            child: Text('Baby shower')),
+                                        DropdownMenuItem(
+                                            value: 'Ceremony',
+                                            child: Text('Ceremony / Function')),
+                                        DropdownMenuItem(
+                                            value: 'Other',
+                                            child: Text('Other')),
+                                      ],
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 14, color: _gfTextColor),
+                                      onChanged: (v) {
+                                        if (v != null)
+                                          setState(() => _celebrationType = v);
+                                      },
+                                    ),
+                                  ],
+                                );
+
+                                if (stack) return celebration;
+
+                                return celebration; // (only one field here, keep simple)
                               },
                             ),
-                            const SizedBox(height: 12),
 
-                            // Description
-                            Text(
-                              'Short description (optional)',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _gfTextColor,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 14),
+
+                            Text('Short description (optional)',
+                                style: labelStyle()),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _descriptionCtrl,
-                              maxLines: 2,
-                              decoration: InputDecoration(
-                                hintText:
-                                    'e.g. Questions we will ask all guests at the reception',
-                                hintStyle: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide(
-                                    color: Colors.black.withOpacity(0.45),
-                                    width: 1,
-                                  ),
-                                ),
-                                focusedBorder: const OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.all(Radius.circular(4)),
-                                  borderSide: BorderSide(
-                                    color: Colors.black,
-                                    width: 1.3,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
+                              maxLines: isPhone ? 2 : 2,
+                              decoration: fieldDeco(
+                                'e.g. Questions we will ask all guests at the reception',
                               ),
                               style: GoogleFonts.poppins(fontSize: 14),
                             ),
+
                             const SizedBox(height: 16),
 
+                            // ✅ Buttons: full width on phone
                             Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton(
-                                onPressed: _isSaving ? null : _createSet,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _gfPurple,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 22,
-                                    vertical: 10,
+                              alignment: isPhone
+                                  ? Alignment.center
+                                  : Alignment.centerRight,
+                              child: SizedBox(
+                                width: isPhone ? double.infinity : null,
+                                height: 44,
+                                child: ElevatedButton(
+                                  onPressed: _isSaving ? null : _createSet,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _gfPurple,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
+                                  child: _isSaving
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation(
+                                                Colors.white),
+                                          ),
+                                        )
+                                      : Text(
+                                          'Create & open',
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
                                 ),
-                                child: _isSaving
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation(
-                                              Colors.white),
-                                        ),
-                                      )
-                                    : Text(
-                                        'Create & open',
-                                        style: GoogleFonts.poppins(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
                               ),
                             ),
                           ],
@@ -371,17 +314,17 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
                   Text(
                     'Existing question sets',
                     style: GoogleFonts.poppins(
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w800,
                       color: _gfTextColor,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
                   StreamBuilder<List<QuestionSet>>(
                     stream: _controller.streamQuestionSets(),
@@ -400,16 +343,14 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
 
                       if (snapshot.hasError) {
                         final err = snapshot.error;
-                        if (kDebugMode) {
+                        if (kDebugMode)
                           debugPrint('🔥 QuestionSets error: $err');
-                        }
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
                           child: Text(
                             'Failed to load question sets: $err',
-                            style: GoogleFonts.poppins(
-                              color: Colors.red,
-                            ),
+                            style: GoogleFonts.poppins(color: Colors.red),
                           ),
                         );
                       }
@@ -421,9 +362,7 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                           child: Text(
                             'No question sets created yet.',
                             style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                                fontSize: 14, color: Colors.black54),
                           ),
                         );
                       }
@@ -433,9 +372,9 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
                           for (final set in sets)
                             _QuestionSetTile(
                               set: set,
-                              onTap: () {
-                                context.go('/host-question-sets/${set.id}');
-                              },
+                              onTap: () =>
+                                  context.go('/host-question-sets/${set.id}'),
+                              isPhone: isPhone,
                             ),
                         ],
                       );
@@ -454,54 +393,69 @@ class _QuestionSetsScreenState extends State<QuestionSetsScreen> {
 class _QuestionSetTile extends StatelessWidget {
   final QuestionSet set;
   final VoidCallback onTap;
+  final bool isPhone;
 
   const _QuestionSetTile({
     required this.set,
     required this.onTap,
+    required this.isPhone,
   });
 
   @override
   Widget build(BuildContext context) {
     final created = set.createdDate ?? DateTime.now();
+    final dateText = '${created.day}/${created.month}/${created.year}';
 
-    return Card(
-      color: Colors.white, // ✅ ensure white background
-      elevation: 0,
-      margin:
-          const EdgeInsets.only(bottom: 12), // ✅ a bit more space between items
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AppColors.borderSubtle),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderSubtle),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: isPhone ? 14 : 16,
+            vertical: isPhone ? 12 : 14,
+          ),
           child: Row(
             children: [
+              // Left content
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       set.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        fontSize: isPhone ? 14.5 : 15,
+                        fontWeight: FontWeight.w700,
                         color: _gfTextColor,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       set.celebrationType,
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
                         color: Colors.black54,
                       ),
                     ),
                     if (set.description.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         set.description,
                         maxLines: 1,
@@ -515,19 +469,19 @@ class _QuestionSetTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                '${created.day}/${created.month}/${created.year}',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.black54,
+
+              // Right meta
+              if (!isPhone) ...[
+                const SizedBox(width: 12),
+                Text(
+                  dateText,
+                  style:
+                      GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
                 ),
-              ),
+              ],
+
               const SizedBox(width: 6),
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.black45,
-              ),
+              const Icon(Icons.chevron_right, color: Colors.black45),
             ],
           ),
         ),

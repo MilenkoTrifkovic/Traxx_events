@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
+import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/forms/sales_person_ref_form.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/forms/location_time_form.dart';
 import 'package:traxx_wepapp/view/admin/organisation_info_popup/widgets/forms/restaurant_info_form.dart';
 
@@ -17,8 +18,10 @@ class StepContent extends StatelessWidget {
   Widget _buildStepContent(int currentStep) {
     switch (currentStep) {
       case 0:
-        return const LocationTimeForm();
+        return const SalesPersonRefForm();
       case 1:
+        return const LocationTimeForm();
+      case 2:
         return const RestaurantInfoForm();
       default:
         return const SizedBox();

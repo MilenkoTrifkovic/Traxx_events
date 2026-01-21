@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
+import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/parsers/file_parser/guest_model_csv_parser.dart';
@@ -57,11 +60,28 @@ class AdminGuestListController extends GetxController {
   void setEventId(String id) {
     eventId = id;
     _listenToGuestChanges();
+    _listenToInvitationRsvpChanges();
   }
+
+  final rsvpByGuestId = <String, GuestRsvpStatus>{}.obs;
+
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _invitationSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _guestSub;
 
   String _newToken() {
     // creates a long token similar to your screenshot (64-ish chars)
     return (_uuid.v4() + _uuid.v4()).replaceAll('-', '');
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Listen to country changes and clear state when country is not USA
+    ever(selectedCountry, (country) {
+      if (country != null && country != 'United States') {
+        selectedState.value = null;
+      }
+    });
   }
 
   // ---------------------------
@@ -69,7 +89,8 @@ class AdminGuestListController extends GetxController {
   // ---------------------------
 
   void _listenToGuestChanges() {
-    FirebaseFirestore.instance
+    _guestSub?.cancel();
+    _guestSub = FirebaseFirestore.instance
         .collection("guests")
         .where("eventId", isEqualTo: eventId)
         .snapshots()
@@ -80,10 +101,61 @@ class AdminGuestListController extends GetxController {
 
       guests.assignAll(list);
       filteredGuests.assignAll(list);
-      // Reset pagination whenever the underlying filtered list changes.
       currentPage.value = 0;
       _updatePagination();
       isInitialized.value = true;
+    });
+  }
+
+  void _listenToInvitationRsvpChanges() {
+    _invitationSub?.cancel();
+
+    _invitationSub = FirebaseFirestore.instance
+        .collection('invitations')
+        .where('eventId', isEqualTo: eventId)
+        .snapshots()
+        .listen((snapshot) {
+      final Map<String, GuestRsvpStatus> map = {};
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+
+        final guestId = (data['guestId'] ?? '').toString().trim();
+        if (guestId.isEmpty) continue;
+
+        final hasResponded = data['hasResponded'] == true;
+
+        bool? isAttending;
+        final v = data['isAttending'];
+        if (v is bool) isAttending = v;
+
+        // choose the most recent if duplicates ever exist
+        DateTime? updatedAt;
+        final ts =
+            data['rsvpSubmittedAt'] ?? data['modifiedAt'] ?? data['createdAt'];
+        if (ts is Timestamp) updatedAt = ts.toDate();
+
+        final existing = map[guestId];
+        if (existing == null) {
+          map[guestId] = GuestRsvpStatus(
+            hasResponded: hasResponded,
+            isAttending: isAttending,
+            updatedAt: updatedAt,
+          );
+        } else {
+          final prev = existing.updatedAt;
+          if (prev == null || (updatedAt != null && updatedAt.isAfter(prev))) {
+            map[guestId] = GuestRsvpStatus(
+              hasResponded: hasResponded,
+              isAttending: isAttending,
+              updatedAt: updatedAt,
+            );
+          }
+        }
+      }
+
+      rsvpByGuestId.assignAll(map);
+      rsvpByGuestId.refresh();
     });
   }
 
@@ -106,68 +178,6 @@ class AdminGuestListController extends GetxController {
     return q.docs.first.data();
   }
 
-  Future<Map<String, dynamic>> _getEventData(String eventId) async {
-    final byDoc = await FirebaseFirestore.instance
-        .collection('events')
-        .doc(eventId)
-        .get();
-    if (byDoc.exists) return byDoc.data()!;
-
-    final q = await FirebaseFirestore.instance
-        .collection('events')
-        .where('eventId', isEqualTo: eventId)
-        .limit(1)
-        .get();
-
-    if (q.docs.isEmpty) throw Exception('Event not found for eventId=$eventId');
-    return q.docs.first.data();
-  }
-
-  // Future<void> _createInvitationForGuest({
-  //   required String guestId,
-  //   required String guestEmail,
-  // }) async {
-  //   final eventData = await _getEventData(eventId);
-
-  //   final orgId = (eventData['organisationId'] ?? '').toString();
-  //   final setId =
-  //       (eventData['selectedDemographicQuestionSetId'] ?? '').toString();
-
-  //   if (orgId.isEmpty) throw Exception('Event.organisationId missing');
-  //   if (setId.isEmpty)
-  //     throw Exception('Event.selectedDemographicQuestionSetId missing');
-
-  //   final invRef = FirebaseFirestore.instance.collection('invitations').doc();
-  //   final invId = invRef.id;
-
-  //   final expiresAt =
-  //       Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
-
-  //   await invRef.set({
-  //     'invitationId': invId,
-  //     'eventId': eventId,
-  //     'organisationId': orgId,
-  //     'guestId': guestId,
-  //     'guestEmail': guestEmail,
-  //     'demographicQuestionSetId': setId,
-  //     'token': _newToken(),
-  //     'expiresAt': expiresAt,
-  //     'used': false,
-
-  //     // match your screenshot fields
-  //     'sent': false,
-  //     'sendError': null,
-  //     'createdAt': FieldValue.serverTimestamp(),
-  //     'sentAt': FieldValue.serverTimestamp(),
-  //   });
-  // }
-
-  // ---------------------------
-  // Add Guest
-  // ---------------------------
-
-  /// Returns true on success, false on failure.
-  /// Create (returns true on success)
   Future<bool> submitForm() async {
     if (!validateForm()) return false;
 
@@ -278,34 +288,6 @@ class AdminGuestListController extends GetxController {
 
     // maxGuestInvite
     maxGuestInvite.value = guest.maxGuestInvite;
-
-    // // Gender: map from stored String to Gender enum safely (case-insensitive)
-    // if (guest.gender != null && guest.gender!.isNotEmpty) {
-    //   final genderStr = guest.gender!.toLowerCase().trim();
-    //   // Try matching by enum name (case-insensitive), otherwise fallback to preferNotToSay
-    //   try {
-    //     selectedGender.value = Gender.values.firstWhere(
-    //       (g) => g.name.toLowerCase() == genderStr,
-    //       orElse: () {
-    //         // Additional mapping if you saved values differently (e.g. 'male','female','other')
-    //         if (genderStr == 'm' || genderStr == 'male') return Gender.male;
-    //         if (genderStr == 'f' || genderStr == 'female') return Gender.female;
-    //         if (genderStr == 'prefer_not_to_say' ||
-    //             genderStr == 'prefernotto' ||
-    //             genderStr == 'prefer not to say') {
-    //           return Gender.preferNotToSay;
-    //         }
-    //         // Last resort fallback
-    //         return Gender.preferNotToSay;
-    //       },
-    //     );
-    //   } catch (_) {
-    //     // Shouldn't reach here because of orElse, but keep defensive fallback
-    //     selectedGender.value = Gender.preferNotToSay;
-    //   }
-    // } else {
-    //   selectedGender.value = null;
-    // }
   }
 
   // ---------------------------
@@ -443,8 +425,7 @@ class AdminGuestListController extends GetxController {
         'invitations': [
           {
             'guestEmail': guest.email.trim(),
-            // ✅ CRITICAL: MUST be the Firestore guest document id
-            'guestId': guestId,
+            'guestId': guestId, // ✅ doc.id
             'guestName': guest.name,
             'maxGuestInvite': guest.maxGuestInvite,
             if (guest.batchId != null && guest.batchId!.trim().isNotEmpty)
@@ -454,31 +435,35 @@ class AdminGuestListController extends GetxController {
       });
 
       final data = Map<String, dynamic>.from(res.data as Map);
-      final results = (data['results'] as List?) ?? const [];
 
-      final first = results.isNotEmpty
-          ? Map<String, dynamic>.from(results.first as Map)
-          : <String, dynamic>{};
+      final ok = data['ok'] == true;
 
-      final status = (first['status'] ?? '').toString();
+      final invitedCountRaw = data['invited'];
+      final invitedCount = invitedCountRaw is num
+          ? invitedCountRaw.toInt()
+          : int.tryParse((invitedCountRaw ?? '0').toString()) ?? 0;
 
-      if (status == 'sent') {
-        await FirebaseFirestore.instance
-            .collection('guests')
-            .doc(guestId)
-            .update({
-          'isInvited': true,
-          'modifiedAt': FieldValue.serverTimestamp(),
-          'lastInvitedAt': FieldValue.serverTimestamp(),
-          'inviteSentCount': FieldValue.increment(1),
-        });
-        return true;
+      final resultsRaw = data['results'];
+      final List results = resultsRaw is List ? resultsRaw : const [];
+
+      final bool sentByResult = results.any((r) {
+        if (r is! Map) return false;
+        final m = Map<String, dynamic>.from(r as Map);
+        final status = (m['status'] ?? '').toString().toLowerCase();
+        final rid = (m['guestId'] ?? '').toString().trim();
+        return status == 'sent' && (rid.isEmpty || rid == guestId);
+      });
+
+      final success = ok && (invitedCount > 0 || sentByResult);
+
+      if (!success) {
+        debugPrint('Invite failed response: $data');
       }
 
-// helpful debug
-      debugPrint(
-          'Invite failed: ${first['error'] ?? first['sendError'] ?? data}');
-      return false;
+      // ✅ IMPORTANT: do NOT update guests doc here anymore
+      // Cloud Function now updates guests/{guestId}.isInvited reliably.
+
+      return success;
     } on FirebaseFunctionsException catch (e, st) {
       debugPrint(
           'inviteGuest FirebaseFunctionsException: ${e.code} ${e.message}\n$st');
@@ -691,7 +676,8 @@ class AdminGuestListController extends GetxController {
 
   @override
   void onClose() {
-    // Dispose controllers to avoid leaks
+    _guestSub?.cancel();
+    _invitationSub?.cancel();
     name.dispose();
     email.dispose();
     address.dispose();

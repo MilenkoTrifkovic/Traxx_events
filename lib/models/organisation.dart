@@ -11,15 +11,17 @@ class Organisation {
   final String street; // address.street
   final String city; // address.city
   final String zip; // address.zip
-  final String state; // address.state
+  final String? state; // address.state - Optional (only for USA)
   final String country; // address.country
 
   final String timezone; // Required
-  final String currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
+  final String
+      currency; // Currency ISO code (e.g., 'USD', 'EUR'), defaults to 'USD'
   final String? logo; // Optional logo URL/path
   final String? photoUrl; // Local-only photo preview URL (not persisted)
   final List<String>? customMenuCategories; // Optional custom menu categories
-
+  final String? assignedSalesPersonId; // Optional assigned salesperson ID
+  final bool? showMenuItemPrices;
   // Database fields
   final DateTime? createdAt;
   final DateTime? modifiedDate;
@@ -33,16 +35,18 @@ class Organisation {
     required this.street,
     required this.city,
     required this.zip,
-    required this.state,
+    this.state, // Optional - only required for USA
     required this.country,
     required this.timezone,
     this.currency = 'USD', // Default to USD if not provided
     this.logo,
     this.photoUrl,
     this.customMenuCategories,
+    this.assignedSalesPersonId,
     this.createdAt,
     this.modifiedDate,
     this.isDisabled = false,
+    this.showMenuItemPrices = true,
   });
 
   // Convert to Map for Firestore
@@ -55,17 +59,21 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Store currency ISO code
       'logo': logo,
-      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
+      if (customMenuCategories != null)
+        'customMenuCategories': customMenuCategories,
+      if (assignedSalesPersonId != null)
+        'assignedSalesPersonId': assignedSalesPersonId,
       'address': {
         'street': street,
         'city': city,
-        'state': state,
+        if (state != null) 'state': state,
         'zip': zip,
         'country': country,
       },
       // 'createdAt': createdAt?.toIso8601String(),
       // 'modifiedDate': modifiedDate?.toIso8601String(),
       'isDisabled': isDisabled,
+      'showMenuItemPrices': showMenuItemPrices,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -87,15 +95,19 @@ class Organisation {
       website: data['website'] as String?,
       timezone: data['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
-      currency: data['currency'] as String? ?? 'USD', // Default to USD if not in Firestore
+      currency: data['currency'] as String? ??
+          'USD', // Default to USD if not in Firestore
       logo: (data['logo'] as String?)?.trim(),
-      customMenuCategories: (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      customMenuCategories:
+          (data['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      assignedSalesPersonId: data['assignedSalesPersonId'] as String?,
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
       zip: address['zip'] as String? ?? '',
       country: address['country'] as String? ?? '',
       isDisabled: data['isDisabled'] as bool? ?? false,
+      showMenuItemPrices: data['showMenuItemPrices'] as bool? ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       modifiedDate: (data['modifiedDate'] as Timestamp?)?.toDate(),
     );
@@ -112,15 +124,19 @@ class Organisation {
       website: json['website'] as String?,
       timezone: json['timezone'] as String? ??
           'America/Los_Angeles (Pacific Time)', // Required with fallback
-      currency: json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
+      currency:
+          json['currency'] as String? ?? 'USD', // Default to USD if not in JSON
       logo: json['logo'] as String?,
-      customMenuCategories: (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      customMenuCategories:
+          (json['customMenuCategories'] as List<dynamic>?)?.cast<String>(),
+      assignedSalesPersonId: json['assignedSalesPersonId'] as String?,
       street: address['street'] as String? ?? '',
       city: address['city'] as String? ?? '',
       state: address['state'] as String? ?? '',
       zip: address['zip'] as String? ?? '',
       country: address['country'] as String? ?? '',
       isDisabled: json['isDisabled'] as bool? ?? false,
+      showMenuItemPrices: json['showMenuItemPrices'] as bool? ?? false,
       createdAt:
           json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       modifiedDate: json['modifiedDate'] != null
@@ -139,15 +155,19 @@ class Organisation {
       'timezone': timezone,
       'currency': currency, // Include currency in JSON
       'logo': logo,
-      if (customMenuCategories != null) 'customMenuCategories': customMenuCategories,
+      if (customMenuCategories != null)
+        'customMenuCategories': customMenuCategories,
+      if (assignedSalesPersonId != null)
+        'assignedSalesPersonId': assignedSalesPersonId,
       'address': {
         'street': street,
         'city': city,
-        'state': state,
+        if (state != null) 'state': state,
         'zip': zip,
         'country': country,
       },
       'isDisabled': isDisabled,
+      'showMenuItemPrices': showMenuItemPrices,
       'createdAt': createdAt?.toIso8601String(),
       'modifiedDate': modifiedDate?.toIso8601String(),
     };
@@ -169,9 +189,12 @@ class Organisation {
     String? logo,
     String? photoUrl,
     List<String>? customMenuCategories,
+    String? assignedSalesPersonId,
     DateTime? createdAt,
     DateTime? modifiedDate,
     bool? isDisabled,
+    bool? showMenuItemPrices,
+    bool clearState = false, // Special flag to explicitly clear state
   }) {
     return Organisation(
       organisationId: organisationId ?? this.organisationId,
@@ -180,7 +203,7 @@ class Organisation {
       website: website ?? this.website,
       street: street ?? this.street,
       city: city ?? this.city,
-      state: state ?? this.state,
+      state: clearState ? null : (state ?? this.state),
       zip: zip ?? this.zip,
       country: country ?? this.country,
       timezone: timezone ?? this.timezone,
@@ -188,9 +211,12 @@ class Organisation {
       logo: logo ?? this.logo,
       photoUrl: photoUrl ?? this.photoUrl,
       customMenuCategories: customMenuCategories ?? this.customMenuCategories,
+      assignedSalesPersonId:
+          assignedSalesPersonId ?? this.assignedSalesPersonId,
       createdAt: createdAt ?? this.createdAt,
       modifiedDate: modifiedDate ?? this.modifiedDate,
       isDisabled: isDisabled ?? this.isDisabled,
+      showMenuItemPrices: showMenuItemPrices ?? this.showMenuItemPrices,
     );
   }
 

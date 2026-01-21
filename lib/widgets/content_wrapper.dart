@@ -81,9 +81,9 @@ class _ContentWrapperState extends State<ContentWrapper> {
               child: widget.header != null
                   ? Column(
                       children: [
-                        Padding(
-                          padding: AppPadding.bottom(context,
-                              paddingType: Sizes.xxs),
+                        Container(
+                          // padding: AppPadding.bottom(context,
+                          //     paddingType: Sizes.xxs),
                           child: widget.header!,
                         ),
                         Expanded(
@@ -91,8 +91,8 @@ class _ContentWrapperState extends State<ContentWrapper> {
                             child: Align(
                               alignment: Alignment.topCenter,
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                    maxWidth: effectiveMaxWidth),
+                                constraints:
+                                    BoxConstraints(maxWidth: effectiveMaxWidth),
                                 child: widget.child,
                               ),
                             ),

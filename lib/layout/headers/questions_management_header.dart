@@ -1,37 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
-import 'package:traxx_wepapp/theme/styled_app_text.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class QuestionsManagementHeader extends StatelessWidget {
-  QuestionsManagementHeader({super.key});
-  final EventListController eventListController =
-      Get.find<EventListController>();
+  const QuestionsManagementHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        AppText.styledHeadingLarge(context, 'Demographic Questions'),
-        /*  Row(
-          children: [
-            AppPrimaryButton(
-              icon: Icons.add,
-              text: 'Add Question',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => const AddQuestionDialog(
-                    questionSetId: '',
-                  ),
-                );
-              },
-            ),
-          ],
-        ) */
-      ],
+    final w = MediaQuery.sizeOf(context).width;
+    final titleSize = w < 600 ? 26.0 : (w < 1200 ? 32.0 : 40.0);
+
+    return Text(
+      'Demographic Questions',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: GoogleFonts.poppins(
+        fontSize: titleSize,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
     );
   }
 }

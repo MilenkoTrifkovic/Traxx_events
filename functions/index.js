@@ -15,3 +15,11 @@ export { submitDemographics } from "./submitDemographics.js";
 export { getSelectedMenuItemsForInvitation } from "./getSelectedMenuItemsForInvitation.js";
 export { submitMenuSelection } from "./submitMenuSelection.js";
 export { getEventAnalytics } from "./getEventAnalytics.js";
+export { createSalesPersonAccount } from "./createSalesPersonAccount.js";
+export { createHostUser } from "./createHostUser.js";
+export { resendHostVerificationEmail } from "./resendHostVerificationEmail.js";
+export { deleteHostUser } from "./deleteHostUser.js";
+export { addCompanionToInvitation } from "./addCompanionToInvitation.js";
+
+
+

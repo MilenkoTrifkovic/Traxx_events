@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
-import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
+import 'package:traxx_wepapp/widgets/app_primary_button.dart';
+import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 
 class NavigationButtons extends StatelessWidget {
   final OrganisationInfoController controller;
@@ -35,9 +36,42 @@ class NavigationButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final bool hasBackButton = !controller.isFirstStep;
+      final bool isFirstStep = controller.isFirstStep;
+      final bool hasBackButton = !isFirstStep;
       final bool isLastStep = controller.isLastStep;
 
+      // Special layout for first step (sales person): Skip + Continue buttons
+      if (isFirstStep) {
+        return Padding(
+          padding: AppPadding.vertical(context, paddingType: Sizes.xs),
+          child: Row(
+            children: [
+              // Skip Button
+              Expanded(
+                child: AppSecondaryButton(
+                  text: 'Skip',
+                  onPressed: controller.skipSalesPersonStep,
+                  height: 44,
+                ),
+              ),
+              const SizedBox(width: 24),
+              // Continue Button - only enabled when format is valid
+              Expanded(
+                child: AppPrimaryButton(
+                  text: 'Continue',
+                  onPressed: controller.isRefCodeFormatValid.value
+                      ? _handleContinueOrFinish
+                      : null,
+                  enabled: controller.isRefCodeFormatValid.value,
+                  height: 44,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Standard layout for other steps
       return Padding(
         padding: AppPadding.vertical(context, paddingType: Sizes.xs),
         child: SizedBox(
@@ -45,61 +79,30 @@ class NavigationButtons extends StatelessWidget {
           child: hasBackButton
               ? Row(
                   children: [
-                    // Back Button - takes half width minus 12px
+                    // Back Button
                     Expanded(
-                      child: SizedBox(
+                      child: AppSecondaryButton(
+                        text: 'Back',
+                        onPressed: controller.previousStep,
                         height: 44,
-                        child: OutlinedButton(
-                          onPressed: controller.previousStep,
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.white,
-                            foregroundColor: AppColors.textMuted,
-                            side: BorderSide(
-                              color: AppColors.borderInput,
-                              width: 1.0,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text('Back'),
-                        ),
                       ),
                     ),
-                    const SizedBox(width: 24), // 24px gap between buttons
-                    // Continue/Finish Button - takes half width minus 12px
+                    const SizedBox(width: 24),
+                    // Continue/Finish Button
                     Expanded(
-                      child: SizedBox(
+                      child: AppPrimaryButton(
+                        text: isLastStep ? 'Finish' : 'Continue',
+                        onPressed: _handleContinueOrFinish,
                         height: 44,
-                        child: ElevatedButton(
-                          onPressed: _handleContinueOrFinish,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryAccent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(isLastStep ? 'Finish' : 'Continue'),
-                        ),
                       ),
                     ),
                   ],
                 )
-              : SizedBox(
+              : AppPrimaryButton(
+                  text: isLastStep ? 'Finish' : 'Continue',
+                  onPressed: _handleContinueOrFinish,
                   width: double.infinity,
                   height: 44,
-                  child: ElevatedButton(
-                    onPressed: _handleContinueOrFinish,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(isLastStep ? 'Finish' : 'Continue'),
-                  ),
                 ),
         ),
       );

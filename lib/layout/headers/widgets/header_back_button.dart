@@ -25,8 +25,8 @@ class HeaderBackButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.arrow_back,
-            color: AppColors.primaryAccent,
+            Icons.arrow_back_ios_new_rounded,
+            color: AppColors.white,
             size: 24,
           ),
           if (isDesktop) ...[

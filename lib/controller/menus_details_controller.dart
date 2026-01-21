@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
@@ -37,6 +38,8 @@ class MenuSetDetailsController extends GetxController {
     super.onInit();
     _loadMenuSet();
     _loadMenuItems();
+    final org = Get.find<OrganisationController>();
+    ever(org.showMenuItemPrices, (_) => _applyFilters());
   }
 
   Future<void> _loadMenuSet() async {
@@ -123,7 +126,25 @@ class MenuSetDetailsController extends GetxController {
   void _applyFilters() {
     var list = [...items];
 
-    // SEARCH by name / description
+    final org = Get.find<OrganisationController>();
+    final showPrices = org.showMenuItemPrices.value;
+
+    // ✅ If prices are hidden, disable price filters & price sorts
+    if (!showPrices) {
+      // Optional: clear these so your UI state stays consistent
+      minPrice.value = null;
+      maxPrice.value = null;
+
+      // If currently set to a price sort, force to Name A-Z
+      if (sortType.value == MenuItemsSortType.priceLowHigh ||
+          sortType.value == MenuItemsSortType.priceHighLow) {
+        sortType.value = MenuItemsSortType.nameAZ;
+      }
+    }
+
+    // -----------------------
+    // SEARCH by name/desc
+    // -----------------------
     final q = searchQuery.value.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list.where((item) {
@@ -133,49 +154,73 @@ class MenuSetDetailsController extends GetxController {
       }).toList();
     }
 
+    // -----------------------
     // CATEGORY filter
-    if (selectedCategory.value != null) {
-      list = list
-          .where((item) => item.category == selectedCategory.value)
-          .toList();
+    // -----------------------
+    final cat = selectedCategory.value;
+    if (cat != null && cat.trim().isNotEmpty) {
+      list = list.where((item) => item.category == cat).toList();
     }
 
-    // PRICE filter
-    final minP = minPrice.value;
-    final maxP = maxPrice.value;
+    // -----------------------
+    // PRICE filter (only if enabled)
+    // -----------------------
+    if (showPrices) {
+      final minP = minPrice.value;
+      final maxP = maxPrice.value;
 
-    if (minP != null) {
-      list = list.where((item) {
-        if (item.price == null) return false;
-        return item.price! >= minP;
-      }).toList();
+      if (minP != null) {
+        list = list.where((item) {
+          final p = item.price;
+          if (p == null) return false;
+          return p >= minP;
+        }).toList();
+      }
+
+      if (maxP != null) {
+        list = list.where((item) {
+          final p = item.price;
+          if (p == null) return false;
+          return p <= maxP;
+        }).toList();
+      }
     }
 
-    if (maxP != null) {
-      list = list.where((item) {
-        if (item.price == null) return false;
-        return item.price! <= maxP;
-      }).toList();
-    }
-
+    // -----------------------
     // SORT
+    // -----------------------
     switch (sortType.value) {
       case MenuItemsSortType.nameAZ:
         list.sort((a, b) => a.name.compareTo(b.name));
         break;
+
       case MenuItemsSortType.nameZA:
         list.sort((a, b) => b.name.compareTo(a.name));
         break;
+
       case MenuItemsSortType.priceLowHigh:
-        list.sort((a, b) => (a.price ?? 0).compareTo(b.price ?? 0));
+        if (showPrices) {
+          list.sort((a, b) => (a.price ?? 0).compareTo(b.price ?? 0));
+        } else {
+          // fallback safety
+          list.sort((a, b) => a.name.compareTo(b.name));
+        }
         break;
+
       case MenuItemsSortType.priceHighLow:
-        list.sort((a, b) => (b.price ?? 0).compareTo(a.price ?? 0));
+        if (showPrices) {
+          list.sort((a, b) => (b.price ?? 0).compareTo(a.price ?? 0));
+        } else {
+          // fallback safety
+          list.sort((a, b) => a.name.compareTo(b.name));
+        }
         break;
+
       case MenuItemsSortType.dateNewest:
         list.sort((a, b) =>
             (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
         break;
+
       case MenuItemsSortType.dateOldest:
         list.sort((a, b) =>
             (a.createdAt ?? DateTime(0)).compareTo(b.createdAt ?? DateTime(0)));
