@@ -36,6 +36,13 @@ class Constants {
   static const String googleMapsApiKey =
       'AIzaSyDt2ZfJjvYxeOHITwVOLG45EqJuQRy9j9o';
 
+  // Stripe configuration
+  static const String stripePublishableKey =
+      'pk_test_51SrHjTFlveZmeV0Kgx9Sn5FanwZzDTsOjYqisoPKI5kuXk9PrvB1NOFhWwFhxP8tqnhgRUsfJhWdrnVhoZzwIxiD00XQ5dE23K';
+  
+  static const String checkoutSessionUrl =
+      'https://checkoutsession-5ddguspeaq-uc.a.run.app';
+
   /// Typography scale
   static const double headingLargeFontSize = 32.0;
   static const double headingMediumFontSize = 20.0;
