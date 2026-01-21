@@ -54,8 +54,11 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
     // ✅ Users
     if (location.startsWith(AppRoute.hostRoleSelection.path)) return 5;
 
+    // ✅ Buy Credits
+    if (location.startsWith(AppRoute.hostBuyCredits.path)) return 6;
+
     // ✅ Settings
-    if (location.startsWith(AppRoute.hostSettings.path)) return 6;
+    if (location.startsWith(AppRoute.hostSettings.path)) return 7;
 
     return 0;
   }
@@ -87,13 +90,18 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
         pushAndRemoveAllRoute(AppRoute.hostRoleSelection, context);
         return;
 
-      // ✅ Settings
+      // ✅ Buy Credits
       case 6:
+        pushAndRemoveAllRoute(AppRoute.hostBuyCredits, context);
+        return;
+
+      // ✅ Settings
+      case 7:
         pushAndRemoveAllRoute(AppRoute.hostSettings, context);
         return;
 
       // ✅ Logout (FIXED index)
-      case 7:
+      case 8:
         try {
           await authController.logout();
         } catch (_) {}
@@ -194,6 +202,11 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
         label: 'Users',
         icon: Icons.group_outlined,
         selectedIcon: Icons.group,
+      ),
+      const NavItemData(
+        label: 'Buy Credits',
+        icon: Icons.credit_card_outlined,
+        selectedIcon: Icons.credit_card,
       ),
       const NavItemData(
         label: 'Settings',

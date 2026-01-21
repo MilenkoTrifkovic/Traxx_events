@@ -21,6 +21,8 @@ import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart
 import 'package:url_strategy/url_strategy.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:nominatim_geocoding/nominatim_geocoding.dart';
+import 'package:flutter_stripe_web/flutter_stripe_web.dart';
+import 'package:traxx_wepapp/theme/constants.dart';
 
 import 'firebase_options.dart';
 
@@ -39,6 +41,11 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Stripe for Web
+  // WebStripe.instance.initialise(
+  //   publishableKey: Constants.stripePublishableKey,
+  // );
 
   await NominatimGeocoding.init(reqCacheNum: 50);
 
