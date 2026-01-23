@@ -53,33 +53,16 @@ class EventCard extends StatelessWidget {
           children: [
             Expanded(flex: 2, child: FirstSection(event: event)),
             if (ScreenSize.isDesktop(context))
-              Expanded(flex: 3, child: SecondSection(event: event, venue: venue)),
+              Expanded(
+                  flex: 3, child: SecondSection(event: event, venue: venue)),
             if (ScreenSize.isDesktop(context) || ScreenSize.isTablet(context))
               Expanded(flex: 2, child: ThirdSection(event: event)),
             // if (ScreenSize.isDesktop(context))
-            
-              Expanded(flex: 1, child: FourthSection(event: event)),
+
+            Expanded(flex: 1, child: FourthSection(event: event)),
           ],
         ),
       ),
     );
-    // return Card(
-    //   clipBehavior: Clip.antiAlias,
-    //   elevation: 2,
-    //   child: InkWell(
-    //     onTap: onTap,
-    //     child: Padding(
-    //       padding: AppPadding.all(context, paddingType: Sizes.sm),
-    //       child: Row(
-    //         children: [
-    //           Expanded(child: FirstSection(event: event)),
-    //           Expanded(child: SecondSection(event: event)),
-    //           Expanded(child: ThirdSection(event: event)),
-    //           Expanded(child: FourthSection(event: event)),
-    //         ],
-    //       ),
-    //     ),
-    //   ),
-    // );
   }
 }

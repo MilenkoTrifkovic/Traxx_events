@@ -7,6 +7,7 @@ import 'package:traxx_wepapp/layout/headers/host_event_details_header.dart';
 import 'package:traxx_wepapp/layout/headers/guest_side_preview_header.dart';
 import 'package:traxx_wepapp/layout/headers/menus_management_header.dart';
 import 'package:traxx_wepapp/layout/headers/settings_header.dart';
+import 'package:traxx_wepapp/layout/headers/buy_credits_header.dart';
 import 'package:traxx_wepapp/layout/headers/venues_management_header.dart';
 import 'package:traxx_wepapp/layout/headers/questions_management_header.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -96,6 +97,10 @@ Widget getPageHeader(
       content: SettingsHeader(),
       drawerScaffoldKey: drawerScaffoldKey,
     );
+  }
+
+  if (location == AppRoute.hostBuyCredits.path) {
+    return AppBarCustom(content: BuyCreditsHeader());
   }
 
   return const SizedBox.shrink();

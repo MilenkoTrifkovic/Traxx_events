@@ -64,154 +64,160 @@ function validateAddress(address) {
  * @throws {HttpsError} If validation fails
  */
 export function validateCompanyInfo(data) {
-    if (!data) {
-        throw new HttpsError("invalid-argument", "No data provided.");
+  if (!data) {
+    throw new HttpsError("invalid-argument", "No data provided.");
+  }
+
+  if (typeof data !== "object" || Array.isArray(data)) {
+    throw new HttpsError("invalid-argument", "Data must be an object.");
+  }
+
+  // Validate required string fields
+  validateRequiredString(data.name, "Company name");
+  validateRequiredString(data.phone, "Company phone");
+  validateRequiredString(data.timezone, "Timezone");
+
+  // Validate phone format
+  if (!isValidPhone(data.phone.toString().trim())) {
+    throw new HttpsError("invalid-argument", "Invalid phone number format.");
+  }
+
+  // Validate timezone
+  if (!isValidTimezone(data.timezone)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid timezone. Must be a valid IANA timezone identifier (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')."
+    );
+  }
+
+  // Validate address object
+  if (!data.address) {
+    throw new HttpsError("invalid-argument", "Address is required.");
+  }
+
+  if (typeof data.address !== "object" || Array.isArray(data.address)) {
+    throw new HttpsError("invalid-argument", "Address must be an object.");
+  }
+
+  // Validate required address fields (state is optional - only for USA)
+  validateRequiredString(data.address.street, "Street address");
+  validateRequiredString(data.address.city, "City");
+  validateRequiredString(data.address.zip, "ZIP code");
+  validateRequiredString(data.address.country, "Country");
+
+  // State is required only for United States
+  if (data.address.country === "United States") {
+    validateRequiredString(data.address.state, "State");
+  }
+
+  // Additional validation for zip code
+  if (data.address.zip && typeof data.address.zip === "string") {
+    const zipRegex = /^[\w\s\-]{3,10}$/;
+    if (!zipRegex.test(data.address.zip.trim())) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid zip/postal code format."
+      );
+    }
+  }
+
+  // ✅ Validate optional assignedSalesPersonId field (string or null)
+  if (
+    data.assignedSalesPersonId !== undefined &&
+    data.assignedSalesPersonId !== null
+  ) {
+    if (typeof data.assignedSalesPersonId !== "string") {
+      throw new HttpsError(
+        "invalid-argument",
+        "assignedSalesPersonId must be a string or null."
+      );
     }
 
-    if (typeof data !== "object" || Array.isArray(data)) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Data must be an object."
-        );
+    // optional: if present but empty string, allow it (or reject)
+    // if (data.assignedSalesPersonId.trim().length === 0) {
+    //   throw new HttpsError("invalid-argument", "assignedSalesPersonId cannot be empty.");
+    // }
+  }
+
+  // Validate optional currency field
+  if (data.currency !== undefined && data.currency !== null) {
+    if (typeof data.currency !== "string") {
+      throw new HttpsError("invalid-argument", "Currency must be a string.");
     }
 
-    // Validate required string fields
-    validateRequiredString(data.name, "Company name");
-    validateRequiredString(data.phone, "Company phone");
-    validateRequiredString(data.timezone, "Timezone");
+    const currencyRegex = /^[A-Z]{3}$/;
+    if (
+      data.currency.trim().length > 0 &&
+      !currencyRegex.test(data.currency.trim())
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid currency format. Must be a 3-letter ISO code (e.g., 'USD', 'EUR', 'GBP')."
+      );
+    }
+  }
 
-    // Validate phone format
-    if (!isValidPhone(data.phone.toString().trim())) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Invalid phone number format."
-        );
+  // Validate optional website field
+  if (data.website !== undefined && data.website !== null) {
+    if (typeof data.website !== "string") {
+      throw new HttpsError("invalid-argument", "Website must be a string.");
     }
 
-    // Validate timezone
-    if (!isValidTimezone(data.timezone)) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Invalid timezone. Must be a valid IANA timezone identifier (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')."
-        );
+    if (data.website.trim().length > 0 && !isValidUrl(data.website.trim())) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid website URL format. Must start with http:// or https://"
+      );
+    }
+  }
+
+  // Validate optional logo field
+  if (data.logo !== undefined && data.logo !== null) {
+    if (typeof data.logo !== "string") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Logo path must be a string."
+      );
     }
 
-    // Validate address object
-    if (!data.address) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Address is required."
-        );
+    if (
+      data.logo.trim().length > 0 &&
+      !isValidFirebaseStoragePath(data.logo.trim())
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid logo path format. Must be a valid Firebase Storage path like 'uploads/filename.jpg'"
+      );
     }
+  }
 
-    if (typeof data.address !== "object" || Array.isArray(data.address)) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Address must be an object."
-        );
+  // Check for unexpected fields (optional - helps catch typos)
+  const allowedFields = [
+    "name",
+    "phone",
+    "website",
+    "address",
+    "timezone",
+    "currency",
+    "logo",
+
+    // ✅ allow this optional field
+    "assignedSalesPersonId",
+
+    // legacy / tolerated fields
+    "organisationId",
+    "isDisabled",
+    "createdAt",
+    "modifiedDate",
+  ];
+
+  for (const key in data) {
+    if (!allowedFields.includes(key)) {
+      throw new HttpsError("invalid-argument", `Unexpected field: ${key}`);
     }
-
-    // Validate required address fields (state is optional - only for USA)
-    validateRequiredString(data.address.street, "Street address");
-    validateRequiredString(data.address.city, "City");
-    validateRequiredString(data.address.zip, "ZIP code");
-    validateRequiredString(data.address.country, "Country");
-    
-    // State is required only for United States
-    if (data.address.country === "United States") {
-        validateRequiredString(data.address.state, "State");
-    }
-
-    // Additional validation for zip code
-    if (data.address.zip && typeof data.address.zip === "string") {
-        const zipRegex = /^[\w\s\-]{3,10}$/; // Basic zip/postal code format
-        if (!zipRegex.test(data.address.zip.trim())) {
-            throw new HttpsError(
-                "invalid-argument",
-                "Invalid zip/postal code format."
-            );
-        }
-    }
-
-    // Validate optional currency field
-    if (data.currency !== undefined && data.currency !== null) {
-        if (typeof data.currency !== "string") {
-            throw new HttpsError(
-                "invalid-argument",
-                "Currency must be a string."
-            );
-        }
-
-        // Validate currency is a 3-letter ISO code
-        const currencyRegex = /^[A-Z]{3}$/;
-        if (data.currency.trim().length > 0 && !currencyRegex.test(data.currency.trim())) {
-            throw new HttpsError(
-                "invalid-argument",
-                "Invalid currency format. Must be a 3-letter ISO code (e.g., 'USD', 'EUR', 'GBP')."
-            );
-        }
-    }
-
-    // Validate optional website field
-    if (data.website !== undefined && data.website !== null) {
-        if (typeof data.website !== "string") {
-            throw new HttpsError(
-                "invalid-argument",
-                "Website must be a string."
-            );
-        }
-
-        // Only validate if website is provided and not empty
-        if (data.website.trim().length > 0 && !isValidUrl(data.website.trim())) {
-            throw new HttpsError(
-                "invalid-argument",
-                "Invalid website URL format. Must start with http:// or https://"
-            );
-        }
-    }
-
-    // Validate optional logo field
-    if (data.logo !== undefined && data.logo !== null) {
-        if (typeof data.logo !== "string") {
-            throw new HttpsError(
-                "invalid-argument",
-                "Logo path must be a string."
-            );
-        }
-
-        // Only validate if logo path is provided and not empty
-        if (data.logo.trim().length > 0 && !isValidFirebaseStoragePath(data.logo.trim())) {
-            throw new HttpsError(
-                "invalid-argument",
-                "Invalid logo path format. Must be a valid Firebase Storage path like 'uploads/filename.jpg'"
-            );
-        }
-    }
-
-    // Check for unexpected fields (optional - helps catch typos)
-    const allowedFields = [
-        "name",
-        "phone",
-        "website",
-        "address",
-        "timezone",
-        "currency",       // Currency ISO code (e.g., 'USD', 'EUR')
-        "logo",
-        "organisationId", // Allow this field but it will be overwritten
-        "isDisabled",     // Allow from Flutter but will be overwritten
-        "createdAt",      // Allow from Flutter but will be overwritten
-        "modifiedDate"    // Allow from Flutter but will be overwritten
-    ];
-
-    for (const key in data) {
-        if (!allowedFields.includes(key)) {
-            throw new HttpsError(
-                "invalid-argument",
-                `Unexpected field: ${key}`
-            );
-        }
-    }
+  }
 }
+
 
 /**
  * Validates complete organisation data

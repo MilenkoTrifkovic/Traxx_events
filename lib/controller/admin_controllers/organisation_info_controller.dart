@@ -34,7 +34,8 @@ class OrganisationInfoController extends GetxController {
   final zipController = TextEditingController();
 
   var selectedCountry = 'United States'.obs;
-  final Rxn<String> selectedState = Rxn<String>('California'); // default state for USA, nullable for other countries
+  final Rxn<String> selectedState = Rxn<String>(
+      'California'); // default state for USA, nullable for other countries
   var selectedTimezone =
       'America/Los_Angeles (Pacific Time)'.obs; // default timezone
 
@@ -97,7 +98,7 @@ class OrganisationInfoController extends GetxController {
       selectedState.value = null;
     } else {
       // Set state to null for USA so user must select
-      selectedState.value = null;
+      selectedState.value ??= 'New York';
     }
   }
 
@@ -195,8 +196,7 @@ class OrganisationInfoController extends GetxController {
         return true;
       } else {
         // Sales person not found
-        salesPersonValidationMessage.value =
-            'Invalid reference code: $refCode';
+        salesPersonValidationMessage.value = 'Invalid reference code: $refCode';
         return false;
       }
     } catch (e) {
@@ -280,6 +280,10 @@ class OrganisationInfoController extends GetxController {
 
   /// Creates an Organisation instance from form data
   Organisation _createOrganisation() {
+    if (selectedCountry.value == 'United States' &&
+        (selectedState.value == null || selectedState.value!.trim().isEmpty)) {
+      throw Exception('Please select a state');
+    }
     return Organisation(
       name: companyNameController.text.trim(),
       phone: phoneController.text.trim(),

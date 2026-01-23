@@ -18,6 +18,9 @@ import 'package:traxx_wepapp/features/guest/rsvp_response/view/compaignons_info_
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_count_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/guest_thank_you_page.dart';
 import 'package:traxx_wepapp/features/settings/view/settings_page.dart';
+import 'package:traxx_wepapp/features/admin/buy_credits/view/buy_credits_page.dart';
+import 'package:traxx_wepapp/features/admin/buy_credits/view/payment_success_page.dart';
+import 'package:traxx_wepapp/features/admin/buy_credits/view/payment_cancelled_page.dart';
 import 'package:traxx_wepapp/helper/fetch_event.dart';
 import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
 import 'package:traxx_wepapp/layout/header_resolver.dart';
@@ -593,6 +596,18 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.hostSettings.path,
             builder: (context, state) => SettingsPage(),
+          ),
+          GoRoute(
+            path: AppRoute.hostBuyCredits.path,
+            builder: (context, state) => BuyCreditsPage(),
+          ),
+          GoRoute(
+            path: 'payment-success',
+            builder: (context, state) => const PaymentSuccessPage(),
+          ),
+          GoRoute(
+            path: 'payment-cancelled',
+            builder: (context, state) => const PaymentCancelledPage(),
           ),
           GoRoute(
             path: AppRoute.eventQuestions.path,

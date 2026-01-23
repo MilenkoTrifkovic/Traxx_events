@@ -87,12 +87,10 @@ class CoverImage extends StatelessWidget {
               itemBuilder: (context) {
                 return [
                   PopupMenuItem(
-                    ///////////////////////////////////////////////ToDo
                     child: Text('Edit Event'),
                     onTap: () => hostController.toggleEditingEvent(true),
                   ),
                   PopupMenuItem(
-                    ///////////////////////////////////////////////ToDo
                     child: Text('Delete Event'),
                     onTap: () async {
                       Dialogs.showConfirmationDialog(
@@ -100,14 +98,15 @@ class CoverImage extends StatelessWidget {
                         "Are you sure you want to delete this event? \nThis action cannot be undone.",
                         () async {
                           try {
-                                        await eventListController!
-                                            .deleteEvent(); ///////////////////////////////////////////////////
-                          if (!context.mounted) return;
-                          snackbarController.showSuccessMessage('Event deleted successfully');
+                            await eventListController!.deleteEvent();
+                            if (!context.mounted) return;
+                            snackbarController.showSuccessMessage(
+                                'Event deleted successfully');
                             popRoute(context);
                           } on Exception catch (e) {
                             print('Error deleting event: $e');
-                          snackbarController.showErrorMessage('Event deletion failed. Try again');
+                            snackbarController.showErrorMessage(
+                                'Event deletion failed. Try again');
                           }
                         },
                       );

@@ -17,18 +17,54 @@ class CloudFunctionsService extends GetxService {
 
   /// Saves organisation data through the cloud function
   /// The cloud function will assign organisationId and handle server-side validation
+  /// Saves organisation data through the cloud function
+  /// ✅ Option A: Send ONLY the allowed fields (no organisationId / createdAt / showMenuItemPrices etc.)
   Future<Organisation> saveCompanyInfo(Organisation organisation) async {
     final callable = _functions.httpsCallable('saveCompanyInfo');
-    final data = organisation.toJson();
-    print('Calling saveCompanyInfo cloud function with data: $data');
-    final result = await callable.call(data);
-    final response = result.data as Map<String, dynamic>;
-    print('Cloud function response: $response');
 
-    // You already parse this into Organisation
-    return organisation.copyWith(
-      organisationId: response['organisationId'] as String?,
-    );
+    final address = <String, dynamic>{
+      'street': organisation.street.trim(),
+      'city': organisation.city.trim(),
+      'zip': organisation.zip.toString().trim(),
+      'country': organisation.country.trim(),
+      if (organisation.country.trim() == 'United States' &&
+          (organisation.state ?? '').trim().isNotEmpty)
+        'state': organisation.state!.trim(),
+    };
+
+    final payload = <String, dynamic>{
+      'name': organisation.name.trim(),
+      'phone': organisation.phone.toString().trim(),
+      'website': (organisation.website ?? '').trim().isEmpty
+          ? null
+          : organisation.website!.trim(),
+      'timezone': organisation.timezone.trim(),
+      'currency': 'USD', // ✅ keep fixed if model doesn’t have currency
+      'logo':
+          (organisation.logo ?? '').trim().isEmpty ? null : organisation.logo,
+      'assignedSalesPersonId':
+          (organisation.assignedSalesPersonId ?? '').trim().isEmpty
+              ? null
+              : organisation.assignedSalesPersonId!.trim(),
+      'address': address,
+    }..removeWhere((k, v) => v == null);
+
+    print('Calling saveCompanyInfo cloud function with payload: $payload');
+
+    try {
+      final result = await callable.call(payload);
+      final response = Map<String, dynamic>.from(result.data as Map);
+      print('Cloud function response: $response');
+
+      return organisation.copyWith(
+        organisationId: response['organisationId'] as String?,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      print('❌ saveCompanyInfo failed: code=${e.code}');
+      print('message=${e.message}');
+      print('details=${e.details}');
+      rethrow;
+    }
   }
 
   Future<void> attachUserToExistingOrganisation(String organisationId) async {
