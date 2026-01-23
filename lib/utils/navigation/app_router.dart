@@ -8,6 +8,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/payment_history_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
@@ -444,6 +445,9 @@ GoRouter buildRouter() {
             Get.put(EventsController());
           if (!Get.isRegistered<OrganisationController>()) {
             Get.put(OrganisationController(authCtrl.organisationId!));
+          }
+          if (!Get.isRegistered<PaymentHistoryController>()) {
+            Get.put(PaymentHistoryController());
           }
           if (!Get.isRegistered<UsersAndRolesController>())
             Get.put(UsersAndRolesController());

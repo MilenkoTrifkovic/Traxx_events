@@ -7,6 +7,22 @@ import { getAuth } from "firebase-admin/auth";
 // Define the Stripe secret key as a secret parameter
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 
+// Define valid event packages with pricing
+const VALID_PACKAGES = [
+    { events: 1, price: 29900, name: 'Single Event' },              // $299.00
+    { events: 50, price: 1250000, name: 'Professional Package' },   // $12,500.00 total ($250 per event)
+    { events: 100, price: 2000000, name: 'Enterprise Package' },    // $20,000.00 total ($200 per event)
+];
+
+/**
+ * Validates that the amount matches one of the valid event packages
+ * @param {number} amount - Amount in cents
+ * @returns {Object|null} - Valid package object or null if invalid
+ */
+function validatePackage(amount) {
+    return VALID_PACKAGES.find(pkg => pkg.price === amount) || null;
+}
+
 /**
  * HTTP Cloud Function for creating Stripe Checkout Session
  * Requires authentication. Gets user's email, queries Firestore for organisationId,
@@ -80,8 +96,20 @@ export const checkoutSession = onRequest(
             const amountInt = typeof amount === 'string' ? parseInt(amount) : amount;
             const quantityInt = typeof quantity === 'string' ? parseInt(quantity) : quantity;
 
+            // Validate that the amount matches one of the valid packages
+            const validPackage = validatePackage(amountInt);
+            if (!validPackage) {
+                console.error('Invalid amount:', amountInt);
+                console.error('Valid packages:', VALID_PACKAGES);
+                return res.status(400).send(
+                    `Invalid amount. Valid packages: $299.00 (1 event), $12,500.00 (50 events), $20,000.00 (100 events)`
+                );
+            }
+
+            console.log('Valid package found:', validPackage.name);
+
             console.log('Creating checkout session with:', {
-                productName,
+                productName: validPackage.name,
                 amount: amountInt,
                 currency,
                 quantity: quantityInt,
@@ -99,7 +127,7 @@ export const checkoutSession = onRequest(
                         price_data: {
                             currency: currency,
                             product_data: {
-                                name: productName,
+                                name: validPackage.name,
                             },
                             unit_amount: amountInt,
                         },
@@ -113,7 +141,8 @@ export const checkoutSession = onRequest(
                     organisationId: organisationId,
                     userEmail: userEmail,
                     userId: userData.userId || '',
-                    credits: Math.floor(amountInt / 100), // Calculate credits based on amount
+                    events: validPackage.events, // Use validated package events count
+                    packageName: validPackage.name,
                 },
                 client_reference_id: organisationId, // Also set as reference for easy lookup
             });

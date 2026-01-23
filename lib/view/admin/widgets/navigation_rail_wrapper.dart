@@ -204,7 +204,7 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
         selectedIcon: Icons.group,
       ),
       const NavItemData(
-        label: 'Buy Credits',
+        label: 'Buy Events',
         icon: Icons.credit_card_outlined,
         selectedIcon: Icons.credit_card,
       ),

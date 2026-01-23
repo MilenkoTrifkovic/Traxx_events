@@ -127,23 +127,20 @@ class _AppDropdownMenuState<T> extends State<AppDropdownMenu<T>> {
   }
 
   @override
-  @override
   void dispose() {
-    // ✅ Close overlay without setState
+    // Close overlay without setState
     _closeOverlay(fromDispose: true);
 
+    // Dispose search controller (only once!)
     _searchController.dispose();
 
+    // Clean up focus node
     if (widget.focusNode == null) {
       _focusNode.removeListener(_onFocusChange);
       _focusNode.dispose();
     } else {
       _focusNode.removeListener(_onFocusChange);
     }
-    // Close overlay without calling setState since widget is being disposed
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-    _searchController.dispose();
 
     super.dispose();
   }

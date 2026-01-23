@@ -33,7 +33,7 @@ export const stripeWebhook = onRequest(
           const organisationId = session.metadata?.organisationId || session.client_reference_id;
           const userEmail = session.metadata?.userEmail;
           const userId = session.metadata?.userId;
-          const credits = session.metadata?.credits;
+          const events = session.metadata?.events;
 
           if (!organisationId) {
             console.error("No organisationId found in session metadata");
@@ -66,13 +66,13 @@ export const stripeWebhook = onRequest(
             amount: session.amount_total, // Total amount in cents
             currency: session.currency,
             paymentStatus: session.payment_status, // paid, unpaid, or no_payment_required
-            credits: credits ? parseInt(credits) : null,
+            events: events ? parseInt(events) : null,
             
             // Subscription information (if applicable)
             subscriptionId: session.subscription || null,
             
             // Product information
-            productName: session.metadata?.productName || 'Credits Purchase',
+            productName: session.metadata?.productName || 'Events Purchase',
             
             // Payment method
             paymentMethod: paymentIntent?.payment_method || null,
@@ -97,10 +97,10 @@ export const stripeWebhook = onRequest(
           console.log("✅ Payment record created:", paymentRef.id);
           console.log("Payment data:", JSON.stringify(paymentData, null, 2));
 
-          // TODO: Update organisation's credit balance here
+          // TODO: Update organisation's events balance here
           // const orgRef = db.collection('organisations').doc(organisationId);
           // await orgRef.update({
-          //   credits: FieldValue.increment(parseInt(credits)),
+          //   events: FieldValue.increment(parseInt(events)),
           //   modifiedAt: FieldValue.serverTimestamp()
           // });
 
