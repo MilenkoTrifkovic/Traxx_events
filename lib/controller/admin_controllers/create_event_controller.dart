@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/payment_history_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/snack_bar_message.dart';
 import 'package:traxx_wepapp/utils/enums/event_status.dart';
 import 'package:traxx_wepapp/utils/enums/event_type.dart';
 import 'package:traxx_wepapp/utils/enums/snack_bar_type.dart';
-import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/image_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
@@ -17,7 +19,6 @@ import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_cont
 class CreateEventController extends GetxController {
   // Dependencies
   final AuthController _authController = Get.find<AuthController>();
-  final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
   final ImageServices _imageServices = ImageServices();
   final StorageServices _storageServices = StorageServices();
   final EventListController eventListController =
@@ -350,48 +351,203 @@ class CreateEventController extends GetxController {
     );
   }
 
-  /// Submit the event to Firebase
+  /// Submit the event to Firebase via Cloud Function (callable)
   /// Returns the saved Event (with eventId populated).
+  /// 
+  /// The cloud function validates:
+  /// - User authentication
+  /// - Required fields
+  /// - Events balance (purchased vs used)
   Future<Event> submitEvent() async {
     try {
       isLoading.value = true;
 
-      // Create event instance
-      var event = createEventInstance();
+      // Validate form locally first
+      if (!validateStep1() || !validateStep2()) {
+        throw Exception('Form validation failed');
+      }
 
-      // Upload cover image if selected
+      final organisationId = _authController.organisationId;
+      if (organisationId == null) {
+        throw Exception('Organisation ID not found');
+      }
+
+      // Upload cover image first if selected
+      String? coverImageUrl;
       if (selectedCoverImage.value != null) {
         try {
-          final imagePath =
+          coverImageUrl =
               await _storageServices.uploadImage(selectedCoverImage.value!);
-          // create a new event instance with coverImageUrl set
-          event = event.copyWith(coverImageUrl: imagePath);
         } catch (e) {
-          // If image upload fails, continue without image
           print('Failed to upload cover image: $e');
-          showWarning('Event created but cover image upload failed');
+          showWarning('Cover image upload failed, continuing without image');
         }
       }
 
-      // Save to Firebase and get saved event (with eventId)
-      final savedEvent = await _firestoreServices.saveEvent(event);
-      print('Saved event: ${savedEvent.toString()}');
+      // Build event data for cloud function
+      final date = selectedDate.value!;
+      final startDateTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        selectedStartTime.value!.hour,
+        selectedStartTime.value!.minute,
+      );
+      final endDateTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        selectedEndTime.value!.hour,
+        selectedEndTime.value!.minute,
+      );
 
-      // Success feedback (global snackbar)
-      snackbar.showSuccessMessage('Event created successfully!');
+      final eventData = <String, dynamic>{
+        'organisationId': organisationId,
+        'venueId': selectedVenue.value!,
+        'name': nameController.text.trim(),
+        'address': addressController.text.trim(),
+        'capacity': int.parse(capacityController.text.trim()),
+        'startDateTime': startDateTime.toUtc().toIso8601String(),
+        'endDateTime': endDateTime.toUtc().toIso8601String(),
+        'rsvpDeadline': selectedRsvpDeadline.value!.toUtc().toIso8601String(),
+        'eventType': selectedEventType.value!,
+        'timezone': 'UTC',
+        'serviceType': selectedServiceType.value!.name,
+        'status': 'draft',
+        'hideHostInfo': hideHostInfo.value,
+        'maxInviteByGuest': maxInviteByGuest.value ?? 0,
+      };
 
-      // Signal UI to navigate back
-      eventListController.addCreatedEventToList(savedEvent);
-      await _storageServices.loadImage(savedEvent);
-      shouldPop.value = true;
+      // Add optional fields
+      if (coverImageUrl != null) {
+        eventData['coverImageUrl'] = coverImageUrl;
+      }
+      if (descriptionController.text.trim().isNotEmpty) {
+        eventData['description'] = descriptionController.text.trim();
+      }
+      if (dressCodeController.text.trim().isNotEmpty) {
+        eventData['dressCode'] = dressCodeController.text.trim();
+      }
+      if (plannerEmailController.text.trim().isNotEmpty) {
+        eventData['plannerEmail'] = plannerEmailController.text.trim();
+      }
+      if (specialNotesController.text.trim().isNotEmpty) {
+        eventData['specialNotes'] = specialNotesController.text.trim();
+      }
 
-      return savedEvent;
+      print('🔵 Calling createEvent cloud function...');
+
+      // Call cloud function using callable
+      final callable = FirebaseFunctions.instance.httpsCallable('createEvent');
+      final result = await callable.call(eventData);
+
+      final responseData = result.data as Map<String, dynamic>;
+
+      if (responseData['success'] == true) {
+        // Parse the returned event
+        final eventJson = responseData['event'] as Map<String, dynamic>;
+        final savedEvent = _parseEventFromResponse(eventJson);
+
+        print('✅ Event created successfully: ${savedEvent.eventId}');
+        print('📊 Remaining events: ${responseData['remainingEvents']}');
+
+        // Success feedback
+        snackbar.showSuccessMessage('Event created successfully!');
+
+        // Update local state
+        eventListController.addCreatedEventToList(savedEvent);
+        await _storageServices.loadImage(savedEvent);
+        
+        // Refresh global controllers to update remaining events count
+        _refreshPaymentHistory();
+        _refreshEventsController(savedEvent);
+
+        shouldPop.value = true;
+        return savedEvent;
+      } else {
+        throw Exception(responseData['error'] ?? 'Failed to create event');
+      }
+    } on FirebaseFunctionsException catch (e) {
+      print('🔴 Firebase Functions Error: ${e.code} - ${e.message}');
+      
+      String errorMessage;
+      if (e.code == 'resource-exhausted') {
+        // No events remaining
+        final details = e.details as Map<String, dynamic>?;
+        final remaining = details?['remainingEvents'] ?? 0;
+        errorMessage = 'No event credits remaining. You have $remaining events left. Please purchase more events.';
+      } else if (e.code == 'unauthenticated') {
+        errorMessage = 'You must be signed in to create events.';
+      } else if (e.code == 'invalid-argument') {
+        errorMessage = e.message ?? 'Invalid event data provided.';
+      } else {
+        errorMessage = e.message ?? 'Failed to create event';
+      }
+      
+      showError(errorMessage);
+      throw Exception(errorMessage);
     } catch (e) {
-      // Error feedback
+      print('🔴 Error creating event: $e');
       showError('Failed to create event: ${e.toString()}');
       rethrow;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Parse event from cloud function response
+  Event _parseEventFromResponse(Map<String, dynamic> data) {
+    // Parse dates
+    final startDateTime = DateTime.parse(data['startDateTime']);
+    final endDateTime = DateTime.parse(data['endDateTime']);
+    final rsvpDeadline = DateTime.parse(data['rsvpDeadline']);
+
+    return Event(
+      eventId: data['eventId'],
+      organisationId: data['organisationId'],
+      venueId: data['venueId'],
+      name: data['name'],
+      address: data['address'] ?? '',
+      capacity: data['capacity'] ?? 0,
+      date: DateTime(startDateTime.year, startDateTime.month, startDateTime.day),
+      startTime: TimeOfDay.fromDateTime(startDateTime),
+      endTime: TimeOfDay.fromDateTime(endDateTime),
+      rsvpDeadline: rsvpDeadline,
+      eventType: data['eventType'] ?? '',
+      timezone: data['timezone'] ?? 'UTC',
+      status: EventStatusExtension.fromString(data['status'] ?? 'draft'),
+      serviceType: ServiceType.values.firstWhere(
+        (e) => e.name == data['serviceType'],
+        orElse: () => ServiceType.buffet,
+      ),
+      coverImageUrl: data['coverImageUrl'],
+      description: data['description'],
+      dressCode: data['dressCode'],
+      plannerEmail: data['plannerEmail'],
+      specialNotes: data['specialNotes'],
+      hideHostInfo: data['hideHostInfo'] ?? false,
+      maxInviteByGuest: data['maxInviteByGuest'] ?? 0,
+      invitationCode: data['invitationCode'],
+    );
+  }
+
+  /// Refresh payment history after creating event
+  void _refreshPaymentHistory() {
+    try {
+      final paymentHistoryController = Get.find<PaymentHistoryController>();
+      paymentHistoryController.refreshPaymentHistory();
+    } catch (e) {
+      print('⚠️ Could not refresh payment history: $e');
+    }
+  }
+
+  /// Refresh events controller to keep it in sync
+  void _refreshEventsController(Event event) {
+    try {
+      final eventsController = Get.find<EventsController>();
+      eventsController.addEvent(event);
+    } catch (e) {
+      print('⚠️ Could not update events controller: $e');
     }
   }
 

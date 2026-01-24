@@ -23,9 +23,7 @@ export { addCompanionToInvitation } from "./addCompanionToInvitation.js";
 export { endpointSession } from "./endpointSession.js";
 export { checkoutSession } from "./checkoutSession.js";
 export { stripeWebhook } from "./stripeEndpoint.js";
-
-
-
-
+export { getPaymentHistory } from "./getPaymentHistory.js";
+export { createEvent } from "./createEvent.js";
 
 
