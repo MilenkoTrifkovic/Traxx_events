@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/global_controllers/menu_selection_controller.dart';
-import 'package:traxx_wepapp/widgets/modals/image_viewer_modal.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'menu_constants.dart';
 import 'food_type_icon.dart';
 

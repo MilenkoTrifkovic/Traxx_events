@@ -56,7 +56,6 @@ class MenuSetDetailsController extends GetxController {
         menuSet.value = null;
       }
     } catch (e) {
-      debugPrint('Error loading menu set $menuId: $e');
       menuSet.value = null;
     } finally {
       isLoading.value = false;
@@ -80,7 +79,6 @@ class MenuSetDetailsController extends GetxController {
       items.assignAll(list);
       _applyFilters();
     } catch (e) {
-      debugPrint('Error loading items for menu $menuId: $e');
       items.clear();
       filteredItems.clear();
     } finally {
@@ -261,7 +259,6 @@ class MenuSetDetailsController extends GetxController {
       items.add(item);
       _applyFilters();
     } catch (e) {
-      debugPrint('Error creating menu item: $e');
       rethrow;
     }
   }
@@ -281,7 +278,6 @@ class MenuSetDetailsController extends GetxController {
       }
       _applyFilters();
     } catch (e) {
-      debugPrint('Error updating menu item: $e');
       rethrow;
     }
   }

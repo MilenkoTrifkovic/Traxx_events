@@ -22,7 +22,6 @@ class EventsController extends GetxController {
     try {
       isLoading.value = true;
       final organisationId = _authController.organisationId!;
-      print('Organisation ID in EventsController: $organisationId');
       final allEvents = await _firestoreServices.getAllEvents(organisationId);
       events.assignAll(allEvents);
       isLoading.value = false;

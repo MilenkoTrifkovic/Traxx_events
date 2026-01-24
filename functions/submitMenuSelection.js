@@ -10,7 +10,13 @@ import {
 
 export const submitMenuSelection = onCall(async (request) => {
   try {
-    const { invitationId, token, selectedMenuItemIds, companionIndex } = request.data || {};
+    const {
+      invitationId,
+      token,
+      selectedMenuItemIds,
+      companionIndex,
+      dietPreference, // ✅ passed from Flutter only on Save
+    } = request.data || {};
 
     if (!invitationId || !token) {
       throw new HttpsError("invalid-argument", "invitationId and token are required");
@@ -25,6 +31,16 @@ export const submitMenuSelection = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
     }
 
+    // ✅ normalize diet pref (default both)
+    const prefRaw = (dietPreference || "").toString().trim().toLowerCase();
+    const normalizedPref =
+      prefRaw === "veg" ? "veg" :
+      (prefRaw === "non_veg" || prefRaw === "non-veg") ? "non_veg" :
+      prefRaw === "both" ? "both" :
+      "both";
+
+    const personKey = isMainGuest ? "main" : `c${compIdx}`;
+
     const invRef = db.collection("invitations").doc(invitationId);
     const respDocId = isMainGuest ? invitationId : `${invitationId}_companion_${compIdx}`;
     const respRef = db.collection("menuSelectedItemsResponses").doc(respDocId);
@@ -37,29 +53,67 @@ export const submitMenuSelection = onCall(async (request) => {
       if ((inv.token || "") !== token) throw new HttpsError("permission-denied", "Invalid token");
 
       const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
-      if (expiresAt && expiresAt.getTime() < Date.now()) throw new HttpsError("failed-precondition", "Invitation expired");
+      if (expiresAt && expiresAt.getTime() < Date.now()) {
+        throw new HttpsError("failed-precondition", "Invitation expired");
+      }
 
       const companions = Array.isArray(inv.companions) ? [...inv.companions] : [];
       if (!isMainGuest && compIdx >= companions.length) {
         throw new HttpsError("invalid-argument", `Companion index ${compIdx} is out of range.`);
       }
 
-      // prerequisites + already submitted
+      // prerequisites
       if (isMainGuest) {
         if (inv.used !== true) throw new HttpsError("failed-precondition", "Demographic questions not submitted yet");
-        if (inv.menuSelectionSubmitted === true) return { ok: true, alreadySubmitted: true, companionIndex: null };
       } else {
         const companion = companions[compIdx];
         if (companion.demographicSubmitted !== true) {
           throw new HttpsError("failed-precondition", `Companion ${compIdx} has not submitted demographics yet`);
         }
-        if (companion.menuSubmitted === true) return { ok: true, alreadySubmitted: true, companionIndex: compIdx };
       }
 
-      // extra safety
-      const existing = await tx.get(respRef);
-      if (existing.exists) return { ok: true, alreadySubmitted: true, companionIndex: compIdx };
+      // ✅ IMPORTANT: detect already submitted
+      const alreadySubmitted = isMainGuest
+        ? (inv.menuSelectionSubmitted === true)
+        : (companions[compIdx]?.menuSubmitted === true);
 
+      // ✅ If already submitted, STILL write dietPreferenceByPerson + companion dietPreference, then return
+      if (alreadySubmitted) {
+        const patch = {
+          [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          modifiedAt: FieldValue.serverTimestamp(),
+        };
+
+        if (isMainGuest) {
+          tx.update(invRef, patch);
+        } else {
+          companions[compIdx] = {
+            ...companions[compIdx],
+            dietPreference: normalizedPref,
+          };
+          tx.update(invRef, { ...patch, companions });
+        }
+
+        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, patched: true };
+      }
+
+      // extra safety: response doc should not exist yet
+      const existing = await tx.get(respRef);
+      if (existing.exists) {
+        // still patch diet on collision
+        const patch = {
+          [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          modifiedAt: FieldValue.serverTimestamp(),
+        };
+        if (isMainGuest) tx.update(invRef, patch);
+        else {
+          companions[compIdx] = { ...companions[compIdx], dietPreference: normalizedPref };
+          tx.update(invRef, { ...patch, companions });
+        }
+        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, patched: true };
+      }
+
+      // ----- YOUR EXISTING VALIDATION LOGIC -----
       const cleaned = normalizeIds(selectedMenuItemIds);
       const cleanedSet = new Set(cleaned);
 
@@ -76,12 +130,10 @@ export const submitMenuSelection = onCall(async (request) => {
       const allowedIds = normalizeIds([...ungroupedAllowed, ...groupedAllowed]);
       const allowedSet = new Set(allowedIds);
 
-      // subset validation
       for (const id of cleaned) {
         if (!allowedSet.has(id)) throw new HttpsError("invalid-argument", "Invalid menu item selected");
       }
 
-      // enforce group maxPick
       const { groups: safeGroups } = sanitizeMenuItemGroups(rawGroups, allowedSet, null);
       const groupSelections = {};
 
@@ -115,6 +167,7 @@ export const submitMenuSelection = onCall(async (request) => {
         guestName = companion.name || "";
       }
 
+      // ✅ response doc includes dietPreference
       tx.set(respRef, {
         eventId: inv.eventId || "",
         organisationId: inv.organisationId || "",
@@ -124,32 +177,64 @@ export const submitMenuSelection = onCall(async (request) => {
         guestName,
         isCompanion: !isMainGuest,
         companionIndex: compIdx,
+        dietPreference: normalizedPref,
         selectedMenuItemIds: cleaned,
         groupSelections,
         createdAt: FieldValue.serverTimestamp(),
       });
 
+      const selectionSummary = {
+        dietPreference: normalizedPref,
+        selectedMenuItemIds: cleaned,
+        groupSelections,
+        submittedAt: FieldValue.serverTimestamp(),
+      };
+
       if (isMainGuest) {
         tx.update(invRef, {
           menuSelectionSubmitted: true,
           menuSelectionSubmittedAt: FieldValue.serverTimestamp(),
+          [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`menuSelectionByPerson.${personKey}`]: selectionSummary,
+          modifiedAt: FieldValue.serverTimestamp(),
         });
       } else {
         companions[compIdx] = {
           ...companions[compIdx],
+          dietPreference: normalizedPref,
           menuSubmitted: true,
           menuResponseId: respRef.id,
           menuSubmittedAt: new Date().toISOString(),
+          selectedMenuItemIds: cleaned,
+          groupSelections,
         };
-        tx.update(invRef, { companions });
+
+        tx.update(invRef, {
+          companions,
+          [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`menuSelectionByPerson.${personKey}`]: selectionSummary,
+          modifiedAt: FieldValue.serverTimestamp(),
+        });
       }
 
-      return { ok: true, alreadySubmitted: false, companionIndex: compIdx };
+      return { ok: true, alreadySubmitted: false, companionIndex: compIdx, dietPreference: normalizedPref };
+    });
+
+    console.log("✅ submitMenuSelection WRITE", {
+      invitationId,
+      isMainGuest,
+      compIdx,
+      personKey,
+      normalizedPref,
     });
 
     return result;
   } catch (err) {
     console.error("submitMenuSelection error:", err);
-    throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
+    throw err instanceof HttpsError
+      ? err
+      : new HttpsError("internal", err?.message ?? "Unknown error");
   }
 });
+
+

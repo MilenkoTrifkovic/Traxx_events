@@ -5,23 +5,6 @@ import 'package:traxx_wepapp/controller/admin_controllers/event_hosts_controller
 import 'package:traxx_wepapp/models/host_user_row.dart';
 import 'package:traxx_wepapp/utils/data/us_data.dart';
 
-// import your controller + HostUserRow
-// import 'event_hosts_controller.dart';
-
-import 'package:collection/collection.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-
-// Your project imports here:
-// import '...controllers/event_hosts_controller.dart';
-// import '...models/host_user_row.dart';
-// import '...routes/app_route.dart';
-// import '...helpers/navigation_helpers.dart';
-// import '...dialogs/create_host_dialog.dart';
-// import '...dialogs/edit_host_dialog.dart';
-// import '...services/us_data.dart';
-
 class EventHostsSection extends StatefulWidget {
   final String tag; // use eventId as tag
   const EventHostsSection({super.key, required this.tag});
@@ -32,6 +15,16 @@ class EventHostsSection extends StatefulWidget {
 
 class _EventHostsSectionState extends State<EventHostsSection> {
   final ScrollController _hCtrl = ScrollController();
+  bool _hoverTable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensures controller attaches before first hover-render decisions
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -89,7 +82,6 @@ class _EventHostsSectionState extends State<EventHostsSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ✅ Responsive header
             LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 900;
@@ -129,7 +121,7 @@ class _EventHostsSectionState extends State<EventHostsSection> {
                 final addBtn = ElevatedButton.icon(
                   onPressed: () => _openCreateHostDialog(context, c),
                   icon: const Icon(Icons.person_add_alt_1),
-                  label: Text(isNarrow ? 'Add' : 'Add Host'),
+                  label: Text(isNarrow ? 'Add' : 'Create Host'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 12),
@@ -167,10 +159,7 @@ class _EventHostsSectionState extends State<EventHostsSection> {
                 );
               },
             ),
-
             const SizedBox(height: 12),
-
-            // Summary chips
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -191,9 +180,7 @@ class _EventHostsSectionState extends State<EventHostsSection> {
                 ),
               ],
             ),
-
             const SizedBox(height: 14),
-
             if (c.isLoading.value)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 18),
@@ -208,136 +195,182 @@ class _EventHostsSectionState extends State<EventHostsSection> {
                 ),
               )
             else
-              // ✅ Bottom scrollbar + horizontal scroll
               LayoutBuilder(
                 builder: (context, constraints) {
                   final available = constraints.maxWidth;
 
-                  // minimum readable width for host columns
+                  // Same idea as Events table: min readable width, then scroll.
                   const minTableWidth = 980.0;
-
-                  // ✅ same "perfect width then scroll" behavior
                   final tableWidth =
                       available > minTableWidth ? available : minTableWidth;
 
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Scrollbar(
-                        controller: _hCtrl,
-                        thumbVisibility: true,
-                        trackVisibility: true,
-                        interactive: true,
-                        scrollbarOrientation: ScrollbarOrientation.bottom,
-                        child: SingleChildScrollView(
+                  final isScrollable = tableWidth > available;
+
+                  // Show scrollbar only on hover + only if it can scroll + controller attached.
+                  final showBar =
+                      _hoverTable && isScrollable && _hCtrl.hasClients;
+                  final canPaint =
+                      _hoverTable && isScrollable && _hCtrl.hasClients;
+                  return MouseRegion(
+                    onEnter: (_) => setState(() => _hoverTable = true),
+                    onExit: (_) => setState(() => _hoverTable = false),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Scrollbar(
                           controller: _hCtrl,
-                          scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(minWidth: tableWidth),
-                            child: DataTable(
-                              showCheckboxColumn: false,
-                              headingRowHeight: 48,
-                              dataRowMinHeight: 56,
-                              dataRowMaxHeight: 64,
+                          thumbVisibility: canPaint,
+                          trackVisibility: canPaint,
+                          interactive: true,
+                          thickness: 8,
+                          radius: const Radius.circular(999),
+                          scrollbarOrientation: ScrollbarOrientation.bottom,
+                          child: SingleChildScrollView(
+                            controller: _hCtrl,
+                            primary:
+                                false, // ✅ avoids PrimaryScrollController issues
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: tableWidth),
+                              child: DataTable(
+                                showCheckboxColumn: false,
+                                headingRowHeight: 48,
+                                dataRowMinHeight: 56,
+                                dataRowMaxHeight: 64,
 
-                              // ✅ header background like Guest table
-                              headingRowColor: MaterialStateProperty.all(
-                                  const Color(0xFFF3F4F6)),
-                              headingTextStyle: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF111827),
-                              ),
-                              dataTextStyle: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF111827),
-                              ),
+                                headingRowColor: MaterialStateProperty.all(
+                                  const Color(0xFFF3F4F6),
+                                ),
+                                headingTextStyle: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF111827),
+                                ),
+                                dataTextStyle: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF111827),
+                                ),
 
-                              // ✅ full border + row dividers like Guest table
-                              border: const TableBorder(
-                                top: BorderSide(color: Color(0xFFE5E7EB)),
-                                bottom: BorderSide(color: Color(0xFFE5E7EB)),
-                                left: BorderSide(color: Color(0xFFE5E7EB)),
-                                right: BorderSide(color: Color(0xFFE5E7EB)),
-                                horizontalInside:
-                                    BorderSide(color: Color(0xFFE5E7EB)),
-                                verticalInside: BorderSide.none,
-                              ),
+                                border: const TableBorder(
+                                  top: BorderSide(color: Color(0xFFE5E7EB)),
+                                  bottom: BorderSide(color: Color(0xFFE5E7EB)),
+                                  left: BorderSide(color: Color(0xFFE5E7EB)),
+                                  right: BorderSide(color: Color(0xFFE5E7EB)),
+                                  horizontalInside:
+                                      BorderSide(color: Color(0xFFE5E7EB)),
+                                  verticalInside: BorderSide.none,
+                                ),
 
-                              columns: const [
-                                DataColumn(label: Text('Name')),
-                                DataColumn(label: Text('Email')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Primary')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: rows.map((h) {
-                                final isPrimary =
-                                    (c.primaryHostUserId.value == h.userId);
+                                // Stable widths like Events table
+                                columns: const [
+                                  DataColumn(
+                                      label: SizedBox(
+                                          width: 240, child: Text('Name'))),
+                                  DataColumn(
+                                      label: SizedBox(
+                                          width: 280, child: Text('Email'))),
+                                  DataColumn(
+                                      label: SizedBox(
+                                          width: 140, child: Text('Status'))),
+                                  DataColumn(
+                                      label: SizedBox(
+                                          width: 160, child: Text('Primary'))),
+                                  DataColumn(
+                                      label: SizedBox(
+                                          width: 220, child: Text('Actions'))),
+                                ],
 
-                                return DataRow(cells: [
-                                  DataCell(Text(
-                                    h.name?.trim().isNotEmpty == true
-                                        ? h.name!.trim()
-                                        : '—',
-                                  )),
-                                  DataCell(Text(h.email)),
-                                  DataCell(_statusPill(
-                                    h.isDisabled ? 'Disabled' : 'Enabled',
-                                    h.isDisabled,
-                                  )),
-                                  DataCell(
-                                    isPrimary
-                                        ? _pill(
-                                            'Primary',
-                                            const Color(0xFFECFDF3),
-                                            const Color(0xFF027A48))
-                                        : TextButton(
+                                rows: rows.map((h) {
+                                  final isPrimary =
+                                      (c.primaryHostUserId.value == h.userId);
+
+                                  return DataRow(cells: [
+                                    DataCell(SizedBox(
+                                      width: 240,
+                                      child: Text(
+                                        h.name?.trim().isNotEmpty == true
+                                            ? h.name!.trim()
+                                            : '—',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                                    DataCell(SizedBox(
+                                      width: 280,
+                                      child: Text(
+                                        h.email,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                                    DataCell(SizedBox(
+                                      width: 140,
+                                      child: _statusPill(
+                                        h.isDisabled ? 'Disabled' : 'Enabled',
+                                        h.isDisabled,
+                                      ),
+                                    )),
+                                    DataCell(SizedBox(
+                                      width: 160,
+                                      child: isPrimary
+                                          ? _pill(
+                                              'Primary',
+                                              const Color(0xFFECFDF3),
+                                              const Color(0xFF027A48),
+                                            )
+                                          : Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: TextButton(
+                                                onPressed: () =>
+                                                    c.setPrimary(h.userId),
+                                                child:
+                                                    const Text('Set Primary'),
+                                              ),
+                                            ),
+                                    )),
+                                    DataCell(SizedBox(
+                                      width: 220,
+                                      child: Row(
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Send verification email',
+                                            icon: const Icon(Icons
+                                                .mark_email_unread_outlined),
+                                            onPressed: () => _sendVerification(
+                                                context, c, h.userId, h.email),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Set Primary',
+                                            icon:
+                                                const Icon(Icons.star_outline),
                                             onPressed: () =>
                                                 c.setPrimary(h.userId),
-                                            child: const Text('Set Primary'),
                                           ),
-                                  ),
-                                  DataCell(
-                                    Row(
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Send verification email',
-                                          icon: const Icon(
-                                              Icons.mark_email_unread_outlined),
-                                          onPressed: () => _sendVerification(
-                                              context, c, h.userId, h.email),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Set Primary',
-                                          icon: const Icon(Icons.star_outline),
-                                          onPressed: () =>
-                                              c.setPrimary(h.userId),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Edit Host',
-                                          icon: const Icon(Icons.edit_outlined),
-                                          onPressed: () => _openEditHostDialog(
-                                              context, c, h),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Remove Host',
-                                          icon: const Icon(Icons.delete,
-                                              color: Colors.red),
-                                          onPressed: () => _confirmRemove(
-                                              context, c, h.userId),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ]);
-                              }).toList(),
+                                          IconButton(
+                                            tooltip: 'Edit Host',
+                                            icon:
+                                                const Icon(Icons.edit_outlined),
+                                            onPressed: () =>
+                                                _openEditHostDialog(
+                                                    context, c, h),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Remove Host',
+                                            icon: const Icon(Icons.delete,
+                                                color: Colors.red),
+                                            onPressed: () => _confirmRemove(
+                                                context, c, h.userId),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                                  ]);
+                                }).toList(),
+                              ),
                             ),
                           ),
                         ),
@@ -351,7 +384,6 @@ class _EventHostsSectionState extends State<EventHostsSection> {
       }),
     );
   }
-
   // ---------------- UI helpers ----------------
 
   Widget _statusPill(String text, bool disabled) {
@@ -513,10 +545,6 @@ class _EventHostsSectionState extends State<EventHostsSection> {
     }
   }
 }
-
-// =======================================================
-// Dialogs (unchanged from your version)
-// =======================================================
 
 class CreateHostDialog extends StatefulWidget {
   final EventHostsController controller;

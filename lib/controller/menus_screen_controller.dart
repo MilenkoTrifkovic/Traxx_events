@@ -94,7 +94,6 @@ class MenusScreenController extends GetxController {
         try {
           coverImagePath =
               await _storageServices.uploadImage(selectedImage.value!);
-          debugPrint('Menu cover uploaded: $coverImagePath');
         } catch (e) {
           debugPrint('Failed to upload menu cover: $e');
         }

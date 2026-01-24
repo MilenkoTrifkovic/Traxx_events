@@ -3,12 +3,16 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
+import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_poppins.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_header.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_form.dart';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 class SignInScreenWidget extends StatefulWidget {
   const SignInScreenWidget({super.key});
@@ -70,8 +74,11 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
   }
 
   void _clearFormAndToggleMode() {
+    controller.cancelCurrentAuth(
+        silent: true); // ✅ unlock UI if something running
     controller.toggleSignUpMode();
     controller.usePassword.value = false;
+
     _emailController.clear();
     _passwordController.clear();
     _confirmPasswordController.clear();
@@ -82,7 +89,6 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
-
         final cardW = w < 520.0 ? w - 32.0 : (w < 900.0 ? 460.0 : 520.0);
 
         return Center(
@@ -108,6 +114,56 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SignInHeader(controller: controller),
+
+                        // ✅ shows cancel bar when auth is in progress
+                        Obx(() {
+                          if (!controller.isLoading.value) {
+                            return const SizedBox.shrink();
+                          }
+                          final method = controller.activeAuthMethodLabel;
+                          final mode = controller.isSignUpMode.value
+                              ? 'Signing up'
+                              : 'Signing in';
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: AppColors.primary.withOpacity(0.18)),
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '$mode with $method…',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: controller.cancelCurrentAuth,
+                                  child: const Text('Cancel'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
                         SignInForm(
                           controller: controller,
                           formKey: _formKey,

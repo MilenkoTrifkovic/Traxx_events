@@ -6,15 +6,16 @@ import {
   sanitizeMenuItemGroups,
   fetchMenuItemsByIds,
 } from "./menuSelectionHelpers.js";
+import { db } from "./admin.js";
 
 export const getSelectedMenuItemsForInvitation = onCall(async (request) => {
   try {
-    const { invitationId, token } = request.data || {};
+    const { invitationId, token, dietPreference } = request.data || {};
     if (!invitationId || !token) {
       throw new HttpsError("invalid-argument", "invitationId and token are required");
     }
 
-    const invSnap = await (await import("./admin.js")).db.collection("invitations").doc(invitationId).get();
+    const invSnap = await db.collection("invitations").doc(invitationId).get();
     if (!invSnap.exists) throw new HttpsError("not-found", "Invitation not found");
 
     const inv = invSnap.data() || {};
@@ -23,6 +24,21 @@ export const getSelectedMenuItemsForInvitation = onCall(async (request) => {
     const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
     if (expiresAt && expiresAt.getTime() < Date.now()) {
       throw new HttpsError("failed-precondition", "Invitation expired");
+    }
+
+    // ✅ normalize pref if provided (else null => no filtering)
+    const prefRaw = (dietPreference || "").toString().trim().toLowerCase();
+    const pref =
+      prefRaw === "veg" ? "veg" :
+      (prefRaw === "non_veg" || prefRaw === "non-veg") ? "non_veg" :
+      prefRaw === "both" ? "both" :
+      "";
+
+    function matchesDiet(item) {
+      if (!pref || pref === "both") return true;
+      const v = item?.isVeg;
+      if (v === null || v === undefined) return true; // keep unknown
+      return pref === "veg" ? v === true : v === false;
     }
 
     const eventId = (inv.eventId || "").toString();
@@ -47,20 +63,29 @@ export const getSelectedMenuItemsForInvitation = onCall(async (request) => {
     const allowedSet = new Set(allIds);
     const { groups: sanitizedGroups, groupedSet } = sanitizeMenuItemGroups(rawGroups, allowedSet, mapById);
 
-    const groups = sanitizedGroups.map((g) => ({
-      groupId: g.groupId,
-      name: g.name,
-      categoryKey: g.categoryKey,
-      categoryLabel: g.categoryLabel,
-      maxPick: g.maxPick,
-      items: g.itemIds.map((id) => mapById[id]).filter(Boolean),
-    }));
+    // ✅ Groups (filter items by diet if pref provided)
+    const groups = sanitizedGroups.map((g) => {
+      const items = g.itemIds
+        .map((id) => mapById[id])
+        .filter(Boolean)
+        .filter(matchesDiet);
 
+      return {
+        groupId: g.groupId,
+        name: g.name,
+        categoryKey: g.categoryKey,
+        categoryLabel: g.categoryLabel,
+        maxPick: g.maxPick,
+        items,
+      };
+    });
+
+    // ✅ Ungrouped (filter by diet if pref provided)
     const items = [];
     for (const id of ungroupedIds) {
       if (groupedSet.has(id)) continue;
       const item = mapById[id];
-      if (item) items.push(item);
+      if (item && matchesDiet(item)) items.push(item);
     }
 
     return { ok: true, eventId, eventName: eventData.name || "Event", groups, items };

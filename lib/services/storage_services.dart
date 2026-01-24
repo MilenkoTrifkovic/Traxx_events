@@ -31,8 +31,6 @@ class StorageServices {
       }
       final ref = FirebaseStorage.instance.ref().child(path);
       event.coverImageDownloadUrl = await ref.getDownloadURL();
-      print('image loaded for event ${event.eventId}');
-      print(' url: ${event.coverImageDownloadUrl}');
     } catch (e) {
       print('Image loading failed: $e');
     }
@@ -52,11 +50,11 @@ class StorageServices {
   }
 
   /// Uploads an invitation letter file (PDF or image) to Firebase Storage
-  /// 
+  ///
   /// Parameters:
   /// - [file]: The PlatformFile from file picker
   /// - [eventId]: The event ID to organize files
-  /// 
+  ///
   /// Returns a Map with 'path' and 'downloadUrl'
   /// Throws exception on upload failure
   Future<Map<String, String>> uploadInvitationLetter(
@@ -88,7 +86,8 @@ class StorageServices {
 
       // Create storage path: invitation_letters/eventId/timestamp_filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = 'invitation_letters/$eventId/${timestamp}_${file.name}';
+      final storagePath =
+          'invitation_letters/$eventId/${timestamp}_${file.name}';
 
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
 
@@ -116,10 +115,10 @@ class StorageServices {
   }
 
   /// Deletes an invitation letter file from Firebase Storage
-  /// 
+  ///
   /// Parameters:
   /// - [path]: The storage path of the file to delete
-  /// 
+  ///
   /// Returns true if deletion was successful
   Future<bool> deleteInvitationLetter(String path) async {
     try {
@@ -140,12 +139,12 @@ class StorageServices {
   }
 
   /// Uploads a message attachment (image or PDF) to Firebase Storage
-  /// 
+  ///
   /// Parameters:
   /// - [file]: The PlatformFile from file picker
   /// - [eventId]: The event ID to organize files
   /// - [messageId]: The message ID to organize files
-  /// 
+  ///
   /// Returns a Map with 'path' and 'downloadUrl'
   /// Throws exception on upload failure
   Future<Map<String, String>> uploadMessageAttachment(
@@ -178,7 +177,7 @@ class StorageServices {
 
       // Create storage path: message_attachments/eventId/messageId/timestamp_filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = 
+      final storagePath =
           'message_attachments/$eventId/$messageId/${timestamp}_${file.name}';
 
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
@@ -217,10 +216,10 @@ class StorageServices {
   }
 
   /// Loads the download URL for a message attachment
-  /// 
+  ///
   /// Parameters:
   /// - [path]: The storage path of the file
-  /// 
+  ///
   /// Returns the download URL or null if loading failed
   Future<String?> loadMessageAttachmentURL(String? path) async {
     if (path == null || path.isEmpty) {
@@ -240,10 +239,10 @@ class StorageServices {
   }
 
   /// Deletes a message attachment file from Firebase Storage
-  /// 
+  ///
   /// Parameters:
   /// - [path]: The storage path of the file to delete
-  /// 
+  ///
   /// Returns true if deletion was successful
   Future<bool> deleteMessageAttachment(String path) async {
     try {
@@ -264,12 +263,12 @@ class StorageServices {
   }
 
   /// Uploads multiple message attachments at once
-  /// 
+  ///
   /// Parameters:
   /// - [files]: List of PlatformFiles to upload
   /// - [eventId]: The event ID to organize files
   /// - [messageId]: The message ID to organize files
-  /// 
+  ///
   /// Returns a List of Maps with 'path' and 'downloadUrl' for each file
   /// Throws exception if any upload fails
   Future<List<Map<String, String>>> uploadMultipleAttachments(

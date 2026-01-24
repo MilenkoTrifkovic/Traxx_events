@@ -787,44 +787,6 @@ GoRouter buildRouter() {
   );
 }
 
-Widget _buildHostBody({
-  required BuildContext context,
-  required GoRouterState state,
-  required Widget child,
-  required Color contentColor,
-  required bool isQuestionsPage,
-  required bool isMobile,
-  required Widget header,
-}) {
-  if (isQuestionsPage) {
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(
-            left: isMobile ? 16 : 40,
-            right: isMobile ? 16 : 40,
-            top: isMobile ? 12 : 24,
-            bottom: 8,
-          ),
-          child: header,
-        ),
-        Expanded(
-          child: ContentWrapper(
-            contentColor: contentColor,
-            child: child,
-          ),
-        ),
-      ],
-    );
-  }
-
-  return ContentWrapper(
-    contentColor: contentColor,
-    header: header,
-    child: child,
-  );
-}
-
 class HostDrawerMenuSidebar extends StatelessWidget {
   final String location;
   const HostDrawerMenuSidebar({super.key, required this.location});

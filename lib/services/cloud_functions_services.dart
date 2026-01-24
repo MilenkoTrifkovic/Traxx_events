@@ -233,6 +233,7 @@ class CloudFunctionsService extends GetxService {
     required String token,
     required List<String> selectedMenuItemIds,
     int? companionIndex,
+    required String dietPreference,
   }) async {
     final callable = _functions.httpsCallable(
       'submitMenuSelection',
@@ -244,6 +245,7 @@ class CloudFunctionsService extends GetxService {
       'token': token.trim(),
       'selectedMenuItemIds': selectedMenuItemIds,
       if (companionIndex != null) 'companionIndex': companionIndex,
+      'dietPreference': dietPreference,
     });
 
     final data = result.data;

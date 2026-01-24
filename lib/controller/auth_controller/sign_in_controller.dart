@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/services/auth_services.dart';
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SignInController extends GetxController {
@@ -14,7 +13,7 @@ class SignInController extends GetxController {
   final isLoading = false.obs;
   final isSignUpMode = false.obs;
 
-  // HubSpot-like UX: show OAuth buttons, and optionally expand password form
+  // HubSpot-like UX: show OAuth buttons + optionally expand password form
   final usePassword = false.obs;
 
   final isPasswordVisible = false.obs;
@@ -27,12 +26,55 @@ class SignInController extends GetxController {
   // Auth result
   final authResult = Rxn<UserCredential>();
 
-  // 🔥 Navigation flags
+  // Navigation flags
   final shouldNavigateToEmailVerification = false.obs;
   final shouldNavigateToOrganisationInfo = false.obs;
   final shouldNavigateToHostEvents = false.obs;
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // ------------------------------------------------------------------
+  // ✅ NEW: track active method + allow cancel / switching methods
+  // ------------------------------------------------------------------
+  final activeAuthMethod =
+      RxnString(); // 'google'|'microsoft'|'apple'|'password'
+  final _opVersion = 0.obs;
+
+  String get activeAuthMethodLabel {
+    switch (activeAuthMethod.value) {
+      case 'google':
+        return 'Google';
+      case 'microsoft':
+        return 'Microsoft';
+      case 'apple':
+        return 'Apple';
+      case 'password':
+        return 'Password';
+      default:
+        return '…';
+    }
+  }
+
+  int _beginAuth(String method) {
+    activeAuthMethod.value = method;
+    _opVersion.value = _opVersion.value + 1;
+    isLoading.value = true;
+    return _opVersion.value;
+  }
+
+  bool _isStale(int op) => op != _opVersion.value;
+
+  /// Cancels the *current* auth attempt from a UI perspective.
+  /// If the provider completes later, we ignore it and sign out.
+  Future<void> cancelCurrentAuth({bool silent = false}) async {
+    _opVersion.value = _opVersion.value + 1; // invalidate pending ops
+    activeAuthMethod.value = null;
+    isLoading.value = false;
+
+    if (!silent) {
+      successMessage.value = 'Cancelled. Choose another sign-in method.';
+    }
+  }
 
   // ─────────────────────────────────────────────
   // UI toggles
@@ -58,8 +100,9 @@ class SignInController extends GetxController {
   }) async {
     if (isLoading.value) return;
 
+    final op = _beginAuth('password');
+
     try {
-      isLoading.value = true;
       _resetNavigationFlags();
       clearErrorMessage();
       clearSuccessMessage();
@@ -67,40 +110,55 @@ class SignInController extends GetxController {
       UserCredential userCredential;
 
       if (isSignUpMode.value) {
-        // ───────────── SIGN UP ─────────────
-        print('Controller: Creating admin user (signup)');
+        // SIGN UP
         userCredential = await _authServices.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
 
-        // 1️⃣ send verification email
+        // If user cancelled while waiting, ignore and sign out
+        if (_isStale(op)) {
+          await _safeSignOutIfSameUser(userCredential.user);
+          return;
+        }
+
         await _authServices.sendEmailVerification();
 
-        // 2️⃣ load profile (role=admin, organisationId=null) - your existing flow
-        await _authController.loadUserProfile();
+        // ensure profile exists (rare but safe)
+        final u = userCredential.user;
+        if (u != null) {
+          await _ensureUserProfileExists(u);
+        }
 
+        await _authController.loadUserProfile();
         authResult.value = userCredential;
 
-        // 3️⃣ tell UI to go to email verification page
         shouldNavigateToEmailVerification.value = true;
         return;
       } else {
-        // ───────────── SIGN IN ─────────────
-        print('Controller: Signing in user');
+        // SIGN IN
         userCredential = await _authServices.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
 
+        if (_isStale(op)) {
+          await _safeSignOutIfSameUser(userCredential.user);
+          return;
+        }
+
         authResult.value = userCredential;
         await _postAuthRoute(userCredential);
       }
     } catch (e) {
-      print('Controller: Error occurred: $e');
-      _showErrorMessage(_niceError(e));
+      if (!_isStale(op)) {
+        _showErrorMessage(_niceError(e));
+      }
     } finally {
-      isLoading.value = false;
+      if (!_isStale(op)) {
+        isLoading.value = false;
+        activeAuthMethod.value = null;
+      }
     }
   }
 
@@ -112,38 +170,34 @@ class SignInController extends GetxController {
   Future<void> signInWithGoogle() async {
     final provider = GoogleAuthProvider()
       ..setCustomParameters({'prompt': 'select_account'});
-
-    await _signInWithProvider(provider, label: 'Google');
+    await _signInWithProvider(provider, method: 'google', label: 'Google');
   }
 
   Future<void> signInWithMicrosoft() async {
     final provider = OAuthProvider('microsoft.com')
       ..setCustomParameters({'prompt': 'select_account'});
-
-    await _signInWithProvider(provider, label: 'Microsoft');
+    await _signInWithProvider(provider,
+        method: 'microsoft', label: 'Microsoft');
   }
 
   Future<void> signInWithApple() async {
-    final provider = OAuthProvider('apple.com');
-    provider.addScope('email');
-    provider.addScope('name');
-
-    await _signInWithProvider(provider, label: 'Apple');
+    final provider = OAuthProvider('apple.com')
+      ..addScope('email')
+      ..addScope('name');
+    await _signInWithProvider(provider, method: 'apple', label: 'Apple');
   }
 
   Future<void> _ensureUserProfileExists(User user) async {
     final ref = _db.collection('users').doc(user.uid);
     final snap = await ref.get();
-
     if (snap.exists) return;
 
-    // ✅ Create a default profile for NEW OAuth users
     await ref.set({
       'uid': user.uid,
       'email': user.email,
       'displayName': user.displayName,
       'role': 'admin', // ✅ same as your email/password signup flow
-      'organisationId': null, // ✅ new user has no org yet
+      'organisationId': null,
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -151,17 +205,17 @@ class SignInController extends GetxController {
 
   Future<void> _signInWithProvider(
     AuthProvider provider, {
+    required String method, // 'google'|'microsoft'|'apple'
     required String label,
   }) async {
     if (isLoading.value) return;
 
+    final op = _beginAuth(method);
+
     try {
-      isLoading.value = true;
       _resetNavigationFlags();
       clearErrorMessage();
       clearSuccessMessage();
-
-      print('Controller: Signing in with $label');
 
       final auth = FirebaseAuth.instance;
       UserCredential userCredential;
@@ -172,6 +226,12 @@ class SignInController extends GetxController {
         userCredential = await auth.signInWithProvider(provider);
       }
 
+      // If user cancelled while popup was open, ignore and sign out
+      if (_isStale(op)) {
+        await _safeSignOutIfSameUser(userCredential.user);
+        return;
+      }
+
       authResult.value = userCredential;
 
       final user = userCredential.user;
@@ -180,21 +240,36 @@ class SignInController extends GetxController {
         return;
       }
 
-      // ✅ NEW: ensure profile exists for NEW OAuth users
+      // ensure profile exists for NEW OAuth users
       await _ensureUserProfileExists(user);
 
-      // Now load profile normally
+      // load profile & route
       await _authController.loadUserProfile();
-
       await _postAuthRoute(userCredential);
     } on FirebaseAuthException catch (e) {
-      print('Controller: FirebaseAuthException: ${e.code} ${e.message}');
-      _showErrorMessage(_niceFirebaseAuthError(e));
+      if (!_isStale(op)) {
+        _showErrorMessage(_niceFirebaseAuthError(e));
+      }
     } catch (e) {
-      print('Controller: OAuth error: $e');
-      _showErrorMessage(_niceError(e));
+      if (!_isStale(op)) {
+        _showErrorMessage(_niceError(e));
+      }
     } finally {
-      isLoading.value = false;
+      if (!_isStale(op)) {
+        isLoading.value = false;
+        activeAuthMethod.value = null;
+      }
+    }
+  }
+
+  Future<void> _safeSignOutIfSameUser(User? u) async {
+    try {
+      final current = FirebaseAuth.instance.currentUser;
+      if (u != null && current != null && current.uid == u.uid) {
+        await FirebaseAuth.instance.signOut();
+      }
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -230,10 +305,8 @@ class SignInController extends GetxController {
     final signedInWithPassword =
         user.providerData.any((p) => p.providerId == 'password');
 
-    final isVerified = user.emailVerified;
-
-    // ✅ Only require verification for password users
-    if (signedInWithPassword && !isVerified) {
+    // Only require verification for password users
+    if (signedInWithPassword && !user.emailVerified) {
       shouldNavigateToEmailVerification.value = true;
       return;
     }
@@ -266,11 +339,9 @@ class SignInController extends GetxController {
   // ─────────────────────────────────────────────
 
   void _showSuccessMessage(String message) => successMessage.value = message;
-
   void _showErrorMessage(String message) => errorMessage.value = message;
 
   void clearSuccessMessage() => successMessage.value = null;
-
   void clearErrorMessage() => errorMessage.value = null;
 
   // ─────────────────────────────────────────────
@@ -279,8 +350,6 @@ class SignInController extends GetxController {
 
   String _niceError(Object e) {
     final s = e.toString();
-
-    // If it’s a FirebaseAuthException wrapped or printed, keep it clean
     if (s.contains('firebase_auth')) {
       return 'Authentication failed. Please try again.';
     }
@@ -290,7 +359,7 @@ class SignInController extends GetxController {
   String _niceFirebaseAuthError(FirebaseAuthException e) {
     switch (e.code) {
       case 'account-exists-with-different-credential':
-        return 'This email already exists with a different sign-in method. Please try the other provider.';
+        return 'This email already exists with a different sign-in method. Please try the original provider.';
       case 'invalid-credential':
         return 'Invalid credentials. Please try again.';
       case 'user-disabled':

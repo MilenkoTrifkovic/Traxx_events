@@ -159,12 +159,8 @@ class GuestSessionController extends GetxController {
 
       // Check if credentials exist in local storage
       if (invitationCode == null || batchId == null) {
-        print('ℹ️ No saved session found');
         return;
       }
-
-      print('ℹ️ Restoring guest session...');
-
       // Authenticate with stored credentials
       final success = await authenticate(
         invitationCode: invitationCode,
@@ -172,15 +168,12 @@ class GuestSessionController extends GetxController {
       );
 
       if (success) {
-        print('✅ Session restored successfully');
-
         // 🔹 Load guest responses after session is restored
         await loadResponses();
 
         // 🆕 Load group guests and their responses
         await loadGroupGuests();
       } else {
-        print('❌ Session restoration failed, clearing local storage');
         await clearSession();
       }
     } catch (e) {

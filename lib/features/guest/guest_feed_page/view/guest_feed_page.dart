@@ -54,8 +54,8 @@ class GuestFeedPage extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-            child: _buildResponsiveContent(
-                context, controller, isPhone, isTablet),
+            child:
+                _buildResponsiveContent(context, controller, isPhone, isTablet),
           ),
         ),
         // Message input bar with spacing
