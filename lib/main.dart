@@ -11,6 +11,7 @@ import 'package:traxx_wepapp/controller/common_controllers/event_list_controller
 import 'package:traxx_wepapp/controller/admin_controllers/host_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
@@ -50,7 +51,6 @@ Future<void> main() async {
 
   await NominatimGeocoding.init(reqCacheNum: 50);
 
-  Get.lazyPut<AuthController>(() => AuthController(), fenix: true);
   Get.lazyPut<SharedPrefServices>(() => SharedPrefServices(), fenix: true);
   Get.lazyPut<FirestoreServices>(() => FirestoreServices(), fenix: true);
   Get.lazyPut<StorageServices>(() => StorageServices(), fenix: true);
@@ -59,6 +59,7 @@ Future<void> main() async {
   Get.lazyPut<GuestFirestoreServices>(() => GuestFirestoreServices(),
       fenix: true);
   Get.lazyPut<EventListController>(() => EventListController(), fenix: true);
+  Get.lazyPut<VenuesController>(() => VenuesController(), fenix: true);
   Get.lazyPut<HostController>(() => HostController(), fenix: true);
 
   Get.put<EventController>(EventController(), permanent: true);
@@ -67,8 +68,8 @@ Future<void> main() async {
 
   await Get.putAsync(() => GuestSessionController().init(), permanent: true);
 
-  final authController = Get.find<AuthController>();
-  await authController.loadUserProfile();
+  // final authController = Get.find<AuthController>();
+  // // await authController.loadUserProfile();
   await Constants.initAppInfo();
 
   runApp(const MyApp());

@@ -8,6 +8,9 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/widgets/sidebar.dart';
 import 'package:traxx_wepapp/view/admin/widgets/sidebar_nav_tiles.dart';
+import 'package:flutter/foundation.dart';
+import 'package:traxx_wepapp/utils/web_reload_stub.dart'
+    if (dart.library.html) 'package:traxx_wepapp/utils/web_reload_web.dart';
 
 // keep your existing imports for:
 // AppColors, AppText, AppRoute, pushAndRemoveAllRoute, AuthController
@@ -105,6 +108,12 @@ class _NavigationRailWrapperState extends State<NavigationRailWrapper>
         try {
           await authController.logout();
         } catch (_) {}
+
+        if (kIsWeb) {
+          hardReload();
+          return;
+        }
+
         if (context.mounted) {
           pushAndRemoveAllRoute(AppRoute.welcome, context);
         }
