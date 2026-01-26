@@ -271,20 +271,6 @@ class SignInForm extends StatelessWidget {
                   ),
                 ],
               )),
-
-          const SizedBox(height: 10),
-
-          Center(
-            child: TextButton(
-              onPressed: () => pushRoute(AppRoute.guestLogin, context),
-              child: AppText.styledBodySmall(
-                context,
-                'Guest login',
-                color: AppColors.textMuted,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
         ],
       ),
     );

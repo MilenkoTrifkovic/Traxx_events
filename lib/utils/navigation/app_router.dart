@@ -6,7 +6,6 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
-import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/payment_history_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
@@ -61,14 +60,6 @@ import 'package:traxx_wepapp/layout/guest_layout/guest_page_wrapper.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_view_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_view_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_feed_page/view/guest_feed_page.dart';
-import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -77,8 +68,6 @@ import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.da
 /// Key for the host section's nested navigation
 final GlobalKey<NavigatorState> hostNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestNavigationKey =
-    GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> guestAuthNavigatorKey =
     GlobalKey<NavigatorState>();
 const double kNavCollapseWidth = 900; // when to switch sidebar -> drawer
 final GlobalKey<ScaffoldState> hostShellScaffoldKey =
@@ -150,109 +139,6 @@ GoRouter buildRouter() {
           final token = (state.uri.queryParameters['token'] ?? '').trim();
           return GuestThankYouPage(invitationId: invId, token: token);
         },
-      ),
-
-      // GUEST AUTHENTICATED SHELL ROUTE
-      // Handles guest authentication and session management
-      // All guest routes that require authentication go here
-      ShellRoute(
-        navigatorKey: guestAuthNavigatorKey,
-        redirect: (context, state) {
-          final guestSession = Get.find<GuestSessionController>();
-
-          // If on login page and already authenticated, redirect to responses preview
-          if (state.matchedLocation == AppRoute.guestLogin.path) {
-            if (guestSession.isAuthenticated) {
-              print(
-                  '✅ Guest already authenticated, redirecting to responses preview');
-              return AppRoute.guestResponsesPreview.path;
-            }
-            // Not authenticated, allow access to login page
-            return null;
-          }
-
-          // For all other guest routes, check if authenticated
-          if (!guestSession.isAuthenticated) {
-            print('🔒 Guest not authenticated, redirecting to login');
-            return AppRoute.guestLogin.path;
-          }
-
-          print('✅ Guest authenticated, allowing access');
-          return null; // Allow access to protected route
-        },
-        builder: (context, state, child) {
-          // If on login page, don't show navigation rail
-          if (state.matchedLocation == AppRoute.guestLogin.path) {
-            print('ONLY CHILD RETURNED');
-            return child;
-          }
-
-          // For authenticated routes, show navigation rail and content wrapper
-          return GuestNavigationRailWrapper(
-            child: ContentWrapper(
-              child: child,
-            ),
-          );
-        },
-        routes: [
-          // Public guest login route
-          GoRoute(
-            path: AppRoute.guestLogin.path,
-            builder: (context, state) => const GuestLoginPage(),
-          ),
-
-          // Guest responses preview page (authenticated)
-          GoRoute(
-            path: AppRoute.guestResponsesPreview.path,
-            builder: (context, state) => const GuestResponsesPreviewPage(),
-          ),
-
-          // Guest demographics view page (authenticated)
-          GoRoute(
-            path: AppRoute.guestDemographicsView.path,
-            builder: (context, state) => const GuestDemographicsViewPage(),
-          ),
-
-          // Guest menu selection view page (authenticated)
-          GoRoute(
-            path: AppRoute.guestMenuSelectionView.path,
-            builder: (context, state) => const GuestMenuSelectionViewPage(),
-          ),
-
-          // Guest demographics edit page (authenticated)
-          GoRoute(
-            path: AppRoute.guestDemographicsEdit.path,
-            builder: (context, state) => const GuestDemographicsEditPage(),
-          ),
-
-          // Guest menu selection edit page (authenticated)
-          GoRoute(
-            path: AppRoute.guestMenuSelectionEdit.path,
-            builder: (context, state) => const GuestMenuSelectionEditPage(),
-          ),
-
-          // Guest feed page (authenticated)
-          GoRoute(
-            path: AppRoute.guestFeed.path,
-            builder: (context, state) {
-              final guestSession = Get.find<GuestSessionController>();
-              final eventId = guestSession.event.value?.eventId ?? '';
-              final eventName = guestSession.event.value?.name;
-
-              return GuestFeedPage(
-                eventId: eventId,
-                eventName: eventName,
-              );
-            },
-          ),
-
-          // TODO: Add more authenticated guest routes here
-          // Example:
-          // GoRoute(
-          //   path: AppRoute.guestDashboard.path,
-          //   builder: (context, state) => const GuestDashboardPage(),
-          // ),
-        ],
       ),
 
       // GUEST RESPONSE SHELL ROUTE

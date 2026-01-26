@@ -181,10 +181,11 @@ class GuestResponsesPreviewController extends GetxController {
     print('   Guest ID: $guestId');
     print('   Current answers: ${demographicsAnswerCount}');
 
-    context.push(
-      AppRoute.guestDemographicsEdit.path,
-      extra: {'guestId': guestId},
-    );
+    // TODO: Route removed - needs reimplementation
+    // context.push(
+    //   AppRoute.guestDemographicsEdit.path,
+    //   extra: {'guestId': guestId},
+    // );
   }
 
   /// Navigate to edit menu selection
@@ -196,10 +197,11 @@ class GuestResponsesPreviewController extends GetxController {
     print('   Guest ID: $guestId');
     print('   Current items: ${menuItemsSelectedCount}');
 
-    context.push(
-      AppRoute.guestMenuSelectionEdit.path,
-      extra: {'guestId': guestId},
-    );
+    // TODO: Route removed - needs reimplementation
+    // context.push(
+    //   AppRoute.guestMenuSelectionEdit.path,
+    //   extra: {'guestId': guestId},
+    // );
   }
 
   /// Logout guest - clears session
