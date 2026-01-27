@@ -219,7 +219,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       return Column(
         children: [
           // ✅ Show diet card in preview as well (disabled)
-          if (_showDietCard) ...[
+          if (_isReadOnly || widget.showDietPreferenceInPreview) ...[
             _DietPreferenceCard(
               controller: _controller,
               invitationId: widget.invitationId ?? 'preview',
@@ -289,7 +289,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         return MenuErrorCard(message: _controller.errorMessage.value);
       }
 
-      // ✅ HARD GATE: in real flow, nothing else renders until diet chosen
+      // ✅ Step 1: Diet gate
       if (!_isReadOnly && _controller.dietPref.value == null) {
         return Column(
           children: [
@@ -307,15 +307,38 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         );
       }
 
-      // ✅ after diet chosen → show menu list + groups
-      if (!_isReadOnly && _controller.isCurrentPersonDone) {
-        return MenuAlreadySubmittedCard(onContinue: _handleContinue);
+      // ✅ Step 2: Allergens card (edit anytime after diet is chosen)
+      if (!_isReadOnly) {
+        return Column(
+          children: [
+            _AllergensCard(controller: _controller),
+            const SizedBox(height: 12),
+
+            // ✅ after allergens show the menu
+            Expanded(
+              child: Builder(
+                builder: (_) {
+                  if (_controller.isCurrentPersonDone) {
+                    return MenuAlreadySubmittedCard(
+                        onContinue: _handleContinue);
+                  }
+
+                  if (_controller.items.isEmpty && _controller.groups.isEmpty) {
+                    return const MenuEmptyCard();
+                  }
+
+                  return _buildMenuList();
+                },
+              ),
+            ),
+          ],
+        );
       }
 
+      // ✅ Read-only / preview mode: just show menu list (diet card already handled by _showDietCard)
       if (_controller.items.isEmpty && _controller.groups.isEmpty) {
         return const MenuEmptyCard();
       }
-
       return _buildMenuList();
     });
   }
@@ -634,5 +657,89 @@ class _PickDietInfoCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _AllergensCard extends StatelessWidget {
+  final MenuSelectionController controller;
+  final bool compact;
+
+  const _AllergensCard({
+    required this.controller,
+    this.compact = false,
+  });
+
+  String _label(String k) {
+    switch (k) {
+      case 'tree_nuts':
+        return 'Tree nuts';
+      default:
+        return k[0].toUpperCase() + k.substring(1);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selected = controller.selectedAllergens;
+
+      return Container(
+        padding:
+            EdgeInsets.fromLTRB(16, compact ? 12 : 16, 16, compact ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Allergens',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: kTextDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Select allergens to hide dishes containing them.',
+              style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: MenuSelectionController.allergenOptions.map((a) {
+                final isOn = selected.contains(a);
+                return FilterChip(
+                  selected: isOn,
+                  label: Text(_label(a)),
+                  onSelected: (v) {
+                    if (v) {
+                      controller.selectedAllergens.add(a);
+                    } else {
+                      controller.selectedAllergens.remove(a);
+                    }
+                    controller.selectedAllergens.refresh();
+
+                    // optional: if you added this method, keep selections valid
+                    // controller.dropInvalidSelectionsForCurrentFilters();
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

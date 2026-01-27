@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
@@ -90,21 +91,88 @@ class AdminGuestListController extends GetxController {
 
   void _listenToGuestChanges() {
     _guestSub?.cancel();
-    _guestSub = FirebaseFirestore.instance
+    isInitialized.value = false;
+
+    final baseQuery = FirebaseFirestore.instance
         .collection("guests")
-        .where("eventId", isEqualTo: eventId)
-        .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs
-          .map((d) => GuestModel.fromFirestore(d.data(), d.id))
-          .toList();
+        .where("eventId", isEqualTo: eventId);
+
+    bool shownIndexHint = false;
+
+    void applySnapshot(
+      QuerySnapshot<Map<String, dynamic>> snapshot, {
+      bool sortClientSide = false,
+    }) {
+      final docs = snapshot.docs.toList();
+
+      if (sortClientSide) {
+        docs.sort((a, b) {
+          final ta = a.data()['createdAt'];
+          final tb = b.data()['createdAt'];
+
+          final da = ta is Timestamp
+              ? ta.toDate()
+              : DateTime.fromMillisecondsSinceEpoch(0);
+          final db = tb is Timestamp
+              ? tb.toDate()
+              : DateTime.fromMillisecondsSinceEpoch(0);
+
+          return db.compareTo(da); // desc
+        });
+      }
+
+      final list =
+          docs.map((d) => GuestModel.fromFirestore(d.data(), d.id)).toList();
 
       guests.assignAll(list);
       filteredGuests.assignAll(list);
       currentPage.value = 0;
       _updatePagination();
       isInitialized.value = true;
-    });
+    }
+
+    // ✅ Try server-side order first (best)
+    _guestSub =
+        baseQuery.orderBy("createdAt", descending: true).snapshots().listen(
+      (snap) => applySnapshot(snap),
+      onError: (Object e, StackTrace st) {
+        debugPrint('Guest query failed: $e\n$st');
+
+        // ✅ If index missing, fall back to client-side sort (so app works immediately)
+        if (e is FirebaseException && e.code == 'failed-precondition') {
+          if (!shownIndexHint &&
+              Get.isRegistered<SnackbarMessageController>()) {
+            shownIndexHint = true;
+            Get.find<SnackbarMessageController>().showInfoMessage(
+              'Firestore index is required for sorting guests by createdAt. '
+              'Temporary fallback enabled (client-side sorting). Create the index to remove this.',
+            );
+          }
+
+          _guestSub?.cancel();
+          _guestSub = baseQuery.snapshots().listen(
+            (snap) => applySnapshot(snap, sortClientSide: true),
+            onError: (Object e2, StackTrace st2) {
+              debugPrint('Guest fallback query failed: $e2\n$st2');
+              isInitialized.value = true; // stop loader
+            },
+          );
+          return;
+        }
+
+        // ✅ Any other error: stop loader and keep empty lists
+        guests.clear();
+        filteredGuests.clear();
+        _updatePagination();
+        isInitialized.value = true;
+
+        if (Get.isRegistered<SnackbarMessageController>()) {
+          Get.find<SnackbarMessageController>().showErrorMessage(
+            'Failed to load guests: ${e is FirebaseException ? (e.message ?? e.code) : e.toString()}',
+          );
+        }
+      },
+    );
   }
 
   void _listenToInvitationRsvpChanges() {

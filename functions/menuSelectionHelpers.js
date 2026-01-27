@@ -177,6 +177,13 @@ export async function fetchMenuItemsByIds(allIds) {
       if (d.isDisabled === true) return;
 
       const categoryKey = normalizeCategoryKey(d.category ?? "");
+
+      // ✅ NEW: allergens (clean + normalize)
+      const rawAllergens = Array.isArray(d.allergens) ? d.allergens : [];
+      const allergens = rawAllergens
+        .map((x) => (x ?? "").toString().trim().toLowerCase())
+        .filter(Boolean);
+
       mapById[doc.id] = {
         id: doc.id,
         name: d.name || d.title || "Menu item",
@@ -187,9 +194,12 @@ export async function fetchMenuItemsByIds(allIds) {
         categoryLabel: categoryLabelFromKey(categoryKey),
         isVeg: deriveIsVeg(d),
         foodType: d.foodType ?? null,
+
+        allergens, // ✅ NEW
       };
     });
   }
 
   return mapById;
 }
+

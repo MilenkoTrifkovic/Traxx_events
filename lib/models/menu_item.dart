@@ -21,14 +21,15 @@ class MenuItem {
   final String? organisationId;
 
   final String name;
-  final String
-      category; // Changed from MenuCategory enum to String to support custom categories
+
+  /// Category is stored as String to support custom categories
+  final String category;
 
   final String? description;
   final String? imagePath;
   final String? imageUrl;
 
-  /// NEW: price of the item (optional)
+  /// Price (optional)
   final double? price;
 
   final DateTime? createdAt;
@@ -37,7 +38,23 @@ class MenuItem {
   final bool isDisabled;
   final FoodType? foodType;
 
-  MenuItem({
+  /// ✅ NEW: Allergens (optional) - stored as keys (see allowedAllergens)
+  final List<String>? allergens;
+
+  /// ✅ Canonical 9 allergens (keys used in Firestore)
+  static const List<String> allowedAllergens = [
+    'dairy',
+    'eggs',
+    'fish',
+    'shellfish',
+    'soy',
+    'sesame',
+    'wheat',
+    'peanuts',
+    'tree_nuts',
+  ];
+
+  const MenuItem({
     this.menuItemId,
     this.menuId,
     this.organisationId,
@@ -51,15 +68,20 @@ class MenuItem {
     this.updatedAt,
     this.isDisabled = false,
     this.foodType,
+    this.allergens,
   });
 
+  // ----------------------------
+  // Firestore helpers
+  // ----------------------------
+
   Map<String, dynamic> toFirestoreCreate() {
-    return {
+    final data = <String, dynamic>{
       'menuItemId': menuItemId,
       'menuId': menuId,
       'organisationId': organisationId,
       'name': name,
-      'category': category, // Now already a string
+      'category': category,
       'description': description,
       'imagePath': imagePath,
       'imageUrl': imageUrl,
@@ -71,15 +93,23 @@ class MenuItem {
           ? null
           : (foodType == FoodType.veg ? 'veg' : 'non_veg'),
     };
+
+    // ✅ Only store allergens if non-empty
+    final cleaned = _cleanAllergens(allergens);
+    if (cleaned != null && cleaned.isNotEmpty) {
+      data['allergens'] = cleaned;
+    }
+
+    return data;
   }
 
   Map<String, dynamic> toFirestoreUpdate() {
-    return {
+    final data = <String, dynamic>{
       'menuItemId': menuItemId,
       'menuId': menuId,
       'organisationId': organisationId,
       'name': name,
-      'category': category, // Now already a string
+      'category': category,
       'description': description,
       'imagePath': imagePath,
       'imageUrl': imageUrl,
@@ -90,6 +120,18 @@ class MenuItem {
           ? null
           : (foodType == FoodType.veg ? 'veg' : 'non_veg'),
     };
+
+    // ✅ Update behavior:
+    // - if allergens is null/empty => delete field
+    // - else => set cleaned list
+    final cleaned = _cleanAllergens(allergens);
+    if (cleaned == null || cleaned.isEmpty) {
+      data['allergens'] = FieldValue.delete();
+    } else {
+      data['allergens'] = cleaned;
+    }
+
+    return data;
   }
 
   factory MenuItem.fromFirestore(Map<String, dynamic> data, [String? id]) {
@@ -100,13 +142,29 @@ class MenuItem {
     } else if (ft == 'non_veg') {
       parsedFoodType = FoodType.nonVeg;
     }
+
+    // ✅ Parse allergens safely
+    final rawAllergens = data['allergens'];
+    List<String>? parsedAllergens;
+    if (rawAllergens is List) {
+      parsedAllergens = rawAllergens
+          .map((e) => e.toString().trim().toLowerCase())
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .toList();
+      // keep only allowed keys (optional but safer)
+      parsedAllergens =
+          parsedAllergens.where((k) => allowedAllergens.contains(k)).toList();
+      parsedAllergens.sort();
+      if (parsedAllergens.isEmpty) parsedAllergens = null;
+    }
+
     return MenuItem(
       menuItemId: id ?? data['menuItemId'] as String?,
       menuId: data['menuId'] as String?,
       organisationId: data['organisationId'] as String?,
       name: data['name'] as String? ?? '',
-      category: data['category'] as String? ??
-          'Other', // Direct string assignment with fallback
+      category: data['category'] as String? ?? 'Other',
       description: data['description'] as String?,
       imagePath: data['imagePath'] as String?,
       imageUrl: data['imageUrl'] as String?,
@@ -119,39 +177,70 @@ class MenuItem {
           : null,
       isDisabled: data['isDisabled'] as bool? ?? false,
       foodType: parsedFoodType,
+      allergens: parsedAllergens,
     );
   }
 
+  // ----------------------------
+  // copyWith (supports setting null)
+  // ----------------------------
+
+  static const Object _sentinel = Object();
+
   MenuItem copyWith({
-    String? menuItemId,
-    String? menuId,
-    String? organisationId,
+    Object? menuItemId = _sentinel,
+    Object? menuId = _sentinel,
+    Object? organisationId = _sentinel,
     String? name,
-    String? category, // Changed from MenuCategory to String
-    String? description,
-    String? imagePath,
-    String? imageUrl,
-    double? price,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    String? category,
+    Object? description = _sentinel,
+    Object? imagePath = _sentinel,
+    Object? imageUrl = _sentinel,
+    Object? price = _sentinel,
+    Object? createdAt = _sentinel,
+    Object? updatedAt = _sentinel,
     bool? isDisabled,
-    FoodType? foodType,
+    Object? foodType = _sentinel,
+    Object? allergens = _sentinel,
   }) {
     return MenuItem(
-      menuItemId: menuItemId ?? this.menuItemId,
-      menuId: menuId ?? this.menuId,
-      organisationId: organisationId ?? this.organisationId,
+      menuItemId:
+          menuItemId == _sentinel ? this.menuItemId : menuItemId as String?,
+      menuId: menuId == _sentinel ? this.menuId : menuId as String?,
+      organisationId: organisationId == _sentinel
+          ? this.organisationId
+          : organisationId as String?,
       name: name ?? this.name,
       category: category ?? this.category,
-      description: description ?? this.description,
-      imagePath: imagePath ?? this.imagePath,
-      imageUrl: imageUrl ?? this.imageUrl,
-      price: price ?? this.price,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      description:
+          description == _sentinel ? this.description : description as String?,
+      imagePath: imagePath == _sentinel ? this.imagePath : imagePath as String?,
+      imageUrl: imageUrl == _sentinel ? this.imageUrl : imageUrl as String?,
+      price: price == _sentinel ? this.price : price as double?,
+      createdAt:
+          createdAt == _sentinel ? this.createdAt : createdAt as DateTime?,
+      updatedAt:
+          updatedAt == _sentinel ? this.updatedAt : updatedAt as DateTime?,
       isDisabled: isDisabled ?? this.isDisabled,
-      foodType: foodType ?? this.foodType,
+      foodType: foodType == _sentinel ? this.foodType : foodType as FoodType?,
+      allergens:
+          allergens == _sentinel ? this.allergens : allergens as List<String>?,
     );
+  }
+
+  // ----------------------------
+  // Internal sanitizer
+  // ----------------------------
+
+  static List<String>? _cleanAllergens(List<String>? input) {
+    if (input == null) return null;
+    final cleaned = input
+        .map((e) => e.trim().toLowerCase())
+        .where((k) => k.isNotEmpty && allowedAllergens.contains(k))
+        .toSet()
+        .toList()
+      ..sort();
+    return cleaned.isEmpty ? null : cleaned;
   }
 }
 
@@ -200,6 +289,8 @@ class MenuItemDto {
   final double? price;
   final String? imageUrl;
 
+  final List<String> allergens; // ✅ NEW (always non-null)
+
   MenuItemDto({
     required this.id,
     required this.name,
@@ -209,6 +300,7 @@ class MenuItemDto {
     required this.foodType,
     required this.price,
     this.imageUrl,
+    this.allergens = const [], // ✅ NEW
   });
 
   factory MenuItemDto.fromMap(Map<String, dynamic> m) {
@@ -225,6 +317,16 @@ class MenuItemDto {
     final labelFromCf = (m['categoryLabel'] ?? '').toString().trim();
     final rawCategory = (m['categoryKey'] ?? m['category'] ?? '').toString();
 
+    // ✅ allergens parse
+    final rawAllergens = m['allergens'];
+    final allergens = <String>[];
+    if (rawAllergens is List) {
+      for (final a in rawAllergens) {
+        final s = a.toString().trim().toLowerCase();
+        if (s.isNotEmpty) allergens.add(s);
+      }
+    }
+
     return MenuItemDto(
       id: (m['id'] ?? '').toString(),
       name: (m['name'] ?? 'Menu item').toString(),
@@ -238,6 +340,7 @@ class MenuItemDto {
           m['imageUrl'] != null && m['imageUrl'].toString().trim().isNotEmpty
               ? m['imageUrl'].toString()
               : null,
+      allergens: allergens,
     );
   }
 

@@ -1488,23 +1488,42 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   }
 }
 
-class MenuSelectionCard extends StatelessWidget {
+class MenuSelectionCard extends StatefulWidget {
   final AdminEventDetailsController controller;
 
   const MenuSelectionCard({super.key, required this.controller});
 
+  @override
+  State<MenuSelectionCard> createState() => _MenuSelectionCardState();
+}
+
+class _MenuSelectionCardState extends State<MenuSelectionCard> {
+  late final ScrollController _selectedDishesCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDishesCtrl = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _selectedDishesCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _openMenuDialog(BuildContext context) async {
-    final initialMenuId = controller.lastBrowsedMenuId.value ??
-        (controller.availableMenus.isNotEmpty
-            ? controller.availableMenus.first.id
+    final initialMenuId = widget.controller.lastBrowsedMenuId.value ??
+        (widget.controller.availableMenus.isNotEmpty
+            ? widget.controller.availableMenus.first.id
             : null);
 
     await showDialog(
       context: context,
       builder: (_) => MenuAndItemsDialog(
-        controller: controller,
+        controller: widget.controller,
         initialMenuId: initialMenuId,
-        initialItemIds: controller.selectedMenuItemIds.toList(),
+        initialItemIds: widget.controller.selectedMenuItemIds.toList(),
       ),
     );
   }
@@ -1532,9 +1551,9 @@ class MenuSelectionCard extends StatelessWidget {
     final maxListHeight = (h * (isPhone ? 0.28 : 0.34)).clamp(200.0, 360.0);
 
     return Obx(() {
-      final selectedIds = controller.selectedMenuItemIds.toList();
-      final selectedItems = controller.selectedMenuItems.toList();
-      final groups = controller.menuItemGroups.toList();
+      final selectedIds = widget.controller.selectedMenuItemIds.toList();
+      final selectedItems = widget.controller.selectedMenuItems.toList();
+      final groups = widget.controller.menuItemGroups.toList();
 
       final bool hasSelection = selectedIds.isNotEmpty;
       final bool isLoadingSelectedDocs = hasSelection && selectedItems.isEmpty;
@@ -1616,7 +1635,7 @@ class MenuSelectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Header row (responsive action)
+            // Header row (responsive action)
             Row(
               children: [
                 Expanded(
@@ -1689,11 +1708,16 @@ class MenuSelectionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // ✅ FIXED Scrollbar: controller attached + ListView uses same controller
               ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxListHeight),
                 child: Scrollbar(
+                  controller: _selectedDishesCtrl,
                   thumbVisibility: true,
                   child: ListView.separated(
+                    controller: _selectedDishesCtrl,
+                    primary: false,
                     itemCount: selectedItems.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, idx) {
@@ -1710,7 +1734,9 @@ class MenuSelectionCard extends StatelessWidget {
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
+
               Obx(() {
                 if (!org.showMenuItemPrices.value) {
                   return const SizedBox.shrink();

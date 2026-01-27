@@ -8,6 +8,29 @@ import {
   sanitizeMenuItemGroups,
 } from "./menuSelectionHelpers.js";
 
+const ALLOWED_ALLERGENS = new Set([
+  "dairy",
+  "eggs",
+  "fish",
+  "shellfish",
+  "soy",
+  "sesame",
+  "wheat",
+  "peanuts",
+  "tree_nuts",
+]);
+
+function cleanAllergens(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const v of arr) {
+    const s = (v ?? "").toString().trim().toLowerCase();
+    if (s && ALLOWED_ALLERGENS.has(s) && !out.includes(s)) out.push(s);
+  }
+  out.sort();
+  return out;
+}
+
 export const submitMenuSelection = onCall(async (request) => {
   try {
     const {
@@ -15,7 +38,8 @@ export const submitMenuSelection = onCall(async (request) => {
       token,
       selectedMenuItemIds,
       companionIndex,
-      dietPreference, // ✅ passed from Flutter only on Save
+      dietPreference,
+      allergens, // ✅ NEW
     } = request.data || {};
 
     if (!invitationId || !token) {
@@ -31,13 +55,15 @@ export const submitMenuSelection = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
     }
 
-    // ✅ normalize diet pref (default both)
+    // ✅ diet normalize (default both)
     const prefRaw = (dietPreference || "").toString().trim().toLowerCase();
     const normalizedPref =
       prefRaw === "veg" ? "veg" :
       (prefRaw === "non_veg" || prefRaw === "non-veg") ? "non_veg" :
       prefRaw === "both" ? "both" :
       "both";
+
+    const cleanedAllergens = cleanAllergens(allergens);
 
     const personKey = isMainGuest ? "main" : `c${compIdx}`;
 
@@ -72,15 +98,16 @@ export const submitMenuSelection = onCall(async (request) => {
         }
       }
 
-      // ✅ IMPORTANT: detect already submitted
+      // detect already submitted
       const alreadySubmitted = isMainGuest
         ? (inv.menuSelectionSubmitted === true)
         : (companions[compIdx]?.menuSubmitted === true);
 
-      // ✅ If already submitted, STILL write dietPreferenceByPerson + companion dietPreference, then return
+      // ✅ if already submitted: still patch diet+allergens, then return
       if (alreadySubmitted) {
         const patch = {
           [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`allergensByPerson.${personKey}`]: cleanedAllergens,
           modifiedAt: FieldValue.serverTimestamp(),
         };
 
@@ -90,30 +117,37 @@ export const submitMenuSelection = onCall(async (request) => {
           companions[compIdx] = {
             ...companions[compIdx],
             dietPreference: normalizedPref,
+            allergens: cleanedAllergens,
           };
           tx.update(invRef, { ...patch, companions });
         }
 
-        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, patched: true };
+        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens, patched: true };
       }
 
-      // extra safety: response doc should not exist yet
+      // extra safety
       const existing = await tx.get(respRef);
       if (existing.exists) {
-        // still patch diet on collision
         const patch = {
           [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`allergensByPerson.${personKey}`]: cleanedAllergens,
           modifiedAt: FieldValue.serverTimestamp(),
         };
+
         if (isMainGuest) tx.update(invRef, patch);
         else {
-          companions[compIdx] = { ...companions[compIdx], dietPreference: normalizedPref };
+          companions[compIdx] = {
+            ...companions[compIdx],
+            dietPreference: normalizedPref,
+            allergens: cleanedAllergens,
+          };
           tx.update(invRef, { ...patch, companions });
         }
-        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, patched: true };
+
+        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens, patched: true };
       }
 
-      // ----- YOUR EXISTING VALIDATION LOGIC -----
+      // ----- existing validation logic -----
       const cleaned = normalizeIds(selectedMenuItemIds);
       const cleanedSet = new Set(cleaned);
 
@@ -134,6 +168,7 @@ export const submitMenuSelection = onCall(async (request) => {
         if (!allowedSet.has(id)) throw new HttpsError("invalid-argument", "Invalid menu item selected");
       }
 
+      // enforce maxPick only (no required enforcement)
       const { groups: safeGroups } = sanitizeMenuItemGroups(rawGroups, allowedSet, null);
       const groupSelections = {};
 
@@ -151,7 +186,7 @@ export const submitMenuSelection = onCall(async (request) => {
           }
         }
 
-        groupSelections[g.groupId] = picked;
+        groupSelections[g.groupId] = picked; // may be null (allowed)
       }
 
       // guest identity
@@ -167,7 +202,7 @@ export const submitMenuSelection = onCall(async (request) => {
         guestName = companion.name || "";
       }
 
-      // ✅ response doc includes dietPreference
+      // response doc includes diet + allergens
       tx.set(respRef, {
         eventId: inv.eventId || "",
         organisationId: inv.organisationId || "",
@@ -177,7 +212,10 @@ export const submitMenuSelection = onCall(async (request) => {
         guestName,
         isCompanion: !isMainGuest,
         companionIndex: compIdx,
+
         dietPreference: normalizedPref,
+        allergens: cleanedAllergens,
+
         selectedMenuItemIds: cleaned,
         groupSelections,
         createdAt: FieldValue.serverTimestamp(),
@@ -185,6 +223,7 @@ export const submitMenuSelection = onCall(async (request) => {
 
       const selectionSummary = {
         dietPreference: normalizedPref,
+        allergens: cleanedAllergens,
         selectedMenuItemIds: cleaned,
         groupSelections,
         submittedAt: FieldValue.serverTimestamp(),
@@ -194,14 +233,18 @@ export const submitMenuSelection = onCall(async (request) => {
         tx.update(invRef, {
           menuSelectionSubmitted: true,
           menuSelectionSubmittedAt: FieldValue.serverTimestamp(),
+
           [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`allergensByPerson.${personKey}`]: cleanedAllergens,
           [`menuSelectionByPerson.${personKey}`]: selectionSummary,
+
           modifiedAt: FieldValue.serverTimestamp(),
         });
       } else {
         companions[compIdx] = {
           ...companions[compIdx],
           dietPreference: normalizedPref,
+          allergens: cleanedAllergens,
           menuSubmitted: true,
           menuResponseId: respRef.id,
           menuSubmittedAt: new Date().toISOString(),
@@ -211,13 +254,16 @@ export const submitMenuSelection = onCall(async (request) => {
 
         tx.update(invRef, {
           companions,
+
           [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
+          [`allergensByPerson.${personKey}`]: cleanedAllergens,
           [`menuSelectionByPerson.${personKey}`]: selectionSummary,
+
           modifiedAt: FieldValue.serverTimestamp(),
         });
       }
 
-      return { ok: true, alreadySubmitted: false, companionIndex: compIdx, dietPreference: normalizedPref };
+      return { ok: true, alreadySubmitted: false, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens };
     });
 
     console.log("✅ submitMenuSelection WRITE", {
@@ -226,14 +272,13 @@ export const submitMenuSelection = onCall(async (request) => {
       compIdx,
       personKey,
       normalizedPref,
+      cleanedAllergens,
     });
 
     return result;
   } catch (err) {
     console.error("submitMenuSelection error:", err);
-    throw err instanceof HttpsError
-      ? err
-      : new HttpsError("internal", err?.message ?? "Unknown error");
+    throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
   }
 });
 
