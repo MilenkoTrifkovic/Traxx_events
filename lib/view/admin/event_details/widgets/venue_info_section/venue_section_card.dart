@@ -46,7 +46,6 @@ class VenueSelectionCard extends StatelessWidget {
       children: [
         /// LEFT SECTION - Venue Photos
         Obx(() {
-          print('VENUE VALUE: ${controller.venue.value}');
           return Expanded(
             child: controller.venue.value == null
                 ? const VenuePhotosSection(venue: null)
@@ -73,7 +72,6 @@ class VenueSelectionCard extends StatelessWidget {
       children: [
         /// TOP SECTION - Venue Photos
         Obx(() {
-          print('VENUE VALUE: ${controller.venue.value}');
           return controller.venue.value == null
               ? const VenuePhotosSection(venue: null)
               : VenuePhotosSection(venue: controller.venue.value);

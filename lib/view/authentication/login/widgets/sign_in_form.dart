@@ -57,10 +57,31 @@ class SignInForm extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // --- HubSpot-style buttons ---
-          // --- HubSpot-style buttons ---
+          // OAuth + password toggle (always visible)
           Obx(() {
             final isSignUp = controller.isSignUpMode.value;
+            final loading = controller.isLoading.value;
+            final active = controller.activeAuthMethod
+                .value; // 'google'/'microsoft'/'apple'/'password'
+
+            bool canTap(String method) {
+              // ✅ only disable the active button while loading
+              if (!loading) return true;
+              return active !=
+                  method; // allow user to pick another (will cancel + start)
+            }
+
+            Future<void> safeStart(
+                String method, Future<void> Function() fn) async {
+              if (!loading) {
+                await fn();
+                return;
+              }
+
+              // ✅ if something is running, cancel first, then start new
+              controller.cancelCurrentAuth(silent: true);
+              await fn();
+            }
 
             return Column(
               children: [
@@ -68,49 +89,46 @@ class SignInForm extends StatelessWidget {
                   width: double.infinity,
                   child: OutlinedButton(
                     style: _hubButtonStyle(filled: true),
-                    onPressed: controller.isLoading.value
-                        ? null
-                        : controller.signInWithGoogle,
+                    onPressed: canTap('google')
+                        ? () => safeStart('google', controller.signInWithGoogle)
+                        : null,
                     child: Text(isSignUp
                         ? 'Sign up with Google'
                         : 'Sign in with Google'),
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
                     style: _hubButtonStyle(),
-                    onPressed: controller.isLoading.value
-                        ? null
-                        : controller.signInWithMicrosoft,
+                    onPressed: canTap('microsoft')
+                        ? () => safeStart(
+                            'microsoft', controller.signInWithMicrosoft)
+                        : null,
                     child: Text(isSignUp
                         ? 'Sign up with Microsoft'
                         : 'Sign in with Microsoft'),
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
                     style: _hubButtonStyle(),
-                    onPressed: controller.isLoading.value
-                        ? null
-                        : controller.signInWithApple,
+                    onPressed: canTap('apple')
+                        ? () => safeStart('apple', controller.signInWithApple)
+                        : null,
                     child: Text(
                         isSignUp ? 'Sign up with Apple' : 'Sign in with Apple'),
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Password option toggle (like HubSpot)
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
                     style: _hubButtonStyle(),
-                    onPressed: controller.isLoading.value
+                    onPressed: loading && active == 'password'
                         ? null
                         : controller.togglePasswordMethod,
                     child: Text(
@@ -166,31 +184,30 @@ class SignInForm extends StatelessWidget {
                   return Column(
                     children: [
                       const SizedBox(height: 16),
-                      Obx(() => TextFormField(
-                            controller: confirmPasswordController,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              hintText: 'Confirm your password',
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  controller.isConfirmPasswordVisible.value
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                ),
-                                onPressed:
-                                    controller.toggleConfirmPasswordVisibility,
-                              ),
+                      TextFormField(
+                        controller: confirmPasswordController,
+                        decoration: InputDecoration(
+                          labelText: 'Confirm Password',
+                          hintText: 'Confirm your password',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              controller.isConfirmPasswordVisible.value
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                             ),
-                            obscureText:
-                                !controller.isConfirmPasswordVisible.value,
-                            textInputAction: TextInputAction.done,
-                            validator: (value) =>
-                                ValidationHelper.validateConfirmPassword(
-                              value,
-                              passwordController.text,
-                            ),
-                            onFieldSubmitted: (_) => onSubmit(),
-                          )),
+                            onPressed:
+                                controller.toggleConfirmPasswordVisibility,
+                          ),
+                        ),
+                        obscureText: !controller.isConfirmPasswordVisible.value,
+                        textInputAction: TextInputAction.done,
+                        validator: (value) =>
+                            ValidationHelper.validateConfirmPassword(
+                          value,
+                          passwordController.text,
+                        ),
+                        onFieldSubmitted: (_) => onSubmit(),
+                      ),
                     ],
                   );
                 }),
@@ -199,7 +216,8 @@ class SignInForm extends StatelessWidget {
                       width: double.infinity,
                       child: OutlinedButton(
                         onPressed: controller.isLoading.value ? null : onSubmit,
-                        child: controller.isLoading.value
+                        child: controller.isLoading.value &&
+                                controller.activeAuthMethod.value == 'password'
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
@@ -227,13 +245,14 @@ class SignInForm extends StatelessWidget {
                     ],
                   );
                 }),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
               ],
             );
           }),
 
-          // Sign in / Sign up toggle (HubSpot "or create an account")
           const SizedBox(height: 6),
+
+          // Toggle sign in / sign up
           Obx(() => Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -252,21 +271,6 @@ class SignInForm extends StatelessWidget {
                   ),
                 ],
               )),
-
-          const SizedBox(height: 10),
-
-          // Guest login (your existing)
-          Center(
-            child: TextButton(
-              onPressed: () => pushRoute(AppRoute.guestLogin, context),
-              child: AppText.styledBodySmall(
-                context,
-                'Guest login',
-                color: AppColors.textMuted,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
         ],
       ),
     );

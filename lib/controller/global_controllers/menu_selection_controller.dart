@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/services/guest_firestore_services.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
@@ -45,6 +47,102 @@ class MenuSelectionController extends GetxController {
   // Filters (apply only to ungrouped list)
   final RxString searchQuery = ''.obs;
   final RxnBool vegFilter = RxnBool(null); // null=all, true=veg, false=non-veg
+
+  final Rxn<DietPreference> dietPref = Rxn<DietPreference>();
+
+  String _personKey(int? companionIdx) =>
+      companionIdx == null ? 'main' : 'c$companionIdx';
+
+  // Call from initialize() after loading invitation/menu state
+  void loadDietPrefFromInvitation(
+      Map<String, dynamic> invitationJson, int? companionIdx) {
+    final m = (invitationJson['dietPreferenceByPerson'] as Map?)
+        ?.cast<String, dynamic>();
+    final raw = m?[_personKey(companionIdx)]?.toString();
+    dietPref.value = DietPreferenceX.fromDb(raw);
+  }
+
+  /// Visible items (ungrouped)
+  List<MenuItemDto> get dietFilteredUngrouped {
+    final pref = dietPref.value;
+    if (pref == null) return const [];
+    return filteredItems.where((it) => matchesDiet(it, pref)).toList();
+  }
+
+  /// Helper for group card
+  List<MenuItemDto> dietFilteredGroupItems(MenuGroupDto g) {
+    final pref = dietPref.value;
+    if (pref == null) return const [];
+    return g.items.where((it) => matchesDiet(it, pref)).toList();
+  }
+
+  void _dropInvalidSelections() {
+    final pref = dietPref.value;
+    if (pref == null) return;
+
+    // ✅ remove ungrouped selections that don’t match
+    selectedIds.removeWhere((id) {
+      final it = items.firstWhereOrNull((x) => x.id == id);
+      if (it == null) return false; // keep if we can't resolve
+      return !matchesDiet(it, pref);
+    });
+    selectedIds.refresh(); // safe for UI updates
+
+    // ✅ clear group picks that don’t match
+    final toClear = <String>[];
+    groupPick.forEach((groupId, pickedId) {
+      final pid = (pickedId ?? '').trim();
+      if (pid.isEmpty) return;
+
+      final it = groups
+          .firstWhereOrNull((g) => g.groupId == groupId)
+          ?.items
+          .firstWhereOrNull((x) => x.id == pid);
+
+      if (it != null && !matchesDiet(it, pref)) {
+        toClear.add(groupId);
+      }
+    });
+
+    for (final gid in toClear) {
+      groupPick[gid] = null;
+    }
+    groupPick.refresh();
+  }
+
+  void setDietPreference(DietPreference pref) {
+    dietPref.value = pref;
+
+    // keep your existing filter aligned
+    vegFilter.value =
+        (pref == DietPreference.both) ? null : (pref == DietPreference.veg);
+
+    _dropInvalidSelections();
+  }
+
+  // Future<void> setDietPreference({
+  //   required DietPreference pref,
+  //   required String invitationId,
+  //   required int? companionIdx,
+  //   bool persist = true,
+  // }) async {
+  //   dietPref.value = pref;
+
+  //   vegFilter.value =
+  //       (pref == DietPreference.both) ? null : (pref == DietPreference.veg);
+
+  //   _dropInvalidSelections();
+
+  //   // if (!persist) return;
+
+  //   // await FirebaseFirestore.instance
+  //   //     .collection('invitations')
+  //   //     .doc(invitationId)
+  //   //     .update({
+  //   //   'dietPreferenceByPerson.${_personKey(companionIdx)}': pref.dbValue,
+  //   //   'modifiedAt': FieldValue.serverTimestamp(),
+  //   // });
+  // }
 
   // ---------------------------------------------------------------------------
   // Computed Properties
@@ -223,6 +321,7 @@ class MenuSelectionController extends GetxController {
         throw Exception(validation.error ?? 'Invalid invitation');
 
       invitation.value = inv;
+      loadDietPrefFromInvitation(inv, companionIdx);
 
       // Build flow state
       flowState.value = ResponseFlowState.fromInvitation(
@@ -304,6 +403,7 @@ class MenuSelectionController extends GetxController {
 
       selectedIds.clear();
       selectedIds.addAll(selectedItemIds);
+      dietPref.value ??= DietPreference.both;
 
       eventName.value = 'Menu Preview';
     } catch (e) {
@@ -369,6 +469,11 @@ class MenuSelectionController extends GetxController {
       );
     }
 
+    if (dietPref.value == null) {
+      return SubmitResult(
+          success: false, error: 'Please select Veg / Non-Veg / Both first');
+    }
+
     // ✅ Require a pick from each group (radio)
     final missing = missingGroupNames;
     if (missing.isNotEmpty) {
@@ -387,6 +492,7 @@ class MenuSelectionController extends GetxController {
         token: token,
         selectedMenuItemIds: finalSelectedIds, // ✅ combined
         companionIndex: companionIndex.value,
+        dietPreference: dietPref.value!.dbValue,
       );
 
       _updateLocalStateAfterSubmit();
@@ -442,135 +548,4 @@ class SubmitResult {
     this.error,
     this.nextStep,
   });
-}
-
-/// ✅ Group DTO returned by Cloud Function
-class MenuGroupDto {
-  final String groupId;
-  final String name;
-  final int maxPick;
-  final String categoryKey;
-  final String categoryLabel;
-  final List<MenuItemDto> items;
-
-  MenuGroupDto({
-    required this.groupId,
-    required this.name,
-    required this.maxPick,
-    required this.categoryKey,
-    required this.categoryLabel,
-    required this.items,
-  });
-
-  factory MenuGroupDto.fromMap(Map<String, dynamic> m) {
-    final rawItems = (m['items'] as List? ?? []);
-    return MenuGroupDto(
-      groupId: (m['groupId'] ?? '').toString(),
-      name: (m['name'] ?? '').toString(),
-      maxPick: (m['maxPick'] is num) ? (m['maxPick'] as num).toInt() : 1,
-      categoryKey: (m['categoryKey'] ?? '').toString(),
-      categoryLabel: (m['categoryLabel'] ?? '').toString(),
-      items: rawItems
-          .whereType<Map>()
-          .map((x) => MenuItemDto.fromMap(Map<String, dynamic>.from(x)))
-          .toList(),
-    );
-  }
-}
-
-/// DTO for menu items displayed in the UI.
-class MenuItemDto {
-  final String id;
-  final String name;
-  final String description;
-  final String categoryLabel;
-  final bool? isVeg;
-  final String? foodType;
-  final double? price;
-  final String? imageUrl;
-
-  MenuItemDto({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.categoryLabel,
-    required this.isVeg,
-    required this.foodType,
-    required this.price,
-    this.imageUrl,
-  });
-
-  factory MenuItemDto.fromMap(Map<String, dynamic> m) {
-    double? asDouble(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString());
-    }
-
-    final rawFoodType = (m['foodType'] ?? '').toString();
-    final parsedIsVeg = _parseBool(m['isVeg']);
-    final derivedIsVeg = parsedIsVeg ?? _deriveIsVegFromFoodType(rawFoodType);
-
-    final labelFromCf = (m['categoryLabel'] ?? '').toString().trim();
-    final rawCategory = (m['categoryKey'] ?? m['category'] ?? '').toString();
-
-    return MenuItemDto(
-      id: (m['id'] ?? '').toString(),
-      name: (m['name'] ?? 'Menu item').toString(),
-      description: (m['description'] ?? '').toString(),
-      categoryLabel:
-          labelFromCf.isNotEmpty ? labelFromCf : _prettyCategory(rawCategory),
-      isVeg: derivedIsVeg,
-      foodType: rawFoodType.trim().isEmpty ? null : rawFoodType.trim(),
-      price: asDouble(m['price']),
-      imageUrl: m['imageUrl'] != null && m['imageUrl'].toString().trim().isNotEmpty
-          ? m['imageUrl'].toString()
-          : null,
-    );
-  }
-
-  static bool? _parseBool(dynamic v) {
-    if (v == null) return null;
-    if (v is bool) return v;
-    if (v is num) return v != 0;
-    final s = v.toString().trim().toLowerCase();
-    if (s == 'true' || s == '1' || s == 'yes') return true;
-    if (s == 'false' || s == '0' || s == 'no') return false;
-    return null;
-  }
-
-  static bool? _deriveIsVegFromFoodType(String? ft) {
-    final s = (ft ?? '').trim().toLowerCase();
-    if (s.isEmpty) return null;
-    if (s == 'veg' || s == 'vegetarian') return true;
-    if (s == 'non-veg' || s == 'nonveg' || s == 'non vegetarian') return false;
-    if (s.contains('non')) return false;
-    return null;
-  }
-
-  static String _prettyCategory(String raw) {
-    final s = raw.trim();
-    if (s.isEmpty) return 'Other';
-
-    final lower = s.toLowerCase();
-    if (lower == 'dessert') return 'Desserts';
-    if (lower == 'entree') return 'Entrees';
-    if (lower == 'appetizer') return 'Appetizers';
-    if (lower == 'drink') return 'Beverages';
-
-    final spaced =
-        s.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}').trim();
-    final title = spaced.split(' ').where((w) => w.isNotEmpty).map((w) {
-      final t = w.toLowerCase();
-      if (t == 'bbq') return 'BBQ';
-      return t[0].toUpperCase() + t.substring(1);
-    }).join(' ');
-
-    if (s == 'lateNightSnacks') return 'Late-Night Snacks';
-    if (s == 'kidsMenu') return 'Kids Menu';
-    if (s == 'culturalRegional') return 'Cultural / Regional';
-    if (s == 'dietSpecific') return 'Diet-Specific';
-
-    return title;
-  }
 }

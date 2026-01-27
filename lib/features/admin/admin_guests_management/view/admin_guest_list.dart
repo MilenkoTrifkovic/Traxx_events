@@ -10,8 +10,6 @@ import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
 import 'dart:math' as math;
-
-import 'package:traxx_wepapp/view/admin/venues_and_menus/venues_view.dart';
 import 'package:traxx_wepapp/widgets/bottom_scrollbar.dart';
 
 class GuestListSection extends StatelessWidget {

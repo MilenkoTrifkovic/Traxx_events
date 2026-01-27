@@ -54,26 +54,26 @@ class MenuHeaderCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Obx(() => Text(
-                        controller.eventName.value.isEmpty
-                            ? 'Menu Selection'
-                            : controller.eventName.value,
-                        style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: kTextDark,
-                        ),
-                      )),
+                            controller.eventName.value.isEmpty
+                                ? 'Menu Selection'
+                                : controller.eventName.value,
+                            style: GoogleFonts.poppins(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: kTextDark,
+                            ),
+                          )),
                       const SizedBox(height: 8),
                       Obx(() => Text(
-                        controller.companionIndex.value != null
-                            ? 'Selecting menu for: ${controller.currentPersonName.value}'
-                            : 'Select the items you want.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: kTextBody,
-                        ),
-                      )),
+                            controller.companionIndex.value != null
+                                ? 'Selecting menu for: ${controller.currentPersonName.value}'
+                                : 'Select the items you want.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: kTextBody,
+                            ),
+                          )),
                     ],
                   ),
                 ),
@@ -83,27 +83,28 @@ class MenuHeaderCard extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         Obx(() => SizedBox(
-          height: 44,
-          child: ElevatedButton(
-            onPressed: controller.isSubmitting.value
-                ? null
-                : (controller.isCurrentPersonDone ? onContinue : onSubmit),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kGfPurple,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+              height: 44,
+              child: ElevatedButton(
+                onPressed: controller.isSubmitting.value
+                    ? null
+                    : (controller.isCurrentPersonDone ? onContinue : onSubmit),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kGfPurple,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: Text(controller.buttonText),
               ),
-              textStyle: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            child: Text(controller.buttonText),
-          ),
-        )),
+            )),
       ],
     );
   }

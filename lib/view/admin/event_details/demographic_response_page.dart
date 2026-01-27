@@ -58,21 +58,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   late final DemographicResponseController _controller;
   late final TextEditingController _invitationIdCtrl;
   final ScrollController _listCtrl = ScrollController();
-  double _pinnedHeaderHeight({required bool isPhone}) {
-    // Make this large enough so your header never overflows.
-    // You can tune these numbers after you see it in UI.
-    double h = isPhone ? 320 : 300; // title + header card area baseline
-
-    if (!widget.readOnly && widget.showInvitationInput) {
-      h += isPhone ? 120 : 110;
-    }
-    if (!widget.readOnly && _controller.hasCompanions) {
-      h += 70;
-    }
-
-    // little breathing room
-    return math.min(h, isPhone ? 520 : 480);
-  }
 
   @override
   void initState() {
@@ -729,39 +714,5 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
         ],
       ],
     );
-  }
-}
-
-class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-
-  _PinnedHeaderDelegate({
-    required this.height,
-    required this.child,
-  });
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Material(
-      color: gfBackground, // so the pinned header looks solid
-      elevation: overlapsContent ? 6 : 0,
-      child: child,
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
-    return height != oldDelegate.height || child != oldDelegate.child;
   }
 }

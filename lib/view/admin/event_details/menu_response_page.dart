@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 
 import 'menus_widgets/menu_widgets.dart';
@@ -24,22 +25,26 @@ class GuestMenuSelectionPage extends StatefulWidget {
   /// Pre-selected item IDs to display in read-only mode
   final List<String>? selectedMenuItemIds;
 
+  final bool showDietPreferenceInPreview;
+
   const GuestMenuSelectionPage({
     super.key,
-    required String this.invitationId,
+    required this.invitationId,
     this.companionIndex,
     this.companionName,
   })  : readOnly = false,
-        selectedMenuItemIds = null;
+        selectedMenuItemIds = null,
+        showDietPreferenceInPreview = false;
 
   /// Creates a read-only preview of menu items
   const GuestMenuSelectionPage.preview({
     super.key,
-    required List<String> this.selectedMenuItemIds,
+    required this.selectedMenuItemIds,
   })  : invitationId = null,
         companionIndex = null,
         companionName = null,
-        readOnly = true;
+        readOnly = true,
+        showDietPreferenceInPreview = true;
 
   @override
   State<GuestMenuSelectionPage> createState() => _GuestMenuSelectionPageState();
@@ -48,9 +53,11 @@ class GuestMenuSelectionPage extends StatefulWidget {
 class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   late final MenuSelectionController _controller;
   final TextEditingController _searchController = TextEditingController();
-
+  bool get _prefChosen => _isReadOnly || _controller.dietPref.value != null;
   String get _token => (Uri.base.queryParameters['token'] ?? '').trim();
   bool get _isReadOnly => widget.readOnly;
+  bool get _showDietCard =>
+      (!_isReadOnly) || widget.showDietPreferenceInPreview;
 
   @override
   void initState() {
@@ -143,6 +150,14 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   Future<void> _handleSubmit() async {
     if (_isReadOnly) return;
 
+    if (_controller.dietPref.value == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please select Veg / Non-Veg / Both first')),
+      );
+      return;
+    }
+
     final result = await _controller.submitSelection(
       invitationId: widget.invitationId!,
       token: _token,
@@ -195,22 +210,39 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   Widget _buildMenuList() {
     return Obx(() {
-      final ungrouped = _controller.filteredItems;
+      final ungrouped = _isReadOnly
+          ? _controller.filteredItems
+          : _controller.dietFilteredUngrouped;
+
       final groups = _controller.groups;
 
       return Column(
         children: [
-          if (!_isReadOnly) ...[
+          // ✅ Show diet card in preview as well (disabled)
+          if (_showDietCard) ...[
+            _DietPreferenceCard(
+              controller: _controller,
+              invitationId: widget.invitationId ?? 'preview',
+              companionIdx: widget.companionIndex,
+              compact: true,
+              disabled: _isReadOnly, // ✅ disabled in preview
+              previewHint: _isReadOnly, // ✅ shows hint text in preview
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Keep search filters only in real flow
+          if (!_isReadOnly && _controller.dietPref.value != null) ...[
             MenuSearchFilters(
               searchController: _searchController,
               controller: _controller,
             ),
             const SizedBox(height: 12),
           ],
+
           Expanded(
             child: ListView(
               children: [
-                // ✅ GROUPS (radio pick 1)
                 if (!_isReadOnly && groups.isNotEmpty) ...[
                   for (final g in groups) ...[
                     MenuGroupCard(group: g, controller: _controller),
@@ -218,8 +250,6 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                   ],
                   const SizedBox(height: 6),
                 ],
-
-                // ✅ UNGROUPED (multi-select cards)
                 for (final it in ungrouped) ...[
                   MenuItemCardWidget(
                     item: it,
@@ -230,6 +260,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
               ],
             ),
           ),
+
           if (!_isReadOnly) ...[
             const SizedBox(height: 10),
             Row(
@@ -258,11 +289,29 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         return MenuErrorCard(message: _controller.errorMessage.value);
       }
 
+      // ✅ HARD GATE: in real flow, nothing else renders until diet chosen
+      if (!_isReadOnly && _controller.dietPref.value == null) {
+        return Column(
+          children: [
+            _DietPreferenceCard(
+              controller: _controller,
+              invitationId: widget.invitationId!,
+              companionIdx: widget.companionIndex,
+              compact: false,
+              disabled: false,
+              previewHint: false,
+            ),
+            const SizedBox(height: 12),
+            _PickDietInfoCard(),
+          ],
+        );
+      }
+
+      // ✅ after diet chosen → show menu list + groups
       if (!_isReadOnly && _controller.isCurrentPersonDone) {
         return MenuAlreadySubmittedCard(onContinue: _handleContinue);
       }
 
-      // ✅ Empty only if BOTH lists are empty
       if (_controller.items.isEmpty && _controller.groups.isEmpty) {
         return const MenuEmptyCard();
       }
@@ -314,14 +363,28 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            if (!_isReadOnly) ...[
-                              MenuHeaderCard(
-                                controller: _controller,
-                                onSubmit: _handleSubmit,
-                                onContinue: _handleContinue,
-                              ),
-                              const SizedBox(height: 14),
-                            ],
+                            // BELOW: const SizedBox(height: 18),
+
+                            Obx(() {
+                              final prefChosen = _isReadOnly ||
+                                  _controller.dietPref.value != null;
+
+                              if (_isReadOnly || !prefChosen) {
+                                return const SizedBox.shrink();
+                              }
+
+                              return Column(
+                                children: [
+                                  MenuHeaderCard(
+                                    controller: _controller,
+                                    onSubmit: _handleSubmit,
+                                    onContinue: _handleContinue,
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
+                              );
+                            }),
+
                             SizedBox(height: scrollH, child: _buildBody()),
                             const SizedBox(height: 24),
                           ],
@@ -385,6 +448,24 @@ class MenuGroupCard extends StatelessWidget {
         child: Obx(() {
           final picked = controller.groupPick[group.groupId];
 
+          final visibleItems = controller.dietFilteredGroupItems(group);
+
+          if (visibleItems.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: kGfPurple.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: kBorder),
+              ),
+              child: Text(
+                'No options available for your diet preference in "${group.name}".',
+                style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            );
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -402,7 +483,7 @@ class MenuGroupCard extends StatelessWidget {
                 style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
               ),
               const SizedBox(height: 12),
-              for (final it in group.items) ...[
+              for (final it in visibleItems) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: MenuSelectableTile(
@@ -425,6 +506,132 @@ class MenuGroupCard extends StatelessWidget {
             ],
           );
         }),
+      ),
+    );
+  }
+}
+
+class _DietPreferenceCard extends StatelessWidget {
+  final MenuSelectionController controller;
+  final String invitationId;
+  final int? companionIdx;
+  final bool compact;
+  final bool disabled; // ✅ NEW
+  final bool previewHint; // ✅ NEW
+
+  const _DietPreferenceCard({
+    required this.controller,
+    required this.invitationId,
+    required this.companionIdx,
+    this.compact = false,
+    this.disabled = false,
+    this.previewHint = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selected = controller.dietPref.value;
+
+      Widget chip(DietPreference p, IconData icon) {
+        final isSel = selected == p;
+
+        return ChoiceChip(
+          selected: isSel,
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: isSel ? Colors.white : kGfPurple),
+              const SizedBox(width: 8),
+              Text(p.label),
+            ],
+          ),
+          labelStyle: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: isSel ? Colors.white : kGfPurple,
+          ),
+          selectedColor: kGfPurple,
+          backgroundColor: Colors.white,
+          side: BorderSide(color: kGfPurple.withOpacity(0.35)),
+          onSelected: disabled ? null : (_) => controller.setDietPreference(p),
+        );
+      }
+
+      return Container(
+        padding:
+            EdgeInsets.fromLTRB(16, compact ? 12 : 16, 16, compact ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Diet preference',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: kTextDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              previewHint
+                  ? 'Guests will choose this before selecting dishes.'
+                  : 'Choose what you eat — we’ll show matching dishes only.',
+              style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                chip(DietPreference.veg, Icons.eco_outlined),
+                chip(DietPreference.nonVeg, Icons.restaurant_outlined),
+                chip(DietPreference.both, Icons.all_inclusive_rounded),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _PickDietInfoCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: kGfPurple.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kGfPurple.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: kGfPurple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Please select Veg / Non-Veg / Both to continue.',
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: kTextDark,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

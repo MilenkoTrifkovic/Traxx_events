@@ -98,37 +98,45 @@ class _GuestFormState extends State<GuestForm> {
   }
 
   void _onSubmit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
     final companions = int.tryParse(companionsController.text);
     if (companions == null) {
       snackbarController.showErrorMessage('Please enter a valid number');
       return;
     }
+
     try {
       final index = await setGuestsController.addGuest(
-          emailController.text.trim(), nameController.text.trim(), companions);
+        emailController.text.trim(),
+        nameController.text.trim(),
+        companions,
+      );
+
+      // ✅ VERY IMPORTANT: after await, widget may be disposed
+      if (!mounted) return;
+
       widget.addColor(index);
       widget.listKey.currentState?.insertItem(index);
 
-      // Reset form after successful addition
       _resetForm();
 
-      // Wait for the list animation to start before scrolling
-      await Future.delayed(Duration(milliseconds: 300));
-      if (mounted) {
-        await widget.scrollController.animateTo(
-          Constants.guestListContainerHeight * index,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOutCirc,
-        );
-      }
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+
+      await widget.scrollController.animateTo(
+        Constants.guestListContainerHeight * index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCirc,
+      );
     } on EmailInUseException catch (e) {
+      if (!mounted) return;
       snackbarController.showErrorMessage(e.message);
     } on GuestLimitExceededException catch (e) {
+      if (!mounted) return;
       snackbarController.showErrorMessage(e.message);
     } catch (e) {
+      if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
       snackbarController.showErrorMessage(msg);
     }

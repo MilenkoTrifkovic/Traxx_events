@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/app_spacing.dart';
@@ -242,6 +243,9 @@ class _EventsDataTableState extends State<EventsDataTable> {
     return '${h.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} $ampm';
   }
 
+  final ScrollController _eventsHCtrl = ScrollController();
+  bool _hoveringTable = false;
+
   void _goToEventDetails(BuildContext context, Event e) {
     final id = (e.eventId ?? '').trim();
     if (id.isEmpty) return;
@@ -296,6 +300,12 @@ class _EventsDataTableState extends State<EventsDataTable> {
         await controller.deleteEventById(e.eventId!);
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _eventsHCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -451,7 +461,7 @@ class _EventsDataTableState extends State<EventsDataTable> {
                         e.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w800, fontSize: 15),
                       ),
                       const SizedBox(height: 4),
@@ -459,14 +469,14 @@ class _EventsDataTableState extends State<EventsDataTable> {
                         '${e.eventType.isNotEmpty ? e.eventType : '—'} • ${_fmtDate(e.date)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(0xFF6B7280), fontSize: 13),
+                        style: GoogleFonts.poppins(
+                            color: const Color(0xFF6B7280), fontSize: 13),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${_fmtTimeOfDay(e.startTime)} - ${_fmtTimeOfDay(e.endTime)}',
-                        style: const TextStyle(
-                            color: Color(0xFF6B7280), fontSize: 13),
+                        style: GoogleFonts.poppins(
+                            color: const Color(0xFF6B7280), fontSize: 13),
                       ),
                       const SizedBox(height: 6),
                       Row(
@@ -528,162 +538,264 @@ class _EventsDataTableState extends State<EventsDataTable> {
     const headerText = Color(0xFF111827);
     const borderColor = Color(0xFFE5E7EB);
 
-    // ✅ Fill available width (no “small centered table” on big screens)
-    final minTableWidth = math.max(1100.0, constraints.maxWidth);
+    final viewportW = constraints.maxWidth;
 
-    // ✅ responsive font sizes
-    final w = constraints.maxWidth;
-    final headingFont = w < 1300 ? 16.0 : 18.0;
-    final dataFont = w < 1300 ? 14.0 : 16.0;
+    const double horizontalMargin = 16;
+    const double columnSpacing = 18;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: minTableWidth),
-            child: DataTable(
-              showCheckboxColumn: false,
-              border: TableBorder(
-                horizontalInside: const BorderSide(color: borderColor),
-                top: const BorderSide(color: borderColor),
-                bottom: const BorderSide(color: borderColor),
-                left: const BorderSide(color: borderColor),
-                right: const BorderSide(color: borderColor),
-                verticalInside: BorderSide.none,
-              ),
-              headingRowColor: WidgetStateProperty.all<Color>(headerBg),
-              headingTextStyle: TextStyle(
-                fontSize: headingFont,
-                fontWeight: FontWeight.w800,
-                color: headerText,
-              ),
-              dataTextStyle: TextStyle(
-                fontSize: dataFont,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF111827),
-              ),
-              headingRowHeight: 52,
-              dataRowMinHeight: 60,
-              dataRowMaxHeight: 74,
-              columns: const [
-                DataColumn(label: Text('Event')),
-                DataColumn(label: Text('Type')),
-                DataColumn(label: Text('Event Date')),
-                DataColumn(label: Text('Created Date')),
-                DataColumn(label: Text('Time')),
-                DataColumn(label: Text('Status')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: pageRows.map((e) {
-                final cover = (e.coverImageDownloadUrl ?? '').trim();
+    final headingFont =
+        viewportW < 1200 ? 15.0 : (viewportW < 1500 ? 16.0 : 18.0);
+    final dataFont = viewportW < 1200 ? 13.5 : (viewportW < 1500 ? 14.5 : 16.0);
 
-                return DataRow(
-                  onSelectChanged: (_) {
-                    controller.selectedEvent.value = e;
-                    _goToEventDetails(context, e);
-                  },
-                  cells: [
-                    DataCell(
-                      Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              color: const Color(0xFFF3F4F6),
-                              child: cover.isEmpty
-                                  ? const Icon(Icons.event, size: 20)
-                                  : Image.network(
-                                      cover,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                          Icons.broken_image_outlined),
+    final headingStyle = GoogleFonts.poppins(
+      fontSize: headingFont,
+      fontWeight: FontWeight.w800,
+      color: headerText,
+    );
+
+    final dataStyle = GoogleFonts.poppins(
+      fontSize: dataFont,
+      fontWeight: FontWeight.w500,
+      color: const Color(0xFF111827),
+    );
+
+    final titleStyle = GoogleFonts.poppins(
+      fontSize: dataFont,
+      fontWeight: FontWeight.w800,
+      color: const Color(0xFF111827),
+    );
+
+    final mutedStyle = GoogleFonts.poppins(
+      fontSize: dataFont - 1,
+      fontWeight: FontWeight.w600,
+      color: const Color(0xFF111827),
+    );
+
+    final typeW = (viewportW * 0.18).clamp(160.0, 220.0);
+    const dateW = 130.0;
+    const createdW = 130.0;
+    final timeW = (viewportW * 0.20).clamp(190.0, 260.0);
+    final statusW = (viewportW * 0.13).clamp(140.0, 180.0);
+    const actionsW = 90.0;
+
+    const cols = 7;
+    final fixedSum = typeW + dateW + createdW + timeW + statusW + actionsW;
+
+    final availableForEvent = viewportW -
+        (fixedSum + columnSpacing * (cols - 1) + horizontalMargin * 2);
+
+    final eventW = availableForEvent.clamp(260.0, 520.0);
+
+    final requiredW =
+        fixedSum + eventW + columnSpacing * (cols - 1) + horizontalMargin * 2;
+
+    final needsScroll = requiredW > viewportW + 1;
+    final tableW = needsScroll ? requiredW : viewportW;
+
+    return SizedBox(
+      width: viewportW,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _hoveringTable = true),
+            onExit: (_) => setState(() => _hoveringTable = false),
+            child: Scrollbar(
+              controller: _eventsHCtrl,
+              // ✅ show scrollbar only on hover (and only if scroll is needed)
+              thumbVisibility: _hoveringTable && needsScroll,
+              trackVisibility: _hoveringTable && needsScroll,
+              interactive: true,
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              child: SingleChildScrollView(
+                controller: _eventsHCtrl,
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: tableW),
+                  child: DataTable(
+                    showCheckboxColumn: false,
+                    columnSpacing: columnSpacing,
+                    horizontalMargin: horizontalMargin,
+                    headingRowColor: MaterialStateProperty.all(headerBg),
+                    headingTextStyle: headingStyle,
+                    dataTextStyle: dataStyle,
+                    headingRowHeight: 52,
+                    dataRowMinHeight: 60,
+                    dataRowMaxHeight: 74,
+                    border: const TableBorder(
+                      top: BorderSide(color: borderColor),
+                      bottom: BorderSide(color: borderColor),
+                      left: BorderSide(color: borderColor),
+                      right: BorderSide(color: borderColor),
+                      horizontalInside: BorderSide(color: borderColor),
+                      verticalInside: BorderSide.none,
+                    ),
+                    columns: [
+                      DataColumn(
+                          label: SizedBox(
+                              width: eventW,
+                              child: Text('Event', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: typeW,
+                              child: Text('Type', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: dateW,
+                              child: Text('Event Date', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: createdW,
+                              child:
+                                  Text('Created Date', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: timeW,
+                              child: Text('Time', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: statusW,
+                              child: Text('Status', style: headingStyle))),
+                      DataColumn(
+                          label: SizedBox(
+                              width: actionsW,
+                              child: Text('Actions', style: headingStyle))),
+                    ],
+                    rows: pageRows.map((e) {
+                      final cover = (e.coverImageDownloadUrl ?? '').trim();
+
+                      return DataRow(
+                        onSelectChanged: (_) {
+                          controller.selectedEvent.value = e;
+                          _goToEventDetails(context, e);
+                        },
+                        cells: [
+                          DataCell(
+                            SizedBox(
+                              width: eventW,
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      width: 44,
+                                      height: 44,
+                                      color: const Color(0xFFF3F4F6),
+                                      child: cover.isEmpty
+                                          ? const Icon(Icons.event, size: 20)
+                                          : Image.network(
+                                              cover,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const Icon(Icons
+                                                      .broken_image_outlined),
+                                            ),
                                     ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      e.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: titleStyle,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 280,
+                          DataCell(SizedBox(
+                            width: typeW,
                             child: Text(
-                              e.name,
-                              maxLines: 2,
+                              e.eventType.isNotEmpty ? e.eventType : '—',
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: dataFont,
+                              style: dataStyle,
+                            ),
+                          )),
+                          DataCell(SizedBox(
+                              width: dateW,
+                              child: Text(_fmtDate(e.date), style: dataStyle))),
+                          DataCell(SizedBox(
+                              width: createdW,
+                              child: Text(_fmtCreated(e.createdAt),
+                                  style: dataStyle))),
+                          DataCell(SizedBox(
+                            width: timeW,
+                            child: Text(
+                              '${_fmtTimeOfDay(e.startTime)} - ${_fmtTimeOfDay(e.endTime)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: dataStyle,
+                            ),
+                          )),
+                          DataCell(
+                            SizedBox(
+                              width: statusW,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: e.status == EventStatus.published
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFF9CA3AF),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      e.status.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: mutedStyle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            SizedBox(
+                              width: actionsW,
+                              child: Center(
+                                child: PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert),
+                                  onSelected: (value) => _handleAction(
+                                    context,
+                                    value: value,
+                                    e: e,
+                                    controller: controller,
+                                  ),
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                        value: 'view', child: Text('View')),
+                                    PopupMenuItem(
+                                        value: 'copy', child: Text('Copy')),
+                                    PopupMenuItem(
+                                        value: 'edit', child: Text('Edit')),
+                                    PopupMenuItem(
+                                        value: 'delete', child: Text('Delete')),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    DataCell(SizedBox(
-                        width: 180,
-                        child:
-                            Text(e.eventType.isNotEmpty ? e.eventType : '—'))),
-                    DataCell(
-                        SizedBox(width: 120, child: Text(_fmtDate(e.date)))),
-                    DataCell(SizedBox(
-                        width: 120, child: Text(_fmtCreated(e.createdAt)))),
-                    DataCell(SizedBox(
-                        width: 170,
-                        child: Text(
-                            '${_fmtTimeOfDay(e.startTime)} - ${_fmtTimeOfDay(e.endTime)}'))),
-                    DataCell(
-                      SizedBox(
-                        width: 120,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: e.status == EventStatus.published
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFF9CA3AF),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(e.status.name)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    DataCell(
-                      SizedBox(
-                        width: 90,
-                        child: Center(
-                          child: PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert),
-                            onSelected: (value) => _handleAction(
-                              context,
-                              value: value,
-                              e: e,
-                              controller: controller,
-                            ),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'view', child: Text('View')),
-                              PopupMenuItem(value: 'copy', child: Text('Copy')),
-                              PopupMenuItem(value: 'edit', child: Text('Edit')),
-                              PopupMenuItem(
-                                  value: 'delete', child: Text('Delete')),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

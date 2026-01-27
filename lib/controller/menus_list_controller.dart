@@ -34,7 +34,6 @@ class MenusListController extends GetxController {
       isLoading.value = true;
 
       final orgId = _authController.organisationId;
-      debugPrint('MenusListController – organisationId = $orgId');
 
       // base collection
       Query<Map<String, dynamic>> query =
@@ -48,9 +47,6 @@ class MenusListController extends GetxController {
       query = query.orderBy('createdAt', descending: true);
 
       final snap = await query.get();
-      debugPrint(
-          'MenusListController – menu sets fetched: ${snap.docs.length}');
-
       final list = snap.docs.map((doc) {
         return MenuModel.fromFirestore(doc.data(), doc.id);
       }).toList();
@@ -58,7 +54,6 @@ class MenusListController extends GetxController {
       menuSets.assignAll(list);
       _applyFilters();
     } catch (e) {
-      debugPrint('Error loading menu sets: $e');
       menuSets.clear();
       filteredMenuSets.clear();
     } finally {
@@ -154,7 +149,6 @@ class MenusListController extends GetxController {
 
       return true;
     } catch (e) {
-      debugPrint('Error deleting menu set and items: $e');
       return false;
     } finally {
       isDeleting.value = false;

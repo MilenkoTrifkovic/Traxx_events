@@ -1,4 +1,3 @@
-// functions/sendInvitationForEvent.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
@@ -12,17 +11,14 @@ const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
 // Config
 const FROM_EMAIL = "developer@trax-event.com";
-// const FROM_NAME = process.env.FROM_NAME || "Trax Events";
 const FROM_NAME = "Trax Events";
 const APP_BASE_URL = "https://trax-event.app";
 const INV_EXPIRY_DAYS = (() => {
   const raw = process.env.INV_EXPIRY_DAYS; // could be "0" or "0.01"
   const n = Number.parseInt(String(raw ?? "14"), 10);
-  return Number.isFinite(n) && n >= 1 ? n : 14; // ✅ never less than 1 day
+  return Number.isFinite(n) && n >= 1 ? n : 14;
 })();
-
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
-
 const POINTERS_COL = "invitationPointers";
 
 function emailLower(s) {
@@ -34,7 +30,6 @@ function makeToken() {
 }
 
 function makeInvitationCode(len = 8) {
-  // Alphanumeric (no confusing chars like 0/O/1/I)
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = randomBytes(len);
   let out = "";
@@ -54,7 +49,8 @@ function escapeHtml(s) {
 
 function pickEarliestByCreatedAt(docs) {
   let chosen = docs[0];
-  let chosenMs = chosen.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+  let chosenMs =
+    chosen.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
 
   for (const d of docs) {
     const ms = d.data()?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
@@ -67,57 +63,61 @@ function pickEarliestByCreatedAt(docs) {
 }
 
 function pointerId(eventId, guestId) {
-  // safe for UUIDs; if you ever use other ids, sanitize here
   return `${eventId}_${guestId}`;
 }
 
-async function getPublicUrlFromStoragePath(storagePath) {
-  if (!storagePath || typeof storagePath !== "string") {
-    console.warn("⚠️ getPublicUrlFromStoragePath: Empty or invalid storagePath", { storagePath });
+// ✅ Encode a GCS path but KEEP slashes.
+// uploads/my photo.jpg -> uploads/my%20photo.jpg
+function encodeGcsPath(path) {
+  return String(path)
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+}
+
+// ✅ Robust URL resolver (URL passthrough, storage path -> public or signed)
+async function resolveImageUrl(pathOrUrl, { signedDays = 30 } = {}) {
+  const raw = (pathOrUrl ?? "").toString().trim();
+  if (!raw) return "";
+
+  // already a URL
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+
+  const storagePath = raw;
+  const bucket = getStorage().bucket();
+  const file = bucket.file(storagePath);
+
+  const [exists] = await file.exists();
+  if (!exists) {
+    console.error(`❌ Storage file not found: ${storagePath}`);
     return "";
   }
-  
+
+  // Try makePublic (may fail if UBLA enabled)
   try {
-    console.log(`🔍 Getting URL for storage path: ${storagePath}`);
-    
-    const bucket = getStorage().bucket();
-    const file = bucket.file(storagePath);
-    
-    // Check if file exists
-    const [exists] = await file.exists();
-    if (!exists) {
-      console.error(`❌ Storage file not found: ${storagePath}`);
-      return "";
-    }
-    
-    console.log(`✅ File exists: ${storagePath}`);
-    
-    // Make file publicly accessible
     await file.makePublic();
-    
-    // Get the public URL (no signature needed)
-    const bucketName = bucket.name;
-    const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(storagePath)}`;
-    
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeGcsPath(
+      storagePath
+    )}`;
     console.log(`✅ Public URL generated: ${publicUrl}`);
-    
     return publicUrl;
-  } catch (err) {
-    console.error(`❌ Error getting public URL for ${storagePath}:`, err);
-    console.error(`Error details:`, {
-      message: err.message,
-      code: err.code,
+  } catch (e) {
+    console.warn("⚠️ makePublic failed, using signed URL:", e?.message ?? e);
+
+    const [signedUrl] = await file.getSignedUrl({
+      action: "read",
+      expires: Date.now() + signedDays * 24 * 60 * 60 * 1000,
     });
-    return "";
+
+    console.log(`✅ Signed URL generated for ${storagePath}`);
+    return signedUrl;
   }
 }
 
-/**
- * Format date for display in email
- */
+// Format date for display in email
 function formatEventDate(timestamp) {
   if (!timestamp || !timestamp.toDate) return "";
-  
+
   const date = timestamp.toDate();
   const options = {
     weekday: "long",
@@ -128,7 +128,7 @@ function formatEventDate(timestamp) {
     minute: "2-digit",
     timeZoneName: "short",
   };
-  
+
   return date.toLocaleString("en-US", options);
 }
 
@@ -145,13 +145,11 @@ export const sendInvitations = onCall(
         organisationId,
         invitations,
         demographicQuestionSetId,
-
-        // 🔸 This is event-level (same for all guests). We keep it if you want it.
-        // 🔸 Per-guest unique code will be stored as `invitationCode` on each invite doc.
         invitationCode: eventInvitationCode,
       } = request.data || {};
 
-      if (!eventId) throw new HttpsError("invalid-argument", "eventId is required");
+      if (!eventId)
+        throw new HttpsError("invalid-argument", "eventId is required");
       if (!Array.isArray(invitations) || invitations.length === 0) {
         throw new HttpsError("invalid-argument", "invitations array required");
       }
@@ -167,23 +165,33 @@ export const sendInvitations = onCall(
       const client = new postmark.ServerClient(token);
       const results = [];
 
-      // ✅ Fetch event details once (used for all invitations)
+      // ✅ Fetch event details once
       const eventDoc = await db.collection("events").doc(eventId).get();
       if (!eventDoc.exists) {
         throw new HttpsError("not-found", `Event ${eventId} not found`);
       }
 
-      const eventData = eventDoc.data();
+      const eventData = eventDoc.data() || {};
       const eventName = eventData?.name || "Event";
       const eventAddress = eventData?.address || "";
       const eventStartDateTime = eventData?.startDateTime;
       const eventEndDateTime = eventData?.endDateTime;
-      const eventCoverImagePath = eventData?.coverImageUrl || "";
 
-      // Convert storage path to public URL
-      const eventImageUrl = await getPublicUrlFromStoragePath(eventCoverImagePath);
+      // ✅ Prefer coverImagePath; fallback to coverImageUrl
+      const coverPathOrUrl =
+        (eventData?.coverImagePath || "").toString().trim() ||
+        (eventData?.coverImageUrl || "").toString().trim() ||
+        "";
 
-      // Format event dates
+      // ✅ Resolve ONCE
+      const eventImageUrl = await resolveImageUrl(coverPathOrUrl, {
+        signedDays: 30,
+      });
+
+      const logoUrl = await resolveImageUrl("app_images/light-logo.png", {
+        signedDays: 365,
+      });
+
       const formattedStartDate = formatEventDate(eventStartDateTime);
       const formattedEndDate = formatEventDate(eventEndDateTime);
 
@@ -207,29 +215,27 @@ export const sendInvitations = onCall(
         let invId = null;
         let invData = null;
         let invToken = null;
-
-        // ✅ NEW: per-guest invitation code (stable on resend)
         let guestInvitationCode = null;
 
         // ✅ CASE A: guestId exists -> uniqueness = (eventId + guestId)
         if (gid) {
-          const ptrRef = db.collection(POINTERS_COL).doc(pointerId(eventId, gid));
+          const ptrRef = db
+            .collection(POINTERS_COL)
+            .doc(pointerId(eventId, gid));
 
           await db.runTransaction(async (tx) => {
             const ptrSnap = await tx.get(ptrRef);
 
-            // 1) Pointer exists -> reuse invitationId
             if (ptrSnap.exists) {
               invId = (ptrSnap.data()?.invitationId || "").toString().trim();
               if (!invId) throw new Error("Pointer has empty invitationId");
 
               invRef = db.collection("invitations").doc(invId);
               const snap = await tx.get(invRef);
-              invData = snap.exists ? (snap.data() || {}) : {};
-
+              invData = snap.exists ? snap.data() || {} : {};
             } else {
-              // 2) No pointer yet -> try to find existing invitation by (eventId+guestId)
-              const q = db.collection("invitations")
+              const q = db
+                .collection("invitations")
                 .where("eventId", "==", eventId)
                 .where("guestId", "==", gid)
                 .limit(10);
@@ -242,7 +248,6 @@ export const sendInvitations = onCall(
                 invId = chosen.id;
                 invData = chosen.data() || {};
 
-                // create pointer to the existing invite
                 tx.set(
                   ptrRef,
                   {
@@ -254,12 +259,10 @@ export const sendInvitations = onCall(
                   { merge: true }
                 );
               } else {
-                // 3) Create brand-new invitation with RANDOM id (old structure)
                 invRef = db.collection("invitations").doc();
                 invId = invRef.id;
                 invData = {};
 
-                // create pointer to the new invite
                 tx.set(ptrRef, {
                   eventId,
                   guestId: gid,
@@ -269,7 +272,6 @@ export const sendInvitations = onCall(
               }
             }
 
-            // SAFETY: never allow a reuse collision
             const storedGid = (invData?.guestId ?? "").toString().trim();
             if (storedGid && storedGid !== gid) {
               throw new HttpsError(
@@ -278,14 +280,13 @@ export const sendInvitations = onCall(
               );
             }
 
-            // Token must stay stable for same invitation
-            invToken = (invData?.token || "").toString().trim() || makeToken();
+            invToken =
+              (invData?.token || "").toString().trim() || makeToken();
 
-            // ✅ NEW: invitationCode must stay stable for same invitation
             guestInvitationCode =
-              (invData?.invitationCode || "").toString().trim() || makeInvitationCode();
+              (invData?.invitationCode || "").toString().trim() ||
+              makeInvitationCode();
 
-            // Ensure invitation doc has correct core fields (merge)
             tx.set(
               invRef,
               {
@@ -299,34 +300,22 @@ export const sendInvitations = onCall(
                 maxGuestInvite,
                 demographicQuestionSetId: demographicQuestionSetId || null,
                 token: invToken,
-
-                // ✅ per-guest unique code
                 invitationCode: guestInvitationCode,
-
-                // optional: keep event-level code if you want it for reporting/filtering
                 ...(eventInvitationCode && { eventInvitationCode }),
-
-                // preserve createdAt if already exists
                 createdAt: invData?.createdAt ?? Timestamp.now(),
                 expiresAt,
-
-                // reset send flags for this attempt
                 sent: false,
                 lastSendAttemptAt: Timestamp.now(),
-
                 ...(batchId && { batchId }),
               },
               { merge: true }
             );
           });
-
         } else {
           // ✅ CASE B: guestId missing -> ALWAYS create new invitation
           invRef = db.collection("invitations").doc();
           invId = invRef.id;
           invToken = makeToken();
-
-          // ✅ NEW: unique invitation code for this guest
           guestInvitationCode = makeInvitationCode();
 
           await invRef.set(
@@ -341,108 +330,105 @@ export const sendInvitations = onCall(
               maxGuestInvite,
               demographicQuestionSetId: demographicQuestionSetId || null,
               token: invToken,
-
-              // ✅ per-guest unique code
               invitationCode: guestInvitationCode,
-
-              // optional: keep event-level code if you want it
               ...(eventInvitationCode && { eventInvitationCode }),
-
               createdAt: Timestamp.now(),
               expiresAt,
               sent: false,
               lastSendAttemptAt: Timestamp.now(),
-
               ...(batchId && { batchId }),
             },
             { merge: true }
           );
         }
 
-        // ✅ Build link
         const link =
-          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
+          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(
+            invId
+          )}` +
           `&token=${encodeURIComponent(invToken)}` +
           `&v=${Date.now()}`;
 
         const subject = `You're Invited to ${eventName}!`;
 
+        const formattedStart = formattedStartDate;
+        const formattedEnd = formattedEndDate;
+
         const textBody =
           `Hello${guestName ? " " + guestName : ""},\n\n` +
           `You're invited to ${eventName}!\n\n` +
           (eventAddress ? `Location: ${eventAddress}\n` : "") +
-          (formattedStartDate ? `Start: ${formattedStartDate}\n` : "") +
-          (formattedEndDate ? `End: ${formattedEndDate}\n` : "") +
+          (formattedStart ? `Start: ${formattedStart}\n` : "") +
+          (formattedEnd ? `End: ${formattedEnd}\n` : "") +
           `\n` +
           `Please open this link to RSVP, complete your details, and select your menu preferences:\n${link}\n\n` +
           `This link expires in ${INV_EXPIRY_DAYS} days.\n\n` +
-          (guestInvitationCode ? `Invitation Code: ${guestInvitationCode}\n` : "") +
+          (guestInvitationCode
+            ? `Invitation Code: ${guestInvitationCode}\n`
+            : "") +
           `\nThank you,\nTrax Event`;
 
         const safeName = guestName ? escapeHtml(guestName) : "";
         const safeEventName = escapeHtml(eventName);
         const safeAddress = escapeHtml(eventAddress);
 
-        // Build event image header
         const eventImageHtml = eventImageUrl
-          ? `<img src="${eventImageUrl}" alt="${safeEventName}" style="width:100%;max-width:600px;max-height:105px;object-fit:cover;border-radius:8px;display:block;margin:0 auto 30px;" />`
+          ? `<img src="${eventImageUrl}" alt="${safeEventName}" style="width:100%;max-width:600px;max-height:150px;object-fit:cover;border-radius:8px;display:block;margin:0 auto 24px;" />`
           : "";
 
-        // Build logo for footer
-        const logoUrl = await getPublicUrlFromStoragePath('app_images/light-logo.png');
         const logoHtml = logoUrl
           ? `<img src="${logoUrl}" alt="Trax Event Logo" style="max-width:150px;height:auto;margin-bottom:15px;" />`
-          : '';
+          : "";
 
-        // Build event details section
         let eventDetailsHtml = "";
-        if (formattedStartDate || formattedEndDate || eventAddress) {
+        if (formattedStart || formattedEnd || eventAddress) {
           eventDetailsHtml = `
             <div style="background:#f9fafb;border-left:4px solid #2563eb;padding:16px;margin:20px 0;border-radius:4px;">
               <h3 style="margin:0 0 12px;color:#1f2937;font-size:16px;font-weight:600;">Event Details</h3>`;
-          
-          if (formattedStartDate) {
-            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Start:</strong> ${escapeHtml(formattedStartDate)}</p>`;
+          if (formattedStart) {
+            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Start:</strong> ${escapeHtml(
+              formattedStart
+            )}</p>`;
           }
-          if (formattedEndDate) {
-            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>End:</strong> ${escapeHtml(formattedEndDate)}</p>`;
+          if (formattedEnd) {
+            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>End:</strong> ${escapeHtml(
+              formattedEnd
+            )}</p>`;
           }
           if (eventAddress) {
             eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Location:</strong> ${safeAddress}</p>`;
           }
-          
           eventDetailsHtml += `</div>`;
         }
 
-        // ✅ Show per-guest invitation code in email
         let htmlReferenceInfo = "";
         if (guestInvitationCode || batchId) {
           htmlReferenceInfo = `
             <div style="color:#6b7280;font-size:13px;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;">
               <strong>Reference Information:</strong><br/>`;
           if (guestInvitationCode) {
-            htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(guestInvitationCode)}</strong><br/>`;
+            htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(
+              guestInvitationCode
+            )}</strong><br/>`;
           }
           if (batchId) {
-            htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
+            htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(
+              batchId
+            )}</strong>`;
           }
           htmlReferenceInfo += `</div>`;
         }
 
         const htmlBody = `
           <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#1f2937;max-width:600px;margin:0 auto;background:#ffffff;">
-            
-            <!-- Event Image Header -->
             ${eventImageHtml}
-            
-            <!-- Main Content -->
             <div style="padding:0 20px;">
               <h1 style="color:#1f2937;font-size:24px;margin:0 0 10px;font-weight:700;">You're Invited!</h1>
-              
+
               <p style="font-size:16px;color:#4b5563;margin:10px 0;">
                 Hello${safeName ? " " + safeName : ""},
               </p>
-              
+
               <p style="font-size:16px;color:#1f2937;margin:16px 0;">
                 You have been invited to <strong>${safeEventName}</strong>!
               </p>
@@ -453,14 +439,12 @@ export const sendInvitations = onCall(
                 Please click the button below to confirm your attendance, complete your details, and select your menu preferences.
               </p>
 
-              <!-- CTA Button -->
               <div style="text-align:center;margin:30px 0;">
                 <a href="${link}" style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                   Accept Invitation & RSVP
                 </a>
               </div>
 
-              <!-- Alternative Link -->
               <div style="background:#f9fafb;padding:16px;border-radius:6px;margin:20px 0;">
                 <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
                   If the button doesn't work, copy and paste this link into your browser:
@@ -476,7 +460,6 @@ export const sendInvitations = onCall(
 
               ${htmlReferenceInfo}
 
-              <!-- Thank You -->
               <div style="margin:40px 0 20px;padding:20px 0;border-top:1px solid #e5e7eb;">
                 <p style="font-size:15px;color:#4b5563;margin:0;">
                   Thank you,<br/>
@@ -485,7 +468,6 @@ export const sendInvitations = onCall(
               </div>
             </div>
 
-            <!-- Footer with Logo -->
             <div style="background:#f9fafb;padding:30px 20px;text-align:center;border-top:2px solid #e5e7eb;">
               ${logoHtml}
               <p style="color:#6b7280;font-size:12px;margin:10px 0 0;">
@@ -494,6 +476,7 @@ export const sendInvitations = onCall(
             </div>
           </div>
         `;
+
         try {
           const resp = await client.sendEmail({
             From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
@@ -509,6 +492,7 @@ export const sendInvitations = onCall(
               invitationCode: guestInvitationCode || "",
             },
           });
+
           results.push({
             guestEmail,
             guestId: gid || null,
@@ -516,8 +500,9 @@ export const sendInvitations = onCall(
             invitationCode: guestInvitationCode || null,
             status: "sent",
           });
+
           try {
-             await invRef.update({
+            await invRef.update({
               sent: true,
               sentAt: Timestamp.now(),
               postmarkMessageId: resp.MessageID,
@@ -530,6 +515,7 @@ export const sendInvitations = onCall(
           } catch (e) {
             console.error("⚠️ invRef.update failed AFTER email sent:", e);
           }
+
           try {
             if (gid) {
               await db.collection("guests").doc(gid).set(
@@ -545,8 +531,6 @@ export const sendInvitations = onCall(
           } catch (e) {
             console.error("⚠️ guest update failed AFTER email sent:", e);
           }
-
-          
         } catch (err) {
           const status = err?.statusCode ?? err?.code ?? null;
           const msg = err?.message ?? String(err);
@@ -581,7 +565,7 @@ export const sendInvitations = onCall(
       });
 
       const sentUnique = new Set(
-        results.filter(r => r.status === "sent").map(r => r.invitationId)
+        results.filter((r) => r.status === "sent").map((r) => r.invitationId)
       );
 
       return {

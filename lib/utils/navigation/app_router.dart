@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get/get.dart';
@@ -6,8 +9,8 @@ import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
-import 'package:traxx_wepapp/controller/global_controllers/guest_controllers/guest_session_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/organisation_controller.dart';
+import 'package:traxx_wepapp/controller/global_controllers/payment_history_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/users_and_roles_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/venues_controller.dart';
 import 'package:traxx_wepapp/controller/menus_list_controller.dart';
@@ -31,7 +34,6 @@ import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
 import 'package:traxx_wepapp/view/admin/event_details/demographic_response_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/menu_response_page.dart';
-import 'package:traxx_wepapp/view/admin/event_details/thank_you_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_rules_screen.dart';
 import 'package:traxx_wepapp/view/admin/questions/host_questions_sets_screen.dart';
@@ -60,14 +62,8 @@ import 'package:traxx_wepapp/layout/guest_layout/guest_page_wrapper.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_side_preview_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_login/view/guest_login_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_responses_preview_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_view_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_view_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_demographics_edit_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_responses_preview_edit/view/guest_menu_selection_edit_page.dart';
-import 'package:traxx_wepapp/features/guest/guest_feed_page/view/guest_feed_page.dart';
-import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.dart';
+import 'package:traxx_wepapp/utils/web_reload_stub.dart'
+    if (dart.library.html) 'package:traxx_wepapp/utils/web_reload_web.dart';
 
 /// Router setup for the Traxx application.
 /// Currently implementing basic navigation structure with go_router.
@@ -76,8 +72,6 @@ import 'package:traxx_wepapp/view/guest/widgets/guest_navigation_rail_wrapper.da
 /// Key for the host section's nested navigation
 final GlobalKey<NavigatorState> hostNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestNavigationKey =
-    GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> guestAuthNavigatorKey =
     GlobalKey<NavigatorState>();
 const double kNavCollapseWidth = 900; // when to switch sidebar -> drawer
 final GlobalKey<ScaffoldState> hostShellScaffoldKey =
@@ -91,24 +85,34 @@ GoRouter buildRouter() {
   final eventController = Get.find<EventController>();
   final authController = Get.find<AuthController>();
   return GoRouter(
+    refreshListenable:
+        GoRouterRefreshStream(authController.routerRefresh.stream),
     debugLogDiagnostics: true,
-    initialLocation: AppRoute.welcome.path,
     routes: <RouteBase>[
+      GoRoute(path: '/', redirect: (_, __) => AppRoute.welcome.path),
+
       GoRoute(
         path: AppRoute.welcome.path,
-        builder: (context, state) {
-          final User? currentUser = FirebaseAuth.instance.currentUser;
+        redirect: (context, state) {
+          // wait until auth/profile is known
+          if (authController.isLoading.value) return null;
 
-          if (currentUser != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              print(
-                  'Router: User already signed in, go straight to host events');
-              pushAndRemoveAllRoute(AppRoute.hostEvents, context);
-            });
+          if (!authController.isAuthenticated) return null;
+
+          // signed in but needs email verify
+          if (!authController.isAuthenticatedAndVerified) {
+            return AppRoute.emailVerification.path;
           }
 
-          return const WelcomeView();
+          // signed in but needs org
+          if (!authController.companyInfoExists) {
+            return AppRoute.hostOrganisationInfoForm.path;
+          }
+
+          // all good
+          return AppRoute.hostEvents.path;
         },
+        builder: (context, state) => const WelcomeView(),
       ),
 
       GoRoute(
@@ -123,6 +127,7 @@ GoRouter buildRouter() {
       ),
       GoRoute(
         redirect: (context, state) {
+          if (authController.isLoading.value) return null;
           if (!authController.isAuthenticated) {
             return AppRoute.welcome.path;
           }
@@ -149,109 +154,6 @@ GoRouter buildRouter() {
           final token = (state.uri.queryParameters['token'] ?? '').trim();
           return GuestThankYouPage(invitationId: invId, token: token);
         },
-      ),
-
-      // GUEST AUTHENTICATED SHELL ROUTE
-      // Handles guest authentication and session management
-      // All guest routes that require authentication go here
-      ShellRoute(
-        navigatorKey: guestAuthNavigatorKey,
-        redirect: (context, state) {
-          final guestSession = Get.find<GuestSessionController>();
-
-          // If on login page and already authenticated, redirect to responses preview
-          if (state.matchedLocation == AppRoute.guestLogin.path) {
-            if (guestSession.isAuthenticated) {
-              print(
-                  '✅ Guest already authenticated, redirecting to responses preview');
-              return AppRoute.guestResponsesPreview.path;
-            }
-            // Not authenticated, allow access to login page
-            return null;
-          }
-
-          // For all other guest routes, check if authenticated
-          if (!guestSession.isAuthenticated) {
-            print('🔒 Guest not authenticated, redirecting to login');
-            return AppRoute.guestLogin.path;
-          }
-
-          print('✅ Guest authenticated, allowing access');
-          return null; // Allow access to protected route
-        },
-        builder: (context, state, child) {
-          // If on login page, don't show navigation rail
-          if (state.matchedLocation == AppRoute.guestLogin.path) {
-            print('ONLY CHILD RETURNED');
-            return child;
-          }
-
-          // For authenticated routes, show navigation rail and content wrapper
-          return GuestNavigationRailWrapper(
-            child: ContentWrapper(
-              child: child,
-            ),
-          );
-        },
-        routes: [
-          // Public guest login route
-          GoRoute(
-            path: AppRoute.guestLogin.path,
-            builder: (context, state) => const GuestLoginPage(),
-          ),
-
-          // Guest responses preview page (authenticated)
-          GoRoute(
-            path: AppRoute.guestResponsesPreview.path,
-            builder: (context, state) => const GuestResponsesPreviewPage(),
-          ),
-
-          // Guest demographics view page (authenticated)
-          GoRoute(
-            path: AppRoute.guestDemographicsView.path,
-            builder: (context, state) => const GuestDemographicsViewPage(),
-          ),
-
-          // Guest menu selection view page (authenticated)
-          GoRoute(
-            path: AppRoute.guestMenuSelectionView.path,
-            builder: (context, state) => const GuestMenuSelectionViewPage(),
-          ),
-
-          // Guest demographics edit page (authenticated)
-          GoRoute(
-            path: AppRoute.guestDemographicsEdit.path,
-            builder: (context, state) => const GuestDemographicsEditPage(),
-          ),
-
-          // Guest menu selection edit page (authenticated)
-          GoRoute(
-            path: AppRoute.guestMenuSelectionEdit.path,
-            builder: (context, state) => const GuestMenuSelectionEditPage(),
-          ),
-
-          // Guest feed page (authenticated)
-          GoRoute(
-            path: AppRoute.guestFeed.path,
-            builder: (context, state) {
-              final guestSession = Get.find<GuestSessionController>();
-              final eventId = guestSession.event.value?.eventId ?? '';
-              final eventName = guestSession.event.value?.name;
-
-              return GuestFeedPage(
-                eventId: eventId,
-                eventName: eventName,
-              );
-            },
-          ),
-
-          // TODO: Add more authenticated guest routes here
-          // Example:
-          // GoRoute(
-          //   path: AppRoute.guestDashboard.path,
-          //   builder: (context, state) => const GuestDashboardPage(),
-          // ),
-        ],
       ),
 
       // GUEST RESPONSE SHELL ROUTE
@@ -411,52 +313,59 @@ GoRouter buildRouter() {
       //HOST SHELL ROUTE
       ShellRoute(
         redirect: (context, state) {
+          if (authController.isLoading.value) return null;
           if (!authController.isAuthenticated) return AppRoute.welcome.path;
-          if (!authController.isAuthenticatedAndVerified) {
+          if (!authController.isAuthenticatedAndVerified)
             return AppRoute.emailVerification.path;
-          }
-          if (!authController.companyInfoExists) {
+          if (!authController.companyInfoExists)
             return AppRoute.hostOrganisationInfoForm.path;
-          }
           return null;
         },
         navigatorKey: hostNavigatorKey,
         builder: (context, state, child) {
-          final User? currentUser = FirebaseAuth.instance.currentUser;
-
-          if (currentUser == null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              pushAndRemoveAllRoute(AppRoute.welcome, context);
-            });
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final eventListController = Get.find<EventListController>();
           final authCtrl = Get.find<AuthController>();
+          final eventListController = Get.find<EventListController>();
 
-          if (!Get.isRegistered<VenuesController>())
-            Get.put(VenuesController());
-          if (!Get.isRegistered<MenusListController>())
-            Get.put(MenusListController());
-          if (!Get.isRegistered<MenusScreenController>())
-            Get.put(MenusScreenController());
-          if (!Get.isRegistered<EventsController>())
-            Get.put(EventsController());
-          if (!Get.isRegistered<OrganisationController>()) {
-            Get.put(OrganisationController(authCtrl.organisationId!));
-          }
-          if (!Get.isRegistered<UsersAndRolesController>())
-            Get.put(UsersAndRolesController());
-
+          // ✅ EVERYTHING reactive
           return Obx(() {
-            if (eventListController.isLoading.value ||
-                authCtrl.isLoading.value) {
+            // Wait for auth/profile boot
+            if (authCtrl.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            // While Firebase restores session on web refresh, currentUser can be null briefly.
+            // ✅ Don't navigate here; redirect handles it.
+            if (!authCtrl.isAuthenticated) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final orgId = (authCtrl.organisationId ?? '').trim();
+            if (orgId.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            // ✅ Ensure controllers exist (safe on refresh)
+            if (!Get.isRegistered<VenuesController>())
+              Get.put(VenuesController());
+            if (!Get.isRegistered<MenusListController>())
+              Get.put(MenusListController());
+            if (!Get.isRegistered<MenusScreenController>())
+              Get.put(MenusScreenController());
+            if (!Get.isRegistered<EventsController>())
+              Get.put(EventsController());
+            if (!Get.isRegistered<OrganisationController>())
+              Get.put(OrganisationController(orgId));
+            if (!Get.isRegistered<PaymentHistoryController>())
+              Get.put(PaymentHistoryController());
+            if (!Get.isRegistered<UsersAndRolesController>())
+              Get.put(UsersAndRolesController());
+
+            if (eventListController.isLoading.value) {
               return const Center(child: CircularProgressIndicator());
             }
 
             final location = state.matchedLocation;
 
-            // keep your lavender background for questions if you want
             final isQuestionsPage = location
                     .startsWith(AppRoute.hostQuestionSets.path) ||
                 location.startsWith(AppRoute.hostQuestions.path) ||
@@ -468,36 +377,45 @@ GoRouter buildRouter() {
                 ? gfBackground
                 : const Color.fromARGB(255, 247, 247, 247);
 
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final isMobile = constraints.maxWidth < kNavCollapseWidth;
+            return OrgDataBootstrap(
+                orgId: orgId,
+                child: Obx(() {
+                  if (eventListController.isLoading.value) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final header = getPageHeader(
-                  state,
-                  drawerScaffoldKey: isMobile ? hostShellScaffoldKey : null,
-                );
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = constraints.maxWidth < kNavCollapseWidth;
 
-                final page = ContentWrapper(
-                  contentColor: contentColor,
-                  header: header, // ✅ ALWAYS render header here
-                  child: child,
-                );
+                      final header = getPageHeader(
+                        state,
+                        drawerScaffoldKey:
+                            isMobile ? hostShellScaffoldKey : null,
+                      );
 
-                return KeyedSubtree(
-                  key: ValueKey('host_shell_${isMobile ? 'm' : 'd'}'),
-                  child: isMobile
-                      ? Scaffold(
-                          key: hostShellScaffoldKey,
-                          drawer: Drawer(
-                            child: HostDrawerMenuSidebar(
-                                location: state.matchedLocation),
-                          ),
-                          body: page,
-                        )
-                      : NavigationRailWrapper(child: page),
-                );
-              },
-            );
+                      final page = ContentWrapper(
+                        contentColor: contentColor,
+                        header: header,
+                        child: child,
+                      );
+
+                      return KeyedSubtree(
+                        key: ValueKey('host_shell_${isMobile ? 'm' : 'd'}'),
+                        child: isMobile
+                            ? Scaffold(
+                                key: hostShellScaffoldKey,
+                                drawer: Drawer(
+                                  child: HostDrawerMenuSidebar(
+                                      location: state.matchedLocation),
+                                ),
+                                body: page,
+                              )
+                            : NavigationRailWrapper(child: page),
+                      );
+                    },
+                  );
+                }));
           });
         },
         routes: [
@@ -698,21 +616,43 @@ GoRouter buildRouter() {
       ShellRoute(
         navigatorKey: guestNavigationKey,
         builder: (context, state, child) {
+          final authCtrl = Get.find<AuthController>();
           final eventListController = Get.find<EventListController>();
-          final authController = Get.find<AuthController>();
 
           return Obx(() {
-            if (eventListController.isLoading.value ||
-                authController.isLoading.value) {
+            if (authCtrl.isLoading.value) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            return NavigationRailWrapper(
-              child: ContentWrapper(
-                contentColor: const Color.fromARGB(255, 247, 247, 247),
-                header: getPageHeader(state),
-                child: child,
-              ),
+            final orgId = (authCtrl.organisationId ?? '').trim();
+            if (orgId.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (!Get.isRegistered<VenuesController>())
+              Get.put(VenuesController());
+            if (!Get.isRegistered<OrganisationController>())
+              Get.put(OrganisationController(orgId));
+
+            if (eventListController.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            return OrgDataBootstrap(
+              orgId: orgId,
+              child: Obx(() {
+                if (eventListController.isLoading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                return NavigationRailWrapper(
+                  child: ContentWrapper(
+                    contentColor: const Color.fromARGB(255, 247, 247, 247),
+                    header: getPageHeader(state),
+                    child: child,
+                  ),
+                );
+              }),
             );
           });
         },
@@ -787,44 +727,6 @@ GoRouter buildRouter() {
   );
 }
 
-Widget _buildHostBody({
-  required BuildContext context,
-  required GoRouterState state,
-  required Widget child,
-  required Color contentColor,
-  required bool isQuestionsPage,
-  required bool isMobile,
-  required Widget header,
-}) {
-  if (isQuestionsPage) {
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(
-            left: isMobile ? 16 : 40,
-            right: isMobile ? 16 : 40,
-            top: isMobile ? 12 : 24,
-            bottom: 8,
-          ),
-          child: header,
-        ),
-        Expanded(
-          child: ContentWrapper(
-            contentColor: contentColor,
-            child: child,
-          ),
-        ),
-      ],
-    );
-  }
-
-  return ContentWrapper(
-    contentColor: contentColor,
-    header: header,
-    child: child,
-  );
-}
-
 class HostDrawerMenuSidebar extends StatelessWidget {
   final String location;
   const HostDrawerMenuSidebar({super.key, required this.location});
@@ -874,12 +776,18 @@ class HostDrawerMenuSidebar extends StatelessWidget {
         route = AppRoute.hostSettings;
         break;
       case 7:
-        // Logout
         try {
           await Get.find<AuthController>().logout();
         } catch (_) {}
+
+        if (kIsWeb) {
+          hardReload(); // ✅ wipes old GetX controllers completely
+          return;
+        }
+
         final navCtx = hostNavigatorKey.currentContext ??
             hostShellScaffoldKey.currentContext;
+
         if (navCtx != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             pushAndRemoveAllRoute(AppRoute.welcome, navCtx);
@@ -979,4 +887,60 @@ class HostDrawerMenuSidebar extends StatelessWidget {
       ),
     );
   }
+}
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    _sub = stream.listen((_) => notifyListeners());
+  }
+  late final StreamSubscription<dynamic> _sub;
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+}
+
+class OrgDataBootstrap extends StatefulWidget {
+  final String orgId;
+  final Widget child;
+
+  const OrgDataBootstrap({
+    super.key,
+    required this.orgId,
+    required this.child,
+  });
+
+  @override
+  State<OrgDataBootstrap> createState() => _OrgDataBootstrapState();
+}
+
+class _OrgDataBootstrapState extends State<OrgDataBootstrap> {
+  String? _lastOrgId;
+
+  void _kickoff() {
+    if (_lastOrgId == widget.orgId) return;
+    _lastOrgId = widget.orgId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Get.find<EventListController>().ensureLoaded(widget.orgId);
+      Get.find<VenuesController>().ensureLoaded(widget.orgId);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _kickoff();
+  }
+
+  @override
+  void didUpdateWidget(covariant OrgDataBootstrap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.orgId != widget.orgId) _kickoff();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

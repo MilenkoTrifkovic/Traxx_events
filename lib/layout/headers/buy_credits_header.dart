@@ -17,7 +17,7 @@ class BuyCreditsHeader extends StatelessWidget {
         const SizedBox(width: 12),
         AppText.styledHeadingMedium(
           context,
-          'Buy Credits',
+          'Buy Events',
           weight: FontWeight.w600,
         ),
       ],

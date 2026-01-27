@@ -9,7 +9,8 @@ import 'package:universal_html/html.dart' as html;
 class InvitationLetterController extends GetxController {
   final StorageServices _storageServices = Get.find<StorageServices>();
   final FirestoreServices _firestoreServices = Get.find<FirestoreServices>();
-  final SnackbarMessageController _snackbarController = Get.find<SnackbarMessageController>();
+  final SnackbarMessageController _snackbarController =
+      Get.find<SnackbarMessageController>();
 
   /// Selected file for the invitation letter (local, not yet uploaded)
   Rx<PlatformFile?> invitationFile = Rx<PlatformFile?>(null);
@@ -37,8 +38,6 @@ class InvitationLetterController extends GetxController {
     currentEvent.value = event;
     invitationLetterUrl.value = event.invitationLetterUrl ?? '';
     invitationLetterPath.value = event.invitationLetterPath ?? '';
-    print('Letter image URL: ${invitationLetterUrl.value}');
-    print('Letter image path: ${invitationLetterPath.value}');
   }
 
   /// Pick a file (PDF or Image) for the invitation letter
@@ -117,16 +116,18 @@ class InvitationLetterController extends GetxController {
       currentEvent.value = updatedEvent;
       invitationLetterPath.value = path;
       invitationLetterUrl.value = downloadUrl;
-      
+
       // Clear the local file since it's now uploaded
       invitationFile.value = null;
 
       // Show success message
-      _snackbarController.showSuccessMessage('Invitation letter uploaded successfully');
+      _snackbarController
+          .showSuccessMessage('Invitation letter uploaded successfully');
     } catch (e) {
       errorMessage.value = 'Failed to upload: $e';
       print('Error uploading invitation letter: $e');
-      _snackbarController.showErrorMessage('Failed to upload invitation letter: $e');
+      _snackbarController
+          .showErrorMessage('Failed to upload invitation letter: $e');
     } finally {
       isUploading.value = false;
     }
@@ -164,11 +165,13 @@ class InvitationLetterController extends GetxController {
       invitationLetterPath.value = '';
       invitationLetterUrl.value = '';
 
-      _snackbarController.showSuccessMessage('Invitation letter deleted successfully');
+      _snackbarController
+          .showSuccessMessage('Invitation letter deleted successfully');
     } catch (e) {
       errorMessage.value = 'Failed to delete: $e';
       print('Error deleting invitation letter: $e');
-      _snackbarController.showErrorMessage('Failed to delete invitation letter: $e');
+      _snackbarController
+          .showErrorMessage('Failed to delete invitation letter: $e');
     } finally {
       isUploading.value = false;
     }
@@ -194,7 +197,7 @@ class InvitationLetterController extends GetxController {
   /// Get file size in readable format
   String getFileSize() {
     if (invitationFile.value == null) return '';
-    
+
     final bytes = invitationFile.value!.size;
     if (bytes < 1024) {
       return '$bytes B';
@@ -236,7 +239,7 @@ class InvitationLetterController extends GetxController {
 
       // Get filename from path
       final fileName = invitationLetterPath.value.split('/').last;
-      
+
       // Show downloading message
       _snackbarController.showInfoMessage('Downloading $fileName...');
 
@@ -244,14 +247,14 @@ class InvitationLetterController extends GetxController {
       final anchor = html.AnchorElement(href: invitationLetterUrl.value)
         ..target = 'blank'
         ..download = fileName;
-      
+
       // Trigger download
       anchor.click();
 
       // Show success message after a short delay
       await Future.delayed(const Duration(milliseconds: 500));
-      _snackbarController.showSuccessMessage('$fileName downloaded successfully');
-      
+      _snackbarController
+          .showSuccessMessage('$fileName downloaded successfully');
     } catch (e) {
       print('Error downloading invitation letter: $e');
       _snackbarController.showErrorMessage('Failed to download file: $e');

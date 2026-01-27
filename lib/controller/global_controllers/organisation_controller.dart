@@ -25,7 +25,6 @@ class OrganisationController extends GetxController {
 
   /// Loads organisation by ID and updates the observable
   Future<void> loadOrganisation(String organisationId) async {
-    print('Loading organisation image for logo path: ');
     try {
       isLoading.value = true;
       final org = await _firestoreServices.getOrganisation(organisationId);
@@ -35,7 +34,6 @@ class OrganisationController extends GetxController {
         if (org.logo != null && org.logo!.isNotEmpty) {
           final storage = Get.find<StorageServices>();
           final downloadUrl = await storage.loadImageURL(org.logo);
-          print('Loaded organisation image URL: $downloadUrl');
           organisation.value = org.copyWith(photoUrl: downloadUrl);
         } else {
           organisation.value = org;
@@ -103,7 +101,7 @@ class OrganisationController extends GetxController {
   /// Returns true if update succeeded, false otherwise.
   Future<bool> updateOrganisation(Organisation org) async {
     try {
-      print(  'Updating organisation: ${org.toJson()}');
+      print('Updating organisation: ${org.toJson()}');
       // isLoading.value = true;
       final updated = await _firestoreServices.updateOrganisation(org);
       organisation.value = updated;

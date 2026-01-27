@@ -178,11 +178,10 @@ class AdminGuestListController extends GetxController {
     return q.docs.first.data();
   }
 
-  Future<bool> submitForm() async {
-    if (!validateForm()) return false;
+  Future<bool> submitForm({bool skipValidate = false}) async {
+    if (!skipValidate && !validateForm()) return false;
 
     try {
-      // Create GuestModel and use FirestoreServices to save (which will generate batch ID)
       final guest = GuestModel(
         name: name.text.trim(),
         email: email.text.trim(),
@@ -193,13 +192,11 @@ class AdminGuestListController extends GetxController {
         state: selectedState.value,
         gender: selectedGender.value,
         isDisabled: isDisabled.value,
-        isInvited: false, // Default to not invited
+        isInvited: false,
         maxGuestInvite: maxGuestInvite.value,
       );
 
-      final savedGuest = await _firestoreServices.saveGuest(guest);
-      debugPrint(
-          'submitForm: guest created with batch ID, id=${savedGuest.guestId}, batchId=${savedGuest.batchId}');
+      await _firestoreServices.saveGuest(guest);
       return true;
     } catch (e, st) {
       debugPrint('submitForm error: $e\n$st');
@@ -207,17 +204,11 @@ class AdminGuestListController extends GetxController {
     }
   }
 
-  /// Update (returns true on success). If the document doesn't exist it will create it.
-  Future<bool> updateGuest() async {
-    if (!validateForm()) return false;
-
-    if (_currentGuestId == null || _currentGuestId!.isEmpty) {
-      debugPrint('updateGuest: _currentGuestId is null/empty — cannot update');
-      return false;
-    }
+  Future<bool> updateGuest({bool skipValidate = false}) async {
+    if (!skipValidate && !validateForm()) return false;
+    if (_currentGuestId == null || _currentGuestId!.isEmpty) return false;
 
     try {
-      // Create GuestModel with current form values
       final guest = GuestModel(
         guestId: _currentGuestId,
         name: name.text.trim(),
@@ -230,12 +221,10 @@ class AdminGuestListController extends GetxController {
         gender: selectedGender.value,
         isDisabled: isDisabled.value,
         maxGuestInvite: maxGuestInvite.value,
-        isInvited: false, // Keep existing or default
+        isInvited: false,
       );
 
-      // Use FirestoreServices to update (preserves batchId and other fields)
       await _firestoreServices.updateGuest(guest);
-      debugPrint('updateGuest: updated guest id=$_currentGuestId');
       return true;
     } catch (e, st) {
       debugPrint('updateGuest error: $e\n$st');

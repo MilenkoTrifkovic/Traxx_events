@@ -6,11 +6,14 @@ import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart
 import 'package:traxx_wepapp/services/shared_pref_services.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/utils/enums/user_type.dart';
+import 'dart:async';
 
 class AuthController extends GetxController {
   late final FirestoreServices _firestoreServices;
   late final SharedPrefServices _sharedPrefServices;
   late final CloudFunctionsService _cloudFunctionsService;
+
+  final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
 
   final RxBool _isAuthenticated = false.obs;
   final RxBool _companyInfoExists = false.obs;
@@ -19,103 +22,129 @@ class AuthController extends GetxController {
   bool get companyInfoExists => _companyInfoExists.value;
 
   String? organisationId;
-  var userName = 'User'.obs;
-  var isLoading = true.obs;
-  var userRole = Rx<UserRole?>(null);
-  var organisation = Rxn<Organisation>();
+  final userName = 'User'.obs;
+  final isLoading = true.obs;
+  final userRole = Rx<UserRole?>(null);
+  final organisation = Rxn<Organisation>();
 
-  final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+  StreamSubscription<User?>? _authSub;
+
+  /// Incremented on each auth change to invalidate in-flight async work.
+  int _op = 0;
+
+  final routerRefresh = 0.obs;
+
+  void _bumpRouter() => routerRefresh.value++;
 
   AuthController()
       : _sharedPrefServices = Get.find<SharedPrefServices>(),
         _firestoreServices = Get.find<FirestoreServices>(),
-        _cloudFunctionsService = Get.find<CloudFunctionsService>() {}
+        _cloudFunctionsService = Get.find<CloudFunctionsService>();
 
   @override
   void onInit() {
     super.onInit();
 
-    FirebaseAuth.instance.authStateChanges().listen((user) async {
-      _isAuthenticated.value = user != null;
+    isLoading.value = true;
 
-      if (user != null) {
-        await loadUserProfile();
-      } else {
-        organisationId = null;
-        userRole.value = null;
-        organisation.value = null;
+    _authSub = firebaseAuth.authStateChanges().listen((user) async {
+      // invalidate any in-flight profile loads
+      _op++;
+      final opAtStart = _op;
+
+      isLoading.value = true;
+
+      if (user == null) {
+        // signed out
+        clearSessionLocal(keepAuth: false, keepLoading: false);
+        return;
       }
 
+      // signed in
+      _isAuthenticated.value = true;
+
+      // IMPORTANT: clear old user's in-memory session immediately
+      clearSessionLocal(keepAuth: true, keepLoading: true);
+
+      await loadUserProfile(expectedUid: user.uid, op: opAtStart);
+
+      // if auth changed again while we were loading, ignore finishing state
+      if (opAtStart != _op) return;
+
       isLoading.value = false;
+      _bumpRouter();
     });
   }
 
-  void setOrganisationInfoExists(bool value) {
-    _companyInfoExists.value = value;
+  @override
+  void onClose() {
+    _authSub?.cancel();
+    _authSub = null;
+    super.onClose();
   }
 
-  void setAuthenticated(bool value) {
-    _isAuthenticated.value = value;
+  // ─────────────────────────────────────────────
+  // Session clearing
+  // ─────────────────────────────────────────────
+
+  /// Clears ALL in-memory fields that could leak previous user's session into UI.
+  /// Use keepAuth=true when switching users (so auth state stays true while loading).
+  /// Use keepLoading=true when you want to keep the loader visible.
+  void clearSessionLocal({bool keepAuth = false, bool keepLoading = false}) {
+    organisationId = null;
+    userRole.value = null;
+    organisation.value = null;
+
+    _companyInfoExists.value = false; // ✅ critical for your router redirects
+    userName.value = 'User';
+
+    if (!keepAuth) {
+      _isAuthenticated.value = false;
+    }
+
+    if (!keepLoading) {
+      isLoading.value = false;
+    }
   }
+
+  void setOrganisationInfoExists(bool value) =>
+      _companyInfoExists.value = value;
+  void setAuthenticated(bool value) => _isAuthenticated.value = value;
+
+  // ─────────────────────────────────────────────
+  // Auth helpers
+  // ─────────────────────────────────────────────
+
+  bool get isAuthenticatedAndVerified {
+    final currentUser = firebaseAuth.currentUser;
+    return currentUser != null && currentUser.emailVerified;
+  }
+
+  bool get isVerified =>
+      firebaseAuth.currentUser != null &&
+      firebaseAuth.currentUser!.emailVerified;
+
+  // ─────────────────────────────────────────────
+  // Organisation fetch
+  // ─────────────────────────────────────────────
 
   Future<void> fetchOrganisation() async {
     if (organisationId == null || organisationId!.isEmpty) {
-      print('Organisation ID is null or empty, cannot fetch organisation');
       organisation.value = null;
       return;
     }
 
     try {
-      print('Fetching organisation with ID: $organisationId');
       final org = await _firestoreServices.getOrganisation(organisationId!);
       organisation.value = org;
-      print('Organisation fetched successfully: ${org.name}');
-    } catch (e) {
-      print('Error fetching organisation: $e');
+    } catch (_) {
       organisation.value = null;
     }
   }
 
-  /*  Future<void> checkCompanyInfo() async {
-    if (!isAuthenticatedAndVerified) {
-      print(
-          'User not authenticated or not verified, skipping company info check');
-      _companyInfoExists.value = false; // ✅ use RxBool
-      return;
-    }
-
-    try {
-      print('Checking company info existence...');
-
-      final response = await _cloudFunctionsService.checkOrganisationInfo();
-      print('Company info check response: $response');
-
-      _companyInfoExists.value = response.hasOrganisation; // ✅
-      print('Company info exists? ${_companyInfoExists.value}');
-      print('response- hasOrganisation: ${response.hasOrganisation}');
-
-      userRole.value = response.role != null
-          ? UserRole.values.firstWhere((e) => e.name == response.role)
-          : null;
-      organisationId = response.organisationId;
-      print('Company info exists: ${response.hasOrganisation}');
-
-      if (organisationId != null && organisationId!.isNotEmpty) {
-        await fetchOrganisation();
-      }
-    } catch (e) {
-      print('Error checking company info: $e');
-      _companyInfoExists.value = false; // ✅
-    }
-  } */
-
-  /*  Future<void> refreshCompanyInfo() async {
-    await checkCompanyInfo();
-  } */
-
-  // ───────────────────────────────────────────────────────────────
-  // NEW: check org by looking at Firestore users/{uid}
-  // ───────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // Prefer org from Firestore users/{uid}, fallback cloud fn
+  // ─────────────────────────────────────────────
 
   Future<void> checkOrganisationForCurrentUser() async {
     final user = firebaseAuth.currentUser;
@@ -125,44 +154,55 @@ class AuthController extends GetxController {
       return;
     }
 
-    // Prefer Firestore users/{uid}.organisationId
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .get();
+
     final data = userDoc.data();
     final orgIdFromUser = data?['organisationId'] as String?;
 
     if (orgIdFromUser != null && orgIdFromUser.isNotEmpty) {
       organisationId = orgIdFromUser;
       _companyInfoExists.value = true;
-      print('✅ Found organisationId on users/${user.uid}: $orgIdFromUser');
       return;
     }
 
-    // Optional cloud function fallback (can also be removed later)
     final response = await _cloudFunctionsService.checkOrganisationInfo();
     _companyInfoExists.value = response.hasOrganisation;
     organisationId = response.organisationId;
   }
 
-  bool get isAuthenticatedAndVerified {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    return currentUser != null && currentUser.emailVerified;
-  }
+  // ─────────────────────────────────────────────
+  // Load user profile (stale-protected)
+  // ─────────────────────────────────────────────
 
-  Future<void> loadUserProfile() async {
+  Future<void> loadUserProfile({String? expectedUid, int? op}) async {
     final currentUser = firebaseAuth.currentUser;
     if (currentUser == null) return;
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUser.uid)
-        .get();
+    final uid = expectedUid ?? currentUser.uid;
+    final opAtStart = op ?? _op;
+
+    // keep loader visible
+    isLoading.value = true;
+
+    // Clear old data (but keep auth/loading)
+    clearSessionLocal(keepAuth: true, keepLoading: true);
+
+    // if user changed already, stop
+    if (firebaseAuth.currentUser?.uid != uid) return;
+    if (opAtStart != _op) return;
+
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+    // stale protection after await
+    if (firebaseAuth.currentUser?.uid != uid) return;
+    if (opAtStart != _op) return;
 
     if (!userDoc.exists) {
-      // User exists in Firebase Auth but not in Firestore yet.
-      // This only happens for FIRST signup before handleNewUser runs.
+      // Auth user exists but Firestore user profile not yet created
       userRole.value = UserRole.guest;
       organisationId = null;
       _companyInfoExists.value = false;
@@ -181,15 +221,19 @@ class AuthController extends GetxController {
 
     organisationId = orgId;
 
-    // ✅ THIS is what your router is reading
+    // ✅ what your router reads
     _companyInfoExists.value =
         organisationId != null && organisationId!.isNotEmpty;
 
-    // Load organisation details if exists
     if (organisationId != null && organisationId!.isNotEmpty) {
       try {
-        organisation.value =
-            await _firestoreServices.getOrganisation(organisationId!);
+        final org = await _firestoreServices.getOrganisation(organisationId!);
+
+        // stale protection after await
+        if (firebaseAuth.currentUser?.uid != uid) return;
+        if (opAtStart != _op) return;
+
+        organisation.value = org;
       } catch (_) {
         organisation.value = null;
       }
@@ -198,54 +242,25 @@ class AuthController extends GetxController {
     }
   }
 
-/*   Future<void> loadUserProfile() async {
-    final currentUser = firebaseAuth.currentUser;
-    if (currentUser == null) return;
-
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUser.uid)
-        .get();
-
-    if (!userDoc.exists) {
-      // User exists in Firebase Auth but not in Firestore yet.
-      // This only happens for FIRST signup before handleNewUser runs.
-      userRole.value = UserRole.guest;
-      organisationId = null;
-      return;
-    }
-
-    final data = userDoc.data()!;
-    final roleString = data['role'] as String? ?? 'guest';
-    final orgId = data['organisationId'] as String?;
-
-    userRole.value = UserRole.values.firstWhere(
-      (e) => e.name == roleString,
-      orElse: () => UserRole.guest,
-    );
-
-    organisationId = orgId;
-
-    // Load organisation details if exists
-    if (organisationId != null && organisationId!.isNotEmpty) {
-      try {
-        organisation.value =
-            await FirestoreServices().getOrganisation(organisationId!);
-      } catch (_) {
-        organisation.value = null;
-      }
-    }
-  }
- */
-  bool get isVerified =>
-      firebaseAuth.currentUser != null &&
-      firebaseAuth.currentUser!.emailVerified;
+  // ─────────────────────────────────────────────
+  // Logout (full cleanup)
+  // ─────────────────────────────────────────────
 
   Future<void> logout() async {
+    // Immediately clear UI so old session never stays visible
+    clearSessionLocal(keepAuth: false, keepLoading: true);
+
+    // Clear session prefs (only session keys)
+    try {
+      await _sharedPrefServices.clearSession();
+    } catch (_) {}
+
+    // Invalidate any in-flight loads
+    _op++;
+
     await firebaseAuth.signOut();
 
-    organisationId = null;
-    userRole.value = null;
-    organisation.value = null;
+    isLoading.value = false;
+    _bumpRouter();
   }
 }

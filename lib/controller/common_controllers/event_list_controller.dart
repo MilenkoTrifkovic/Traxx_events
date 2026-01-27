@@ -15,10 +15,13 @@ class EventListController extends GetxController {
   FirestoreServices firestoreServices = Get.find<FirestoreServices>();
   StorageServices storageServices = Get.find<StorageServices>();
   AuthController authController = Get.find<AuthController>();
-  var isLoading = true.obs;
+  var isLoading = false.obs;
   RxList<Event> events = <Event>[].obs;
   RxList<Event> filteredEvents = <Event>[].obs;
   Rxn<Event> selectedEvent = Rxn<Event>();
+
+  String? _loadedOrgId;
+  bool _fetchInFlight = false;
 
   String? get eventId {
     final event = selectedEvent.value;
@@ -86,20 +89,35 @@ class EventListController extends GetxController {
     }
   }
 
-  /// Fetches events from Firestore and loads their images from Storage
-  Future<void> fetchEvents() async {
+  Future<void> ensureLoaded(String? orgId, {bool force = false}) async {
+    final id = (orgId ?? '').trim();
+    if (id.isEmpty) return;
+
+    if (!force && _loadedOrgId == id && events.isNotEmpty) return;
+    if (_fetchInFlight) return;
+
+    _loadedOrgId = id;
+    await fetchEventsForOrg(id);
+  }
+
+  Future<void> fetchEventsForOrg(String orgId) async {
+    _fetchInFlight = true;
+    isLoading.value = true;
     try {
-      List<Event> eventsResult =
-          await firestoreServices.getAllEvents(authController.organisationId!);
-      eventsResult = await Future.wait(
-          eventsResult.map((e) => storageServices.loadImage(e)));
-      //load urls before assigning to events
+      var eventsResult = await firestoreServices.getAllEvents(orgId);
+      eventsResult = await Future.wait(eventsResult.map((e) async {
+        try {
+          return await storageServices.loadImage(e);
+        } catch (_) {
+          return e;
+        }
+      }));
       events.assignAll(eventsResult);
-    } catch (e) {
-      print("Failed to fetch events: $e");
-      // rethrow;
+      filteredEvents.assignAll(eventsResult);
+    } finally {
+      isLoading.value = false;
+      _fetchInFlight = false;
     }
-    isLoading.value = false;
   }
 
   /// Filters events based on search text, matching event names
@@ -264,10 +282,5 @@ class EventListController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    fetchEvents().then((_) {
-      filteredEvents.assignAll(events);
-    }).catchError((error) {
-      print("Error fetching events: $error");
-    });
   }
 }

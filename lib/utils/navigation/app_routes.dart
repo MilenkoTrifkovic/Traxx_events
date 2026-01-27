@@ -43,13 +43,6 @@ enum AppRoute {
   guestSidePreview('/event-details/:eventId/guest-preview', 'eventId'),
 
   // Public guest response routes
-  guestLogin('/guest-login'),
-  guestResponsesPreview('/guest-responses-preview'),
-  guestDemographicsView('/guest-demographics-view'),
-  guestMenuSelectionView('/guest-menu-selection-view'),
-  guestDemographicsEdit('/guest-demographics-edit'),
-  guestMenuSelectionEdit('/guest-menu-selection-edit'),
-  guestFeed('/guest-feed'),
   guestResponse('/guest-response'),
   guestCompanions('/guest-companions'),
   guestCompanionsInfo('/guest-companions-info'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
@@ -33,8 +34,9 @@ class AddGuestPopup extends StatefulWidget {
 }
 
 class _AddGuestPopupState extends State<AddGuestPopup> {
+  final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
-
+  String? _submitError;
   AdminGuestListController get controller => widget.controller;
   bool get isEditMode => widget.isEditMode;
 
@@ -96,7 +98,7 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
     return SizedBox(
       width: double.infinity,
       child: Form(
-        key: controller.formKey,
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -260,8 +262,27 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
               );
             }),
 
-            AppSpacing.verticalSm(context),
+            if (_submitError != null) AppSpacing.verticalSm(context),
 
+            if (_submitError != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Text(
+                  _submitError!,
+                  style: GoogleFonts.poppins(fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            if (_submitError != null) AppSpacing.verticalSm(context),
+            AppSpacing.verticalSm(context),
             // Buttons row
             Row(
               children: [
@@ -299,53 +320,37 @@ class _AddGuestPopupState extends State<AddGuestPopup> {
   }
 
   Future<void> _onPrimaryPressed(BuildContext context) async {
-    // Prevent double taps
     if (_isSubmitting) return;
 
-    // Validate first
-    if (!controller.validateForm()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fix validation errors')),
-      );
+    setState(() => _submitError = null);
+
+    final ok = _formKey.currentState?.validate() ?? false;
+    if (!ok) {
+      setState(() => _submitError = 'Please fix the highlighted fields.');
       return;
     }
 
     setState(() => _isSubmitting = true);
-    bool success = false;
-
     try {
-      if (isEditMode) {
-        success = await controller.updateGuest();
+      final success = isEditMode
+          ? await controller.updateGuest(skipValidate: true)
+          : await controller.submitForm(skipValidate: true);
+
+      if (!mounted) return;
+
+      if (success) {
+        controller.clearForm();
+        Navigator.of(context).pop(true); // ✅ parent shows success
       } else {
-        success = await controller.submitForm();
+        setState(() => _submitError = isEditMode
+            ? 'Failed to update guest — please try again.'
+            : 'Failed to add guest — please try again.');
       }
-    } catch (e, st) {
-      debugPrint('AddGuestPopup submit error: $e\n$st');
-      success = false;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitError = e.toString());
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
-    }
-
-    if (!mounted) return;
-
-    if (success) {
-      // Clear form in controller (caller also commonly clears, but keep it here)
-      controller.clearForm();
-
-      // Close dialog and show success
-      Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isEditMode ? 'Guest updated' : 'Guest added')),
-      );
-    } else {
-      // Keep dialog open and show error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isEditMode
-              ? 'Failed to update guest — try again'
-              : 'Failed to add guest — try again'),
-        ),
-      );
     }
   }
 

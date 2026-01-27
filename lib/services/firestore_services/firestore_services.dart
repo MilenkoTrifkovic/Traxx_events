@@ -933,7 +933,6 @@ class FirestoreServices {
       }
 
       final venues = querySnapshot.docs.map((doc) => doc.data()).toList();
-      print('Found ${venues.length} venues for organisation: $organisationId');
       return venues;
     } on FirebaseException catch (e) {
       print('Firestore error fetching venues: ${e.message}');
@@ -1037,7 +1036,6 @@ class FirestoreServices {
       }
 
       final venue = querySnapshot.docs.first.data();
-      print('Venue fetched successfully: $venueId');
       return venue;
     } on FirebaseException catch (e) {
       print('Firestore error fetching venue: ${e.message}');
