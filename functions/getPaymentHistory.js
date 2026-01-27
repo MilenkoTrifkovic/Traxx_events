@@ -56,11 +56,18 @@ export const getPaymentHistory = onCall(async (request) => {
                 currency: data.currency || 'usd',
                 paymentStatus: data.paymentStatus,
                 packageName: data.packageName,
+                productName: data.productName,
                 userEmail: data.userEmail,
                 userId: data.userId,
                 createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
                 modifiedAt: data.modifiedAt?.toDate?.()?.toISOString() || data.modifiedAt,
                 isDisabled: data.isDisabled || false,
+                // Free credit fields
+                isAssignedBySuperAdmin: data.isAssignedBySuperAdmin || false,
+                isFreeCredit: data.isFreeCredit || false,
+                assignedByEmail: data.assignedByEmail || null,
+                assignedByName: data.assignedByName || null,
+                note: data.note || null,
             };
         });
 

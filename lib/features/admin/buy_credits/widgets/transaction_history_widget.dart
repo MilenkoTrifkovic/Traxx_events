@@ -170,6 +170,7 @@ class TransactionHistoryWidget extends StatelessWidget {
     
     // Access reactive values
     final purchased = controller.totalPurchasedEvents;
+    final gifted = controller.totalGiftedEvents;
     final used = controller.totalUsedEvents;
     final left = controller.eventsLeft;
     final moneySpent = controller.totalMoneySpentFormatted;
@@ -212,10 +213,10 @@ class TransactionHistoryWidget extends StatelessWidget {
                     Expanded(
                       child: _buildStatCard(
                         context,
-                        icon: Icons.event_available,
-                        label: 'Used',
-                        value: '$used',
-                        color: Colors.orange,
+                        icon: Icons.card_giftcard,
+                        label: 'Gifted',
+                        value: '$gifted',
+                        color: Colors.amber.shade700,
                       ),
                     ),
                   ],
@@ -226,6 +227,16 @@ class TransactionHistoryWidget extends StatelessWidget {
                     Expanded(
                       child: _buildStatCard(
                         context,
+                        icon: Icons.event_available,
+                        label: 'Used',
+                        value: '$used',
+                        color: Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
                         icon: Icons.event_note,
                         label: 'Remaining',
                         value: '$left',
@@ -233,17 +244,15 @@ class TransactionHistoryWidget extends StatelessWidget {
                         highlight: true,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatCard(
-                        context,
-                        icon: Icons.attach_money,
-                        label: 'Total Spent',
-                        value: moneySpent,
-                        color: const Color(0xFF10B981),
-                      ),
-                    ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                _buildStatCard(
+                  context,
+                  icon: Icons.attach_money,
+                  label: 'Total Spent',
+                  value: moneySpent,
+                  color: const Color(0xFF10B981),
                 ),
               ],
             )
@@ -256,6 +265,16 @@ class TransactionHistoryWidget extends StatelessWidget {
                     label: 'Events Purchased',
                     value: '$purchased',
                     color: AppColors.primaryAccent,
+                  ),
+                ),
+                _buildVerticalDivider(),
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    icon: Icons.card_giftcard,
+                    label: 'Events Gifted',
+                    value: '$gifted',
+                    color: Colors.amber.shade700,
                   ),
                 ),
                 _buildVerticalDivider(),
@@ -433,6 +452,7 @@ class TransactionHistoryWidget extends StatelessWidget {
     final dateFormat = DateFormat('MMM dd, yyyy');
     final timeFormat = DateFormat('HH:mm a');
     final isPhone = ScreenSize.isPhone(context);
+    final isFreeCredit = transaction.isFree;
 
     return Container(
       margin: EdgeInsets.only(bottom: isLast ? 0 : 16),
@@ -441,12 +461,16 @@ class TransactionHistoryWidget extends StatelessWidget {
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.borderSubtle.withOpacity(0.5),
-          width: 1,
+          color: isFreeCredit 
+              ? Colors.amber.shade300.withOpacity(0.5)
+              : AppColors.borderSubtle.withOpacity(0.5),
+          width: isFreeCredit ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: isFreeCredit
+                ? Colors.amber.withOpacity(0.1)
+                : Colors.black.withOpacity(0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -465,12 +489,18 @@ class TransactionHistoryWidget extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryAccent.withOpacity(0.1),
+                            color: isFreeCredit
+                                ? Colors.amber.withOpacity(0.15)
+                                : AppColors.primaryAccent.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            Icons.shopping_bag_outlined,
-                            color: AppColors.primaryAccent,
+                            isFreeCredit
+                                ? Icons.card_giftcard
+                                : Icons.shopping_bag_outlined,
+                            color: isFreeCredit
+                                ? Colors.amber.shade700
+                                : AppColors.primaryAccent,
                             size: 20,
                           ),
                         ),
@@ -481,8 +511,11 @@ class TransactionHistoryWidget extends StatelessWidget {
                             children: [
                               AppText.styledBodyLarge(
                                 context,
-                                transaction.packageName,
+                                transaction.displayPackageName,
                                 weight: FontWeight.w600,
+                                color: isFreeCredit 
+                                    ? Colors.amber.shade700 
+                                    : AppColors.black,
                               ),
                               const SizedBox(height: 4),
                               Row(
@@ -506,7 +539,7 @@ class TransactionHistoryWidget extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildStatusChip(context, transaction.statusFormatted),
+                    _buildStatusChip(context, transaction.statusFormatted, isFreeCredit),
                   ],
                 )
               : Row(
@@ -519,12 +552,18 @@ class TransactionHistoryWidget extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryAccent.withOpacity(0.1),
+                              color: isFreeCredit
+                                  ? Colors.amber.withOpacity(0.15)
+                                  : AppColors.primaryAccent.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
-                              Icons.shopping_bag_outlined,
-                              color: AppColors.primaryAccent,
+                              isFreeCredit
+                                  ? Icons.card_giftcard
+                                  : Icons.shopping_bag_outlined,
+                              color: isFreeCredit
+                                  ? Colors.amber.shade700
+                                  : AppColors.primaryAccent,
                               size: 20,
                             ),
                           ),
@@ -535,8 +574,11 @@ class TransactionHistoryWidget extends StatelessWidget {
                               children: [
                                 AppText.styledBodyLarge(
                                   context,
-                                  transaction.packageName,
+                                  transaction.displayPackageName,
                                   weight: FontWeight.w600,
+                                  color: isFreeCredit 
+                                      ? Colors.amber.shade700 
+                                      : AppColors.black,
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -574,7 +616,7 @@ class TransactionHistoryWidget extends StatelessWidget {
                     ),
                     const SizedBox(width: 16),
                     // Status Badge
-                    _buildStatusChip(context, transaction.statusFormatted),
+                    _buildStatusChip(context, transaction.statusFormatted, isFreeCredit),
                   ],
                 ),
 
@@ -606,17 +648,28 @@ class TransactionHistoryWidget extends StatelessWidget {
                       icon: Icons.payments_outlined,
                       label: 'Amount',
                       value: transaction.amountFormatted,
-                      valueColor: AppColors.success,
+                      valueColor: isFreeCredit ? Colors.amber.shade700 : AppColors.success,
                     ),
                     const SizedBox(height: 16),
                     _buildDetailItem(
                       context,
-                      icon: Icons.person_outline,
-                      label: 'Purchased by',
-                      value: transaction.userEmail,
+                      icon: isFreeCredit ? Icons.card_giftcard : Icons.person_outline,
+                      label: isFreeCredit ? 'Gifted by' : 'Purchased by',
+                      value: transaction.displaySource,
                       valueColor: AppColors.textMuted,
                       truncate: true,
                     ),
+                    if (isFreeCredit && transaction.note != null && transaction.note!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildDetailItem(
+                        context,
+                        icon: Icons.note_outlined,
+                        label: 'Note',
+                        value: transaction.note!,
+                        valueColor: AppColors.textMuted,
+                        truncate: false,
+                      ),
+                    ],
                   ],
                 )
               : Row(
@@ -643,7 +696,7 @@ class TransactionHistoryWidget extends StatelessWidget {
                         icon: Icons.payments_outlined,
                         label: 'Amount',
                         value: transaction.amountFormatted,
-                        valueColor: AppColors.success,
+                        valueColor: isFreeCredit ? Colors.amber.shade700 : AppColors.success,
                       ),
                     ),
                     Container(
@@ -656,15 +709,56 @@ class TransactionHistoryWidget extends StatelessWidget {
                       flex: 2,
                       child: _buildDetailItem(
                         context,
-                        icon: Icons.person_outline,
-                        label: 'Purchased by',
-                        value: transaction.userEmail,
+                        icon: isFreeCredit ? Icons.card_giftcard : Icons.person_outline,
+                        label: isFreeCredit ? 'Gifted by' : 'Purchased by',
+                        value: transaction.displaySource,
                         valueColor: AppColors.textMuted,
                         truncate: true,
                       ),
                     ),
                   ],
                 ),
+
+          // Note section for free credits (desktop layout)
+          if (isFreeCredit && transaction.note != null && transaction.note!.isNotEmpty && !isPhone) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.amber.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.note_outlined,
+                    size: 16,
+                    color: Colors.amber.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  AppText.styledBodySmall(
+                    context,
+                    'Note:',
+                    color: Colors.amber.shade700,
+                    weight: FontWeight.w600,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppText.styledBodySmall(
+                      context,
+                      transaction.note!,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 16),
 
@@ -800,36 +894,42 @@ class TransactionHistoryWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, String status) {
+  Widget _buildStatusChip(BuildContext context, String status, bool isFreeCredit) {
     Color backgroundColor;
     Color textColor;
     IconData icon;
 
-    switch (status.toLowerCase()) {
-      case 'completed':
-        backgroundColor = AppColors.success.withOpacity(0.15);
-        textColor = AppColors.success;
-        icon = Icons.check_circle;
-        break;
-      case 'pending':
-        backgroundColor = Colors.orange.withOpacity(0.15);
-        textColor = Colors.orange;
-        icon = Icons.schedule;
-        break;
-      case 'failed':
-        backgroundColor = Colors.red.withOpacity(0.15);
-        textColor = Colors.red;
-        icon = Icons.error;
-        break;
-      case 'refunded':
-        backgroundColor = Colors.purple.withOpacity(0.15);
-        textColor = Colors.purple;
-        icon = Icons.refresh;
-        break;
-      default:
-        backgroundColor = AppColors.textMuted.withOpacity(0.15);
-        textColor = AppColors.textMuted;
-        icon = Icons.info;
+    if (isFreeCredit) {
+      backgroundColor = Colors.amber.withOpacity(0.15);
+      textColor = Colors.amber.shade700;
+      icon = Icons.card_giftcard;
+    } else {
+      switch (status.toLowerCase()) {
+        case 'completed':
+          backgroundColor = AppColors.success.withOpacity(0.15);
+          textColor = AppColors.success;
+          icon = Icons.check_circle;
+          break;
+        case 'pending':
+          backgroundColor = Colors.orange.withOpacity(0.15);
+          textColor = Colors.orange;
+          icon = Icons.schedule;
+          break;
+        case 'failed':
+          backgroundColor = Colors.red.withOpacity(0.15);
+          textColor = Colors.red;
+          icon = Icons.error;
+          break;
+        case 'refunded':
+          backgroundColor = Colors.purple.withOpacity(0.15);
+          textColor = Colors.purple;
+          icon = Icons.refresh;
+          break;
+        default:
+          backgroundColor = AppColors.textMuted.withOpacity(0.15);
+          textColor = AppColors.textMuted;
+          icon = Icons.info;
+      }
     }
 
     return Container(

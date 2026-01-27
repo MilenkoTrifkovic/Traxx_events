@@ -10,7 +10,14 @@
       "https://traxx-e1232.web.app",
       "https://traxx-e1232.firebaseapp.com",
       "https://trax-event.app",
-      "https://www.trax-event.app"
+      "https://www.trax-event.app",
+      "https://trax-guest-portal.web.app",
+      "https://trax-guest-portal.firebaseapp.com",
+      "https://trax-host-portal.web.app",
+      "https://trax-host-portal.firebaseapp.com",
+      "https://trax-admin-portal.web.app",
+      "https://trax-admin-portal.firebaseapp.com",
+      "https://admin.trax-event.app"
     ],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "responseHeader": ["Content-Type", "Authorization"],

@@ -20,6 +20,7 @@ class PaymentHistoryController extends GetxController {
   
   // Cached totals
   final RxInt totalPurchasedEvents = 0.obs;
+  final RxInt totalGiftedEvents = 0.obs;
 
   /// Get organisation controller
   OrganisationController? get _orgController {
@@ -47,6 +48,9 @@ class PaymentHistoryController extends GetxController {
 
   /// Total number of events purchased by this organisation
   int get purchasedEvents => totalPurchasedEvents.value;
+
+  /// Total number of gifted events received by this organisation
+  int get giftedEvents => totalGiftedEvents.value;
 
   /// Check if there are any transactions
   bool get hasTransactions => paymentHistory.isNotEmpty;
@@ -93,10 +97,10 @@ class PaymentHistoryController extends GetxController {
 
         paymentHistory.value = payments;
         
-        // Calculate total purchased events from completed payments
-        _calculateTotalPurchasedEvents();
+        // Calculate total purchased and gifted events from completed payments
+        _calculateTotalEvents();
         
-        print('✅ Loaded ${payments.length} payment(s), Total events: ${totalPurchasedEvents.value}');
+        print('✅ Loaded ${payments.length} payment(s), Total events: ${totalPurchasedEvents.value} purchased, ${totalGiftedEvents.value} gifted');
       } else {
         throw Exception('Failed to fetch payment history');
       }
@@ -120,9 +124,11 @@ class PaymentHistoryController extends GetxController {
     await fetchPaymentHistory();
   }
 
-  /// Calculate total purchased events from completed payments only
-  void _calculateTotalPurchasedEvents() {
-    int total = 0;
+  /// Calculate total purchased and gifted events from completed payments
+  void _calculateTotalEvents() {
+    int totalPurchased = 0;
+    int totalGifted = 0;
+    
     for (final payment in paymentHistory) {
       // Only count completed/successful payments
       final status = payment.paymentStatus.toLowerCase();
@@ -130,16 +136,25 @@ class PaymentHistoryController extends GetxController {
           status == 'complete' || 
           status == 'completed' ||
           status == 'succeeded') {
-        total += payment.events;
+        
+        // Separate purchased vs gifted events
+        if (payment.isFree) {
+          totalGifted += payment.events;
+        } else {
+          totalPurchased += payment.events;
+        }
       }
     }
-    totalPurchasedEvents.value = total;
+    
+    totalPurchasedEvents.value = totalPurchased;
+    totalGiftedEvents.value = totalGifted;
   }
 
   /// Clear all payment data (useful for logout)
   void clearPaymentData() {
     paymentHistory.clear();
     totalPurchasedEvents.value = 0;
+    totalGiftedEvents.value = 0;
     errorMessage.value = '';
   }
 

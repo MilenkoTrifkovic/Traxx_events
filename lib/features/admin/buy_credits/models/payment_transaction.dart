@@ -12,6 +12,13 @@ class PaymentTransaction {
   final DateTime createdAt;
   final DateTime? modifiedAt;
   final bool isDisabled;
+  
+  // Free credit fields
+  final bool isAssignedBySuperAdmin;
+  final bool isFreeCredit;
+  final String? assignedByEmail;
+  final String? assignedByName;
+  final String? note;
 
   PaymentTransaction({
     required this.id,
@@ -27,7 +34,31 @@ class PaymentTransaction {
     required this.createdAt,
     this.modifiedAt,
     this.isDisabled = false,
+    this.isAssignedBySuperAdmin = false,
+    this.isFreeCredit = false,
+    this.assignedByEmail,
+    this.assignedByName,
+    this.note,
   });
+
+  /// Check if this is a free credit (gifted by super admin)
+  bool get isFree => isAssignedBySuperAdmin || isFreeCredit || amount == 0;
+
+  /// Get display source - who made the payment or who assigned the credit
+  String get displaySource {
+    if (isAssignedBySuperAdmin) {
+      return assignedByName ?? assignedByEmail ?? 'Trax Admin';
+    }
+    return userEmail;
+  }
+
+  /// Get display package name with "Free" prefix for gifts
+  String get displayPackageName {
+    if (isFree) {
+      return 'Free Events Gift';
+    }
+    return packageName;
+  }
 
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
     return PaymentTransaction(
@@ -48,6 +79,12 @@ class PaymentTransaction {
           ? DateTime.parse(json['modifiedAt'])
           : null,
       isDisabled: json['isDisabled'] ?? false,
+      // Free credit fields
+      isAssignedBySuperAdmin: json['isAssignedBySuperAdmin'] ?? false,
+      isFreeCredit: json['isFreeCredit'] ?? false,
+      assignedByEmail: json['assignedByEmail'],
+      assignedByName: json['assignedByName'],
+      note: json['note'],
     );
   }
 
@@ -66,12 +103,25 @@ class PaymentTransaction {
       'createdAt': createdAt.toIso8601String(),
       'modifiedAt': modifiedAt?.toIso8601String(),
       'isDisabled': isDisabled,
+      'isAssignedBySuperAdmin': isAssignedBySuperAdmin,
+      'isFreeCredit': isFreeCredit,
+      if (assignedByEmail != null) 'assignedByEmail': assignedByEmail,
+      if (assignedByName != null) 'assignedByName': assignedByName,
+      if (note != null) 'note': note,
     };
   }
 
-  String get amountFormatted => '\$${(amount / 100).toStringAsFixed(2)}';
+  String get amountFormatted {
+    if (isFree) {
+      return 'Free';
+    }
+    return '\$${(amount / 100).toStringAsFixed(2)}';
+  }
 
   String get statusFormatted {
+    if (isFree) {
+      return 'Gift';
+    }
     switch (paymentStatus.toLowerCase()) {
       case 'paid':
       case 'complete':
