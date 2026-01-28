@@ -57,6 +57,7 @@ class AuthController extends GetxController {
       if (user == null) {
         // signed out
         clearSessionLocal(keepAuth: false, keepLoading: false);
+        _bumpRouter();
         return;
       }
 

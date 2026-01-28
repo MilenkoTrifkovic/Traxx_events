@@ -95,6 +95,95 @@ final GlobalKey<ScaffoldState> hostShellScaffoldKey =
 GoRouter buildRouter() {
   final eventController = Get.find<EventController>();
   final authController = Get.find<AuthController>();
+  Widget _spinner() {
+    // Keep it visually stable (no layout jumps)
+    return const Scaffold(
+      body: Center(
+        child: SizedBox(
+          height: 26,
+          width: 26,
+          child: CircularProgressIndicator(strokeWidth: 2.6),
+        ),
+      ),
+    );
+  }
+
+  Widget realShell({
+    required BuildContext context,
+    required GoRouterState state,
+    required Widget child,
+    required EventListController eventListController,
+    required String orgId,
+  }) {
+    final location = state.matchedLocation;
+
+    final isQuestionsPage =
+        location.startsWith(AppRoute.hostQuestionSets.path) ||
+            location.startsWith(AppRoute.hostQuestions.path) ||
+            location.startsWith(AppRoute.hostQuestionSetQuestions.path) ||
+            location.startsWith(AppRoute.hostQuestionRules.path);
+
+    const Color gfBackground = Color(0xFFF4F0FB);
+    final contentColor = isQuestionsPage
+        ? gfBackground
+        : const Color.fromARGB(255, 247, 247, 247);
+
+    return OrgDataBootstrap(
+      orgId: orgId,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < kNavCollapseWidth;
+
+          final header = getPageHeader(
+            state,
+            drawerScaffoldKey: isMobile ? hostShellScaffoldKey : null,
+          );
+
+          final page = ContentWrapper(
+            contentColor: contentColor,
+            header: header,
+            child: child,
+          );
+
+          final shell = isMobile
+              ? Scaffold(
+                  key: hostShellScaffoldKey,
+                  drawer: Drawer(
+                    child:
+                        HostDrawerMenuSidebar(location: state.matchedLocation),
+                  ),
+                  body: page,
+                )
+              : NavigationRailWrapper(child: page);
+
+          return Stack(
+            children: [
+              shell,
+
+              // ✅ Overlay loader instead of replacing the whole UI
+              Obx(() {
+                if (!eventListController.isLoading.value) {
+                  return const SizedBox.shrink();
+                }
+                return const Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: SizedBox(
+                        height: 26,
+                        width: 26,
+                        child: CircularProgressIndicator(strokeWidth: 2.6),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   return GoRouter(
     refreshListenable:
         GoRouterRefreshStream(authController.routerRefresh.stream),
@@ -440,25 +529,14 @@ GoRouter buildRouter() {
           final authCtrl = Get.find<AuthController>();
           final eventListController = Get.find<EventListController>();
 
-          // ✅ EVERYTHING reactive
           return Obx(() {
-            // Wait for auth/profile boot
-            if (authCtrl.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            // While Firebase restores session on web refresh, currentUser can be null briefly.
-            // ✅ Don't navigate here; redirect handles it.
-            if (!authCtrl.isAuthenticated) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            if (authCtrl.isLoading.value) return _spinner();
+            if (!authCtrl.isAuthenticated) return _spinner();
 
             final orgId = (authCtrl.organisationId ?? '').trim();
-            if (orgId.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            if (orgId.isEmpty) return _spinner();
 
-            // ✅ Ensure controllers exist (safe on refresh)
+            // Ensure controllers exist (safe)
             if (!Get.isRegistered<VenuesController>())
               Get.put(VenuesController());
             if (!Get.isRegistered<MenusListController>())
@@ -467,69 +545,21 @@ GoRouter buildRouter() {
               Get.put(MenusScreenController());
             if (!Get.isRegistered<EventsController>())
               Get.put(EventsController());
-            if (!Get.isRegistered<OrganisationController>())
+            if (!Get.isRegistered<OrganisationController>()) {
               Get.put(OrganisationController(orgId));
+            }
             if (!Get.isRegistered<PaymentHistoryController>())
               Get.put(PaymentHistoryController());
             if (!Get.isRegistered<UsersAndRolesController>())
               Get.put(UsersAndRolesController());
 
-            if (eventListController.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final location = state.matchedLocation;
-
-            final isQuestionsPage = location
-                    .startsWith(AppRoute.hostQuestionSets.path) ||
-                location.startsWith(AppRoute.hostQuestions.path) ||
-                location.startsWith(AppRoute.hostQuestionSetQuestions.path) ||
-                location.startsWith(AppRoute.hostQuestionRules.path);
-
-            const Color gfBackground = Color(0xFFF4F0FB);
-            final contentColor = isQuestionsPage
-                ? gfBackground
-                : const Color.fromARGB(255, 247, 247, 247);
-
-            return OrgDataBootstrap(
-                orgId: orgId,
-                child: Obx(() {
-                  if (eventListController.isLoading.value) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isMobile = constraints.maxWidth < kNavCollapseWidth;
-
-                      final header = getPageHeader(
-                        state,
-                        drawerScaffoldKey:
-                            isMobile ? hostShellScaffoldKey : null,
-                      );
-
-                      final page = ContentWrapper(
-                        contentColor: contentColor,
-                        header: header,
-                        child: child,
-                      );
-
-                      return KeyedSubtree(
-                        key: ValueKey('host_shell_${isMobile ? 'm' : 'd'}'),
-                        child: isMobile
-                            ? Scaffold(
-                                key: hostShellScaffoldKey,
-                                drawer: Drawer(
-                                  child: HostDrawerMenuSidebar(
-                                      location: state.matchedLocation),
-                                ),
-                                body: page,
-                              )
-                            : NavigationRailWrapper(child: page),
-                      );
-                    },
-                  );
-                }));
+            return realShell(
+              context: context,
+              state: state,
+              child: child,
+              eventListController: eventListController,
+              orgId: orgId,
+            );
           });
         },
         routes: [
@@ -1037,7 +1067,8 @@ class _OrgDataBootstrapState extends State<OrgDataBootstrap> {
     if (_lastOrgId == widget.orgId) return;
     _lastOrgId = widget.orgId;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future.microtask(() {
+      if (!mounted) return;
       Get.find<EventListController>().ensureLoaded(widget.orgId);
       Get.find<VenuesController>().ensureLoaded(widget.orgId);
     });

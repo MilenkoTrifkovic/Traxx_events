@@ -27,11 +27,12 @@ class EventListScreen extends StatelessWidget {
         width: double.infinity,
         child: Obx(() {
           final hasEvents = eventListController.events.isNotEmpty;
-
+          final loading = eventListController.isLoading.value;
           return Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: hasEvents ? AppColors.white : Colors.transparent,
+              color:
+                  (loading || hasEvents) ? AppColors.white : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Padding(
