@@ -62,6 +62,11 @@ export const getEventAnalytics = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Sign in required");
   }
 
+  console.log("🔍 getEventAnalytics called:");
+  console.log("  - Event ID:", eventPublicId);
+  console.log("  - User UID:", request.auth.uid);
+  console.log("  - User Email:", request.auth.token.email);
+
   // Resolve the event regardless of whether caller passed docId or public id
   const eventObj = await getEventDataByEventId(eventPublicId);
   if (!eventObj) throw new HttpsError("not-found", "Event not found");
@@ -69,14 +74,50 @@ export const getEventAnalytics = onCall(async (request) => {
   const event = eventObj.data || {};
   const eventOrgId = safeStr(event.organisationId);
 
-  // Verify host belongs to organisation
+  console.log("  - Event Org ID:", eventOrgId);
+
+  // Check if user is in users collection (regular users and super admins)
   const userSnap = await db.collection("users").doc(request.auth.uid).get();
   const user = userSnap.exists ? (userSnap.data() || {}) : {};
   const userOrgId = safeStr(user.organisationId);
+  const userRole = safeStr(user.role);
 
-  if (!eventOrgId || !userOrgId || eventOrgId !== userOrgId) {
-    throw new HttpsError("permission-denied", "Not allowed");
+  console.log("  - User exists in users collection:", userSnap.exists);
+  console.log("  - User Org ID:", userOrgId);
+  console.log("  - User Role (raw):", userRole);
+
+  // Check if user is a salesperson (stored in separate collection)
+  // Sales people are identified by email, not by uid
+  const currentUserEmail = request.auth.token.email || "";
+  const salesPersonQuery = await db.collection("sales_people")
+    .where("email", "==", currentUserEmail)
+    .limit(1)
+    .get();
+  
+  const isSalesPerson = !salesPersonQuery.empty && 
+    salesPersonQuery.docs[0].data().isActive === true && 
+    salesPersonQuery.docs[0].data().isDisabled !== true;
+
+  console.log("  - Is Sales Person:", isSalesPerson);
+
+  // Allow super admins to view any event's analytics (role stored as "super_admin" in Firestore)
+  const isSuperAdmin = userRole === "super_admin";
+  
+  console.log("  - Is Super Admin:", isSuperAdmin);
+  console.log("  - Role check (userRole === 'super_admin'):", userRole === "super_admin");
+  
+  // Super admins can view any event, sales persons and regular users must belong to same org
+  if (!isSuperAdmin && !isSalesPerson && (!eventOrgId || !userOrgId || eventOrgId !== userOrgId)) {
+    console.log("❌ PERMISSION DENIED:");
+    console.log("  - isSuperAdmin:", isSuperAdmin);
+    console.log("  - isSalesPerson:", isSalesPerson);
+    console.log("  - eventOrgId:", eventOrgId);
+    console.log("  - userOrgId:", userOrgId);
+    console.log("  - Org match:", eventOrgId === userOrgId);
+    throw new HttpsError("permission-denied", "You don't have permission to view this event's analytics");
   }
+
+  console.log("✅ Permission granted for analytics");
 
   // IMPORTANT: invitations/responses store public eventId in your system
   const matchEventId = safeStr(event.eventId) || eventPublicId;

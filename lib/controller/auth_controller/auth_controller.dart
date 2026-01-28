@@ -112,6 +112,17 @@ class AuthController extends GetxController {
       _companyInfoExists.value = value;
   void setAuthenticated(bool value) => _isAuthenticated.value = value;
 
+  /// Set organisation ID after it's created (e.g., after submitting org info form).
+  /// Also triggers router refresh so shell routes can react.
+  void setOrganisationId(String? orgId) {
+    organisationId = orgId;
+    if (orgId != null && orgId.isNotEmpty) {
+      _companyInfoExists.value = true;
+    }
+    isLoading.value = false;
+    _bumpRouter();
+  }
+
   // ─────────────────────────────────────────────
   // Auth helpers
   // ─────────────────────────────────────────────
@@ -222,7 +233,6 @@ class AuthController extends GetxController {
 
     organisationId = orgId;
 
-    // ✅ what your router reads
     _companyInfoExists.value =
         organisationId != null && organisationId!.isNotEmpty;
 
