@@ -23,26 +23,25 @@ class VenuesController extends GetxController {
 
   String? _loadedOrgId;
   bool _fetchInFlight = false;
-  bool _hasLoadedOnce = false; // ✅ Track if initial load completed
+  bool _hasLoadedOnce = false;
   final RxnString loadError = RxnString();
 
   @override
   void onInit() {
     super.onInit();
-    // ✅ Safe: will do nothing until orgId exists
     Future.microtask(() => ensureLoaded(_authController.organisationId));
   }
 
-  /// ✅ Call this from HostShell after orgId is ready.
+  /// Call this from HostShell after orgId is ready.
   /// Safe to call multiple times.
   Future<void> ensureLoaded(String? orgId, {bool force = false}) async {
     final id = (orgId ?? '').trim();
     if (id.isEmpty) return;
 
-    if (_fetchInFlight) return; // ✅ important
+    if (_fetchInFlight) return;
 
-    // ✅ Fixed: Check _hasLoadedOnce instead of venues.isNotEmpty 
-    // to prevent infinite loop when org has 0 venues
+    // Check _hasLoadedOnce instead of venues.isNotEmpty to prevent
+    // infinite loop when org has 0 venues
     if (!force && _loadedOrgId == id && _hasLoadedOnce) return;
 
     _loadedOrgId = id;
@@ -166,7 +165,7 @@ class VenuesController extends GetxController {
       // Optional: prime tile cache
       await _primeFirstPhotoUrls(withUrls);
       
-      _hasLoadedOnce = true; // ✅ Mark as loaded
+      _hasLoadedOnce = true;
     } catch (e, st) {
       debugPrint('Error loading venues: $e');
       debugPrint('$st');

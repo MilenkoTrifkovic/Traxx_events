@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/admin_controllers/organisation_info_controller.dart';
-import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
@@ -159,29 +158,22 @@ class _OrganisationRightSectionState extends State<OrganisationRightSection> {
 
   void _handleFinish() async {
     final controller = Get.find<OrganisationInfoController>();
-    final authController = Get.find<AuthController>();
 
     try {
       showLoadingIndicator(status: 'Saving company info...');
-      print('🏁 Saving organisation through cloud function...');
 
-      // Save organisation through cloud function (or attach to existing)
+      // Save organisation through cloud function
+      // This calls authController.setOrganisationId() which sets
+      // organisationId, companyInfoExists, isLoading=false, and bumps router
       await controller.saveOrganisation();
-
-      // 🔄 refresh user profile so router sees new org + role
-      await authController.loadUserProfile();
 
       hideLoadingIndicator();
 
-      // Now navigate – router will see companyInfoExists == true
+      // Navigate to host events - router will see companyInfoExists == true
       pushAndRemoveAllRoute(AppRoute.hostEvents, context);
     } catch (e) {
       hideLoadingIndicator();
-      print('❌ Error saving organisation 1: $e');
-      /* SnackBarUtils.showError(
-        context,
-        'Failed to save organisation: $e',
-      ); */
+      // Error is already handled in the controller
     }
   }
 }

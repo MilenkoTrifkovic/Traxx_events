@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_controller.dart';
 import 'package:traxx_wepapp/controller/common_controllers/event_list_controller.dart';
@@ -326,7 +325,6 @@ GoRouter buildRouter() {
           final authCtrl = Get.find<AuthController>();
           final eventListController = Get.find<EventListController>();
 
-          // ✅ EVERYTHING reactive
           return Obx(() {
             // Wait for auth/profile boot
             if (authCtrl.isLoading.value) {
@@ -334,7 +332,6 @@ GoRouter buildRouter() {
             }
 
             // While Firebase restores session on web refresh, currentUser can be null briefly.
-            // ✅ Don't navigate here; redirect handles it.
             if (!authCtrl.isAuthenticated) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -344,7 +341,7 @@ GoRouter buildRouter() {
               return const Center(child: CircularProgressIndicator());
             }
 
-            // ✅ Ensure controllers exist (safe on refresh)
+            // Ensure controllers exist (safe on refresh)
             if (!Get.isRegistered<VenuesController>())
               Get.put(VenuesController());
             if (!Get.isRegistered<MenusListController>())

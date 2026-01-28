@@ -22,7 +22,7 @@ class EventListController extends GetxController {
 
   String? _loadedOrgId;
   bool _fetchInFlight = false;
-  bool _hasLoadedOnce = false; // ✅ Track if initial load completed
+  bool _hasLoadedOnce = false;
 
   String? get eventId {
     final event = selectedEvent.value;
@@ -94,8 +94,8 @@ class EventListController extends GetxController {
     final id = (orgId ?? '').trim();
     if (id.isEmpty) return;
 
-    // ✅ Fixed: Check _hasLoadedOnce instead of events.isNotEmpty 
-    // to prevent infinite loop when org has 0 events
+    // Check _hasLoadedOnce instead of events.isNotEmpty to prevent
+    // infinite loop when org has 0 events
     if (!force && _loadedOrgId == id && _hasLoadedOnce) return;
     if (_fetchInFlight) return;
 
@@ -117,7 +117,7 @@ class EventListController extends GetxController {
       }));
       events.assignAll(eventsResult);
       filteredEvents.assignAll(eventsResult);
-      _hasLoadedOnce = true; // ✅ Mark as loaded
+      _hasLoadedOnce = true;
     } finally {
       isLoading.value = false;
       _fetchInFlight = false;
