@@ -62,15 +62,21 @@ class _QuestionRulesScreenState extends State<QuestionRulesScreen> {
 
   // For table: optionally filter by "All / Selected set"
   bool get _hasSetSelected => (_setId ?? '').isNotEmpty;
+  late final ScrollController _rulesHCtrl;
+  late final ScrollController _rulesVCtrl;
 
   @override
   void initState() {
     super.initState();
     _ensureMinOptionRows();
+    _rulesHCtrl = ScrollController();
+    _rulesVCtrl = ScrollController();
   }
 
   @override
   void dispose() {
+    _rulesHCtrl.dispose();
+    _rulesVCtrl.dispose();
     _followUpQuestionCtrl.dispose();
     for (final c in _followUpOptionCtrls) {
       c.dispose();
@@ -1167,88 +1173,100 @@ class _QuestionRulesScreenState extends State<QuestionRulesScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Scrollbar(
+          controller: _rulesHCtrl,
           thumbVisibility: true,
+          notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
           child: SingleChildScrollView(
+            controller: _rulesHCtrl,
+            primary: false,
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 980),
-              child: SingleChildScrollView(
-                child: DataTable(
-                  headingRowColor:
-                      WidgetStatePropertyAll(const Color(0xFFF3F4F6)),
-                  headingTextStyle: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: _text,
+              child: Scrollbar(
+                controller: _rulesVCtrl,
+                thumbVisibility: true,
+                notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+                child: SingleChildScrollView(
+                  controller: _rulesVCtrl,
+                  primary: false,
+                  child: DataTable(
+                    headingRowColor:
+                        WidgetStatePropertyAll(const Color(0xFFF3F4F6)),
+                    headingTextStyle: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: _text,
+                    ),
+                    dataTextStyle: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: _text,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('Main question')),
+                      DataColumn(label: Text('When answer is')),
+                      DataColumn(label: Text('Follow-up question')),
+                      DataColumn(label: Text('Type')),
+                      DataColumn(label: Text('Required')),
+                      DataColumn(label: Text('Actions')),
+                    ],
+                    rows: [
+                      for (final r in rules)
+                        DataRow(
+                          cells: [
+                            DataCell(
+                              SizedBox(
+                                width: 260,
+                                child: Text(
+                                  (questionsById[r.parentQuestionId]
+                                                  ?.questionText)
+                                              ?.trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? questionsById[r.parentQuestionId]!
+                                          .questionText
+                                      : '—',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 190,
+                                child: Text(
+                                  optionLabelById[r.triggerOptionId!] ?? '—',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 300,
+                                child: Text(
+                                  r.questionText.isEmpty ? '—' : r.questionText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(_typePill(r.questionType)),
+                            DataCell(
+                              _boolPill(r.isRequired),
+                            ),
+                            DataCell(
+                              IconButton(
+                                tooltip: 'Delete rule',
+                                onPressed:
+                                    _saving ? null : () => _deleteRule(r),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                color: _danger,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
-                  dataTextStyle: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: _text,
-                  ),
-                  columns: const [
-                    DataColumn(label: Text('Main question')),
-                    DataColumn(label: Text('When answer is')),
-                    DataColumn(label: Text('Follow-up question')),
-                    DataColumn(label: Text('Type')),
-                    DataColumn(label: Text('Required')),
-                    DataColumn(label: Text('Actions')),
-                  ],
-                  rows: [
-                    for (final r in rules)
-                      DataRow(
-                        cells: [
-                          DataCell(
-                            SizedBox(
-                              width: 260,
-                              child: Text(
-                                (questionsById[r.parentQuestionId]
-                                                ?.questionText)
-                                            ?.trim()
-                                            .isNotEmpty ==
-                                        true
-                                    ? questionsById[r.parentQuestionId]!
-                                        .questionText
-                                    : '—',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 190,
-                              child: Text(
-                                optionLabelById[r.triggerOptionId!] ?? '—',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 300,
-                              child: Text(
-                                r.questionText.isEmpty ? '—' : r.questionText,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(_typePill(r.questionType)),
-                          DataCell(
-                            _boolPill(r.isRequired),
-                          ),
-                          DataCell(
-                            IconButton(
-                              tooltip: 'Delete rule',
-                              onPressed: _saving ? null : () => _deleteRule(r),
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              color: _danger,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
                 ),
               ),
             ),

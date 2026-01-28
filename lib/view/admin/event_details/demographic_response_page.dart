@@ -1,11 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'package:traxx_wepapp/controller/global_controllers/demographic_response_controller.dart';
-
 import 'demographic_widgets/demographic_constants.dart';
 import 'demographic_widgets/demographic_info_card.dart';
 import 'demographic_widgets/demographic_question_card.dart';
