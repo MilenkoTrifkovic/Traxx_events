@@ -5,8 +5,6 @@ import 'package:traxx_wepapp/models/venue.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
 import 'package:traxx_wepapp/utils/loader.dart';
-
-import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
 
 class VenuesController extends GetxController {
@@ -25,6 +23,7 @@ class VenuesController extends GetxController {
 
   String? _loadedOrgId;
   bool _fetchInFlight = false;
+  bool _hasLoadedOnce = false; // ✅ Track if initial load completed
   final RxnString loadError = RxnString();
 
   @override
@@ -42,7 +41,9 @@ class VenuesController extends GetxController {
 
     if (_fetchInFlight) return; // ✅ important
 
-    if (!force && _loadedOrgId == id && venues.isNotEmpty) return;
+    // ✅ Fixed: Check _hasLoadedOnce instead of venues.isNotEmpty 
+    // to prevent infinite loop when org has 0 venues
+    if (!force && _loadedOrgId == id && _hasLoadedOnce) return;
 
     _loadedOrgId = id;
     await loadVenuesForOrg(id, force: force);
@@ -164,6 +165,8 @@ class VenuesController extends GetxController {
 
       // Optional: prime tile cache
       await _primeFirstPhotoUrls(withUrls);
+      
+      _hasLoadedOnce = true; // ✅ Mark as loaded
     } catch (e, st) {
       debugPrint('Error loading venues: $e');
       debugPrint('$st');
