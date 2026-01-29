@@ -58,6 +58,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   bool get _isReadOnly => widget.readOnly;
   bool get _showDietCard =>
       (!_isReadOnly) || widget.showDietPreferenceInPreview;
+  final ScrollController _pageCtrl = ScrollController();
 
   @override
   void initState() {
@@ -144,6 +145,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pageCtrl.dispose();
     super.dispose();
   }
 
@@ -217,21 +219,20 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       final groups = _controller.groups;
 
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ Show diet card in preview as well (disabled)
           if (_isReadOnly || widget.showDietPreferenceInPreview) ...[
             _DietPreferenceCard(
               controller: _controller,
               invitationId: widget.invitationId ?? 'preview',
               companionIdx: widget.companionIndex,
               compact: true,
-              disabled: _isReadOnly, // ✅ disabled in preview
-              previewHint: _isReadOnly, // ✅ shows hint text in preview
+              disabled: _isReadOnly,
+              previewHint: _isReadOnly,
             ),
             const SizedBox(height: 12),
           ],
 
-          // Keep search filters only in real flow
           if (!_isReadOnly && _controller.dietPref.value != null) ...[
             MenuSearchFilters(
               searchController: _searchController,
@@ -240,25 +241,26 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
             const SizedBox(height: 12),
           ],
 
-          Expanded(
-            child: ListView(
-              children: [
-                if (!_isReadOnly && groups.isNotEmpty) ...[
-                  for (final g in groups) ...[
-                    MenuGroupCard(group: g, controller: _controller),
-                    const SizedBox(height: 12),
-                  ],
-                  const SizedBox(height: 6),
+          // ✅ IMPORTANT: this ListView must NOT scroll
+          ListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              if (!_isReadOnly && groups.isNotEmpty) ...[
+                for (final g in groups) ...[
+                  MenuGroupCard(group: g, controller: _controller),
+                  const SizedBox(height: 12),
                 ],
-                for (final it in ungrouped) ...[
-                  MenuItemCardWidget(
-                    item: it,
-                    controller: _controller,
-                    readOnly: _isReadOnly,
-                  ),
-                ],
+                const SizedBox(height: 6),
               ],
-            ),
+              for (final it in ungrouped) ...[
+                MenuItemCardWidget(
+                  item: it,
+                  controller: _controller,
+                  readOnly: _isReadOnly,
+                ),
+              ],
+            ],
           ),
 
           if (!_isReadOnly) ...[
@@ -310,27 +312,16 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       // ✅ Step 2: Allergens card (edit anytime after diet is chosen)
       if (!_isReadOnly) {
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _AllergensCard(controller: _controller),
             const SizedBox(height: 12),
-
-            // ✅ after allergens show the menu
-            Expanded(
-              child: Builder(
-                builder: (_) {
-                  if (_controller.isCurrentPersonDone) {
-                    return MenuAlreadySubmittedCard(
-                        onContinue: _handleContinue);
-                  }
-
-                  if (_controller.items.isEmpty && _controller.groups.isEmpty) {
-                    return const MenuEmptyCard();
-                  }
-
-                  return _buildMenuList();
-                },
-              ),
-            ),
+            if (_controller.isCurrentPersonDone)
+              MenuAlreadySubmittedCard(onContinue: _handleContinue)
+            else if (_controller.items.isEmpty && _controller.groups.isEmpty)
+              const MenuEmptyCard()
+            else
+              _buildMenuList(),
           ],
         );
       }
@@ -345,96 +336,96 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final viewportH = MediaQuery.of(ctx).size.height;
-        final boundedH = constraints.hasBoundedHeight;
-        final maxH = boundedH ? constraints.maxHeight : viewportH;
-        final scrollH = (maxH - 280).clamp(260.0, 800.0);
+    final isPhone = MediaQuery.of(context).size.width < 700;
+    final outerVPad = isPhone ? 10.0 : 14.0;
+    final outerHPad = isPhone ? 12.0 : 16.0;
 
-        return SizedBox(
-          width: double.infinity,
-          height: boundedH ? maxH : null,
-          child: Stack(
-            children: [
-              const Positioned.fill(child: ColoredBox(color: gfBackground)),
-              Align(
-                alignment: Alignment.topCenter,
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1040),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (!_isReadOnly) ...[
-                              MenuProgressBanner(controller: _controller),
-                              Obx(() => _controller.hasCompanions
-                                  ? const SizedBox(height: 12)
-                                  : const SizedBox.shrink()),
-                            ],
-                            Text(
-                              'Menu Selection',
-                              style: GoogleFonts.poppins(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            // BELOW: const SizedBox(height: 18),
+    return Stack(
+      children: [
+        const Positioned.fill(child: ColoredBox(color: gfBackground)),
+        Scrollbar(
+          controller: _pageCtrl,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _pageCtrl,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+                horizontal: outerHPad, vertical: outerVPad),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isPhone ? 16 : 40,
+                    vertical: isPhone ? 16 : 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_isReadOnly) ...[
+                        MenuProgressBanner(controller: _controller),
+                        Obx(() => _controller.hasCompanions
+                            ? const SizedBox(height: 12)
+                            : const SizedBox.shrink()),
+                      ],
 
-                            Obx(() {
-                              final prefChosen = _isReadOnly ||
-                                  _controller.dietPref.value != null;
-
-                              if (_isReadOnly || !prefChosen) {
-                                return const SizedBox.shrink();
-                              }
-
-                              return Column(
-                                children: [
-                                  MenuHeaderCard(
-                                    controller: _controller,
-                                    onSubmit: _handleSubmit,
-                                    onContinue: _handleContinue,
-                                  ),
-                                  const SizedBox(height: 14),
-                                ],
-                              );
-                            }),
-
-                            SizedBox(height: scrollH, child: _buildBody()),
-                            const SizedBox(height: 24),
-                          ],
+                      Text(
+                        'Menu Selection',
+                        style: GoogleFonts.poppins(
+                          fontSize: isPhone ? 28 : 34,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 18),
+
+                      Obx(() {
+                        final prefChosen =
+                            _isReadOnly || _controller.dietPref.value != null;
+
+                        if (_isReadOnly || !prefChosen) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Column(
+                          children: [
+                            MenuHeaderCard(
+                              controller: _controller,
+                              onSubmit: _handleSubmit,
+                              onContinue: _handleContinue,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                        );
+                      }),
+
+                      // ✅ No fixed height anymore
+                      _buildBody(),
+
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ),
-              if (!_isReadOnly)
-                Obx(() => _controller.isSubmitting.value
-                    ? Positioned.fill(
-                        child: Container(
-                          color: gfBackground.withOpacity(0.35),
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: kGfPurple,
-                            ),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink()),
-            ],
+            ),
           ),
-        );
-      },
+        ),
+        if (!_isReadOnly)
+          Obx(() => _controller.isSubmitting.value
+              ? Positioned.fill(
+                  child: Container(
+                    color: gfBackground.withOpacity(0.35),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: kGfPurple,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink()),
+      ],
     );
   }
 }

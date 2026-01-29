@@ -142,60 +142,6 @@ function formatEventDate(timestamp) {
   return date.toLocaleString("en-US", options);
 }
 
-function personKeyFromIndex(idx) {
-  if (idx === null || idx === undefined) return "main";
-  return `c${idx}`;
-}
-
-function hasDemoForPerson(inv, key) {
-  // Try common structures (keep this flexible)
-  const byPerson =
-    inv.demographicsByPerson?.[key] ||
-    inv.demographicByPerson?.[key] ||
-    inv.demographicResponsesByPerson?.[key] ||
-    null;
-
-  const t =
-    byPerson?.submittedAt ||
-    byPerson?.demographicsSubmittedAt ||
-    null;
-
-  return !!t;
-}
-
-function hasMenuForPerson(inv, key) {
-  const m = inv.menuSelectionByPerson?.[key] || null;
-  const t = m?.submittedAt || m?.menuSubmittedAt || null;
-  return !!t;
-}
-
-function buildDetailsLink(invId, invToken) {
-  return (
-    `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
-    `&token=${encodeURIComponent(invToken)}` +
-    `&forceDetails=1&v=${Date.now()}`
-  );
-}
-
-function buildDemoLink(invId, invToken, companionIndex) {
-  return (
-    `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(invId)}` +
-    `&token=${encodeURIComponent(invToken)}` +
-    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
-    `&v=${Date.now()}`
-  );
-}
-
-function buildMenuLink(invId, invToken, companionIndex) {
-  return (
-    `${APP_BASE_URL}/menu-selection?invitationId=${encodeURIComponent(invId)}` +
-    `&token=${encodeURIComponent(invToken)}` +
-    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
-    `&v=${Date.now()}`
-  );
-}
-
-
 export const sendInvitations = onCall(
   { secrets: [POSTMARK_SERVER_TOKEN] },
   async (request) => {

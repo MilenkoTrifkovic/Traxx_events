@@ -322,14 +322,23 @@ class DemographicResponseController extends GetxController {
         };
       }).toList();
 
-      await _cloudFunctions.submitDemographics(
+      final resp = await _cloudFunctions.submitDemographics(
         invitationId: _activeInvitationId,
         token: tokenToUse,
         answers: payloadAnswers,
         companionIndex: _currentCompanionIndex,
       );
 
-      _updateLocalStateAfterSubmit();
+// ✅ If skipped (not attending), do NOT mark demographicSubmitted
+      if (resp['skipped'] == true) {
+        _navigateToNextStep(context, tokenToUse);
+        return;
+      }
+
+// ✅ Normal success or alreadySubmitted
+      if (resp['alreadySubmitted'] != true) {
+        _updateLocalStateAfterSubmit();
+      }
 
       _flowState = ResponseFlowState.fromInvitation(
         invitation.value!,
@@ -339,6 +348,20 @@ class DemographicResponseController extends GetxController {
 
       _navigateToNextStep(context, tokenToUse);
     } on FirebaseFunctionsException catch (e) {
+      final msg = (e.message ?? '').toLowerCase();
+
+      if (_currentCompanionIndex != null &&
+          e.code == 'failed-precondition' &&
+          msg.contains('attendance')) {
+        context.go(
+          '${AppRoute.companionRsvp.path}'
+          '?invitationId=${Uri.encodeComponent(_activeInvitationId)}'
+          '&token=${Uri.encodeComponent(tokenToUse)}'
+          '&companionIndex=$_currentCompanionIndex',
+        );
+        return;
+      }
+
       _showSnackbar(context, 'Submit failed: ${e.message ?? e.code}',
           isError: true);
     } catch (e) {

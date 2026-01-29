@@ -14,15 +14,16 @@ import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 
 /// Guest Count Page - Allows guests to select number of companions
-/// 
+///
 /// When [readOnly] is true, displays the page in preview mode without controllers or business logic
 class GuestCountPage extends StatefulWidget {
   final String invitationId;
   final String? token;
-  final String? eventName; // Optional - will use from GuestLayoutController if available
+  final String?
+      eventName; // Optional - will use from GuestLayoutController if available
   final bool readOnly; // If true, displays in preview mode without controllers
   final Event? event; // Required when readOnly is true
-  
+
   const GuestCountPage({
     super.key,
     required this.invitationId,
@@ -40,15 +41,16 @@ class _GuestCountPageState extends State<GuestCountPage> {
   RsvpResponseController? controller;
   GuestLayoutController? guestController;
   SnackbarMessageController? snackbarController;
-  
+
   int? selectedCompanionCount;
-  bool? isInvitingCompanionsByEmail; // null = not answered, true = send emails, false = answer for them
+  bool?
+      isInvitingCompanionsByEmail; // null = not answered, true = send emails, false = answer for them
   bool isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    
+
     // Skip ALL controller initialization in read-only mode
     // Never call Get.find when readOnly is true
     if (widget.readOnly == true) {
@@ -56,7 +58,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
       controller = null;
       guestController = null;
       snackbarController = null;
-      
+
       // Set preview values
       if (widget.event != null) {
         selectedCompanionCount = widget.event!.maxInviteByGuest > 0 ? 1 : 0;
@@ -64,21 +66,22 @@ class _GuestCountPageState extends State<GuestCountPage> {
           isInvitingCompanionsByEmail = false; // Preview: first option selected
         }
       }
-      debugPrint('✅ GuestCountPage: Read-only mode, skipping controller initialization');
+      debugPrint(
+          '✅ GuestCountPage: Read-only mode, skipping controller initialization');
       return;
     }
-    
+
     // Only access controllers in normal (non-readonly) mode
     try {
       // Check if controllers exist before trying to find them
       if (Get.isRegistered<GuestLayoutController>()) {
         guestController = Get.find<GuestLayoutController>();
       }
-      
+
       if (Get.isRegistered<RsvpResponseController>(tag: widget.invitationId)) {
         controller = Get.find<RsvpResponseController>(tag: widget.invitationId);
       }
-      
+
       if (Get.isRegistered<SnackbarMessageController>()) {
         snackbarController = Get.find<SnackbarMessageController>();
       }
@@ -89,16 +92,17 @@ class _GuestCountPageState extends State<GuestCountPage> {
       guestController = null;
       snackbarController = null;
     }
-    
+
     // Set initial value if already submitted
     if (controller!.companionsCount != null) {
       selectedCompanionCount = controller!.companionsCount;
-      isInvitingCompanionsByEmail = controller!.invitationStatus.value?.isInvitingCompanionsByEmail;
+      isInvitingCompanionsByEmail =
+          controller!.invitationStatus.value?.isInvitingCompanionsByEmail;
     } else if (controller!.maxGuestInvite == 0) {
       // If no companions allowed, auto-select 0
       selectedCompanionCount = 0;
     }
-    
+
     // Validate user has completed RSVP and is attending
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!controller!.hasResponded || controller!.isAttending != true) {
@@ -116,16 +120,19 @@ class _GuestCountPageState extends State<GuestCountPage> {
   }
 
   Future<void> _handleSubmit() async {
-    if (widget.readOnly || controller == null || snackbarController == null) return;
-    
+    if (widget.readOnly || controller == null || snackbarController == null)
+      return;
+
     if (selectedCompanionCount == null) {
-      snackbarController!.showErrorMessage('Please select the number of companions');
+      snackbarController!
+          .showErrorMessage('Please select the number of guests');
       return;
     }
 
     // If companions > 0, require the email invitation choice
     if (selectedCompanionCount! > 0 && isInvitingCompanionsByEmail == null) {
-      snackbarController!.showErrorMessage('Please specify how you want to handle companion information');
+      snackbarController!.showErrorMessage(
+          'Please specify how you want to handle guest information');
       return;
     }
 
@@ -156,7 +163,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
         );
         return;
       }
-      
+
       // No companions selected, navigate to next step (demographics or menu, but NOT thank you)
       if (controller!.requiresDemographics && !controller!.hasDemographics) {
         pushAndRemoveAllRoute(
@@ -173,7 +180,9 @@ class _GuestCountPageState extends State<GuestCountPage> {
       } else {
         // If both are completed, still go to demographics or menu (not thank you)
         pushAndRemoveAllRoute(
-          controller!.requiresDemographics ? AppRoute.demographics : AppRoute.menuSelection,
+          controller!.requiresDemographics
+              ? AppRoute.demographics
+              : AppRoute.menuSelection,
           context,
           queryParams: queryParams,
         );
@@ -190,7 +199,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
     final maxGuests = widget.readOnly && widget.event != null
         ? widget.event!.maxInviteByGuest
         : (controller?.maxGuestInvite ?? 0);
-    
+
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 600),
@@ -208,24 +217,25 @@ class _GuestCountPageState extends State<GuestCountPage> {
               textAlign: TextAlign.center,
             ),
             SizedBox(height: AppSpacing.md(context)),
-            
+
             // Description
             AppText.styledBodyLarge(
               context,
               maxGuests > 0
-                  ? 'How many companions will you bring to the event?'
+                  ? 'How many guests will you bring to the event?'
                   : 'This invitation is for you only.',
               color: AppColors.textMuted,
               textAlign: TextAlign.center,
             ),
             SizedBox(height: AppSpacing.xl(context)),
-            
+
             if (maxGuests > 0) ...[
               // Dropdown
               AppDropdownMenu<int>(
-                label: 'Number of Companions',
-                hintText: 'Select number of companions',
-                helperText: 'You can bring up to $maxGuests ${maxGuests == 1 ? 'companion' : 'companions'}',
+                label: 'Number of Guests',
+                hintText: 'Select number of Guests',
+                helperText:
+                    'You can bring up to $maxGuests ${maxGuests == 1 ? 'guest' : 'guests'}',
                 value: selectedCompanionCount,
                 enabled: !widget.readOnly && !isSubmitting,
                 width: double.infinity,
@@ -235,10 +245,10 @@ class _GuestCountPageState extends State<GuestCountPage> {
                     value: index,
                     child: Text(
                       index == 0
-                          ? 'No companions (just me)'
+                          ? 'No guests (just me)'
                           : index == 1
-                              ? '1 companion'
-                              : '$index companions',
+                              ? '1 guest'
+                              : '$index guests',
                     ),
                   ),
                 ),
@@ -255,9 +265,10 @@ class _GuestCountPageState extends State<GuestCountPage> {
                       },
               ),
               SizedBox(height: AppSpacing.lg(context)),
-              
+
               // Show email invitation question only if companions > 0
-              if (selectedCompanionCount != null && selectedCompanionCount! > 0) ...[
+              if (selectedCompanionCount != null &&
+                  selectedCompanionCount! > 0) ...[
                 Container(
                   padding: EdgeInsets.all(AppSpacing.md(context)),
                   decoration: BoxDecoration(
@@ -270,7 +281,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
                     children: [
                       AppText.styledBodyLarge(
                         context,
-                        'How would you like to handle companion information?',
+                        'How would you like to handle guest information?',
                         weight: AppFontWeight.semiBold,
                       ),
                       SizedBox(height: AppSpacing.md(context)),
@@ -296,7 +307,8 @@ class _GuestCountPageState extends State<GuestCountPage> {
                             child: _buildChoiceButton(
                               context,
                               label: 'Send them email invites',
-                              description: 'They will fill out their own information',
+                              description:
+                                  'They will fill out their own information',
                               isSelected: isInvitingCompanionsByEmail == true,
                               onTap: widget.readOnly
                                   ? null
@@ -334,7 +346,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
                     Expanded(
                       child: AppText.styledBodyMedium(
                         context,
-                        'This is a personal invitation. You cannot bring companions.',
+                        'This is a personal invitation. You cannot bring guest.',
                         color: AppColors.primary,
                       ),
                     ),
@@ -343,7 +355,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
               ),
               SizedBox(height: AppSpacing.xl(context)),
             ],
-            
+
             // Next button
             AppPrimaryButton(
               text: 'Next',
@@ -353,7 +365,7 @@ class _GuestCountPageState extends State<GuestCountPage> {
               height: 48,
               borderRadius: 12,
             ),
-            
+
             // Error message - only show in non-readonly mode
             if (!widget.readOnly && controller != null)
               Obx(() {
@@ -389,7 +401,9 @@ class _GuestCountPageState extends State<GuestCountPage> {
       child: Container(
         padding: EdgeInsets.all(AppSpacing.md(context)),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryAccent.withOpacity(0.1) : AppColors.white,
+          color: isSelected
+              ? AppColors.primaryAccent.withOpacity(0.1)
+              : AppColors.white,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.primaryAccent : AppColors.borderInput,
@@ -402,8 +416,12 @@ class _GuestCountPageState extends State<GuestCountPage> {
             Row(
               children: [
                 Icon(
-                  isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  color: isSelected ? AppColors.primaryAccent : AppColors.textMuted,
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: isSelected
+                      ? AppColors.primaryAccent
+                      : AppColors.textMuted,
                   size: 20,
                 ),
                 SizedBox(width: AppSpacing.xxs(context)),
@@ -411,8 +429,12 @@ class _GuestCountPageState extends State<GuestCountPage> {
                   child: AppText.styledBodyMedium(
                     context,
                     label,
-                    weight: isSelected ? AppFontWeight.semiBold : AppFontWeight.regular,
-                    color: isSelected ? AppColors.primaryAccent : AppColors.primary,
+                    weight: isSelected
+                        ? AppFontWeight.semiBold
+                        : AppFontWeight.regular,
+                    color: isSelected
+                        ? AppColors.primaryAccent
+                        : AppColors.primary,
                   ),
                 ),
               ],

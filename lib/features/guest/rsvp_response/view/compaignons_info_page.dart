@@ -328,8 +328,9 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   }
 
   Future<void> _handleSubmitAll() async {
-    if (widget.readOnly || controller == null || snackbarController == null)
+    if (widget.readOnly || controller == null || snackbarController == null) {
       return;
+    }
 
     final currentIndex = currentStep.value;
     final formData = companionForms[currentIndex];
@@ -337,7 +338,12 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
     final isInvitingByEmail =
         controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
 
+    // ------------------------------------------------------------
+    // 1) Validate forms
+    // ------------------------------------------------------------
+
     if (isInvitingByEmail) {
+      // Email-invite flow: every form must be valid (name+email required)
       for (int i = 0; i < companionForms.length; i++) {
         if (!companionForms[i].validate()) {
           snackbarController!.showErrorMessage(
@@ -348,6 +354,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
         }
       }
     } else {
+      // Proxy flow: validate only unsaved forms
       if (formData.createdGuestId == null && !formData.validate()) {
         snackbarController!
             .showErrorMessage('Please fill in all required fields correctly');
@@ -366,26 +373,36 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       }
     }
 
-    final emailsToValidate = <String>[];
-    for (int i = 0; i < companionForms.length; i++) {
-      if (isInvitingByEmail || companionForms[i].createdGuestId == null) {
-        emailsToValidate.add(companionForms[i].email.text.trim());
+    // ------------------------------------------------------------
+    // 2) Validate unique emails ONLY when inviting by email
+    // ------------------------------------------------------------
+
+    if (isInvitingByEmail) {
+      final emailsToValidate = <String>[];
+      for (int i = 0; i < companionForms.length; i++) {
+        final email = companionForms[i].email.text.trim();
+        if (email.isNotEmpty) emailsToValidate.add(email);
+      }
+
+      final emailValidation =
+          controller!.validateAllCompanionEmails(emailsToValidate);
+
+      if (emailValidation != null) {
+        snackbarController!.showErrorMessage(emailValidation.errorMessage);
+        currentStep.value = emailValidation.duplicateIndex;
+        return;
       }
     }
 
-    final emailValidation =
-        controller!.validateAllCompanionEmails(emailsToValidate);
-    if (emailValidation != null) {
-      snackbarController!.showErrorMessage(emailValidation.errorMessage);
-      currentStep.value = emailValidation.duplicateIndex;
-      return;
-    }
+    // ------------------------------------------------------------
+    // 3) Submit
+    // ------------------------------------------------------------
 
     isSubmitting.value = true;
 
     try {
       if (isInvitingByEmail) {
-        // ✅ Email-invite flow: send isAttending as null (companion decides via /companion-rsvp)
+        // ✅ Email-invite flow: companion decides attendance later via /companion-rsvp
         final companionData = companionForms
             .map((form) => {
                   'name': form.name.text.trim(),
@@ -410,65 +427,64 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
         if (success) {
           snackbarController!.showSuccessMessage(
-              'All companion invitations sent successfully!');
+            'All companion invitations sent successfully!',
+          );
           _navigateToNextStep();
         }
-      } else {
-        // ✅ Direct create flow: include willAttend
-        int successCount = 0;
-        final failedCompanions = <String>[];
 
-        for (int i = 0; i < companionForms.length; i++) {
-          final form = companionForms[i];
+        return;
+      }
 
-          if (form.createdGuestId != null) {
-            successCount++;
-            continue;
-          }
+      // ✅ Proxy flow: create companions directly (attendance set by main guest)
+      int successCount = 0;
+      final failedCompanions = <String>[];
 
-          final otherPendingEmails = <String>[];
-          for (int j = 0; j < companionForms.length; j++) {
-            if (j != i && companionForms[j].createdGuestId == null) {
-              final email = companionForms[j].email.text.trim();
-              if (email.isNotEmpty) otherPendingEmails.add(email);
-            }
-          }
+      for (int i = 0; i < companionForms.length; i++) {
+        final form = companionForms[i];
 
-          final guestId = await controller!.validateAndCreateCompanion(
-            name: form.name.text.trim(),
-            email: form.email.text.trim(),
-            // ✅ NEW
-            isAttending: form.willAttend.value,
-            address: form.address.text.trim().isEmpty
-                ? null
-                : form.address.text.trim(),
-            city: form.city.text.trim().isEmpty ? null : form.city.text.trim(),
-            state: form.selectedState.value,
-            country: form.selectedCountry.value,
-            gender: form.selectedGender.value,
-            otherPendingEmails: otherPendingEmails,
-          );
-
-          if (guestId != null) {
-            form.createdGuestId = guestId;
-            successCount++;
-          } else {
-            failedCompanions.add(form.name.text.trim());
-          }
+        // skip already created
+        if (form.createdGuestId != null) {
+          successCount++;
+          continue;
         }
 
-        if (successCount == companionForms.length) {
-          snackbarController!
-              .showSuccessMessage('All companions added successfully!');
-          _navigateToNextStep();
-        } else if (successCount > 0) {
-          snackbarController!.showInfoMessage(
-            '$successCount of ${companionForms.length} companions added. Failed: ${failedCompanions.join(', ')}',
-          );
+        // NOTE: we intentionally DO NOT enforce unique emails here (proxy flow)
+        final guestId = await controller!.validateAndCreateCompanion(
+          name: form.name.text.trim(),
+          email: form.email.text.trim(), // can repeat in proxy flow
+          isAttending: form.willAttend.value,
+          address: form.address.text.trim().isEmpty
+              ? null
+              : form.address.text.trim(),
+          city: form.city.text.trim().isEmpty ? null : form.city.text.trim(),
+          state: form.selectedState.value,
+          country: form.selectedCountry.value,
+          gender: form.selectedGender.value,
+          // otherPendingEmails not needed since duplicates allowed
+          otherPendingEmails: null,
+        );
+
+        if (guestId != null) {
+          form.createdGuestId = guestId;
+          successCount++;
         } else {
-          snackbarController!
-              .showErrorMessage('Failed to add companions. Please try again.');
+          failedCompanions.add(form.name.text.trim());
         }
+      }
+
+      if (successCount == companionForms.length) {
+        snackbarController!
+            .showSuccessMessage('All companions added successfully!');
+        _navigateToNextStep();
+      } else if (successCount > 0) {
+        snackbarController!.showInfoMessage(
+          '$successCount of ${companionForms.length} companions added. '
+          'Failed: ${failedCompanions.join(', ')}',
+        );
+      } else {
+        snackbarController!.showErrorMessage(
+          'Failed to add companions. Please try again.',
+        );
       }
     } catch (e) {
       debugPrint('❌ Error submitting companions: $e');

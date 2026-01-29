@@ -70,6 +70,8 @@ class RsvpResponseController extends GetxController {
   bool get isFullyCompleted =>
       invitationStatus.value?.isFullyCompleted ?? false;
   String? get nextIncompleteStep => invitationStatus.value?.nextIncompleteStep;
+  bool get isInvitingByEmail =>
+      invitationStatus.value?.isInvitingCompanionsByEmail == true;
 
   @override
   void onInit() {
@@ -391,13 +393,15 @@ class RsvpResponseController extends GetxController {
   }) {
     final trimmedEmail = email.trim().toLowerCase();
 
-    // ✅ ALLOW same email as primary guest (remove the old check)
+    // ✅ Proxy mode: allow duplicates (and even empty)
+    if (!isInvitingByEmail) return null;
 
-    // Check against saved companions (still keep this)
+    // Email-invite mode: enforce uniqueness
     final existingCompanions = invitationStatus.value?.companions ?? [];
     final duplicateInSaved = existingCompanions.any((companion) {
       final companionEmail =
-          (companion['guestEmail'] as String?)?.trim().toLowerCase();
+          (companion['guestEmailLower'] as String?)?.trim().toLowerCase() ??
+              (companion['guestEmail'] as String?)?.trim().toLowerCase();
       return companionEmail == trimmedEmail;
     });
 
@@ -405,7 +409,6 @@ class RsvpResponseController extends GetxController {
       return 'A companion with this email already exists';
     }
 
-    // Check against other pending emails (still keep this)
     if (otherPendingEmails != null) {
       final duplicateInPending = otherPendingEmails.any(
         (e) => e.trim().toLowerCase() == trimmedEmail,
@@ -421,17 +424,16 @@ class RsvpResponseController extends GetxController {
   /// Validates that all companion emails in a list are unique
   /// Returns validation result with error message and index of first duplicate
   /// Returns null if all emails are valid
-  EmailValidationResult? validateAllCompanionEmails(
-    List<String> emails,
-  ) {
+  EmailValidationResult? validateAllCompanionEmails(List<String> emails) {
+    // ✅ Proxy mode: allow duplicates
+    if (!isInvitingByEmail) return null;
+
     final emailSet = <String>{};
 
     for (int i = 0; i < emails.length; i++) {
       final email = emails[i].trim().toLowerCase();
-      if (email.isEmpty)
-        continue; // Skip empty emails (will be caught by form validation)
+      if (email.isEmpty) continue;
 
-      // Validate individual email
       final individualError = validateCompanionEmail(email);
       if (individualError != null) {
         return EmailValidationResult(
@@ -440,7 +442,6 @@ class RsvpResponseController extends GetxController {
         );
       }
 
-      // Check for duplicates within the list
       if (emailSet.contains(email)) {
         return EmailValidationResult(
           errorMessage:
@@ -452,7 +453,7 @@ class RsvpResponseController extends GetxController {
       emailSet.add(email);
     }
 
-    return null; // All valid
+    return null;
   }
 
   /// Validates and creates a companion guest with proper error handling and snackbar messages
