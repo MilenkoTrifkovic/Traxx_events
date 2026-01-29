@@ -37,6 +37,51 @@ class AdminUserListPage extends StatelessWidget {
     });
   }
 
+  /// Shows confirmation dialog before soft deleting a user
+  Future<void> _deleteUser(BuildContext context, UserModel user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Disable User',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Are you sure you want to disable ${user.email}? They will no longer appear in the user list, but their data will be preserved.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Disable',
+              style: GoogleFonts.poppins(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        showLoadingIndicator();
+        await globalController.deleteUser(user.userId!);
+      } finally {
+        hideLoadingIndicator();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -69,10 +114,52 @@ class AdminUserListPage extends StatelessWidget {
 
   Widget _buildMainSection() {
     return Obx(() {
+      // ✅ Check loading state first
+      if (globalController.isLoading.value) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(60.0),
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
       final list = globalController.usersWithRoles;
 
+      // ✅ Show empty state when no users (not loading indicator)
       if (list.isEmpty) {
-        return const Center(child: CircularProgressIndicator());
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(60.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No Users Yet',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add users to manage your organization',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       }
 
       return LayoutBuilder(
@@ -155,11 +242,10 @@ class AdminUserListPage extends StatelessWidget {
                             onPressed: () => _editUser(context, user),
                           ),
                           IconButton(
-                            tooltip: 'Delete',
-                            icon: const Icon(Icons.delete_outline,
+                            tooltip: 'Disable User',
+                            icon: const Icon(Icons.block,
                                 size: 18, color: Colors.redAccent),
-                            onPressed: () =>
-                                globalController.deleteUser(user.userId!),
+                            onPressed: () => _deleteUser(context, user),
                           ),
                         ],
                       ),
@@ -278,11 +364,10 @@ class AdminUserListPage extends StatelessWidget {
                                   onPressed: () => _editUser(context, user),
                                 ),
                                 IconButton(
-                                  tooltip: 'Delete',
-                                  icon: const Icon(Icons.delete_outline,
+                                  tooltip: 'Disable User',
+                                  icon: const Icon(Icons.block,
                                       size: 18, color: Colors.redAccent),
-                                  onPressed: () =>
-                                      globalController.deleteUser(user.userId!),
+                                  onPressed: () => _deleteUser(context, user),
                                 ),
                               ],
                             ),
