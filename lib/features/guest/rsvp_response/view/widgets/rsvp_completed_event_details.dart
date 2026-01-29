@@ -102,7 +102,8 @@ class RsvpCompletedEventDetailsWidget extends StatelessWidget {
       if (event == null) return RsvpLoadingWidget(isPhone: isPhone);
 
       final invitationLetterUrl = (event.invitationLetterUrl ?? '').trim();
-      final guestPortalUrl = 'https://trax-event.app/guest-login';
+      // final guestPortalUrl = 'https://trax-event.app/guest-login';
+      final guestPortalUrl = 'https://guest.trax-event.app';
       final venuePhotos = guestController.venuePhotoUrls.toList();
 
       // ✅ Make page use more width (big screens) but still look premium
