@@ -85,10 +85,16 @@ export const getEventAnalytics = onCall(async (request) => {
   //   - superAdmin / super_admin: can view any event analytics
   //   - admin: can view only events in same organisation
   //   - host: can view only events where they are assigned (hostUserIds contains uid)
+  //   - sales_person: can view events in same organisation (if active and not disabled)
   // ─────────────────────────────────────────────
   const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
   const isOrgAdmin = userRole === "admin";
   const isHost = userRole === "host";
+  
+  // Check if user is a salesperson (now stored in users collection with role = sales_person)
+  const isSalesPerson = userRole === "sales_person" && 
+    user.isActive === true && 
+    user.isDisabled !== true;
 
   const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
   const isEventHost =
@@ -97,7 +103,10 @@ export const getEventAnalytics = onCall(async (request) => {
   const isAdminForEvent =
     isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
 
-  if (!isAdminForEvent && !isEventHost) {
+  const isSalesPersonForEvent =
+    isSalesPerson && !!eventOrgId && !!userOrgId && eventOrgId === userOrgId;
+
+  if (!isAdminForEvent && !isEventHost && !isSalesPersonForEvent) {
     throw new HttpsError(
       "permission-denied",
       "You don't have permission to view this event's analytics"
@@ -249,4 +258,3 @@ export const getEventAnalytics = onCall(async (request) => {
     menu: { responses: menu.responses, items: menuItems },
   };
 });
-
