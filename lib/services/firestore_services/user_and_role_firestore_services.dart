@@ -52,26 +52,66 @@ class UserAndRoleFirestoreServices {
     // Return the model that was saved (timestamps will be set server-side).
     return toSave;
   }
+  /// Soft deletes a user by setting isDisabled to true.
+  /// This preserves the user data while preventing them from appearing in active user lists.
   Future<void> deleteUser({required String userId}) async {
     try {
+      print('🔵 Soft deleting user with userId: $userId');
+      
       final snap = await _usersRef
           .where('userId', isEqualTo: userId)
           .limit(1)
           .get();
 
       if (snap.docs.isEmpty) {
-        print('No user found with userId: $userId');
+        print('⚠️ No user found with userId: $userId');
+        return;
+      }
+
+      final docRef = snap.docs.first.reference;
+      
+      // ✅ Soft delete: set isDisabled to true instead of deleting document
+      await docRef.set({
+        'isDisabled': true,
+        'modifiedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      print('✅ User with userId: $userId soft deleted (isDisabled: true)');
+    } on FirebaseException catch (e) {
+      print('❌ Firestore error soft deleting user: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ Unknown error soft deleting user: $e');
+      rethrow;
+    }
+  }
+  
+  /// Hard deletes a user by actually removing the document from Firestore.
+  /// ⚠️ WARNING: This permanently deletes the user data. Use with caution.
+  /// Prefer using deleteUser() (soft delete) instead.
+  Future<void> hardDeleteUser({required String userId}) async {
+    try {
+      print('⚠️ HARD deleting user with userId: $userId');
+      
+      final snap = await _usersRef
+          .where('userId', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        print('⚠️ No user found with userId: $userId');
         return;
       }
 
       final docRef = snap.docs.first.reference;
       await docRef.delete();
-      print('User with userId: $userId deleted successfully.');
+      
+      print('✅ User with userId: $userId permanently deleted from Firestore');
     } on FirebaseException catch (e) {
-      print('Firestore error deleting user: ${e.message}');
+      print('❌ Firestore error hard deleting user: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      print('Unknown error deleting user: $e');
+      print('❌ Unknown error hard deleting user: $e');
       rethrow;
     }
   }
@@ -137,23 +177,34 @@ class UserAndRoleFirestoreServices {
     required String organisationId,
   }) async {
     try {
+      print('🔍 Querying users collection for organisationId: $organisationId');
+      
       final userSnap = await _usersRef
           .where('organisationId', isEqualTo: organisationId)
           .where('isDisabled', isEqualTo: false)
           .get();
 
-      if (userSnap.docs.isEmpty) return <UserModel>[];
+      print('📊 Query returned ${userSnap.docs.length} documents');
+
+      if (userSnap.docs.isEmpty) {
+        print('⚠️ No users found for organisation: $organisationId');
+        return <UserModel>[];
+      }
 
       final users = userSnap.docs
-          .map((d) => UserModel.fromFirestore(d.data(), d.id))
+          .map((d) {
+            print('  - User doc: ${d.id}, email: ${d.data()['email']}');
+            return UserModel.fromFirestore(d.data(), d.id);
+          })
           .toList();
 
+      print('✅ Successfully parsed ${users.length} users');
       return users;
     } on FirebaseException catch (e) {
-      print('Firestore error fetching users: ${e.message}');
+      print('❌ Firestore error fetching users: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      print('Unknown error fetching users: $e');
+      print('❌ Unknown error fetching users: $e');
       rethrow;
     }
   }

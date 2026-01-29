@@ -97,15 +97,21 @@ async function getEventDataByEventId(eventId) {
     const userOrgId = safeStr(user.organisationId);
     const userRole = safeStr(user.role);
 
-    // ─────────────────────────────────────────────
-    // ✅ Authorization (ALIGNED with your Firestore rules)
-    //   - superAdmin / super_admin: can view any event analytics
-    //   - admin: can view only events in same organisation
-    //   - host: can view only events where they are assigned (hostUserIds contains uid)
-    // ─────────────────────────────────────────────
-    const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
-    const isOrgAdmin = userRole === "admin";
-    const isHost = userRole === "host";
+  // ─────────────────────────────────────────────
+  // ✅ Authorization (ALIGNED with your Firestore rules)
+  //   - superAdmin / super_admin: can view any event analytics
+  //   - admin: can view only events in same organisation
+  //   - host: can view only events where they are assigned (hostUserIds contains uid)
+  //   - sales_person: can view events in same organisation (if active and not disabled)
+  // ─────────────────────────────────────────────
+  const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
+  const isOrgAdmin = userRole === "admin";
+  const isHost = userRole === "host";
+  
+  // Check if user is a salesperson (now stored in users collection with role = sales_person)
+  const isSalesPerson = userRole === "sales_person" && 
+    user.isActive === true && 
+    user.isDisabled !== true;
 
     const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
     const isEventHost =
@@ -114,12 +120,15 @@ async function getEventDataByEventId(eventId) {
     const isAdminForEvent =
       isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
 
-    if (!isAdminForEvent && !isEventHost) {
-      throw new HttpsError(
-        "permission-denied",
-        "You don't have permission to view this event's analytics"
-      );
-    }
+  const isSalesPersonForEvent =
+    isSalesPerson && !!eventOrgId && !!userOrgId && eventOrgId === userOrgId;
+
+  if (!isAdminForEvent && !isEventHost && !isSalesPersonForEvent) {
+    throw new HttpsError(
+      "permission-denied",
+      "You don't have permission to view this event's analytics"
+    );
+  }
 
     console.log("✅ Permission granted for analytics");
 

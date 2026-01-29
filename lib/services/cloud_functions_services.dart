@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import '../models/organisation.dart';
 import '../models/organisation_check_response.dart';
+import '../helper/validation_helper.dart';
 
 class CloudFunctionsService extends GetxService {
   late final FirebaseFunctions _functions;
@@ -35,9 +36,7 @@ class CloudFunctionsService extends GetxService {
     final payload = <String, dynamic>{
       'name': organisation.name.trim(),
       'phone': organisation.phone.toString().trim(),
-      'website': (organisation.website ?? '').trim().isEmpty
-          ? null
-          : organisation.website!.trim(),
+      'website': ValidationHelper.formatWebsiteForBackend(organisation.website),
       'timezone': organisation.timezone.trim(),
       'currency': 'USD', // ✅ keep fixed if model doesn’t have currency
       'logo':

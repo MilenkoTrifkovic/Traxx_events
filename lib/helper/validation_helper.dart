@@ -131,22 +131,32 @@ class ValidationHelper {
   }
 
   static String? validateOptionalWebsite(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return null; // Optional field
     }
 
-    // Remove https:// prefix if present for validation
-    String urlToValidate = value;
-    if (value.startsWith('https://')) {
-      urlToValidate = value.substring(8);
+    final trimmed = value.trim();
+
+    // Remove protocol if present for validation
+    String urlToValidate = trimmed;
+    if (trimmed.startsWith('https://')) {
+      urlToValidate = trimmed.substring(8);
+    } else if (trimmed.startsWith('http://')) {
+      urlToValidate = trimmed.substring(7);
     }
 
-    // Basic website validation
+    // Accept formats like:
+    // - example.com
+    // - www.example.com
+    // - subdomain.example.com
+    // - example.com/path
     final websiteRegex = RegExp(
-        r'^(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$');
+      r'^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/[^\s]*)?$',
+      caseSensitive: false,
+    );
 
     if (!websiteRegex.hasMatch(urlToValidate)) {
-      return 'Enter a valid website URL (e.g., example.com)';
+      return 'Invalid format (e.g., example.com or www.example.com)';
     }
 
     return null;
@@ -162,9 +172,9 @@ class ValidationHelper {
     required String? timezone,
   }) {
     // State validation only required for United States
-    final stateValid = country != 'United States' || 
+    final stateValid = country != 'United States' ||
         validateDropdownSelection(state, 'state') == null;
-    
+
     return validateAddress(address) == null &&
         validateCity(city) == null &&
         validateDropdownSelection(country, 'country') == null &&
@@ -181,5 +191,33 @@ class ValidationHelper {
     return validateCompanyName(companyName) == null &&
         validatePhoneNumber(phoneNumber) == null &&
         validateOptionalWebsite(website) == null;
+  }
+
+  /// Formats website URL to include https:// protocol for backend/API calls
+  ///
+  /// The cloud function requires URLs to start with http:// or https://.
+  /// This helper automatically adds https:// if no protocol is present.
+  ///
+  /// Examples:
+  /// - "example.com" → "https://example.com"
+  /// - "www.example.com" → "https://www.example.com"
+  /// - "http://example.com" → "http://example.com" (preserves http)
+  /// - "https://example.com" → "https://example.com" (already has https)
+  /// - "" → null
+  /// - null → null
+  static String? formatWebsiteForBackend(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+
+    final trimmed = value.trim();
+
+    // If already has protocol, return as is
+    if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+      return trimmed;
+    }
+
+    // Add https:// protocol for backend
+    return 'https://$trimmed';
   }
 }
