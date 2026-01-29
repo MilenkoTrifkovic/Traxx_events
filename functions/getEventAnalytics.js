@@ -74,47 +74,34 @@ export const getEventAnalytics = onCall(async (request) => {
   const event = eventObj.data || {};
   const eventOrgId = safeStr(event.organisationId);
 
-  console.log("  - Event Org ID:", eventOrgId);
-
-  // Check if user is in users collection (regular users and super admins)
+  // Load caller profile
   const userSnap = await db.collection("users").doc(request.auth.uid).get();
   const user = userSnap.exists ? (userSnap.data() || {}) : {};
   const userOrgId = safeStr(user.organisationId);
   const userRole = safeStr(user.role);
 
-  console.log("  - User exists in users collection:", userSnap.exists);
-  console.log("  - User Org ID:", userOrgId);
-  console.log("  - User Role (raw):", userRole);
+  // ─────────────────────────────────────────────
+  // ✅ Authorization (ALIGNED with your Firestore rules)
+  //   - superAdmin / super_admin: can view any event analytics
+  //   - admin: can view only events in same organisation
+  //   - host: can view only events where they are assigned (hostUserIds contains uid)
+  // ─────────────────────────────────────────────
+  const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
+  const isOrgAdmin = userRole === "admin";
+  const isHost = userRole === "host";
 
-  // Check if user is a salesperson (stored in separate collection)
-  // Sales people are identified by email, not by uid
-  const currentUserEmail = request.auth.token.email || "";
-  const salesPersonQuery = await db.collection("sales_people")
-    .where("email", "==", currentUserEmail)
-    .limit(1)
-    .get();
-  
-  const isSalesPerson = !salesPersonQuery.empty && 
-    salesPersonQuery.docs[0].data().isActive === true && 
-    salesPersonQuery.docs[0].data().isDisabled !== true;
+  const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
+  const isEventHost =
+    isHost && hostUserIds.map(safeStr).includes(request.auth.uid);
 
-  console.log("  - Is Sales Person:", isSalesPerson);
+  const isAdminForEvent =
+    isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
 
-  // Allow super admins to view any event's analytics (role stored as "super_admin" in Firestore)
-  const isSuperAdmin = userRole === "super_admin";
-  
-  console.log("  - Is Super Admin:", isSuperAdmin);
-  console.log("  - Role check (userRole === 'super_admin'):", userRole === "super_admin");
-  
-  // Super admins can view any event, sales persons and regular users must belong to same org
-  if (!isSuperAdmin && !isSalesPerson && (!eventOrgId || !userOrgId || eventOrgId !== userOrgId)) {
-    console.log("❌ PERMISSION DENIED:");
-    console.log("  - isSuperAdmin:", isSuperAdmin);
-    console.log("  - isSalesPerson:", isSalesPerson);
-    console.log("  - eventOrgId:", eventOrgId);
-    console.log("  - userOrgId:", userOrgId);
-    console.log("  - Org match:", eventOrgId === userOrgId);
-    throw new HttpsError("permission-denied", "You don't have permission to view this event's analytics");
+  if (!isAdminForEvent && !isEventHost) {
+    throw new HttpsError(
+      "permission-denied",
+      "You don't have permission to view this event's analytics"
+    );
   }
 
   console.log("✅ Permission granted for analytics");
@@ -123,7 +110,10 @@ export const getEventAnalytics = onCall(async (request) => {
   const matchEventId = safeStr(event.eventId) || eventPublicId;
 
   // 3) Invitations funnel stats
-  const invSnap = await db.collection("invitations").where("eventId", "==", matchEventId).get();
+  const invSnap = await db
+    .collection("invitations")
+    .where("eventId", "==", matchEventId)
+    .get();
 
   const inv = {
     total: invSnap.size,
@@ -216,7 +206,9 @@ export const getEventAnalytics = onCall(async (request) => {
 
   menuSnap.forEach((doc) => {
     const r = doc.data() || {};
-    const ids = Array.isArray(r.selectedMenuItemIds) ? r.selectedMenuItemIds : [];
+    const ids = Array.isArray(r.selectedMenuItemIds)
+      ? r.selectedMenuItemIds
+      : [];
     for (const id of ids) inc(menu.itemCounts, safeStr(id), 1);
   });
 
@@ -225,7 +217,11 @@ export const getEventAnalytics = onCall(async (request) => {
   const itemsById = {};
 
   for (const batch of chunk(itemIds, 10)) {
-    const snap = await db.collection("menu_items").where(FieldPath.documentId(), "in", batch).get();
+    const snap = await db
+      .collection("menu_items")
+      .where(FieldPath.documentId(), "in", batch)
+      .get();
+
     snap.forEach((d) => {
       const x = d.data() || {};
       itemsById[d.id] = {
@@ -246,7 +242,11 @@ export const getEventAnalytics = onCall(async (request) => {
     eventId: matchEventId,
     eventName: safeStr(event.name) || "Event",
     invitations: inv,
-    demographics: { responses: demoSnap.size, questions: Object.values(demoQuestions) },
+    demographics: {
+      responses: demoSnap.size,
+      questions: Object.values(demoQuestions),
+    },
     menu: { responses: menu.responses, items: menuItems },
   };
 });
+

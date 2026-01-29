@@ -25,15 +25,34 @@ export const saveCompanyInfo = onCall(async (request) => {
       .limit(1)
       .get();
 
+    // inside saveCompanyInfo, replace ONLY the "already exists" block with this:
+
     if (!existingAdminRole.empty) {
       const existingRole = existingAdminRole.docs[0].data();
+      const organisationId = (existingRole.organisationId ?? "").toString().trim() || null;
+
+      // ✅ Patch user doc (best-effort)
+      try {
+        await db.collection("users").doc(userId).set(
+          {
+            organisationId,
+            role: "admin",
+            modifiedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        logger.warn(`Could not patch users/${userId} on existing org`, e);
+      }
+
       return {
         success: true,
         message: "Organisation already exists for this user",
-        organisationId: existingRole.organisationId,
+        organisationId,
         role: "admin",
       };
     }
+
 
 
     // 3️⃣ ✅ Sanitize payload (Option A: ignore unexpected fields)

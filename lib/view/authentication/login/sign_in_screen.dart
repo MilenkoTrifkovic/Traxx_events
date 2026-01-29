@@ -204,32 +204,5 @@ class _SignInScreenWidgetState extends State<SignInScreenWidget> {
         });
       }
     }));
-
-    // _workers.add(ever(controller.shouldNavigateToEmailVerification, (bool go) {
-    //   if (go) {
-    //     WidgetsBinding.instance.addPostFrameCallback((_) {
-    //       pushAndRemoveAllRoute(AppRoute.emailVerification, context);
-    //       controller.clearNavigationFlags();
-    //     });
-    //   }
-    // }));
-
-    // _workers.add(ever(controller.shouldNavigateToOrganisationInfo, (bool go) {
-    //   if (go) {
-    //     WidgetsBinding.instance.addPostFrameCallback((_) {
-    //       pushAndRemoveAllRoute(AppRoute.hostOrganisationInfoForm, context);
-    //       controller.clearNavigationFlags();
-    //     });
-    //   }
-    // }));
-
-    // _workers.add(ever(controller.shouldNavigateToHostEvents, (bool go) {
-    //   if (go) {
-    //     WidgetsBinding.instance.addPostFrameCallback((_) {
-    //       pushAndRemoveAllRoute(AppRoute.hostEvents, context);
-    //       controller.clearNavigationFlags();
-    //     });
-    //   }
-    // }));
   }
 }
