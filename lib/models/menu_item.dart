@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 enum FoodType { veg, nonVeg }
 
@@ -433,4 +434,16 @@ bool matchesDiet(MenuItemDto it, DietPreference pref) {
 
   if (pref == DietPreference.veg) return v == true;
   return v == false; // nonVeg
+}
+
+class FoodMeta {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const FoodMeta({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
 }

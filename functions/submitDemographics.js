@@ -45,6 +45,13 @@ export const submitDemographics = onCall(async (request) => {
     if (!isMainGuest && (isNaN(compIdx) || compIdx < 0)) {
       throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
     }
+    if (!isMainGuest) {
+      const c = companions[compIdx];
+      if (c?.attendingSubmitted === true && c?.isAttending === false) {
+        return { ok: true, skipped: true, reason: "companion_not_attending", companionIndex: compIdx };
+      }
+    }
+
 
     const invRef = db.collection("invitations").doc(invitationId);
 

@@ -30,7 +30,9 @@ import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/custom_error_page.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
+import 'package:traxx_wepapp/view/admin/event_details/admin_event_analyzer.dart';
 import 'package:traxx_wepapp/view/admin/event_details/admin_event_details.dart';
+import 'package:traxx_wepapp/view/admin/event_details/companions_rsvp.dart';
 import 'package:traxx_wepapp/view/admin/event_details/demographic_response_page.dart';
 import 'package:traxx_wepapp/view/admin/event_details/menu_response_page.dart';
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/rsvp_response_page.dart';
@@ -64,11 +66,6 @@ import 'package:traxx_wepapp/features/admin/admin_guest_side_preview/view/guest_
 import 'package:traxx_wepapp/utils/web_reload_stub.dart'
     if (dart.library.html) 'package:traxx_wepapp/utils/web_reload_web.dart';
 
-/// Router setup for the Traxx application.
-/// Currently implementing basic navigation structure with go_router.
-///
-
-/// Key for the host section's nested navigation
 final GlobalKey<NavigatorState> hostNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> guestNavigationKey =
     GlobalKey<NavigatorState>();
@@ -76,14 +73,10 @@ const double kNavCollapseWidth = 900; // when to switch sidebar -> drawer
 final GlobalKey<ScaffoldState> hostShellScaffoldKey =
     GlobalKey<ScaffoldState>();
 
-///
-/// Structure:
-/// - Public routes (welcome, about, contact)
-/// - Host section with nested navigation
 GoRouter buildRouter() {
   final eventController = Get.find<EventController>();
   final authController = Get.find<AuthController>();
-  Widget _spinner() {
+  Widget spinner() {
     // Keep it visually stable (no layout jumps)
     return const Scaffold(
       body: Center(
@@ -244,6 +237,25 @@ GoRouter buildRouter() {
         },
       ),
 
+      GoRoute(
+        path: AppRoute.companionRsvp.path,
+        builder: (context, state) {
+          final invitationId =
+              (state.uri.queryParameters['invitationId'] ?? '').trim();
+          final token = (state.uri.queryParameters['token'] ?? '').trim();
+          final idx = int.tryParse(
+                  (state.uri.queryParameters['companionIndex'] ?? '0')
+                      .trim()) ??
+              0;
+
+          return CompanionRsvpPage(
+            invitationId: invitationId,
+            token: token,
+            companionIndex: idx,
+          );
+        },
+      ),
+
       // GUEST RESPONSE SHELL ROUTE
       // Public routes for guests responding to invitations (RSVP → Demographics → Menu → Thank You)
       ShellRoute(
@@ -282,8 +294,10 @@ GoRouter buildRouter() {
               final token = state.uri.queryParameters['token'] ?? '';
               final eventName = state.uri.queryParameters['eventName'];
 
-              final forceDetails =
-                  (state.uri.queryParameters['view'] ?? '') == 'details';
+              final qp = state.uri.queryParameters;
+              final forceDetails = (qp['view'] ?? '') == 'details' ||
+                  (qp['forceDetails'] ?? '') == '1' ||
+                  (qp['forceDetails'] ?? '') == 'true';
 
               return RsvpResponsePage(
                 invitationId: invitationId,
@@ -403,10 +417,12 @@ GoRouter buildRouter() {
         redirect: (context, state) {
           if (authController.isLoading.value) return null;
           if (!authController.isAuthenticated) return AppRoute.welcome.path;
-          if (!authController.isAuthenticatedAndVerified)
+          if (!authController.isAuthenticatedAndVerified) {
             return AppRoute.emailVerification.path;
-          if (!authController.companyInfoExists)
+          }
+          if (!authController.companyInfoExists) {
             return AppRoute.hostOrganisationInfoForm.path;
+          }
           return null;
         },
         navigatorKey: hostNavigatorKey,
@@ -415,28 +431,34 @@ GoRouter buildRouter() {
           final eventListController = Get.find<EventListController>();
 
           return Obx(() {
-            if (authCtrl.isLoading.value) return _spinner();
-            if (!authCtrl.isAuthenticated) return _spinner();
+            if (authCtrl.isLoading.value) return spinner();
+            if (!authCtrl.isAuthenticated) return spinner();
 
             final orgId = (authCtrl.organisationId ?? '').trim();
-            if (orgId.isEmpty) return _spinner();
+            if (orgId.isEmpty) return spinner();
 
             // Ensure controllers exist (safe)
-            if (!Get.isRegistered<VenuesController>())
+            if (!Get.isRegistered<VenuesController>()) {
               Get.put(VenuesController());
-            if (!Get.isRegistered<MenusListController>())
+            }
+            if (!Get.isRegistered<MenusListController>()) {
               Get.put(MenusListController());
-            if (!Get.isRegistered<MenusScreenController>())
+            }
+            if (!Get.isRegistered<MenusScreenController>()) {
               Get.put(MenusScreenController());
-            if (!Get.isRegistered<EventsController>())
+            }
+            if (!Get.isRegistered<EventsController>()) {
               Get.put(EventsController());
+            }
             if (!Get.isRegistered<OrganisationController>()) {
               Get.put(OrganisationController(orgId));
             }
-            if (!Get.isRegistered<PaymentHistoryController>())
+            if (!Get.isRegistered<PaymentHistoryController>()) {
               Get.put(PaymentHistoryController());
-            if (!Get.isRegistered<UsersAndRolesController>())
+            }
+            if (!Get.isRegistered<UsersAndRolesController>()) {
               Get.put(UsersAndRolesController());
+            }
 
             return realShell(
               context: context,
@@ -475,8 +497,6 @@ GoRouter buildRouter() {
           GoRoute(
             path: AppRoute.hostVenueDetails.path,
             builder: (context, state) {
-              final venueId =
-                  state.pathParameters[AppRoute.hostVenueDetails.placeholder]!;
               return VenuesView();
             },
           ),
@@ -494,14 +514,9 @@ GoRouter buildRouter() {
             path: AppRoute.hostQuestions.path,
             builder: (context, state) {
               final setId = state.uri.queryParameters['setId'] ?? '';
-              final setTitle = state.uri.queryParameters['setTitle'] ?? '';
-              final setDescription =
-                  state.uri.queryParameters['setDescription'] ?? '';
-
               if (setId.isEmpty) {
                 return const QuestionSetsScreen();
               }
-
               return HostQuestionsScreen(
                 questionSetId: setId,
               );
@@ -511,34 +526,33 @@ GoRouter buildRouter() {
             path: AppRoute.hostQuestionRules.path,
             builder: (context, state) => const QuestionRulesScreen(),
           ),
-
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {
               final setId = state.pathParameters[
                   AppRoute.hostQuestionSetQuestions.placeholder]!;
-              final setTitle = state.uri.queryParameters['setTitle'] ?? '';
-              final setDescription =
-                  state.uri.queryParameters['setDescription'] ?? '';
               return HostQuestionsScreen(
                 questionSetId: setId,
               );
             },
           ),
-
           GoRoute(
             path: AppRoute.hostCreateEvent.path,
             builder: (context, state) => CreateEditEventView(),
           ),
           GoRoute(
             path: AppRoute.eventDetails.path,
-            builder: (context, state) {
-              final eventId =
-                  state.pathParameters[AppRoute.eventDetails.placeholder]!;
-              return AdminEventDetails(
-                eventId: eventId,
-              );
-            },
+            builder: (context, state) => AdminEventDetails(
+              eventId: state.pathParameters['eventId']!,
+            ),
+            routes: [
+              GoRoute(
+                path: 'analyzer',
+                builder: (context, state) => AdminEventAnalyzerPage(
+                  eventId: state.pathParameters['eventId']!,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: AppRoute.hostSettings.path,
@@ -610,7 +624,6 @@ GoRouter buildRouter() {
               return GuestSidePreviewPage(eventId: eventId);
             },
           ),
-
           GoRoute(
             path: AppRoute.eventGuests.path,
             builder: (context, state) => SetGuestsView(),
@@ -627,18 +640,14 @@ GoRouter buildRouter() {
               );
             },
           ),
-          // GoRoute(
-          //   path: AppRoute.hostDemographics.path,
-          //   builder: (context, state) {
-          //     final invitationId =
-          //         state.uri.queryParameters['invitationId'] ?? '';
-          //     return DemographicResponsePage(
-          //       invitationId: invitationId,
-          //       showInvitationInput: true,
-          //       embedded: true, // ✅ NEW
-          //     );
-          //   },
-          // ),
+          GoRoute(
+            path: AppRoute.eventAnalyzer.path,
+            builder: (context, state) {
+              final eventId =
+                  state.pathParameters[AppRoute.eventAnalyzer.placeholder]!;
+              return AdminEventAnalyzerPage(eventId: eventId);
+            },
+          ),
         ],
       ),
       // Guest Shell Route
@@ -658,10 +667,12 @@ GoRouter buildRouter() {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (!Get.isRegistered<VenuesController>())
+            if (!Get.isRegistered<VenuesController>()) {
               Get.put(VenuesController());
-            if (!Get.isRegistered<OrganisationController>())
+            }
+            if (!Get.isRegistered<OrganisationController>()) {
               Get.put(OrganisationController(orgId));
+            }
 
             if (eventListController.isLoading.value) {
               return const Center(child: CircularProgressIndicator());
@@ -725,16 +736,6 @@ GoRouter buildRouter() {
               if (selectedEvent != null) {
                 return RespondScreen(event: selectedEvent);
               }
-              // final Event? event;
-              // if (state.extra != null && state.extra is Event) {
-              //   event = state.extra as Event;
-              // } else {
-              //   event = null;
-              // }
-              // final eventId =
-              //     state.pathParameters[AppRoute.guestEventRespond.placeholder]!;
-              //     Event event = EventFetcher()
-              // return RespondScreen(eventId: eventId);
               return FutureBuilder<Event>(
                 future: EventFetcher.fetchEvent(eventId),
                 builder: (context, snapshot) {

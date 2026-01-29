@@ -39,7 +39,7 @@ export const submitMenuSelection = onCall(async (request) => {
       selectedMenuItemIds,
       companionIndex,
       dietPreference,
-      allergens, // ✅ NEW
+      allergens,
     } = request.data || {};
 
     if (!invitationId || !token) {
@@ -51,6 +51,7 @@ export const submitMenuSelection = onCall(async (request) => {
 
     const isMainGuest = companionIndex === null || companionIndex === undefined;
     const compIdx = isMainGuest ? null : parseInt(companionIndex, 10);
+
     if (!isMainGuest && (isNaN(compIdx) || compIdx < 0)) {
       throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
     }
@@ -64,7 +65,6 @@ export const submitMenuSelection = onCall(async (request) => {
       "both";
 
     const cleanedAllergens = cleanAllergens(allergens);
-
     const personKey = isMainGuest ? "main" : `c${compIdx}`;
 
     const invRef = db.collection("invitations").doc(invitationId);
@@ -74,9 +74,12 @@ export const submitMenuSelection = onCall(async (request) => {
     const result = await db.runTransaction(async (tx) => {
       const invSnap = await tx.get(invRef);
       if (!invSnap.exists) throw new HttpsError("not-found", "Invitation not found");
+
       const inv = invSnap.data() || {};
 
-      if ((inv.token || "") !== token) throw new HttpsError("permission-denied", "Invalid token");
+      if ((inv.token || "") !== token) {
+        throw new HttpsError("permission-denied", "Invalid token");
+      }
 
       const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
       if (expiresAt && expiresAt.getTime() < Date.now()) {
@@ -84,17 +87,40 @@ export const submitMenuSelection = onCall(async (request) => {
       }
 
       const companions = Array.isArray(inv.companions) ? [...inv.companions] : [];
+
       if (!isMainGuest && compIdx >= companions.length) {
         throw new HttpsError("invalid-argument", `Companion index ${compIdx} is out of range.`);
       }
 
-      // prerequisites
-      if (isMainGuest) {
-        if (inv.used !== true) throw new HttpsError("failed-precondition", "Demographic questions not submitted yet");
-      } else {
-        const companion = companions[compIdx];
-        if (companion.demographicSubmitted !== true) {
-          throw new HttpsError("failed-precondition", `Companion ${compIdx} has not submitted demographics yet`);
+      // ✅ attendance gate for companions (MUST be confirmed first)
+      if (!isMainGuest) {
+        const c = companions[compIdx] || {};
+        if (c.attendingSubmitted !== true) {
+          throw new HttpsError("failed-precondition", "Companion attendance not confirmed yet");
+        }
+        if (c.isAttending === false) {
+          return {
+            ok: true,
+            skipped: true,
+            reason: "companion_not_attending",
+            companionIndex: compIdx,
+          };
+        }
+      }
+
+      // ✅ prerequisites: demographics only if event requires it
+      const requiresDemo = !!inv.demographicQuestionSetId;
+
+      if (requiresDemo) {
+        if (isMainGuest) {
+          if (inv.used !== true) {
+            throw new HttpsError("failed-precondition", "Demographic questions not submitted yet");
+          }
+        } else {
+          const c = companions[compIdx] || {};
+          if (c.demographicSubmitted !== true) {
+            throw new HttpsError("failed-precondition", `Companion ${compIdx} has not submitted demographics yet`);
+          }
         }
       }
 
@@ -103,7 +129,7 @@ export const submitMenuSelection = onCall(async (request) => {
         ? (inv.menuSelectionSubmitted === true)
         : (companions[compIdx]?.menuSubmitted === true);
 
-      // ✅ if already submitted: still patch diet+allergens, then return
+      // ✅ if already submitted: patch diet+allergens, then return
       if (alreadySubmitted) {
         const patch = {
           [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
@@ -122,10 +148,17 @@ export const submitMenuSelection = onCall(async (request) => {
           tx.update(invRef, { ...patch, companions });
         }
 
-        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens, patched: true };
+        return {
+          ok: true,
+          alreadySubmitted: true,
+          patched: true,
+          companionIndex: compIdx,
+          dietPreference: normalizedPref,
+          allergens: cleanedAllergens,
+        };
       }
 
-      // extra safety
+      // extra safety: response doc exists
       const existing = await tx.get(respRef);
       if (existing.exists) {
         const patch = {
@@ -134,8 +167,9 @@ export const submitMenuSelection = onCall(async (request) => {
           modifiedAt: FieldValue.serverTimestamp(),
         };
 
-        if (isMainGuest) tx.update(invRef, patch);
-        else {
+        if (isMainGuest) {
+          tx.update(invRef, patch);
+        } else {
           companions[compIdx] = {
             ...companions[compIdx],
             dietPreference: normalizedPref,
@@ -144,14 +178,21 @@ export const submitMenuSelection = onCall(async (request) => {
           tx.update(invRef, { ...patch, companions });
         }
 
-        return { ok: true, alreadySubmitted: true, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens, patched: true };
+        return {
+          ok: true,
+          alreadySubmitted: true,
+          patched: true,
+          companionIndex: compIdx,
+          dietPreference: normalizedPref,
+          allergens: cleanedAllergens,
+        };
       }
 
-      // ----- existing validation logic -----
+      // ----- validate selection against event allowed items -----
       const cleaned = normalizeIds(selectedMenuItemIds);
       const cleanedSet = new Set(cleaned);
 
-      const eventId = (inv.eventId || "").toString();
+      const eventId = (inv.eventId || "").toString().trim();
       if (!eventId) throw new HttpsError("failed-precondition", "Invitation missing eventId");
 
       const eventObj = await getEventDataByEventIdTx(tx, eventId);
@@ -165,10 +206,12 @@ export const submitMenuSelection = onCall(async (request) => {
       const allowedSet = new Set(allowedIds);
 
       for (const id of cleaned) {
-        if (!allowedSet.has(id)) throw new HttpsError("invalid-argument", "Invalid menu item selected");
+        if (!allowedSet.has(id)) {
+          throw new HttpsError("invalid-argument", "Invalid menu item selected");
+        }
       }
 
-      // enforce maxPick only (no required enforcement)
+      // enforce maxPick only
       const { groups: safeGroups } = sanitizeMenuItemGroups(rawGroups, allowedSet, null);
       const groupSelections = {};
 
@@ -181,12 +224,15 @@ export const submitMenuSelection = onCall(async (request) => {
             count += 1;
             if (picked == null) picked = id;
             if (count > g.maxPick) {
-              throw new HttpsError("invalid-argument", `You can select only ${g.maxPick} item(s) from "${g.name}".`);
+              throw new HttpsError(
+                "invalid-argument",
+                `You can select only ${g.maxPick} item(s) from "${g.name}".`
+              );
             }
           }
         }
 
-        groupSelections[g.groupId] = picked; // may be null (allowed)
+        groupSelections[g.groupId] = picked; // may be null
       }
 
       // guest identity
@@ -196,13 +242,13 @@ export const submitMenuSelection = onCall(async (request) => {
         guestEmail = inv.guestEmail || "";
         guestName = inv.guestName || "";
       } else {
-        const companion = companions[compIdx];
-        guestId = companion.guestId || null;
-        guestEmail = companion.email || "";
-        guestName = companion.name || "";
+        const c = companions[compIdx] || {};
+        guestId = c.guestId || null;
+        guestEmail = c.guestEmail || c.email || "";
+        guestName = c.guestName || c.name || "";
       }
 
-      // response doc includes diet + allergens
+      // write response doc
       tx.set(respRef, {
         eventId: inv.eventId || "",
         organisationId: inv.organisationId || "",
@@ -263,23 +309,22 @@ export const submitMenuSelection = onCall(async (request) => {
         });
       }
 
-      return { ok: true, alreadySubmitted: false, companionIndex: compIdx, dietPreference: normalizedPref, allergens: cleanedAllergens };
-    });
-
-    console.log("✅ submitMenuSelection WRITE", {
-      invitationId,
-      isMainGuest,
-      compIdx,
-      personKey,
-      normalizedPref,
-      cleanedAllergens,
+      return {
+        ok: true,
+        skipped: false,
+        alreadySubmitted: false,
+        companionIndex: compIdx,
+        dietPreference: normalizedPref,
+        allergens: cleanedAllergens,
+      };
     });
 
     return result;
   } catch (err) {
     console.error("submitMenuSelection error:", err);
-    throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
+    throw err instanceof HttpsError
+      ? err
+      : new HttpsError("internal", err?.message ?? "Unknown error");
   }
 });
-
 

@@ -120,7 +120,6 @@ class _EventDemographicAnalyzerPageState
             Row(
               children: [
                 IconButton(
-                  tooltip: 'Back',
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
                 ),
@@ -142,7 +141,6 @@ class _EventDemographicAnalyzerPageState
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Refresh',
                   onPressed: _loading ? null : _load,
                   icon: const Icon(Icons.refresh),
                 ),

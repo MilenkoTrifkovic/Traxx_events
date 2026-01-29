@@ -14,9 +14,8 @@ export const addCompanionToInvitation = onCall(async (request) => {
     }
 
     function makeBatchId() {
-      return String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+      return String(Math.floor(100000 + Math.random() * 900000));
     }
-
 
     const name = (companion.name ?? "").toString().trim();
     const email = (companion.email ?? "").toString().trim();
@@ -25,6 +24,10 @@ export const addCompanionToInvitation = onCall(async (request) => {
     }
     const emailLower = email.toLowerCase();
 
+    // ✅ allow bool or null
+    const isAttending =
+      typeof companion.isAttending === "boolean" ? companion.isAttending : null;
+
     const invRef = db.collection("invitations").doc(invitationId);
 
     const result = await db.runTransaction(async (tx) => {
@@ -32,9 +35,7 @@ export const addCompanionToInvitation = onCall(async (request) => {
       if (!invSnap.exists) throw new HttpsError("not-found", "Invitation not found");
 
       const inv = invSnap.data() || {};
-      if ((inv.token || "") !== token) {
-        throw new HttpsError("permission-denied", "Invalid token");
-      }
+      if ((inv.token || "") !== token) throw new HttpsError("permission-denied", "Invalid token");
 
       const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
       if (expiresAt && expiresAt.getTime() < Date.now()) {
@@ -49,35 +50,33 @@ export const addCompanionToInvitation = onCall(async (request) => {
       if (!mainGuestId) throw new HttpsError("failed-precondition", "Invitation missing guestId");
 
       const companionsCount = Number(inv.companionsCount || 0);
-      if (companionsCount <= 0) {
-        throw new HttpsError("failed-precondition", "companionsCount is 0");
-      }
+      if (companionsCount <= 0) throw new HttpsError("failed-precondition", "companionsCount is 0");
 
       const existing = Array.isArray(inv.companions) ? inv.companions : [];
+
+      // ✅ duplicate check among companions only
       const already = existing.some((c) => {
-        const cEmail = (c?.guestEmailLower ?? c?.guestEmail ?? "").toString().trim().toLowerCase();
+        const cEmail = (c?.guestEmailLower ?? c?.guestEmail ?? "")
+          .toString()
+          .trim()
+          .toLowerCase();
         return cEmail === emailLower;
       });
-      if (already) {
-        throw new HttpsError("already-exists", "A companion with this email already exists");
-      }
+      if (already) throw new HttpsError("already-exists", "A companion with this email already exists");
 
-      // ✅ groupId: keep it stable and easy (use main guest id)
+      const companionIndex = existing.length;
       const groupId = mainGuestId;
 
-      // Ensure main guest has groupId (helps your existing "getGroupIdForMainGuest")
-      const mainGuestRef = db.collection("guests").doc(mainGuestId);
-      tx.set(mainGuestRef, { groupId }, { merge: true });
+      // ensure main guest has groupId
+      tx.set(db.collection("guests").doc(mainGuestId), { groupId }, { merge: true });
 
-      // Create companion guest doc
       const guestRef = db.collection("guests").doc();
       const now = Timestamp.now();
-
-      const companionBatchId = makeBatchId();
+      const batchId = makeBatchId();
 
       tx.set(guestRef, {
-        guestId: guestRef.id,          // ✅ add this too (helps your models)
-        batchId: companionBatchId,  
+        guestId: guestRef.id,
+        batchId,
         name,
         email,
         guestEmailLower: emailLower,
@@ -88,15 +87,25 @@ export const addCompanionToInvitation = onCall(async (request) => {
         isInvited: false,
         isCompanion: true,
         groupId,
-        invitationId,
-        createdAt: now,
-        modifiedAt: now,
+
+        invitationId, // keep legacy
+        parentInvitationId: invitationId,
+        parentInvitationToken: token,
+        companionIndex,
+
+        // ✅ attendance
+        isAttending,
+        attendingSubmitted: false,
+        attendingSubmittedAt: null,
 
         address: companion.address ?? null,
         city: companion.city ?? null,
         state: companion.state ?? null,
         country: companion.country ?? null,
         gender: companion.gender ?? null,
+
+        createdAt: now,
+        modifiedAt: now,
       });
 
       const newCompanions = [
@@ -107,6 +116,13 @@ export const addCompanionToInvitation = onCall(async (request) => {
           guestEmail: email,
           guestEmailLower: emailLower,
           groupId,
+          companionIndex,
+
+          // ✅ attendance
+          isAttending,
+          attendingSubmitted: false,
+          attendingSubmittedAt: null,
+
           createdAt: now,
         },
       ];
@@ -122,20 +138,13 @@ export const addCompanionToInvitation = onCall(async (request) => {
         updatedAt: now,
       });
 
-      return {
-        guestId: guestRef.id,
-        batchId: companionBatchId, 
-        groupId,
-        savedCompanionsCount: savedCount,
-        remainingCompanionsToCreate: remaining,
-      };
+      return { guestId: guestRef.id, batchId, companionIndex };
     });
 
     return { ok: true, ...result };
   } catch (err) {
     console.error("addCompanionToInvitation error:", err);
-    throw err instanceof HttpsError
-      ? err
-      : new HttpsError("internal", err?.message ?? "Unknown error");
+    throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
   }
 });
+

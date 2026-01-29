@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:traxx_wepapp/helper/menu_category_helper.dart';
 import 'package:traxx_wepapp/models/organisation.dart';
 import 'package:traxx_wepapp/services/firestore_services/firestore_services.dart';
 import 'package:traxx_wepapp/services/storage_services.dart';
@@ -116,5 +117,33 @@ class OrganisationController extends GetxController {
 
   void clearOrganisation() {
     organisation.value = null;
+  }
+
+  Future<void> ensureCustomCategoryExists(String category) async {
+    final c = MenuCategoryHelper.formatCategoryName(category);
+    if (c.trim().isEmpty) return;
+
+    // Don’t store enum categories as custom
+    if (MenuCategoryHelper.isEnumCategory(c)) return;
+
+    final org = organisation.value;
+    final orgId = (org?.organisationId ?? '').trim();
+    if (orgId.isEmpty) return;
+
+    final existing = (org?.customMenuCategories ?? []);
+    final exists =
+        existing.any((x) => x.trim().toLowerCase() == c.toLowerCase());
+    if (exists) return;
+
+    // optimistic local update
+    organisation.value = org!.copyWith(customMenuCategories: [...existing, c]);
+
+    await FirebaseFirestore.instance.collection('organisations').doc(orgId).set(
+      {
+        'customMenuCategories': FieldValue.arrayUnion([c]),
+        'modifiedDate': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 }

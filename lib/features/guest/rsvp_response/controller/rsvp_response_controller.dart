@@ -320,6 +320,7 @@ class RsvpResponseController extends GetxController {
     String? state,
     String? country,
     Gender? gender,
+    bool? isAttending,
   }) async {
     if (invitationId == null || invitationId!.isEmpty) {
       error.value = 'Invitation ID is not available';
@@ -349,6 +350,7 @@ class RsvpResponseController extends GetxController {
           'state': state?.trim(),
           'country': country?.trim(),
           'gender': gender?.name, // store as string
+          'isAttending': isAttending,
         }
       });
 
@@ -389,14 +391,9 @@ class RsvpResponseController extends GetxController {
   }) {
     final trimmedEmail = email.trim().toLowerCase();
 
-    // Check against primary guest email
-    final primaryGuestEmail = invitationStatus.value?.guestEmail;
-    if (primaryGuestEmail != null &&
-        trimmedEmail == primaryGuestEmail.trim().toLowerCase()) {
-      return 'Companion email cannot be the same as your email address';
-    }
+    // ✅ ALLOW same email as primary guest (remove the old check)
 
-    // Check against saved companions
+    // Check against saved companions (still keep this)
     final existingCompanions = invitationStatus.value?.companions ?? [];
     final duplicateInSaved = existingCompanions.any((companion) {
       final companionEmail =
@@ -408,18 +405,17 @@ class RsvpResponseController extends GetxController {
       return 'A companion with this email already exists';
     }
 
-    // Check against other pending emails (if provided)
+    // Check against other pending emails (still keep this)
     if (otherPendingEmails != null) {
-      final duplicateInPending = otherPendingEmails.any((otherEmail) {
-        return otherEmail.trim().toLowerCase() == trimmedEmail;
-      });
-
+      final duplicateInPending = otherPendingEmails.any(
+        (e) => e.trim().toLowerCase() == trimmedEmail,
+      );
       if (duplicateInPending) {
         return 'This email is already used for another companion. Please use a different email address.';
       }
     }
 
-    return null; // Valid
+    return null;
   }
 
   /// Validates that all companion emails in a list are unique
@@ -465,6 +461,7 @@ class RsvpResponseController extends GetxController {
   Future<String?> validateAndCreateCompanion({
     required String name,
     required String email,
+    bool? isAttending,
     String? address,
     String? city,
     String? state,
@@ -485,6 +482,7 @@ class RsvpResponseController extends GetxController {
     final guestId = await createAndInviteGuest(
       name: name,
       email: email,
+      isAttending: isAttending,
       address: address,
       city: city,
       state: state,
@@ -561,6 +559,7 @@ class RsvpResponseController extends GetxController {
             'gender': (c['gender'] is Gender)
                 ? (c['gender'] as Gender).name
                 : c['gender'],
+            'isAttending': c['isAttending'],
           },
         });
 

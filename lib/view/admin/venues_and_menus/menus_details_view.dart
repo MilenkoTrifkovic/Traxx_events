@@ -1464,21 +1464,37 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                           // Category + Food type (responsive row)
                           LayoutBuilder(
                             builder: (context, c) {
+                              final categories =
+                                  MenuCategoryHelper.getAllCategories(
+                                      include: _category);
+
+// normalize local value to match helper formatting
+                              final current =
+                                  MenuCategoryHelper.formatCategoryName(
+                                      _category);
+
+// ensure dropdown value always exists
+                              final safeValue = categories.contains(current)
+                                  ? current
+                                  : (categories.isNotEmpty
+                                      ? categories.first
+                                      : 'Other');
                               final stack = c.maxWidth < 420;
                               final cat = DropdownButtonFormField<String>(
-                                initialValue: _category,
-                                items: MenuCategoryHelper
-                                    .getCategoryDropdownItems(),
+                                value: safeValue,
+                                items:
+                                    MenuCategoryHelper.getCategoryDropdownItems(
+                                        include: safeValue),
                                 onChanged: (v) {
-                                  if (v != null) setState(() => _category = v);
+                                  if (v == null) return;
+                                  setState(() => _category = v);
                                 },
                                 decoration: InputDecoration(
                                   labelText: 'Category',
                                   labelStyle: GoogleFonts.poppins(
                                       fontWeight: FontWeight.w600),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
+                                      borderRadius: BorderRadius.circular(14)),
                                 ),
                               );
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:traxx_wepapp/helper/validation_helper.dart';
 import 'package:traxx_wepapp/theme/app_font_weight.dart';
 import 'package:traxx_wepapp/theme/styled_app_text.dart';
@@ -20,7 +21,12 @@ class CompanionFormWidget extends StatelessWidget {
   final RxnString selectedState;
   final Rxn<Gender> selectedGender;
   final String? companionNumber;
-  final bool readOnly; // If true, displays form in read-only mode
+  final bool readOnly;
+
+  /// ✅ NEW
+  final RxBool willAttend;
+  final bool attendanceDisabled; // disable chips when inviteByEmail or readOnly
+  final bool showAttendanceHint;
 
   const CompanionFormWidget({
     super.key,
@@ -34,16 +40,22 @@ class CompanionFormWidget extends StatelessWidget {
     required this.selectedGender,
     this.companionNumber,
     this.readOnly = false,
+
+    // ✅ NEW
+    required this.willAttend,
+    this.attendanceDisabled = false,
+    this.showAttendanceHint = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final chipsDisabled = readOnly || attendanceDisabled;
+
     return Form(
       key: formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Show companion number if provided
           if (companionNumber != null) ...[
             AppText.styledHeadingSmall(
               context,
@@ -59,12 +71,14 @@ class CompanionFormWidget extends StatelessWidget {
             controller: nameController,
             hintText: 'Enter companion full name',
             readOnly: readOnly,
-            validator: readOnly ? null : (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Name is required';
-              }
-              return null;
-            },
+            validator: readOnly
+                ? null
+                : (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Name is required';
+                    }
+                    return null;
+                  },
           ),
 
           // Email (required)
@@ -76,6 +90,16 @@ class CompanionFormWidget extends StatelessWidget {
             readOnly: readOnly,
             validator: readOnly ? null : ValidationHelper.validateEmail,
           ),
+
+          // ✅ NEW: Attendance chips
+          const SizedBox(height: 12),
+          AttendChips(
+            willAttend: willAttend,
+            disabled: chipsDisabled,
+            showHint: showAttendanceHint,
+          ),
+
+          const SizedBox(height: 12),
 
           // Address (optional)
           AppTextInputField(
@@ -108,17 +132,18 @@ class CompanionFormWidget extends StatelessWidget {
                   child: Text(country),
                 );
               }).toList(),
-              onChanged: readOnly ? null : (String? newValue) {
-                selectedCountry.value = newValue;
-                // Clear state when country changes
-                if (newValue != 'United States') {
-                  selectedState.value = null;
-                }
-              },
+              onChanged: readOnly
+                  ? null
+                  : (String? newValue) {
+                      selectedCountry.value = newValue;
+                      if (newValue != 'United States') {
+                        selectedState.value = null;
+                      }
+                    },
             );
           }),
 
-          // State dropdown - Only for United States
+          // State dropdown - only for United States
           Obx(() {
             if (selectedCountry.value != 'United States') {
               return const SizedBox.shrink();
@@ -138,9 +163,7 @@ class CompanionFormWidget extends StatelessWidget {
               }).toList(),
               onChanged: readOnly
                   ? null
-                  : (String? newValue) {
-                      selectedState.value = newValue;
-                    },
+                  : (String? newValue) => selectedState.value = newValue,
             );
           }),
 
@@ -160,9 +183,8 @@ class CompanionFormWidget extends StatelessWidget {
                         ),
                       ))
                   .toList(),
-              onChanged: readOnly ? null : (value) {
-                selectedGender.value = value;
-              },
+              onChanged:
+                  readOnly ? null : (value) => selectedGender.value = value,
             );
           }),
         ],
@@ -177,5 +199,69 @@ class CompanionFormWidget extends StatelessWidget {
             ? word
             : word[0].toUpperCase() + word.substring(1).toLowerCase())
         .join(' ');
+  }
+}
+
+/// ✅ NEW: This is the chips UI
+class AttendChips extends StatelessWidget {
+  final RxBool willAttend;
+  final bool disabled;
+  final bool showHint;
+
+  const AttendChips({
+    super.key,
+    required this.willAttend,
+    required this.disabled,
+    this.showHint = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final attending = willAttend.value;
+
+      ChoiceChip chip(String label, bool value) {
+        return ChoiceChip(
+          selected: attending == value,
+          label: Text(label),
+          onSelected: disabled ? null : (_) => willAttend.value = value,
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppText.styledBodyLarge(
+              context,
+              'Will this companion attend?',
+              weight: AppFontWeight.semiBold,
+            ),
+            if (showHint) ...[
+              const SizedBox(height: 6),
+              AppText.styledBodySmall(
+                context,
+                'Companion will confirm attendance via email.',
+                color: Colors.grey.shade700,
+              ),
+            ],
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              children: [
+                chip('Yes', true),
+                chip('No', false),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

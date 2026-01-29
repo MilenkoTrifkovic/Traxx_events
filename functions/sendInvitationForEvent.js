@@ -66,6 +66,16 @@ function pointerId(eventId, guestId) {
   return `${eventId}_${guestId}`;
 }
 
+function buildCompanionRsvpLink(invId, invToken, companionIndex) {
+  return (
+    `${APP_BASE_URL}/companion-rsvp?invitationId=${encodeURIComponent(invId)}` +
+    `&token=${encodeURIComponent(invToken)}` +
+    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
+    `&v=${Date.now()}`
+  );
+}
+
+
 // ✅ Encode a GCS path but KEEP slashes.
 // uploads/my photo.jpg -> uploads/my%20photo.jpg
 function encodeGcsPath(path) {
@@ -132,6 +142,60 @@ function formatEventDate(timestamp) {
   return date.toLocaleString("en-US", options);
 }
 
+function personKeyFromIndex(idx) {
+  if (idx === null || idx === undefined) return "main";
+  return `c${idx}`;
+}
+
+function hasDemoForPerson(inv, key) {
+  // Try common structures (keep this flexible)
+  const byPerson =
+    inv.demographicsByPerson?.[key] ||
+    inv.demographicByPerson?.[key] ||
+    inv.demographicResponsesByPerson?.[key] ||
+    null;
+
+  const t =
+    byPerson?.submittedAt ||
+    byPerson?.demographicsSubmittedAt ||
+    null;
+
+  return !!t;
+}
+
+function hasMenuForPerson(inv, key) {
+  const m = inv.menuSelectionByPerson?.[key] || null;
+  const t = m?.submittedAt || m?.menuSubmittedAt || null;
+  return !!t;
+}
+
+function buildDetailsLink(invId, invToken) {
+  return (
+    `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
+    `&token=${encodeURIComponent(invToken)}` +
+    `&forceDetails=1&v=${Date.now()}`
+  );
+}
+
+function buildDemoLink(invId, invToken, companionIndex) {
+  return (
+    `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(invId)}` +
+    `&token=${encodeURIComponent(invToken)}` +
+    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
+    `&v=${Date.now()}`
+  );
+}
+
+function buildMenuLink(invId, invToken, companionIndex) {
+  return (
+    `${APP_BASE_URL}/menu-selection?invitationId=${encodeURIComponent(invId)}` +
+    `&token=${encodeURIComponent(invToken)}` +
+    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
+    `&v=${Date.now()}`
+  );
+}
+
+
 export const sendInvitations = onCall(
   { secrets: [POSTMARK_SERVER_TOKEN] },
   async (request) => {
@@ -148,21 +212,20 @@ export const sendInvitations = onCall(
         invitationCode: eventInvitationCode,
       } = request.data || {};
 
-      if (!eventId)
-        throw new HttpsError("invalid-argument", "eventId is required");
+      if (!eventId) throw new HttpsError("invalid-argument", "eventId is required");
       if (!Array.isArray(invitations) || invitations.length === 0) {
         throw new HttpsError("invalid-argument", "invitations array required");
       }
 
-      const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
-      if (!token) {
+      const pmToken = (POSTMARK_SERVER_TOKEN.value() || "").trim();
+      if (!pmToken) {
         throw new HttpsError(
           "failed-precondition",
           "POSTMARK_SERVER_TOKEN missing/empty at runtime."
         );
       }
 
-      const client = new postmark.ServerClient(token);
+      const client = new postmark.ServerClient(pmToken);
       const results = [];
 
       // ✅ Fetch event details once
@@ -177,16 +240,12 @@ export const sendInvitations = onCall(
       const eventStartDateTime = eventData?.startDateTime;
       const eventEndDateTime = eventData?.endDateTime;
 
-      // ✅ Prefer coverImagePath; fallback to coverImageUrl
       const coverPathOrUrl =
         (eventData?.coverImagePath || "").toString().trim() ||
         (eventData?.coverImageUrl || "").toString().trim() ||
         "";
 
-      // ✅ Resolve ONCE
-      const eventImageUrl = await resolveImageUrl(coverPathOrUrl, {
-        signedDays: 30,
-      });
+      const eventImageUrl = await resolveImageUrl(coverPathOrUrl, { signedDays: 30 });
 
       const logoUrl = await resolveImageUrl("app_images/light-logo.png", {
         signedDays: 365,
@@ -194,6 +253,31 @@ export const sendInvitations = onCall(
 
       const formattedStartDate = formatEventDate(eventStartDateTime);
       const formattedEndDate = formatEventDate(eventEndDateTime);
+
+      function buildNormalLink(invId, invToken) {
+        return (
+          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
+          `&token=${encodeURIComponent(invToken)}` +
+          `&v=${Date.now()}`
+        );
+      }
+
+      function buildDetailsLink(invId, invToken) {
+        return (
+          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
+          `&token=${encodeURIComponent(invToken)}` +
+          `&forceDetails=1&v=${Date.now()}`
+        );
+      }
+
+      function buildCompanionRsvpLink(invId, invToken, companionIndex) {
+        return (
+          `${APP_BASE_URL}/companion-rsvp?invitationId=${encodeURIComponent(invId)}` +
+          `&token=${encodeURIComponent(invToken)}` +
+          `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
+          `&v=${Date.now()}`
+        );
+      }
 
       for (const guest of invitations) {
         const guestEmail = (guest?.guestEmail || "").trim();
@@ -217,83 +301,192 @@ export const sendInvitations = onCall(
         let invToken = null;
         let guestInvitationCode = null;
 
-        // ✅ CASE A: guestId exists -> uniqueness = (eventId + guestId)
+        let isCompanionInvite = false;
+        let companionIndex = null;
+
+        let finalLink = "";
+        let ctaLabel = "Accept Invitation & RSVP";
+        let headline = "You're Invited!";
+        let bodyLine =
+          "Please click the button below to confirm your attendance, complete your details, and select your menu preferences.";
+
+        // ─────────────────────────────────────────────
+        // ✅ 1) Detect companion guest
+        // ─────────────────────────────────────────────
         if (gid) {
-          const ptrRef = db
-            .collection(POINTERS_COL)
-            .doc(pointerId(eventId, gid));
+          try {
+            const gSnap = await db.collection("guests").doc(gid).get();
+            if (gSnap.exists) {
+              const g = gSnap.data() || {};
+              const parentInvId =
+                (g.parentInvitationId || g.invitationId || "").toString().trim();
 
-          await db.runTransaction(async (tx) => {
-            const ptrSnap = await tx.get(ptrRef);
+              if (g.isCompanion === true && parentInvId) {
+                isCompanionInvite = true;
 
-            if (ptrSnap.exists) {
-              invId = (ptrSnap.data()?.invitationId || "").toString().trim();
-              if (!invId) throw new Error("Pointer has empty invitationId");
+                const parentInvRef = db.collection("invitations").doc(parentInvId);
+                const parentInvSnap = await parentInvRef.get();
+                if (!parentInvSnap.exists) {
+                  throw new Error(`Parent invitation ${parentInvId} not found`);
+                }
 
-              invRef = db.collection("invitations").doc(invId);
-              const snap = await tx.get(invRef);
-              invData = snap.exists ? snap.data() || {} : {};
-            } else {
-              const q = db
-                .collection("invitations")
-                .where("eventId", "==", eventId)
-                .where("guestId", "==", gid)
-                .limit(10);
+                const parentInv = parentInvSnap.data() || {};
+                invRef = parentInvRef;
+                invId = parentInvId;
+                invData = parentInv;
 
-              const qSnap = await tx.get(q);
+                invToken =
+                  (g.parentInvitationToken || parentInv.token || "").toString().trim();
 
-              if (!qSnap.empty) {
-                const chosen = pickEarliestByCreatedAt(qSnap.docs);
-                invRef = chosen.ref;
-                invId = chosen.id;
-                invData = chosen.data() || {};
+                if (!invToken) {
+                  throw new Error(`Parent invitation token missing for ${parentInvId}`);
+                }
 
-                tx.set(
-                  ptrRef,
-                  {
+                // companionIndex
+                if (typeof g.companionIndex === "number") {
+                  companionIndex = g.companionIndex;
+                } else {
+                  const comps = Array.isArray(parentInv.companions)
+                    ? parentInv.companions
+                    : [];
+                  const idx = comps.findIndex((c) => (c?.guestId || "") === gid);
+                  if (idx >= 0) companionIndex = idx;
+                }
+                if (companionIndex === null || companionIndex === undefined) {
+                  companionIndex = 0;
+                }
+
+                guestInvitationCode =
+                  (parentInv.invitationCode || "").toString().trim() || null;
+
+                const invitingByEmail = parentInv.isInvitingCompanionsByEmail === true;
+
+                if (!invitingByEmail) {
+                  // ✅ main guest already added details → details-only link
+                  finalLink = buildDetailsLink(invId, invToken);
+                  ctaLabel = "View Event Details";
+                  headline = "Event Details";
+                  bodyLine =
+                    "Your details were already submitted. Click below to view the event details and your responses.";
+                } else {
+                  // ✅ companion answers themselves → go to attendance page first
+                  finalLink = buildCompanionRsvpLink(invId, invToken, companionIndex);
+                  ctaLabel = "RSVP for Yourself";
+                  headline = "You're Invited as a Companion!";
+                  bodyLine =
+                    "Please confirm whether you will attend, then complete your preferences.";
+                }
+              }
+            }
+          } catch (e) {
+            console.error("⚠️ companion detection failed:", e);
+            isCompanionInvite = false;
+          }
+        }
+
+        // ─────────────────────────────────────────────
+        // ✅ 2) Normal flow: create/reuse invitation
+        // ─────────────────────────────────────────────
+        if (!isCompanionInvite) {
+          // CASE A: guestId exists (use pointer uniqueness)
+          if (gid) {
+            const ptrRef = db.collection(POINTERS_COL).doc(pointerId(eventId, gid));
+
+            await db.runTransaction(async (tx) => {
+              const ptrSnap = await tx.get(ptrRef);
+
+              if (ptrSnap.exists) {
+                invId = (ptrSnap.data()?.invitationId || "").toString().trim();
+                if (!invId) throw new Error("Pointer has empty invitationId");
+
+                invRef = db.collection("invitations").doc(invId);
+                const snap = await tx.get(invRef);
+                invData = snap.exists ? snap.data() || {} : {};
+              } else {
+                const q = db
+                  .collection("invitations")
+                  .where("eventId", "==", eventId)
+                  .where("guestId", "==", gid)
+                  .limit(10);
+
+                const qSnap = await tx.get(q);
+
+                if (!qSnap.empty) {
+                  const chosen = pickEarliestByCreatedAt(qSnap.docs);
+                  invRef = chosen.ref;
+                  invId = chosen.id;
+                  invData = chosen.data() || {};
+
+                  tx.set(
+                    ptrRef,
+                    { eventId, guestId: gid, invitationId: invId, createdAt: Timestamp.now() },
+                    { merge: true }
+                  );
+                } else {
+                  invRef = db.collection("invitations").doc();
+                  invId = invRef.id;
+                  invData = {};
+
+                  tx.set(ptrRef, {
                     eventId,
                     guestId: gid,
                     invitationId: invId,
                     createdAt: Timestamp.now(),
-                  },
-                  { merge: true }
-                );
-              } else {
-                invRef = db.collection("invitations").doc();
-                invId = invRef.id;
-                invData = {};
-
-                tx.set(ptrRef, {
-                  eventId,
-                  guestId: gid,
-                  invitationId: invId,
-                  createdAt: Timestamp.now(),
-                });
+                  });
+                }
               }
-            }
 
-            const storedGid = (invData?.guestId ?? "").toString().trim();
-            if (storedGid && storedGid !== gid) {
-              throw new HttpsError(
-                "failed-precondition",
-                `Invitation collision: invitationId=${invId} belongs to guestId=${storedGid}, attempted guestId=${gid}`
+              const storedGid = (invData?.guestId ?? "").toString().trim();
+              if (storedGid && storedGid !== gid) {
+                throw new HttpsError(
+                  "failed-precondition",
+                  `Invitation collision: invitationId=${invId} belongs to guestId=${storedGid}, attempted guestId=${gid}`
+                );
+              }
+
+              invToken = (invData?.token || "").toString().trim() || makeToken();
+              guestInvitationCode =
+                (invData?.invitationCode || "").toString().trim() || makeInvitationCode();
+
+              tx.set(
+                invRef,
+                {
+                  invitationId: invId,
+                  eventId,
+                  organisationId: organisationId || null,
+                  guestId: gid,
+                  guestEmail,
+                  guestEmailLower: emailLower(guestEmail),
+                  guestName,
+                  maxGuestInvite,
+                  demographicQuestionSetId: demographicQuestionSetId || null,
+                  token: invToken,
+                  invitationCode: guestInvitationCode,
+                  ...(eventInvitationCode && { eventInvitationCode }),
+                  createdAt: invData?.createdAt ?? Timestamp.now(),
+                  expiresAt,
+                  sent: false,
+                  lastSendAttemptAt: Timestamp.now(),
+                  ...(batchId && { batchId }),
+                },
+                { merge: true }
               );
-            }
+            });
 
-            invToken =
-              (invData?.token || "").toString().trim() || makeToken();
+            finalLink = buildNormalLink(invId, invToken);
+          } else {
+            // CASE B: guestId missing -> always create new invitation
+            invRef = db.collection("invitations").doc();
+            invId = invRef.id;
+            invToken = makeToken();
+            guestInvitationCode = makeInvitationCode();
 
-            guestInvitationCode =
-              (invData?.invitationCode || "").toString().trim() ||
-              makeInvitationCode();
-
-            tx.set(
-              invRef,
+            await invRef.set(
               {
                 invitationId: invId,
                 eventId,
                 organisationId: organisationId || null,
-                guestId: gid,
+                guestId: null,
                 guestEmail,
                 guestEmailLower: emailLower(guestEmail),
                 guestName,
@@ -302,7 +495,7 @@ export const sendInvitations = onCall(
                 token: invToken,
                 invitationCode: guestInvitationCode,
                 ...(eventInvitationCode && { eventInvitationCode }),
-                createdAt: invData?.createdAt ?? Timestamp.now(),
+                createdAt: Timestamp.now(),
                 expiresAt,
                 sent: false,
                 lastSendAttemptAt: Timestamp.now(),
@@ -310,62 +503,32 @@ export const sendInvitations = onCall(
               },
               { merge: true }
             );
-          });
-        } else {
-          // ✅ CASE B: guestId missing -> ALWAYS create new invitation
-          invRef = db.collection("invitations").doc();
-          invId = invRef.id;
-          invToken = makeToken();
-          guestInvitationCode = makeInvitationCode();
 
-          await invRef.set(
-            {
-              invitationId: invId,
-              eventId,
-              organisationId: organisationId || null,
-              guestId: null,
-              guestEmail,
-              guestEmailLower: emailLower(guestEmail),
-              guestName,
-              maxGuestInvite,
-              demographicQuestionSetId: demographicQuestionSetId || null,
-              token: invToken,
-              invitationCode: guestInvitationCode,
-              ...(eventInvitationCode && { eventInvitationCode }),
-              createdAt: Timestamp.now(),
-              expiresAt,
-              sent: false,
-              lastSendAttemptAt: Timestamp.now(),
-              ...(batchId && { batchId }),
-            },
-            { merge: true }
-          );
+            finalLink = buildNormalLink(invId, invToken);
+          }
         }
 
-        const link =
-          `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(
-            invId
-          )}` +
-          `&token=${encodeURIComponent(invToken)}` +
-          `&v=${Date.now()}`;
-
-        const subject = `You're Invited to ${eventName}!`;
+        // ✅ Subject depends on companion mode
+        const subject = isCompanionInvite
+          ? (ctaLabel === "View Event Details"
+              ? `Event details for ${eventName}`
+              : `You're invited as a companion to ${eventName}!`)
+          : `You're Invited to ${eventName}!`;
 
         const formattedStart = formattedStartDate;
         const formattedEnd = formattedEndDate;
 
+        // Text body uses bodyLine
         const textBody =
           `Hello${guestName ? " " + guestName : ""},\n\n` +
-          `You're invited to ${eventName}!\n\n` +
+          `${isCompanionInvite ? "You have been invited as a companion" : "You're invited"} to ${eventName}!\n\n` +
           (eventAddress ? `Location: ${eventAddress}\n` : "") +
           (formattedStart ? `Start: ${formattedStart}\n` : "") +
           (formattedEnd ? `End: ${formattedEnd}\n` : "") +
           `\n` +
-          `Please open this link to RSVP, complete your details, and select your menu preferences:\n${link}\n\n` +
+          `${bodyLine}\n${finalLink}\n\n` +
           `This link expires in ${INV_EXPIRY_DAYS} days.\n\n` +
-          (guestInvitationCode
-            ? `Invitation Code: ${guestInvitationCode}\n`
-            : "") +
+          (guestInvitationCode ? `Invitation Code: ${guestInvitationCode}\n` : "") +
           `\nThank you,\nTrax Event`;
 
         const safeName = guestName ? escapeHtml(guestName) : "";
@@ -386,14 +549,10 @@ export const sendInvitations = onCall(
             <div style="background:#f9fafb;border-left:4px solid #2563eb;padding:16px;margin:20px 0;border-radius:4px;">
               <h3 style="margin:0 0 12px;color:#1f2937;font-size:16px;font-weight:600;">Event Details</h3>`;
           if (formattedStart) {
-            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Start:</strong> ${escapeHtml(
-              formattedStart
-            )}</p>`;
+            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Start:</strong> ${escapeHtml(formattedStart)}</p>`;
           }
           if (formattedEnd) {
-            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>End:</strong> ${escapeHtml(
-              formattedEnd
-            )}</p>`;
+            eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>End:</strong> ${escapeHtml(formattedEnd)}</p>`;
           }
           if (eventAddress) {
             eventDetailsHtml += `<p style="margin:6px 0;color:#4b5563;font-size:14px;"><strong>Location:</strong> ${safeAddress}</p>`;
@@ -407,14 +566,10 @@ export const sendInvitations = onCall(
             <div style="color:#6b7280;font-size:13px;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;">
               <strong>Reference Information:</strong><br/>`;
           if (guestInvitationCode) {
-            htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(
-              guestInvitationCode
-            )}</strong><br/>`;
+            htmlReferenceInfo += `Invitation Code: <strong>${escapeHtml(guestInvitationCode)}</strong><br/>`;
           }
           if (batchId) {
-            htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(
-              batchId
-            )}</strong>`;
+            htmlReferenceInfo += `Batch ID: <strong>${escapeHtml(batchId)}</strong>`;
           }
           htmlReferenceInfo += `</div>`;
         }
@@ -423,25 +578,26 @@ export const sendInvitations = onCall(
           <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#1f2937;max-width:600px;margin:0 auto;background:#ffffff;">
             ${eventImageHtml}
             <div style="padding:0 20px;">
-              <h1 style="color:#1f2937;font-size:24px;margin:0 0 10px;font-weight:700;">You're Invited!</h1>
+              <h1 style="color:#1f2937;font-size:24px;margin:0 0 10px;font-weight:700;">${escapeHtml(headline)}</h1>
 
               <p style="font-size:16px;color:#4b5563;margin:10px 0;">
                 Hello${safeName ? " " + safeName : ""},
               </p>
 
               <p style="font-size:16px;color:#1f2937;margin:16px 0;">
-                You have been invited to <strong>${safeEventName}</strong>!
+                ${isCompanionInvite ? "You are invited as a <strong>companion</strong> to " : "You have been invited to "}
+                <strong>${safeEventName}</strong>!
               </p>
 
               ${eventDetailsHtml}
 
               <p style="font-size:15px;color:#4b5563;margin:20px 0;">
-                Please click the button below to confirm your attendance, complete your details, and select your menu preferences.
+                ${escapeHtml(bodyLine)}
               </p>
 
               <div style="text-align:center;margin:30px 0;">
-                <a href="${link}" style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-                  Accept Invitation & RSVP
+                <a href="${finalLink}" style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                  ${escapeHtml(ctaLabel)}
                 </a>
               </div>
 
@@ -450,7 +606,7 @@ export const sendInvitations = onCall(
                   If the button doesn't work, copy and paste this link into your browser:
                 </p>
                 <p style="margin:0;">
-                  <a href="${link}" style="color:#2563eb;font-size:13px;word-break:break-all;">${link}</a>
+                  <a href="${finalLink}" style="color:#2563eb;font-size:13px;word-break:break-all;">${finalLink}</a>
                 </p>
               </div>
 
@@ -490,6 +646,8 @@ export const sendInvitations = onCall(
               eventId,
               guestId: gid || "",
               invitationCode: guestInvitationCode || "",
+              isCompanion: isCompanionInvite ? "1" : "0",
+              companionIndex: isCompanionInvite ? String(companionIndex ?? "") : "",
             },
           });
 
@@ -499,23 +657,29 @@ export const sendInvitations = onCall(
             invitationId: invId,
             invitationCode: guestInvitationCode || null,
             status: "sent",
+            isCompanion: isCompanionInvite,
+            companionIndex: isCompanionInvite ? companionIndex : null,
           });
 
-          try {
-            await invRef.update({
-              sent: true,
-              sentAt: Timestamp.now(),
-              postmarkMessageId: resp.MessageID,
-              sendError: null,
-              sendErrorStatus: null,
-              sendErrorBody: null,
-              sendAttemptCount: FieldValue.increment(1),
-              sendSuccessCount: FieldValue.increment(1),
-            });
-          } catch (e) {
-            console.error("⚠️ invRef.update failed AFTER email sent:", e);
+          // ✅ Update invitation send flags ONLY for normal invites
+          if (!isCompanionInvite && invRef) {
+            try {
+              await invRef.update({
+                sent: true,
+                sentAt: Timestamp.now(),
+                postmarkMessageId: resp.MessageID,
+                sendError: null,
+                sendErrorStatus: null,
+                sendErrorBody: null,
+                sendAttemptCount: FieldValue.increment(1),
+                sendSuccessCount: FieldValue.increment(1),
+              });
+            } catch (e) {
+              console.error("⚠️ invRef.update failed AFTER email sent:", e);
+            }
           }
 
+          // ✅ Always update guest doc
           try {
             if (gid) {
               await db.collection("guests").doc(gid).set(
@@ -536,14 +700,16 @@ export const sendInvitations = onCall(
           const msg = err?.message ?? String(err);
           const body = err?.response?.body ?? err?.body ?? null;
 
-          await invRef.update({
-            sent: false,
-            sentAt: Timestamp.now(),
-            sendError: msg,
-            sendErrorStatus: status,
-            sendErrorBody: body,
-            sendAttemptCount: FieldValue.increment(1),
-          });
+          if (!isCompanionInvite && invRef) {
+            await invRef.update({
+              sent: false,
+              sentAt: Timestamp.now(),
+              sendError: msg,
+              sendErrorStatus: status,
+              sendErrorBody: body,
+              sendAttemptCount: FieldValue.increment(1),
+            });
+          }
 
           results.push({
             guestEmail,
@@ -553,6 +719,8 @@ export const sendInvitations = onCall(
             status: "failed",
             error: msg,
             statusCode: status,
+            isCompanion: isCompanionInvite,
+            companionIndex: isCompanionInvite ? companionIndex : null,
           });
         }
       }
@@ -568,11 +736,7 @@ export const sendInvitations = onCall(
         results.filter((r) => r.status === "sent").map((r) => r.invitationId)
       );
 
-      return {
-        ok: true,
-        invited: sentUnique.size,
-        results,
-      };
+      return { ok: true, invited: sentUnique.size, results };
     } catch (err) {
       console.error("sendInvitations error:", err);
       throw err instanceof HttpsError
