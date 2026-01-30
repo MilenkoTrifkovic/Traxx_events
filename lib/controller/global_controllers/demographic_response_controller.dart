@@ -149,7 +149,7 @@ class DemographicResponseController extends GetxController {
     if (_currentCompanionIndex != null) {
       final name = currentPersonName.value.isNotEmpty
           ? currentPersonName.value
-          : 'Companion ${_currentCompanionIndex! + 1}';
+          : 'Guest ${_currentCompanionIndex! + 1}';
       return 'Filling for: $name';
     } else {
       return 'Filling for: You';
@@ -663,8 +663,7 @@ class DemographicResponseController extends GetxController {
       if (_currentCompanionIndex != null) {
         if (_currentCompanionIndex! < 0 ||
             _currentCompanionIndex! >= companions.length) {
-          _setError(
-              'Invalid companion', 'The specified companion does not exist.');
+          _setError('Invalid guest', 'The specified guest does not exist.');
           return;
         }
 

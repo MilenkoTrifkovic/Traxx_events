@@ -66,7 +66,7 @@ class CompanionFormWidget extends StatelessWidget {
           if (companionNumber != null) ...[
             AppText.styledHeadingSmall(
               context,
-              'Companion $companionNumber',
+              'Guest $companionNumber',
               weight: AppFontWeight.semiBold,
             ),
             const SizedBox(height: 16),
@@ -76,7 +76,7 @@ class CompanionFormWidget extends StatelessWidget {
           AppTextInputField(
             label: 'Full Name *',
             controller: nameController,
-            hintText: 'Enter companion full name',
+            hintText: 'Enter guest full name',
             readOnly: readOnly,
             validator: readOnly
                 ? null
@@ -92,7 +92,7 @@ class CompanionFormWidget extends StatelessWidget {
           AppTextInputField(
             label: 'Email Address *',
             controller: emailController,
-            hintText: 'Enter companion email address',
+            hintText: 'Enter guest email address',
             keyboardType: TextInputType.emailAddress,
             readOnly: readOnly,
             validator: readOnly ? null : ValidationHelper.validateEmail,
@@ -323,7 +323,7 @@ class AttendChips extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Will this companion attend?',
+                    'Will this guest attend?',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -361,7 +361,7 @@ class AttendChips extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This will be confirmed by the companion via email.',
+                      'This will be confirmed by the guest via email.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

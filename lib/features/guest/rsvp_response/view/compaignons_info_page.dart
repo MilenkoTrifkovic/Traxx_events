@@ -62,8 +62,8 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
         final previewCount = widget.event!.maxInviteByGuest.clamp(1, 3);
         for (int i = 0; i < previewCount; i++) {
           final f = CompanionFormData();
-          f.name.text = 'Companion ${i + 1}';
-          f.email.text = 'companion${i + 1}@example.com';
+          f.name.text = 'Guest ${i + 1}';
+          f.email.text = 'guest${i + 1}@example.com';
           f.willAttend.value = true;
           companionForms.add(f);
         }
@@ -201,7 +201,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
       formData.createdGuestId = guestId;
       snackbarController!.showSuccessMessage(
-        'Companion ${currentIndex + 1} saved successfully!',
+        'Guest ${currentIndex + 1} saved successfully!',
       );
     }
 
@@ -222,7 +222,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       for (int i = 0; i < companionForms.length; i++) {
         if (!companionForms[i].validate()) {
           snackbarController!.showErrorMessage(
-            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
+            'Please complete all guest forms (Guest ${i + 1} is incomplete)',
           );
           currentStep.value = i;
           return;
@@ -233,7 +233,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
         if (companionForms[i].createdGuestId != null) continue;
         if (!companionForms[i].validate()) {
           snackbarController!.showErrorMessage(
-            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
+            'Please complete all guest forms (Guest ${i + 1} is incomplete)',
           );
           currentStep.value = i;
           return;
@@ -290,7 +290,7 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
         if (success) {
           snackbarController!.showSuccessMessage(
-            'All companion invitations sent successfully!',
+            'All guest invitations sent successfully!',
           );
           await _navigateToNextStep();
         }
@@ -329,15 +329,15 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
       if (successCount == companionForms.length) {
         snackbarController!
-            .showSuccessMessage('All companions added successfully!');
+            .showSuccessMessage('All guests added successfully!');
         await _navigateToNextStep();
       } else if (successCount > 0) {
         snackbarController!.showInfoMessage(
-          '$successCount of ${companionForms.length} companions added. Failed: ${failed.join(', ')}',
+          '$successCount of ${companionForms.length} guests added. Failed: ${failed.join(', ')}',
         );
       } else {
         snackbarController!
-            .showErrorMessage('Failed to add companions. Please try again.');
+            .showErrorMessage('Failed to add guests. Please try again.');
       }
     } catch (e) {
       debugPrint('❌ Error submitting companions: $e');

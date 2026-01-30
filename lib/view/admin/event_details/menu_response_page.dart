@@ -408,7 +408,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   Widget _attendanceGateCard() {
     final name = widget.companionName?.trim().isNotEmpty == true
         ? widget.companionName!.trim()
-        : 'Companion';
+        : 'Guest';
 
     return Card(
       elevation: 2,
