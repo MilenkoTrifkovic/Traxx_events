@@ -20,6 +20,10 @@ class FoodMeta {
 
 enum DietFilter { all, veg, nonVeg }
 
+enum GuestDietType { all, veg, nonVeg, both }
+
+GuestDietType _guestDietType = GuestDietType.all;
+
 class EventMenuAnalyzerPage extends StatefulWidget {
   final String eventId;
   const EventMenuAnalyzerPage({super.key, required this.eventId});
@@ -43,6 +47,17 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
 
   final TextEditingController _guestSearchCtrl = TextEditingController();
   Map<String, dynamic>? _selectedGuest; // {name, selectedMenuItemIds}
+  bool _matchesGuestDiet(Map<String, dynamic> g) {
+    if (_guestDietType == GuestDietType.all) return true;
+
+    final dt = (g['dietType'] ?? '').toString().trim().toLowerCase();
+
+    if (_guestDietType == GuestDietType.veg) return dt == 'veg';
+    if (_guestDietType == GuestDietType.nonVeg) return dt == 'nonveg';
+    if (_guestDietType == GuestDietType.both) return dt == 'both';
+
+    return true;
+  }
 
   @override
   void initState() {
@@ -88,13 +103,16 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   }
 
   List<Map<String, dynamic>> _asGuestSelections(dynamic v) {
-    // Expect from CF: menu.guestSelections = [{ name, invitationId?, selectedMenuItemIds: [] }]
+    // Accept either {name} or {guestName} (and email fallbacks)
     if (v is List) {
       return v
           .where((e) => e is Map)
           .map((e) => Map<String, dynamic>.from(e as Map))
-          .where((m) => (m['name'] ?? '').toString().trim().isNotEmpty)
-          .toList();
+          .where((m) {
+        final n = (m['name'] ?? m['guestName'] ?? '').toString().trim();
+        final em = (m['email'] ?? m['guestEmail'] ?? '').toString().trim();
+        return n.isNotEmpty || em.isNotEmpty;
+      }).toList();
     }
     return <Map<String, dynamic>>[];
   }
@@ -218,6 +236,8 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     final suggestions = (_selectedGuest != null || q.isEmpty)
         ? <Map<String, dynamic>>[]
         : guestSelections.where((g) {
+            if (!_matchesGuestDiet(g)) return false;
+
             final name = (g['name'] ?? g['guestName'] ?? '')
                 .toString()
                 .trim()
@@ -226,6 +246,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                 .toString()
                 .trim()
                 .toLowerCase();
+
             return name.contains(q) || email.contains(q);
           }).toList();
 
@@ -271,23 +292,33 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                chip(
-                  'All',
-                  _dietFilter == DietFilter.all,
-                  () => setState(() => _dietFilter = DietFilter.all),
+                ChoiceChip(
+                  label: const Text('All'),
+                  selected: _guestDietType == GuestDietType.all,
+                  onSelected: (_) =>
+                      setState(() => _guestDietType = GuestDietType.all),
                 ),
-                chip(
-                  'Veg',
-                  _dietFilter == DietFilter.veg,
-                  () => setState(() => _dietFilter = DietFilter.veg),
+                ChoiceChip(
+                  label: const Text('Veg'),
+                  selected: _guestDietType == GuestDietType.veg,
+                  onSelected: (_) =>
+                      setState(() => _guestDietType = GuestDietType.veg),
                 ),
-                chip(
-                  'Non-Veg',
-                  _dietFilter == DietFilter.nonVeg,
-                  () => setState(() => _dietFilter = DietFilter.nonVeg),
+                ChoiceChip(
+                  label: const Text('Non-Veg'),
+                  selected: _guestDietType == GuestDietType.nonVeg,
+                  onSelected: (_) =>
+                      setState(() => _guestDietType = GuestDietType.nonVeg),
+                ),
+                ChoiceChip(
+                  label: const Text('Both'),
+                  selected: _guestDietType == GuestDietType.both,
+                  onSelected: (_) =>
+                      setState(() => _guestDietType = GuestDietType.both),
                 ),
               ],
             ),
+            const SizedBox(height: 10),
           ],
         ),
       );
@@ -333,7 +364,10 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              (_selectedGuest?['name'] ?? '').toString(),
+                              (_selectedGuest?['name'] ??
+                                      _selectedGuest?['guestName'] ??
+                                      '')
+                                  .toString(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
@@ -400,7 +434,13 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (_, i) {
                         final g = suggestions[i];
-                        final name = (g['name'] ?? '').toString();
+                        final name = (g['name'] ??
+                                g['guestName'] ??
+                                g['email'] ??
+                                g['guestEmail'] ??
+                                '')
+                            .toString();
+
                         return ListTile(
                           dense: true,
                           leading: const Icon(Icons.person_outline),
@@ -478,7 +518,10 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     // ✅ Apply filters
     final selectedIds = _selectedGuest == null
         ? null
-        : _asStringSet(_selectedGuest?['selectedMenuItemIds']);
+        : _asStringSet(
+            _selectedGuest?['selectedMenuItemIds'] ??
+                _selectedGuest?['selectedMenuItemIds'],
+          );
 
     final filteredItems = items.where((m) {
       if (!_matchesDiet(m)) return false;

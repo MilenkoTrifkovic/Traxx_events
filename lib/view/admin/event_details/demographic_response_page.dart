@@ -361,59 +361,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     );
   }
 
-  Widget _buildCoverImage() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(0),
-        color: Colors.black.withOpacity(0.06),
-      ),
-      child: const Center(
-        child: Icon(Icons.image_outlined, size: 42, color: Colors.black54),
-      ),
-    );
-  }
-
-  Widget _buildPinnedHeaderContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!widget.readOnly && _controller.hasCompanions) ...[
-          _buildProgressBanner(),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          'Demographics',
-          style: GoogleFonts.poppins(
-            fontSize: 34,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (!widget.readOnly && widget.showInvitationInput) ...[
-          _buildInvitationLoaderCard(),
-          const SizedBox(height: 16),
-        ],
-        _buildHeaderWithAction(),
-        const SizedBox(height: 14),
-        if (!widget.readOnly &&
-            !_controller.isLoading.value &&
-            _controller.invitation.value != null &&
-            !_controller.isCurrentPersonDone)
-          Center(
-            child: Text(
-              'Click on a question to answer',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildProgressBanner() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

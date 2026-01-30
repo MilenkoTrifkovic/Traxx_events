@@ -45,80 +45,83 @@ async function getEventDataByEventId(eventId) {
   if (byDoc.exists) return { id: byDoc.id, data: byDoc.data() };
 
   // 2) fallback query by field
-  const q = await db.collection("events").where("eventId", "==", eventId).limit(1).get();
+  const q = await db
+    .collection("events")
+    .where("eventId", "==", eventId)
+    .limit(1)
+    .get();
   if (q.empty) return null;
 
   return { id: q.docs[0].id, data: q.docs[0].data() };
 }
 
-  export const getEventAnalytics = onCall(async (request) => {
-    // this is the eventId you pass from Flutter (public eventId in your app)
-    const eventPublicId = safeStr(request.data?.eventId);
-    if (!eventPublicId) {
-      throw new HttpsError("invalid-argument", "eventId is required");
+export const getEventAnalytics = onCall(async (request) => {
+  const eventPublicId = safeStr(request.data?.eventId);
+  if (!eventPublicId) {
+    throw new HttpsError("invalid-argument", "eventId is required");
+  }
+
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in required");
+  }
+
+  console.log("🔍 getEventAnalytics called:");
+  console.log("  - Event ID:", eventPublicId);
+  console.log("  - User UID:", request.auth.uid);
+  console.log("  - User Email:", request.auth.token.email);
+
+  const eventObj = await getEventDataByEventId(eventPublicId);
+  if (!eventObj) throw new HttpsError("not-found", "Event not found");
+
+  const event = eventObj.data || {};
+  const eventDocId = safeStr(eventObj.id);
+  const eventFieldId = safeStr(event.eventId);
+
+  const candidateEventIds = Array.from(
+    new Set([eventPublicId, eventDocId, eventFieldId].filter(Boolean))
+  );
+
+  async function queryByEventId(collectionName) {
+    if (candidateEventIds.length === 1) {
+      return db
+        .collection(collectionName)
+        .where("eventId", "==", candidateEventIds[0])
+        .get();
     }
-
-    if (!request.auth?.uid) {
-      throw new HttpsError("unauthenticated", "Sign in required");
-    }
-
-    console.log("🔍 getEventAnalytics called:");
-    console.log("  - Event ID:", eventPublicId);
-    console.log("  - User UID:", request.auth.uid);
-    console.log("  - User Email:", request.auth.token.email);
-
-    // Resolve the event regardless of whether caller passed docId or public id
-    const eventObj = await getEventDataByEventId(eventPublicId);
-    if (!eventObj) throw new HttpsError("not-found", "Event not found");
-
-    const event = eventObj.data || {};
-    const eventDocId = safeStr(eventObj.id);        // Firestore docId
-    const eventFieldId = safeStr(event.eventId);    // eventId field inside doc (public id maybe)
-    const candidateEventIds = Array.from(
-      new Set([eventPublicId, eventDocId, eventFieldId].filter(Boolean))
-    );
-
-// helper to query by eventId supporting both docId + publicId
-    async function queryByEventId(collectionName) {
-      if (candidateEventIds.length === 1) {
-        return db.collection(collectionName).where("eventId", "==", candidateEventIds[0]).get();
-      }
-      // Firestore "in" supports up to 10 values (we have max 3 here)
-      return db.collection(collectionName).where("eventId", "in", candidateEventIds).get();
-    }
+    return db
+      .collection(collectionName)
+      .where("eventId", "in", candidateEventIds)
+      .get();
+  }
 
   console.log("🧩 candidateEventIds:", candidateEventIds);
 
-    const eventOrgId = safeStr(event.organisationId);
+  const eventOrgId = safeStr(event.organisationId);
 
-    // Load caller profile
-    const userSnap = await db.collection("users").doc(request.auth.uid).get();
-    const user = userSnap.exists ? (userSnap.data() || {}) : {};
-    const userOrgId = safeStr(user.organisationId);
-    const userRole = safeStr(user.role);
+  // Load caller profile
+  const userSnap = await db.collection("users").doc(request.auth.uid).get();
+  const user = userSnap.exists ? userSnap.data() || {} : {};
+  const userOrgId = safeStr(user.organisationId);
+  const userRole = safeStr(user.role);
 
   // ─────────────────────────────────────────────
-  // ✅ Authorization (ALIGNED with your Firestore rules)
-  //   - superAdmin / super_admin: can view any event analytics
-  //   - admin: can view only events in same organisation
-  //   - host: can view only events where they are assigned (hostUserIds contains uid)
-  //   - sales_person: can view events in same organisation (if active and not disabled)
+  // ✅ Authorization
   // ─────────────────────────────────────────────
   const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
   const isOrgAdmin = userRole === "admin";
   const isHost = userRole === "host";
-  
-  // Check if user is a salesperson (now stored in users collection with role = sales_person)
-  const isSalesPerson = userRole === "sales_person" && 
-    user.isActive === true && 
+
+  const isSalesPerson =
+    userRole === "sales_person" &&
+    user.isActive === true &&
     user.isDisabled !== true;
 
-    const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
-    const isEventHost =
-      isHost && hostUserIds.map(safeStr).includes(request.auth.uid);
+  const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
+  const isEventHost =
+    isHost && hostUserIds.map(safeStr).includes(request.auth.uid);
 
-    const isAdminForEvent =
-      isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
+  const isAdminForEvent =
+    isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
 
   const isSalesPersonForEvent =
     isSalesPerson && !!eventOrgId && !!userOrgId && eventOrgId === userOrgId;
@@ -130,255 +133,286 @@ async function getEventDataByEventId(eventId) {
     );
   }
 
-    console.log("✅ Permission granted for analytics");
+  console.log("✅ Permission granted for analytics");
 
-    // IMPORTANT: invitations/responses store public eventId in your system
-    const matchEventId = safeStr(event.eventId) || eventPublicId;
+  const matchEventId = safeStr(event.eventId) || eventPublicId;
 
-    // 3) Invitations funnel stats
-    const invSnap = await queryByEventId("invitations");
+  // 3) Invitations funnel stats
+  const invSnap = await queryByEventId("invitations");
 
-    const inv = {
-      total: invSnap.size,
-      sent: 0,
-      failed: 0,
-      demographicsSubmitted: 0,
-      menuSubmitted: 0,
-    };
+  const inv = {
+    total: invSnap.size,
+    sent: 0,
+    failed: 0,
+    demographicsSubmitted: 0,
+    menuSubmitted: 0,
+  };
 
-    invSnap.forEach((d) => {
-      const x = d.data() || {};
-      if (x.sent === true) inv.sent++;
-      if (x.sent === false && x.sendError) inv.failed++;
-      if (x.used === true) inv.demographicsSubmitted++;
-      if (x.menuSelectionSubmitted === true) inv.menuSubmitted++;
-    });
+  invSnap.forEach((d) => {
+    const x = d.data() || {};
+    if (x.sent === true) inv.sent++;
+    if (x.sent === false && x.sendError) inv.failed++;
+    if (x.used === true) inv.demographicsSubmitted++;
+    if (x.menuSelectionSubmitted === true) inv.menuSubmitted++;
+  });
 
-    // 4) Demographics aggregation
-   const demoSnap = await queryByEventId("demographicQuestionsResponses");
+  // 4) Demographics aggregation
+  const demoSnap = await queryByEventId("demographicQuestionsResponses");
 
+  const demoQuestions = {};
+  const DEMO_TEXT_SAMPLES_LIMIT = 10;
 
-    const demoQuestions = {};
-    const DEMO_TEXT_SAMPLES_LIMIT = 10;
+  demoSnap.forEach((doc) => {
+    const r = doc.data() || {};
+    const answers = Array.isArray(r.answers) ? r.answers : [];
 
-    demoSnap.forEach((doc) => {
-      const r = doc.data() || {};
-      const answers = Array.isArray(r.answers) ? r.answers : [];
+    for (const a of answers) {
+      const qid = safeStr(a?.questionId);
+      if (!qid) continue;
 
-      for (const a of answers) {
-        const qid = safeStr(a?.questionId);
-        if (!qid) continue;
+      const qText = safeStr(a?.questionText);
+      const type = safeStr(a?.type) || "unknown";
+      const isRequired = a?.isRequired === true;
 
-        const qText = safeStr(a?.questionText);
-        const type = safeStr(a?.type) || "unknown";
-        const isRequired = a?.isRequired === true;
+      demoQuestions[qid] ??= {
+        questionId: qid,
+        questionText: qText,
+        type,
+        isRequired,
+        answeredCount: 0,
+        optionCounts: {},
+        freeTextCount: 0,
+        freeTextSamples: [],
+      };
 
-        demoQuestions[qid] ??= {
-          questionId: qid,
-          questionText: qText,
-          type,
-          isRequired,
-          answeredCount: 0,
-          optionCounts: {},
-          freeTextCount: 0,
-          freeTextSamples: [],
-        };
+      const qAgg = demoQuestions[qid];
+      const raw = a?.answer;
 
-        const qAgg = demoQuestions[qid];
-        const raw = a?.answer;
-
-        if (type === "short_answer" || type === "paragraph") {
-          const txt = safeStr(raw);
-          if (txt) {
-            qAgg.answeredCount++;
-            if (qAgg.freeTextSamples.length < DEMO_TEXT_SAMPLES_LIMIT) {
-              qAgg.freeTextSamples.push(txt);
-            }
-          }
-          continue;
-        }
-
-        if (type === "checkboxes") {
-          const items = normalizeCheckboxAnswer(raw);
-          if (items.length) qAgg.answeredCount++;
-          for (const it of items) {
-            inc(qAgg.optionCounts, it.value, 1);
-            if (it.freeText) qAgg.freeTextCount++;
-          }
-          continue;
-        }
-
-        const one = normalizeSingleChoiceAnswer(raw);
-        if (one?.value) {
+      if (type === "short_answer" || type === "paragraph") {
+        const txt = safeStr(raw);
+        if (txt) {
           qAgg.answeredCount++;
-          inc(qAgg.optionCounts, one.value, 1);
-          if (one.freeText) qAgg.freeTextCount++;
+          if (qAgg.freeTextSamples.length < DEMO_TEXT_SAMPLES_LIMIT) {
+            qAgg.freeTextSamples.push(txt);
+          }
         }
+        continue;
       }
-    });
 
-    // 5) Menu aggregation
-    const menuSnap = await queryByEventId("menuSelectedItemsResponses");
-    console.log("🍽️ menuSnap.size:", menuSnap.size);
-
-
-    const menu = { responses: menuSnap.size, itemCounts: {} };
-
-    // ✅ 5.1) Guest selections (for guest filter) — build from menuSelectedItemsResponses docs
-    const guestMap = new Map(); // key -> { invitationId, name, email, selectedMenuItemIds }
-
-    menuSnap.forEach((doc) => {
-      const r = doc.data() || {};
-
-      const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
-      const guestName = safeStr(
-        r.guestName || r.name || r.guest || r.guestEmail || r.email || "Guest"
-      );
-      const guestEmail = safeStr(r.guestEmail || r.email);
-
-      const ids = Array.isArray(r.selectedMenuItemIds)
-        ? r.selectedMenuItemIds.map(safeStr).filter(Boolean)
-        : [];
-
-      if (!invitationId || ids.length === 0) return;
-
-      // If you support companions later, add companionIndex to the key:
-      const companionIndex = r.companionIndex ?? null;
-      const key = `${invitationId}:${companionIndex === null ? "main" : String(companionIndex)}`;
-
-      const existing = guestMap.get(key);
-      if (existing) {
-        const merged = new Set([...(existing.selectedMenuItemIds || []), ...ids]);
-        existing.selectedMenuItemIds = Array.from(merged);
-        if (!existing.name && guestName) existing.name = guestName;
-        if (!existing.email && guestEmail) existing.email = guestEmail;
-      } else {
-        guestMap.set(key, {
-          invitationId,
-          name: guestName,
-          email: guestEmail || null,
-          companionIndex: companionIndex === null ? null : Number(companionIndex),
-          selectedMenuItemIds: Array.from(new Set(ids)),
-        });
+      if (type === "checkboxes") {
+        const items = normalizeCheckboxAnswer(raw);
+        if (items.length) qAgg.answeredCount++;
+        for (const it of items) {
+          inc(qAgg.optionCounts, it.value, 1);
+          if (it.freeText) qAgg.freeTextCount++;
+        }
+        continue;
       }
-    });
 
-    const guestSelections = Array.from(guestMap.values()).sort((a, b) =>
-      safeStr(a.name).localeCompare(safeStr(b.name))
+      const one = normalizeSingleChoiceAnswer(raw);
+      if (one?.value) {
+        qAgg.answeredCount++;
+        inc(qAgg.optionCounts, one.value, 1);
+        if (one.freeText) qAgg.freeTextCount++;
+      }
+    }
+  });
+
+  // 5) Menu aggregation
+  const menuSnap = await queryByEventId("menuSelectedItemsResponses");
+  console.log("🍽️ menuSnap.size:", menuSnap.size);
+
+  const menu = { responses: menuSnap.size, itemCounts: {} };
+
+  // ✅ Guest selections (for guest filter)
+  const guestMap = new Map(); // key -> { invitationId, name, email, selectedMenuItemIds, ... }
+
+  menuSnap.forEach((doc) => {
+    const r = doc.data() || {};
+
+    // ✅ Read selected ids from known fields
+    const rawIds = Array.isArray(r.selectedMenuItemIds)
+      ? r.selectedMenuItemIds
+      : r.groupSelections && typeof r.groupSelections === "object"
+        ? Object.values(r.groupSelections)
+        : Array.isArray(r.selectedMenuItemIds) // keep as fallback alias if you add later
+          ? r.selectedMenuItemIds
+          : [];
+
+    const ids = rawIds.map(safeStr).filter(Boolean);
+    const uniqIds = Array.from(new Set(ids));
+
+    // ✅ IMPORTANT: build itemCounts so menu.items is NOT empty
+    for (const id of uniqIds) inc(menu.itemCounts, id, 1);
+
+    // guest identity
+    const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
+    const guestName = safeStr(
+      r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest"
     );
-    
-    const invToIds = new Map();
-    const invIds = Array.from(invToIds.keys());
+    const guestEmail = safeStr(r.guestEmail || r.email);
 
-  // Lookup guest names from invitations collection (batch by 10)
-    for (const batch of chunk(invIds, 10)) {
+    // ✅ companion index: from field OR parse doc.id like "..._companion_0"
+    let companionIndex = r.companionIndex ?? null;
+    if (companionIndex == null) {
+      const m = safeStr(doc.id).match(/_companion_(\d+)$/);
+      if (m) companionIndex = Number(m[1]);
+    }
+
+    const keyBase = invitationId || guestEmail || guestName;
+    if (!keyBase || uniqIds.length === 0) return;
+
+    const key = `${keyBase}:${companionIndex == null ? "main" : String(companionIndex)}`;
+
+    const existing = guestMap.get(key);
+    if (existing) {
+      const merged = new Set([...(existing.selectedMenuItemIds || []), ...uniqIds]);
+      existing.selectedMenuItemIds = Array.from(merged);
+      if (!existing.name && guestName) existing.name = guestName;
+      if (!existing.guestName && guestName) existing.guestName = guestName;
+      if (!existing.email && guestEmail) existing.email = guestEmail;
+      if (!existing.guestEmail && guestEmail) existing.guestEmail = guestEmail;
+      if (!existing.invitationId && invitationId) existing.invitationId = invitationId;
+      if (existing.companionIndex == null && companionIndex != null) existing.companionIndex = companionIndex;
+    } else {
+      guestMap.set(key, {
+        invitationId: invitationId || null,
+        name: guestName,
+        guestName: guestName,
+        email: guestEmail || null,
+        guestEmail: guestEmail || null,
+        companionIndex: companionIndex == null ? null : Number(companionIndex),
+        selectedMenuItemIds: uniqIds,
+      });
+    }
+  });
+
+  const guestSelections = Array.from(guestMap.values()).sort((a, b) =>
+    safeStr(a.name).localeCompare(safeStr(b.name))
+  );
+
+  // 6) Attach menu item metadata (FULL FIELDS FOR UI)
+  const itemIds = Object.keys(menu.itemCounts);
+  const itemsById = {};
+
+  function safeNum(x) {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function deriveIsVegFromFoodType(ft) {
+    const s = safeStr(ft).toLowerCase();
+    if (!s) return null;
+
+    // normalize: remove separators
+    const norm = s.replaceAll("_", "").replaceAll("-", "").replaceAll(" ", "");
+    if (norm === "veg" || norm === "vegetarian") return true;
+
+    // catch: nonveg / nonvegetarian / non_veg
+    if (norm.startsWith("non") || norm.includes("nonveg") || norm.includes("nonvegetarian")) return false;
+
+    return null;
+  }
+
+  if (itemIds.length) {
+    for (const batch of chunk(itemIds, 10)) {
       const snap = await db
-        .collection("invitations")
+        .collection("menu_items")
         .where(FieldPath.documentId(), "in", batch)
         .get();
 
       snap.forEach((d) => {
-        const inv = d.data() || {};
-        const guestName = safeStr(inv.guestName || inv.name || inv.guest || inv.email || "Guest");
-        guestSelections.push({
-          invitationId: d.id,
-          name: guestName,
-          selectedMenuItemIds: invToIds.get(d.id) || [],
-        });
+        const x = d.data() || {};
+
+        const foodType = safeStr(x.foodType);
+        const isVeg =
+          typeof x.isVeg === "boolean" ? x.isVeg : deriveIsVegFromFoodType(foodType);
+
+        itemsById[d.id] = {
+          id: d.id,
+          name: safeStr(x.name || x.title || "Menu item"),
+          category: safeStr(x.category) || "Other",
+          categoryLabel: safeStr(x.category) || "Other",
+          foodType: foodType || null,
+          isVeg,
+          price: safeNum(x.price),
+          imageUrl: safeStr(x.imageUrl) || null,
+          description: safeStr(x.description) || "",
+          allergens: Array.isArray(x.allergens)
+            ? x.allergens.map(safeStr).filter(Boolean)
+            : [],
+        };
       });
     }
+  }
 
-    // Sort guests alphabetically
-    guestSelections.sort((a, b) => safeStr(a.name).localeCompare(safeStr(b.name)));
-
-    // 6) Attach menu item metadata (FULL FIELDS FOR UI)
-    const itemIds = Object.keys(menu.itemCounts);
-    const itemsById = {};
-
-    function safeNum(x) {
-      const n = Number(x);
-      return Number.isFinite(n) ? n : null;
-    }
-
-    function deriveIsVegFromFoodType(ft) {
-      const s = safeStr(ft).toLowerCase();
-      if (!s) return null;
-      if (s === "veg") return true;
-      if (s === "non_veg" || s === "non-veg" || s.includes("non")) return false;
-      return null;
-    }
-
-    if (itemIds.length) {
-      for (const batch of chunk(itemIds, 10)) {
-        const snap = await db
-          .collection("menu_items")
-          .where(FieldPath.documentId(), "in", batch)
-          .get();
-
-        snap.forEach((d) => {
-          const x = d.data() || {};
-
-          const foodType = safeStr(x.foodType); // "veg" | "non_veg" (your schema)
-          const isVeg =
-            typeof x.isVeg === "boolean" ? x.isVeg : deriveIsVegFromFoodType(foodType);
-
-          itemsById[d.id] = {
-            id: d.id,
-            // basic
-            name: safeStr(x.name || x.title || "Menu item"),
-            category: safeStr(x.category) || "Other",
-            // for UI (Flutter can prettify / title-case)
-            categoryLabel: safeStr(x.category) || "Other",
-
-            // food + price
-            foodType: foodType || null,
-            isVeg,
-            price: safeNum(x.price),
-
-            // media + text
-            imageUrl: safeStr(x.imageUrl) || null,
-            description: safeStr(x.description) || "",
-
-            // allergens
-            allergens: Array.isArray(x.allergens)
-              ? x.allergens.map(safeStr).filter(Boolean)
-              : [],
-          };
-        });
-      }
-    }
-
-    
-    const menuItems = itemIds
-      .map((id) => ({
-        ...(itemsById[id] || {
-          id,
-          name: "Menu item",
-          category: "Other",
-          categoryLabel: "Other",
-          foodType: null,
-          isVeg: null,
-          price: null,
-          imageUrl: null,
-          description: "",
-          allergens: [],
-        }),
+  const menuItems = itemIds
+    .map((id) => ({
+      ...(itemsById[id] || {
         id,
-        count: menu.itemCounts[id] ?? 0,
-      }))
-      .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+        name: "Menu item",
+        category: "Other",
+        categoryLabel: "Other",
+        foodType: null,
+        isVeg: null,
+        price: null,
+        imageUrl: null,
+        description: "",
+        allergens: [],
+      }),
+      id,
+      count: menu.itemCounts[id] ?? 0,
+    }))
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
 
-    return {
-      ok: true,
-      eventId: matchEventId,
-      eventName: safeStr(event.name) || "Event",
-      invitations: inv,
-      demographics: {
-        responses: demoSnap.size,
-        questions: Object.values(demoQuestions),
-      },
-      menu: { responses: menu.responses, items: menuItems, guestSelections },
-    };
+  // ✅ 7) Compute guest dietType for guest-filter chips: veg / nonVeg / both / unknown
+  function itemIsVegById(id) {
+    const it = itemsById[id];
+    if (!it) return null;
+    if (typeof it.isVeg === "boolean") return it.isVeg;
+    return deriveIsVegFromFoodType(it.foodType);
+  }
+
+  function computeGuestDietType(selectedIds) {
+    let hasVeg = false;
+    let hasNonVeg = false;
+
+    for (const id of Array.isArray(selectedIds) ? selectedIds : []) {
+      const isVeg = itemIsVegById(id);
+      if (isVeg === true) hasVeg = true;
+      if (isVeg === false) hasNonVeg = true;
+      if (hasVeg && hasNonVeg) break;
+    }
+
+    if (hasVeg && hasNonVeg) return "both";
+    if (hasVeg) return "veg";
+    if (hasNonVeg) return "nonVeg";
+    return "unknown";
+  }
+
+  guestSelections.forEach((g) => {
+    const ids = Array.isArray(g.selectedMenuItemIds) ? g.selectedMenuItemIds : [];
+    g.dietType = computeGuestDietType(ids);
   });
+
+  console.log(
+    "👤 guestSelections:",
+    guestSelections.length,
+    guestSelections[0] ? { name: guestSelections[0].name, dietType: guestSelections[0].dietType } : null
+  );
+
+  return {
+    ok: true,
+    eventId: matchEventId,
+    eventName: safeStr(event.name) || "Event",
+    invitations: inv,
+    demographics: {
+      responses: demoSnap.size,
+      questions: Object.values(demoQuestions),
+    },
+    // ✅ guestSelections now includes dietType: veg | nonVeg | both | unknown
+    menu: { responses: menu.responses, items: menuItems, guestSelections },
+  };
+});
 
 
