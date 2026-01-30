@@ -68,6 +68,17 @@ class DemographicResponseController extends GetxController {
   final activeQuestionId = RxnString();
   final currentPersonName = ''.obs;
 
+  /// Track validation errors for each question
+  final validationErrors = <String, String>{}.obs;
+
+  /// Track if validation was attempted (to show errors)
+  final showValidation = false.obs;
+
+  /// Trigger for scrolling to first error (increments each validation)
+  final validationTrigger = 0.obs;
+  String? _firstErrorQuestionId;
+  String? get firstErrorQuestionId => _firstErrorQuestionId;
+
   // Text controllers need manual management
   final Map<String, TextEditingController> textControllers = {};
   final Map<String, TextEditingController> freeTextControllers = {};
@@ -138,17 +149,11 @@ class DemographicResponseController extends GetxController {
     if (_currentCompanionIndex != null) {
       final name = currentPersonName.value.isNotEmpty
           ? currentPersonName.value
-          : 'Companion ${_currentCompanionIndex! + 1}';
+          : 'Guest ${_currentCompanionIndex! + 1}';
       return 'Filling for: $name';
     } else {
       return 'Filling for: You';
     }
-  }
-
-  bool _isRuleSub(DemographicQuestion q) {
-    final p = q.parentQuestionId?.trim() ?? '';
-    final t = q.triggerOptionId?.trim() ?? '';
-    return p.isNotEmpty && t.isNotEmpty;
   }
 
   bool _isSub(DemographicQuestion q) =>
@@ -225,6 +230,12 @@ class DemographicResponseController extends GetxController {
   void updateAnswer(String questionId, dynamic value) {
     answers[questionId] = value;
     answers.refresh();
+
+    // Clear validation error for this question when answered
+    if (validationErrors.containsKey(questionId)) {
+      validationErrors.remove(questionId);
+    }
+
     recomputeVisibleQuestions(); // ✅ conditional sub-questions
   }
 
@@ -280,6 +291,78 @@ class DemographicResponseController extends GetxController {
     return c['attendingSubmitted'] == true && c['isAttending'] == false;
   }
 
+  /// Get validation error message for a specific question
+  String? getValidationError(DemographicQuestion q) {
+    if (!q.isRequired) return null;
+    if (isAnswered(q)) return null;
+
+    final v = answers[q.id];
+
+    // Check for "Other" option requiring free text
+    if (q.type == 'checkboxes') {
+      final list = (v as List?) ?? const [];
+      for (final item in list) {
+        if (item is Map && (item['requiresFreeText'] == true)) {
+          final ft = (item['freeText'] ?? '').toString().trim();
+          if (ft.isEmpty) {
+            return 'Please provide additional details for your selection';
+          }
+        }
+      }
+      if (list.isEmpty) {
+        return 'Please select at least one option';
+      }
+    }
+
+    if (v is Map && (v['requiresFreeText'] == true)) {
+      final ft = (v['freeText'] ?? '').toString().trim();
+      if (ft.isEmpty) {
+        return 'Please provide additional details for your selection';
+      }
+    }
+
+    // Default messages by type
+    switch (q.type) {
+      case 'short_answer':
+      case 'paragraph':
+        return 'Please enter your answer';
+      case 'multiple_choice':
+      case 'dropdown':
+        return 'Please select an option';
+      case 'checkboxes':
+        return 'Please select at least one option';
+      default:
+        return 'This field is required';
+    }
+  }
+
+  /// Validate all required questions and return the first unanswered question ID
+  String? validateRequiredQuestions() {
+    validationErrors.clear();
+    String? firstUnansweredId;
+
+    for (final q in questions) {
+      if (q.isRequired && !isAnswered(q)) {
+        final error = getValidationError(q);
+        if (error != null) {
+          validationErrors[q.id] = error;
+          firstUnansweredId ??= q.id;
+        }
+      }
+    }
+
+    showValidation.value = validationErrors.isNotEmpty;
+    _firstErrorQuestionId = firstUnansweredId;
+
+    // Increment trigger to notify listeners even if showValidation stays true
+    if (firstUnansweredId != null) {
+      validationTrigger.value++;
+    }
+
+    return firstUnansweredId;
+  }
+
+  /// Submit demographics and navigate to next step.
   Future<void> submitAndContinue(BuildContext context) async {
     if (isSubmitting.value) return;
 
@@ -314,9 +397,11 @@ class DemographicResponseController extends GetxController {
       return;
     }
 
-    final missing = questions.where((q) => q.isRequired && !isAnswered(q));
-    if (missing.isNotEmpty) {
+    // Validate required VISIBLE questions (includes triggered sub-questions)
+    final firstUnansweredId = validateRequiredQuestions();
+    if (firstUnansweredId != null) {
       _showSnackbar(context, 'Please answer all required questions');
+      // The page will scroll to the first unanswered question via the UI
       return;
     }
 
@@ -578,8 +663,7 @@ class DemographicResponseController extends GetxController {
       if (_currentCompanionIndex != null) {
         if (_currentCompanionIndex! < 0 ||
             _currentCompanionIndex! >= companions.length) {
-          _setError(
-              'Invalid companion', 'The specified companion does not exist.');
+          _setError('Invalid guest', 'The specified guest does not exist.');
           return;
         }
 

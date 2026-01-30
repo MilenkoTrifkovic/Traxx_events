@@ -55,6 +55,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   late final TextEditingController _invitationIdCtrl;
   final ScrollController _pageCtrl = ScrollController();
 
+  // Map to track GlobalKeys for each question card for scrolling
+  final Map<String, GlobalKey> _questionKeys = {};
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +80,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       ),
       tag: tag,
     );
+
+    // Listen for validation trigger to auto-scroll (increments each validation)
+    ever(_controller.validationTrigger, (_) {
+      final firstErrorId = _controller.firstErrorQuestionId;
+      if (firstErrorId != null) {
+        _scrollToQuestion(firstErrorId);
+      }
+    });
   }
 
   @override
@@ -98,6 +109,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   void dispose() {
     _invitationIdCtrl.dispose();
     _pageCtrl.dispose();
+    _questionKeys.clear();
 
     // Delete controller with tag
     final tag = widget.readOnly
@@ -106,6 +118,28 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     Get.delete<DemographicResponseController>(tag: tag);
 
     super.dispose();
+  }
+
+  /// Scroll to a specific question by ID
+  void _scrollToQuestion(String questionId) {
+    final key = _questionKeys[questionId];
+    if (key == null || key.currentContext == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final context = key.currentContext;
+        if (context != null && mounted) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            alignment: 0.15, // Position question near top of viewport
+          );
+        }
+      } catch (e) {
+        debugPrint('Error scrolling to question: $e');
+      }
+    });
   }
 
   @override
@@ -296,12 +330,23 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                                         (q.parentQuestionId ?? '').trim();
                                     final isSub = parent.isNotEmpty;
 
+                                    // Create or get GlobalKey for this question
+                                    _questionKeys.putIfAbsent(
+                                      q.id,
+                                      () => GlobalKey(),
+                                    );
+
                                     return Obx(() {
                                       final isActive = q.id ==
                                           _controller.activeQuestionId.value;
                                       final answer = _controller.answers[q.id];
+                                      final showValidation =
+                                          _controller.showValidation.value;
+                                      final validationError =
+                                          _controller.validationErrors[q.id];
 
                                       return Padding(
+                                        key: _questionKeys[q.id],
                                         padding:
                                             const EdgeInsets.only(bottom: 12),
                                         child: Padding(
@@ -325,6 +370,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                                             getFreeTextController: _controller
                                                 .getFreeTextController,
                                             readOnly: widget.readOnly,
+                                            showValidation: showValidation,
+                                            validationError: validationError,
                                           ),
                                         ),
                                       );

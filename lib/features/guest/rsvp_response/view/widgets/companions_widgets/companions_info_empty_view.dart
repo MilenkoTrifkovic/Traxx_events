@@ -39,13 +39,13 @@ class CompanionsInfoEmptyView extends StatelessWidget {
               AppSpacing.verticalMd(context),
               AppText.styledHeadingMedium(
                 context,
-                'No Companions',
+                'No Guests',
                 weight: AppFontWeight.semiBold,
               ),
               AppSpacing.verticalSm(context),
               AppText.styledBodyMedium(
                 context,
-                'Preview mode: Companion information page',
+                'Preview mode: Guest information page',
               ),
             ],
           ),
@@ -70,15 +70,15 @@ class CompanionsInfoEmptyView extends StatelessWidget {
             AppSpacing.verticalMd(context),
             AppText.styledHeadingMedium(
               context,
-              saved > 0 ? 'All Companions Added' : 'No Companions',
+              saved > 0 ? 'All Guests Added' : 'No Guests',
               weight: AppFontWeight.semiBold,
             ),
             AppSpacing.verticalSm(context),
             AppText.styledBodyMedium(
               context,
               saved > 0
-                  ? 'You have already added all $total companion${total > 1 ? 's' : ''} for this event.'
-                  : 'You didn\'t select any companions for this event.',
+                  ? 'You have already added all $total guest${total > 1 ? 's' : ''} for this event.'
+                  : 'You didn\'t select any guests for this event.',
             ),
             if (onContinue != null) ...[
               AppSpacing.verticalLg(context),
@@ -97,4 +97,3 @@ class CompanionsInfoEmptyView extends StatelessWidget {
     );
   }
 }
-

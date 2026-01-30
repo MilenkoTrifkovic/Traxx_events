@@ -359,7 +359,7 @@ class RsvpResponseController extends GetxController {
       final data = Map<String, dynamic>.from(res.data as Map);
       final guestId = (data['guestId'] ?? '').toString().trim();
       if (guestId.isEmpty) {
-        error.value = 'Failed to add companion. Please try again.';
+        error.value = 'Failed to add guest. Please try again.';
         return null;
       }
 
@@ -368,10 +368,10 @@ class RsvpResponseController extends GetxController {
 
       return guestId;
     } on FirebaseFunctionsException catch (e) {
-      error.value = e.message ?? 'Failed to add companion. Please try again.';
+      error.value = e.message ?? 'Failed to add guest. Please try again.';
       return null;
     } catch (e) {
-      error.value = 'Failed to add companion. Please try again.';
+      error.value = 'Failed to add guest. Please try again.';
       return null;
     }
   }
@@ -437,7 +437,7 @@ class RsvpResponseController extends GetxController {
       final individualError = validateCompanionEmail(email);
       if (individualError != null) {
         return EmailValidationResult(
-          errorMessage: 'Companion ${i + 1}: $individualError',
+          errorMessage: 'Guest ${i + 1}: $individualError',
           duplicateIndex: i,
         );
       }
@@ -445,7 +445,7 @@ class RsvpResponseController extends GetxController {
       if (emailSet.contains(email)) {
         return EmailValidationResult(
           errorMessage:
-              'Duplicate email addresses found. Each companion must have a unique email address.',
+              'Duplicate email addresses found. Each guest must have a unique email address.',
           duplicateIndex: i,
         );
       }
@@ -652,16 +652,16 @@ class RsvpResponseController extends GetxController {
       }
 
       _snackbarController.showErrorMessage(
-        'Failed to send companion invitations. Please try again.',
+        'Failed to send guest invitations. Please try again.',
       );
       return false;
     } on FirebaseFunctionsException catch (e) {
-      error.value = e.message ?? 'Failed to send companion invitations';
+      error.value = e.message ?? 'Failed to send guest invitations';
       _snackbarController.showErrorMessage(error.value!);
       return false;
     } catch (e, st) {
       debugPrint('❌ sendCompanionInvitations error: $e\n$st');
-      error.value = 'Failed to send companion invitations. Please try again.';
+      error.value = 'Failed to send guest invitations. Please try again.';
       _snackbarController.showErrorMessage(error.value!);
       return false;
     } finally {

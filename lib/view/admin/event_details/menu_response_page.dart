@@ -404,7 +404,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   Widget _attendanceGateCard() {
     final name = widget.companionName?.trim().isNotEmpty == true
         ? widget.companionName!.trim()
-        : 'Companion';
+        : 'Guest';
 
     return Card(
       elevation: 2,
@@ -479,9 +479,15 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                     children: [
                       if (!_isReadOnly) ...[
                         MenuProgressBanner(controller: _controller),
-                        Obx(() => _controller.hasCompanions
-                            ? const SizedBox(height: 12)
-                            : const SizedBox.shrink()),
+                        Obx(() {
+                          // Explicitly access invitation to make it reactive
+                          final inv = _controller.invitation.value;
+                          final hasCompanions =
+                              inv != null && _controller.hasCompanions;
+                          return hasCompanions
+                              ? const SizedBox(height: 12)
+                              : const SizedBox.shrink();
+                        }),
                       ],
 
                       Text(
@@ -495,8 +501,9 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
                       const SizedBox(height: 18),
 
                       Obx(() {
-                        final prefChosen =
-                            _isReadOnly || _controller.dietPref.value != null;
+                        // Always access the observable variable first
+                        final dietPrefValue = _controller.dietPref.value;
+                        final prefChosen = _isReadOnly || dietPrefValue != null;
 
                         if (_isReadOnly || !prefChosen) {
                           return const SizedBox.shrink();
