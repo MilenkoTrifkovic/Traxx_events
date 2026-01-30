@@ -352,4 +352,27 @@ class CloudFunctionsService extends GetxService {
           'resendHostVerificationEmail failed: ${e.code} ${e.message}');
     }
   }
+
+  Future<Map<String, dynamic>> submitCompanionAttendance({
+    required String invitationId,
+    required String token,
+    required int companionIndex,
+    required bool isAttending,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'submitCompanionAttendance',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'invitationId': invitationId.trim(),
+      'token': token.trim(),
+      'companionIndex': companionIndex,
+      'isAttending': isAttending,
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
+  }
 }

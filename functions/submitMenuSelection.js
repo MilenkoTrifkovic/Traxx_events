@@ -1,8 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import postmark from "postmark";
-
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin.js";
 import {
   normalizeIds,
@@ -11,29 +8,10 @@ import {
   sanitizeMenuItemGroups,
 } from "./menuSelectionHelpers.js";
 
-// ─────────────────────────────────────────────────────────────
-// Postmark + App config
-// ─────────────────────────────────────────────────────────────
-const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
+import { POSTMARK_SERVER_TOKEN, sendThankYouEmailsForInvitation } from "./thankYouEmail.js";
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "developer@trax-event.com";
-const FROM_NAME = process.env.FROM_NAME || "Trax Events";
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://trax-event.app";
-const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
-
-// ─────────────────────────────────────────────────────────────
-// Allergens helper
-// ─────────────────────────────────────────────────────────────
 const ALLOWED_ALLERGENS = new Set([
-  "dairy",
-  "eggs",
-  "fish",
-  "shellfish",
-  "soy",
-  "sesame",
-  "wheat",
-  "peanuts",
-  "tree_nuts",
+  "dairy", "eggs", "fish", "shellfish", "soy", "sesame", "wheat", "peanuts", "tree_nuts",
 ]);
 
 function cleanAllergens(arr) {
@@ -47,123 +25,6 @@ function cleanAllergens(arr) {
   return out;
 }
 
-function buildDetailsLink(invId, invToken) {
-  return (
-    `${APP_BASE_URL}/guest-response?invitationId=${encodeURIComponent(invId)}` +
-    `&token=${encodeURIComponent(invToken)}` +
-    `&view=details&v=${Date.now()}`
-  );
-}
-
-function isFlowComplete(inv) {
-  if (!inv) return false;
-
-  // Declined = complete
-  if (inv.hasResponded === true && inv.isAttending === false) return true;
-
-  // Must RSVP yes
-  if (inv.hasResponded !== true || inv.isAttending !== true) return false;
-
-  // must have finished adding companions if any
-  if ((inv.remainingCompanionsToCreate ?? 0) > 0) return false;
-
-  const requiresDemo = !!inv.demographicQuestionSetId;
-
-  // main guest prereqs
-  if (requiresDemo && inv.used !== true) return false;
-  if (inv.menuSelectionSubmitted !== true) return false;
-
-  const comps = Array.isArray(inv.companions) ? inv.companions : [];
-
-  for (const c of comps) {
-    // must confirm attendance for each companion
-    if (c?.attendingSubmitted !== true) return false;
-
-    // not attending companions skip demo/menu
-    if (c?.isAttending === false) continue;
-
-    if (requiresDemo && c?.demographicSubmitted !== true) return false;
-    if (c?.menuSubmitted !== true) return false;
-  }
-
-  return true;
-}
-
-async function maybeSendThankYouEmail(invitationId) {
-  const invRef = db.collection("invitations").doc(invitationId);
-  const invSnap = await invRef.get();
-  if (!invSnap.exists) return;
-
-  const inv = invSnap.data() || {};
-  if (inv.thankYouEmailSent === true) return;
-
-  if (!isFlowComplete(inv)) return;
-
-  const guestEmail = (inv.guestEmail || "").toString().trim();
-  const invToken = (inv.token || "").toString().trim();
-  if (!guestEmail || !invToken) return;
-
-  let eventName = "Your event";
-  try {
-    const eventId = (inv.eventId || "").toString().trim();
-    if (eventId) {
-      const eventSnap = await db.collection("events").doc(eventId).get();
-      if (eventSnap.exists) {
-        eventName = (eventSnap.data()?.name || eventName).toString();
-      }
-    }
-  } catch (_) {
-    // optional
-  }
-
-  const link = buildDetailsLink(invitationId, invToken);
-
-  const pmToken = (POSTMARK_SERVER_TOKEN.value() || "").trim();
-  if (!pmToken) return;
-
-  const client = new postmark.ServerClient(pmToken);
-
-  await client.sendEmail({
-    From: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-    To: guestEmail,
-    Subject: `Thank you! Your responses for ${eventName} are submitted`,
-    TextBody:
-      `Thank you for submitting your responses.\n\n` +
-      `View your event details here:\n${link}\n`,
-    HtmlBody: `
-      <div style="font-family:Segoe UI,Tahoma,Verdana,sans-serif;line-height:1.6;color:#111;">
-        <h2 style="margin:0 0 10px;">Thank you!</h2>
-        <p style="margin:0 0 14px;">
-          Your responses were submitted successfully.
-        </p>
-        <p style="margin:0 0 18px;">
-          <a href="${link}" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">
-            View Event Details
-          </a>
-        </p>
-        <p style="font-size:12px;color:#666;">
-          If the button doesn’t work, use this link:<br/>
-          <a href="${link}">${link}</a>
-        </p>
-      </div>
-    `,
-    MessageStream: MESSAGE_STREAM,
-    Metadata: {
-      invitationId,
-      eventId: (inv.eventId || "").toString(),
-      type: "thank_you",
-    },
-  });
-
-  await invRef.update({
-    thankYouEmailSent: true,
-    thankYouEmailSentAt: Timestamp.now(),
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// ✅ submitMenuSelection
-// ─────────────────────────────────────────────────────────────
 export const submitMenuSelection = onCall(
   { secrets: [POSTMARK_SERVER_TOKEN] },
   async (request) => {
@@ -186,7 +47,6 @@ export const submitMenuSelection = onCall(
 
       const isMainGuest = companionIndex === null || companionIndex === undefined;
       const compIdx = isMainGuest ? null : parseInt(companionIndex, 10);
-
       if (!isMainGuest && (isNaN(compIdx) || compIdx < 0)) {
         throw new HttpsError("invalid-argument", "companionIndex must be a non-negative integer");
       }
@@ -196,8 +56,7 @@ export const submitMenuSelection = onCall(
       const normalizedPref =
         prefRaw === "veg" ? "veg" :
         (prefRaw === "non_veg" || prefRaw === "non-veg") ? "non_veg" :
-        prefRaw === "both" ? "both" :
-        "both";
+        prefRaw === "both" ? "both" : "both";
 
       const cleanedAllergens = cleanAllergens(allergens);
       const personKey = isMainGuest ? "main" : `c${compIdx}`;
@@ -211,10 +70,7 @@ export const submitMenuSelection = onCall(
         if (!invSnap.exists) throw new HttpsError("not-found", "Invitation not found");
 
         const inv = invSnap.data() || {};
-
-        if ((inv.token || "") !== token) {
-          throw new HttpsError("permission-denied", "Invalid token");
-        }
+        if ((inv.token || "") !== token) throw new HttpsError("permission-denied", "Invalid token");
 
         const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
         if (expiresAt && expiresAt.getTime() < Date.now()) {
@@ -222,12 +78,11 @@ export const submitMenuSelection = onCall(
         }
 
         const companions = Array.isArray(inv.companions) ? [...inv.companions] : [];
-
         if (!isMainGuest && compIdx >= companions.length) {
           throw new HttpsError("invalid-argument", `Companion index ${compIdx} is out of range.`);
         }
 
-        // ✅ attendance gate for companions
+        // attendance gate for companions
         if (!isMainGuest) {
           const c = companions[compIdx] || {};
           if (c.attendingSubmitted !== true) {
@@ -238,7 +93,6 @@ export const submitMenuSelection = onCall(
           }
         }
 
-        // ✅ prerequisites: demographics only if required
         const requiresDemo = !!inv.demographicQuestionSetId;
         if (requiresDemo) {
           if (isMainGuest) {
@@ -257,7 +111,6 @@ export const submitMenuSelection = onCall(
           ? (inv.menuSelectionSubmitted === true)
           : (companions[compIdx]?.menuSubmitted === true);
 
-        // patch diet+allergens if already submitted
         if (alreadySubmitted) {
           const patch = {
             [`dietPreferenceByPerson.${personKey}`]: normalizedPref,
@@ -265,9 +118,8 @@ export const submitMenuSelection = onCall(
             modifiedAt: FieldValue.serverTimestamp(),
           };
 
-          if (isMainGuest) {
-            tx.update(invRef, patch);
-          } else {
+          if (isMainGuest) tx.update(invRef, patch);
+          else {
             companions[compIdx] = { ...companions[compIdx], dietPreference: normalizedPref, allergens: cleanedAllergens };
             tx.update(invRef, { ...patch, companions });
           }
@@ -283,9 +135,8 @@ export const submitMenuSelection = onCall(
             modifiedAt: FieldValue.serverTimestamp(),
           };
 
-          if (isMainGuest) {
-            tx.update(invRef, patch);
-          } else {
+          if (isMainGuest) tx.update(invRef, patch);
+          else {
             companions[compIdx] = { ...companions[compIdx], dietPreference: normalizedPref, allergens: cleanedAllergens };
             tx.update(invRef, { ...patch, companions });
           }
@@ -293,7 +144,6 @@ export const submitMenuSelection = onCall(
           return { ok: true, alreadySubmitted: true, patched: true, companionIndex: compIdx };
         }
 
-        // ----- validate selection against event allowed items -----
         const cleaned = normalizeIds(selectedMenuItemIds);
         const cleanedSet = new Set(cleaned);
 
@@ -311,9 +161,7 @@ export const submitMenuSelection = onCall(
         const allowedSet = new Set(allowedIds);
 
         for (const id of cleaned) {
-          if (!allowedSet.has(id)) {
-            throw new HttpsError("invalid-argument", "Invalid menu item selected");
-          }
+          if (!allowedSet.has(id)) throw new HttpsError("invalid-argument", "Invalid menu item selected");
         }
 
         const { groups: safeGroups } = sanitizeMenuItemGroups(rawGroups, allowedSet, null);
@@ -322,24 +170,18 @@ export const submitMenuSelection = onCall(
         for (const g of safeGroups) {
           let count = 0;
           let picked = null;
-
           for (const id of g.itemIds) {
             if (cleanedSet.has(id)) {
               count += 1;
               if (picked == null) picked = id;
               if (count > g.maxPick) {
-                throw new HttpsError(
-                  "invalid-argument",
-                  `You can select only ${g.maxPick} item(s) from "${g.name}".`
-                );
+                throw new HttpsError("invalid-argument", `You can select only ${g.maxPick} item(s) from "${g.name}".`);
               }
             }
           }
-
           groupSelections[g.groupId] = picked;
         }
 
-        // guest identity
         let guestId, guestEmail, guestName;
         if (isMainGuest) {
           guestId = inv.guestId || null;
@@ -409,20 +251,17 @@ export const submitMenuSelection = onCall(
         return { ok: true, skipped: false, alreadySubmitted: false, companionIndex: compIdx };
       });
 
-      // ✅ Send thank-you email if flow is complete (send-once)
-      // run outside transaction
+      // ✅ send thank-you mails (main + companions) once the whole flow is complete
       try {
-        await maybeSendThankYouEmail(invitationId);
+        await sendThankYouEmailsForInvitation(invitationId);
       } catch (e) {
-        console.error("⚠️ maybeSendThankYouEmail failed:", e);
+        console.error("⚠️ sendThankYouEmailsForInvitation failed:", e);
       }
 
       return result;
     } catch (err) {
       console.error("submitMenuSelection error:", err);
-      throw err instanceof HttpsError
-        ? err
-        : new HttpsError("internal", err?.message ?? "Unknown error");
+      throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
     }
   }
 );

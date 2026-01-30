@@ -52,7 +52,6 @@ enum AppRoute {
   guestResponse('/guest-response'),
   guestCompanions('/guest-companions'),
   guestCompanionsInfo('/guest-companions-info'),
-  companionRsvp('/companion-rsvp'), // ✅ NEW
   demographics('/demographics'),
   menuSelection('/menu-selection'),
   thankYou('/thank-you'),

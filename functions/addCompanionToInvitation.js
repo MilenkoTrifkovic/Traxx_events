@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin.js";
 
 export const addCompanionToInvitation = onCall(async (request) => {
@@ -13,21 +13,18 @@ export const addCompanionToInvitation = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "companion is required");
     }
 
-    function makeBatchId() {
-      return String(Math.floor(100000 + Math.random() * 900000));
-    }
-
     const name = (companion.name ?? "").toString().trim();
     const email = (companion.email ?? "").toString().trim();
-    const emailLower = email ? email.toLowerCase() : "";
+    const emailLower = email.toLowerCase();
 
-    if (!name) {
-      throw new HttpsError("invalid-argument", "Companion name is required");
+    if (!name) throw new HttpsError("invalid-argument", "Companion name is required");
+    if (!email) throw new HttpsError("invalid-argument", "Companion email is required");
+
+    // ✅ attendance comes from AttendChips
+    if (typeof companion.isAttending !== "boolean") {
+      throw new HttpsError("invalid-argument", "isAttending must be boolean");
     }
-
-    // ✅ allow bool or null
-    const isAttending =
-      typeof companion.isAttending === "boolean" ? companion.isAttending : null;
+    const isAttending = companion.isAttending;
 
     const invRef = db.collection("invitations").doc(invitationId);
 
@@ -36,9 +33,7 @@ export const addCompanionToInvitation = onCall(async (request) => {
       if (!invSnap.exists) throw new HttpsError("not-found", "Invitation not found");
 
       const inv = invSnap.data() || {};
-      if ((inv.token || "") !== token) {
-        throw new HttpsError("permission-denied", "Invalid token");
-      }
+      if ((inv.token || "") !== token) throw new HttpsError("permission-denied", "Invalid token");
 
       const expiresAt = inv.expiresAt?.toDate ? inv.expiresAt.toDate() : null;
       if (expiresAt && expiresAt.getTime() < Date.now()) {
@@ -52,74 +47,48 @@ export const addCompanionToInvitation = onCall(async (request) => {
       if (!eventId) throw new HttpsError("failed-precondition", "Invitation missing eventId");
       if (!mainGuestId) throw new HttpsError("failed-precondition", "Invitation missing guestId");
 
-      const companionsCount = Number(inv.companionsCount || 0);
-      if (companionsCount <= 0) {
-        throw new HttpsError("failed-precondition", "companionsCount is 0");
+      const companionsTarget = Number(inv.companionsCount || 0);
+      const existing = Array.isArray(inv.companions) ? [...inv.companions] : [];
+
+      // ✅ enforce max companions
+      if (companionsTarget <= 0) throw new HttpsError("failed-precondition", "companionsCount is 0");
+      if (existing.length >= companionsTarget) {
+        throw new HttpsError("failed-precondition", "All companions already added");
       }
 
-      const existing = Array.isArray(inv.companions) ? inv.companions : [];
-
-      // ✅ IMPORTANT: only enforce email requirement + uniqueness in EMAIL INVITE FLOW
-      const invitingByEmail = inv.isInvitingCompanionsByEmail === true;
-
-      // If inviting by email, email is required
-      if (invitingByEmail && !emailLower) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Companion email is required when sending email invites"
-        );
-      }
-
-      // ✅ If inviting by email, block duplicates. Proxy flow allows duplicates.
-      if (invitingByEmail && emailLower) {
-        const already = existing.some((c) => {
-          const cEmail = (c?.guestEmailLower ?? c?.guestEmail ?? "")
-            .toString()
-            .trim()
-            .toLowerCase();
-          return cEmail === emailLower;
-        });
-        if (already) {
-          throw new HttpsError("already-exists", "A companion with this email already exists");
-        }
-      }
+      // ✅ duplicates among companions are NOT allowed
+      const already = existing.some((c) => {
+        const cEmail = (c?.guestEmailLower ?? c?.guestEmail ?? c?.email ?? "")
+          .toString().trim().toLowerCase();
+        return cEmail && cEmail === emailLower;
+      });
+      if (already) throw new HttpsError("already-exists", "A companion with this email already exists");
 
       const companionIndex = existing.length;
-      const groupId = mainGuestId;
-
-      // ensure main guest has groupId
-      tx.set(db.collection("guests").doc(mainGuestId), { groupId }, { merge: true });
-
-      const guestRef = db.collection("guests").doc();
       const now = Timestamp.now();
-      const batchId = makeBatchId();
 
+      // create companion guest doc
+      const guestRef = db.collection("guests").doc();
       tx.set(guestRef, {
         guestId: guestRef.id,
-        batchId,
         name,
-
-        // ✅ store email only if present (proxy may reuse or even empty later)
-        email: email || null,
-        guestEmailLower: emailLower || null,
-
+        email,
+        guestEmailLower: emailLower,
         eventId,
         organisationId: organisationId || null,
         maxGuestInvite: 0,
         isDisabled: false,
         isInvited: false,
         isCompanion: true,
-        groupId,
 
-        invitationId, // keep legacy
         parentInvitationId: invitationId,
         parentInvitationToken: token,
         companionIndex,
 
-        // ✅ attendance
+        // ✅ attendance is confirmed here
         isAttending,
-        attendingSubmitted: false,
-        attendingSubmittedAt: null,
+        attendingSubmitted: true,
+        attendingSubmittedAt: new Date().toISOString(),
 
         address: companion.address ?? null,
         city: companion.city ?? null,
@@ -136,41 +105,36 @@ export const addCompanionToInvitation = onCall(async (request) => {
         {
           guestId: guestRef.id,
           guestName: name,
-
-          // ✅ same idea for invitation companions array
-          guestEmail: email || null,
-          guestEmailLower: emailLower || null,
-
-          groupId,
+          guestEmail: email,
+          guestEmailLower: emailLower,
           companionIndex,
 
+          // ✅ attendance confirmed
           isAttending,
-          attendingSubmitted: false,
-          attendingSubmittedAt: null,
+          attendingSubmitted: true,
+          attendingSubmittedAt: new Date().toISOString(),
 
           createdAt: now,
         },
       ];
 
       const savedCount = newCompanions.length;
-      const remaining = Math.max(0, companionsCount - savedCount);
+      const remaining = Math.max(0, companionsTarget - savedCount);
 
       tx.update(invRef, {
         companions: newCompanions,
         savedCompanionsCount: savedCount,
         remainingCompanionsToCreate: remaining,
-        modifiedAt: now,
-        updatedAt: now,
+        modifiedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
-      return { guestId: guestRef.id, batchId, companionIndex };
+      return { guestId: guestRef.id, companionIndex, savedCount, remaining };
     });
 
     return { ok: true, ...result };
   } catch (err) {
     console.error("addCompanionToInvitation error:", err);
-    throw err instanceof HttpsError
-      ? err
-      : new HttpsError("internal", err?.message ?? "Unknown error");
+    throw err instanceof HttpsError ? err : new HttpsError("internal", err?.message ?? "Unknown error");
   }
 });

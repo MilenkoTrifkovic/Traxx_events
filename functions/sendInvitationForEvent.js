@@ -3,7 +3,6 @@ import { defineSecret } from "firebase-functions/params";
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin.js";
 import { getStorage } from "firebase-admin/storage";
-
 import postmark from "postmark";
 import { randomBytes } from "crypto";
 
@@ -65,16 +64,6 @@ function pickEarliestByCreatedAt(docs) {
 function pointerId(eventId, guestId) {
   return `${eventId}_${guestId}`;
 }
-
-function buildCompanionRsvpLink(invId, invToken, companionIndex) {
-  return (
-    `${APP_BASE_URL}/companion-rsvp?invitationId=${encodeURIComponent(invId)}` +
-    `&token=${encodeURIComponent(invToken)}` +
-    `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
-    `&v=${Date.now()}`
-  );
-}
-
 
 // ✅ Encode a GCS path but KEEP slashes.
 // uploads/my photo.jpg -> uploads/my%20photo.jpg
@@ -216,15 +205,6 @@ export const sendInvitations = onCall(
         );
       }
 
-      function buildCompanionRsvpLink(invId, invToken, companionIndex) {
-        return (
-          `${APP_BASE_URL}/companion-rsvp?invitationId=${encodeURIComponent(invId)}` +
-          `&token=${encodeURIComponent(invToken)}` +
-          `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
-          `&v=${Date.now()}`
-        );
-      }
-
       for (const guest of invitations) {
         const guestEmail = (guest?.guestEmail || "").trim();
         const guestName = (guest?.guestName || "").trim();
@@ -316,7 +296,12 @@ export const sendInvitations = onCall(
                     "Your details were already submitted. Click below to view the event details and your responses.";
                 } else {
                   // ✅ companion answers themselves → go to attendance page first
-                  finalLink = buildCompanionRsvpLink(invId, invToken, companionIndex);
+                  finalLink =
+                  `${APP_BASE_URL}/demographics?invitationId=${encodeURIComponent(invId)}` +
+                  `&token=${encodeURIComponent(invToken)}` +
+                  `&companionIndex=${encodeURIComponent(String(companionIndex))}` +
+                  `&v=${Date.now()}`;
+
                   ctaLabel = "RSVP for Yourself";
                   headline = "You're Invited as a Companion!";
                   bodyLine =
