@@ -20,6 +20,7 @@ class CompanionsInfoContent extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onNext;
   final VoidCallback? onSubmitAll;
+  final bool inviteByEmail;
 
   const CompanionsInfoContent({
     super.key,
@@ -33,6 +34,7 @@ class CompanionsInfoContent extends StatelessWidget {
     this.onBack,
     this.onNext,
     this.onSubmitAll,
+    this.inviteByEmail = false,
   });
 
   @override
@@ -91,9 +93,12 @@ class CompanionsInfoContent extends StatelessWidget {
       selectedCountry: formData.selectedCountry,
       selectedState: formData.selectedState,
       selectedGender: formData.selectedGender,
-      companionNumber: '${savedCount + index + 1}', // Adjust number to account for already saved
+      companionNumber:
+          '${savedCount + index + 1}', // Adjust number to account for already saved
       readOnly: readOnly,
+      willAttend: formData.willAttend,
+      attendanceDisabled: readOnly, // ✅ ONLY readOnly disables it
+      showAttendanceHint: false,
     );
   }
 }
-

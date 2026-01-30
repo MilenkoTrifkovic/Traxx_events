@@ -1,11 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'package:traxx_wepapp/controller/global_controllers/demographic_response_controller.dart';
-
 import 'demographic_widgets/demographic_constants.dart';
 import 'demographic_widgets/demographic_info_card.dart';
 import 'demographic_widgets/demographic_question_card.dart';
@@ -57,7 +53,10 @@ class DemographicResponsePage extends StatefulWidget {
 class _DemographicResponsePageState extends State<DemographicResponsePage> {
   late final DemographicResponseController _controller;
   late final TextEditingController _invitationIdCtrl;
-  final ScrollController _listCtrl = ScrollController();
+  final ScrollController _pageCtrl = ScrollController();
+
+  // Map to track GlobalKeys for each question card for scrolling
+  final Map<String, GlobalKey> _questionKeys = {};
 
   @override
   void initState() {
@@ -81,6 +80,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       ),
       tag: tag,
     );
+
+    // Listen for validation trigger to auto-scroll (increments each validation)
+    ever(_controller.validationTrigger, (_) {
+      final firstErrorId = _controller.firstErrorQuestionId;
+      if (firstErrorId != null) {
+        _scrollToQuestion(firstErrorId);
+      }
+    });
   }
 
   @override
@@ -101,7 +108,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   @override
   void dispose() {
     _invitationIdCtrl.dispose();
-    _listCtrl.dispose();
+    _pageCtrl.dispose();
+    _questionKeys.clear();
 
     // Delete controller with tag
     final tag = widget.readOnly
@@ -112,346 +120,290 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     super.dispose();
   }
 
+  /// Scroll to a specific question by ID
+  void _scrollToQuestion(String questionId) {
+    final key = _questionKeys[questionId];
+    if (key == null || key.currentContext == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final context = key.currentContext;
+        if (context != null && mounted) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            alignment: 0.15, // Position question near top of viewport
+          );
+        }
+      } catch (e) {
+        debugPrint('Error scrolling to question: $e');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final viewportH = MediaQuery.of(ctx).size.height;
-        final maxH =
-            constraints.hasBoundedHeight ? constraints.maxHeight : viewportH;
+    final isPhone = MediaQuery.of(context).size.width < 700;
 
-        final isPhone = MediaQuery.of(ctx).size.width < 700;
+    final outerVPad = isPhone ? 10.0 : 14.0;
+    final outerHPad = isPhone ? 12.0 : 16.0;
 
-        // Outer spacing around the fixed panel
-        final outerVPad = isPhone ? 10.0 : 14.0;
-        final outerHPad = isPhone ? 12.0 : 16.0;
+    return Stack(
+      children: [
+        // ✅ Whole-page purple background
+        const Positioned.fill(child: ColoredBox(color: gfBackground)),
 
-        final panelH = (maxH - (outerVPad * 2)).clamp(0.0, maxH);
-
-        return SizedBox(
-          width: double.infinity,
-          height: maxH, // ✅ fixed height: page itself will NOT scroll
-          child: Stack(
-            children: [
-              // ✅ App/page background (outside the centered panel)
-              const Positioned.fill(child: ColoredBox(color: Colors.white)),
-
-              Align(
-                alignment: Alignment.topCenter,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1040),
+        // ✅ ONE scroll for the whole page
+        Scrollbar(
+          controller: _pageCtrl,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _pageCtrl,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+                horizontal: outerHPad, vertical: outerVPad),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: ColoredBox(
+                    color: gfBackground,
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: outerHPad,
-                        vertical: outerVPad,
+                      padding: EdgeInsets.fromLTRB(
+                        isPhone ? 16 : 40,
+                        isPhone ? 16 : 22,
+                        isPhone ? 16 : 40,
+                        isPhone ? 14 : 18,
                       ),
-                      child: SizedBox(
-                        height: panelH, // ✅ fixed height panel
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: ColoredBox(
-                            color: gfBackground, // ✅ fixed background panel
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                isPhone ? 16 : 40,
-                                isPhone ? 16 : 22,
-                                isPhone ? 16 : 40,
-                                isPhone ? 14 : 18,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // ✅ Header area (NEVER scrolls)
-                                  Obx(() {
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (!widget.readOnly &&
-                                            _controller.hasCompanions) ...[
-                                          _buildProgressBanner(),
-                                          const SizedBox(height: 12),
-                                        ],
-                                        Text(
-                                          'Demographics',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: isPhone ? 28 : 34,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 14),
-                                        if (!widget.readOnly &&
-                                            widget.showInvitationInput) ...[
-                                          _buildInvitationLoaderCard(),
-                                          const SizedBox(height: 14),
-                                        ],
-                                        _buildHeaderWithAction(),
-                                        const SizedBox(height: 10),
-                                        if (!widget.readOnly &&
-                                            !_controller.isLoading.value &&
-                                            _controller.invitation.value !=
-                                                null &&
-                                            !_controller.isCurrentPersonDone)
-                                          Center(
-                                            child: Text(
-                                              'Click on a question to answer',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    );
-                                  }),
-
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ✅ Header (now it will scroll with the page)
+                          Obx(() {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (!widget.readOnly &&
+                                    _controller.hasCompanions) ...[
+                                  _buildProgressBanner(),
+                                  const SizedBox(height: 12),
+                                ],
+                                Text(
+                                  'Demographics',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: isPhone ? 28 : 34,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                if (!widget.readOnly &&
+                                    widget.showInvitationInput) ...[
+                                  _buildInvitationLoaderCard(),
                                   const SizedBox(height: 14),
-
-                                  // ✅ Questions viewport (ONLY this scrolls)
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: ColoredBox(
-                                        color: gfBackground,
-                                        child: Obx(() {
-                                          // loading
-                                          if (_controller.isLoading.value) {
-                                            return const Center(
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 3,
-                                                color: kGfPurple,
-                                              ),
-                                            );
-                                          }
-
-                                          // waiting for invitation
-                                          if (!widget.readOnly &&
-                                              _controller.invitation.value ==
-                                                  null &&
-                                              _controller
-                                                  .activeInvitationId.isEmpty) {
-                                            return const Center(
-                                              child: DemographicInfoCard(
-                                                icon:
-                                                    Icons.info_outline_rounded,
-                                                iconColor: kGfPurple,
-                                                title: 'Waiting for invitation',
-                                                message:
-                                                    'Paste an invitationId above and click Load.',
-                                              ),
-                                            );
-                                          }
-
-                                          // error
-                                          if (_controller.hasError) {
-                                            return Center(
-                                              child: DemographicInfoCard(
-                                                icon:
-                                                    Icons.error_outline_rounded,
-                                                iconColor: Colors.red,
-                                                title: _controller
-                                                        .errorTitle.value ??
-                                                    'Invalid or expired invitation',
-                                                message: _controller
-                                                        .errorMessage.value ??
-                                                    'Please check your link and try again.',
-                                              ),
-                                            );
-                                          }
-
-                                          // already submitted
-                                          if (!widget.readOnly &&
-                                              _controller.isCurrentPersonDone) {
-                                            final name = _controller
-                                                        .currentCompanionIndex ==
-                                                    null
-                                                ? 'Your'
-                                                : '${_controller.currentPersonName.value}\'s';
-                                            return Center(
-                                              child: DemographicInfoCard(
-                                                icon: Icons
-                                                    .check_circle_outline_rounded,
-                                                iconColor: Colors.green,
-                                                title: 'Already submitted',
-                                                message:
-                                                    '$name responses were already submitted. Click Continue to proceed.',
-                                              ),
-                                            );
-                                          }
-
-                                          // no questions
-                                          if (_controller.questions.isEmpty) {
-                                            return const Center(
-                                              child: DemographicInfoCard(
-                                                icon:
-                                                    Icons.help_outline_rounded,
-                                                iconColor: kGfPurple,
-                                                title:
-                                                    'No questions in this set',
-                                                message:
-                                                    'There are no demographic questions to answer.',
-                                              ),
-                                            );
-                                          }
-
-                                          // ✅ Scroll ONLY inside this area
-                                          return Scrollbar(
-                                            controller: _listCtrl,
-                                            thumbVisibility: true,
-                                            child: ListView.builder(
-                                              controller: _listCtrl,
-                                              physics:
-                                                  const ClampingScrollPhysics(),
-                                              padding: EdgeInsets.zero,
-                                              itemCount:
-                                                  _controller.questions.length,
-                                              itemBuilder: (context, idx) {
-                                                final q =
-                                                    _controller.questions[idx];
-                                                final parent =
-                                                    (q.parentQuestionId ?? '')
-                                                        .trim();
-                                                final isSub = parent.isNotEmpty;
-
-                                                return Obx(() {
-                                                  final isActive = q.id ==
-                                                      _controller
-                                                          .activeQuestionId
-                                                          .value;
-                                                  final answer =
-                                                      _controller.answers[q.id];
-
-                                                  return Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            bottom: 12),
-                                                    child: Padding(
-                                                      padding: EdgeInsets.only(
-                                                        left: isSub ? 24 : 0,
-                                                      ),
-                                                      child:
-                                                          DemographicQuestionCard(
-                                                        question: q,
-                                                        isActive: isActive,
-                                                        answer: answer,
-                                                        textController: widget
-                                                                .readOnly
-                                                            ? null
-                                                            : _controller
-                                                                .getTextController(
-                                                                    q.id),
-                                                        freeTextCtrls: _controller
-                                                            .freeTextControllers,
-                                                        onTap: () => _controller
-                                                            .setActiveQuestion(
-                                                                q.id),
-                                                        onAnswerChanged:
-                                                            (value) => _controller
-                                                                .updateAnswer(
-                                                                    q.id,
-                                                                    value),
-                                                        getFreeTextController:
-                                                            _controller
-                                                                .getFreeTextController,
-                                                        readOnly:
-                                                            widget.readOnly,
-                                                      ),
-                                                    ),
-                                                  );
-                                                });
-                                              },
-                                            ),
-                                          );
-                                        }),
+                                ],
+                                _buildHeaderWithAction(),
+                                const SizedBox(height: 10),
+                                if (!widget.readOnly &&
+                                    !_controller.isLoading.value &&
+                                    _controller.invitation.value != null &&
+                                    !_controller.isCurrentPersonDone)
+                                  Center(
+                                    child: Text(
+                                      'Click on a question to answer',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
+                            );
+                          }),
+
+                          const SizedBox(height: 14),
+
+                          // ✅ Questions (NOT scrollable; it expands; page scroll handles it)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: ColoredBox(
+                              color: gfBackground,
+                              child: Obx(() {
+                                if (_controller.isLoading.value) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 40),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 3,
+                                        color: kGfPurple,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (!widget.readOnly &&
+                                    _controller.invitation.value == null &&
+                                    _controller.activeInvitationId.isEmpty) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 40),
+                                    child: Center(
+                                      child: DemographicInfoCard(
+                                        icon: Icons.info_outline_rounded,
+                                        iconColor: kGfPurple,
+                                        title: 'Waiting for invitation',
+                                        message:
+                                            'Paste an invitationId above and click Load.',
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (_controller.hasError) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 40),
+                                    child: Center(
+                                      child: DemographicInfoCard(
+                                        icon: Icons.error_outline_rounded,
+                                        iconColor: Colors.red,
+                                        title: _controller.errorTitle.value ??
+                                            'Invalid or expired invitation',
+                                        message: _controller
+                                                .errorMessage.value ??
+                                            'Please check your link and try again.',
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (!widget.readOnly &&
+                                    _controller.isCurrentPersonDone) {
+                                  final name = _controller
+                                              .currentCompanionIndex ==
+                                          null
+                                      ? 'Your'
+                                      : '${_controller.currentPersonName.value}\'s';
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 40),
+                                    child: Center(
+                                      child: DemographicInfoCard(
+                                        icon:
+                                            Icons.check_circle_outline_rounded,
+                                        iconColor: Colors.green,
+                                        title: 'Already submitted',
+                                        message:
+                                            '$name responses were already submitted. Click Continue to proceed.',
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (_controller.questions.isEmpty) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 40),
+                                    child: Center(
+                                      child: DemographicInfoCard(
+                                        icon: Icons.help_outline_rounded,
+                                        iconColor: kGfPurple,
+                                        title: 'No questions in this set',
+                                        message:
+                                            'There are no demographic questions to answer.',
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                // ✅ IMPORTANT: shrinkWrap + NeverScrollablePhysics
+                                return ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: EdgeInsets.zero,
+                                  itemCount: _controller.questions.length,
+                                  itemBuilder: (context, idx) {
+                                    final q = _controller.questions[idx];
+                                    final parent =
+                                        (q.parentQuestionId ?? '').trim();
+                                    final isSub = parent.isNotEmpty;
+
+                                    // Create or get GlobalKey for this question
+                                    _questionKeys.putIfAbsent(
+                                      q.id,
+                                      () => GlobalKey(),
+                                    );
+
+                                    return Obx(() {
+                                      final isActive = q.id ==
+                                          _controller.activeQuestionId.value;
+                                      final answer = _controller.answers[q.id];
+                                      final showValidation =
+                                          _controller.showValidation.value;
+                                      final validationError =
+                                          _controller.validationErrors[q.id];
+
+                                      return Padding(
+                                        key: _questionKeys[q.id],
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                              left: isSub ? 24 : 0),
+                                          child: DemographicQuestionCard(
+                                            question: q,
+                                            isActive: isActive,
+                                            answer: answer,
+                                            textController: widget.readOnly
+                                                ? null
+                                                : _controller
+                                                    .getTextController(q.id),
+                                            freeTextCtrls:
+                                                _controller.freeTextControllers,
+                                            onTap: () => _controller
+                                                .setActiveQuestion(q.id),
+                                            onAnswerChanged: (value) =>
+                                                _controller.updateAnswer(
+                                                    q.id, value),
+                                            getFreeTextController: _controller
+                                                .getFreeTextController,
+                                            readOnly: widget.readOnly,
+                                            showValidation: showValidation,
+                                            validationError: validationError,
+                                          ),
+                                        ),
+                                      );
+                                    });
+                                  },
+                                );
+                              }),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
-
-              // ✅ Submitting overlay (stays above everything)
-              Obx(() {
-                if (!_controller.isSubmitting.value)
-                  return const SizedBox.shrink();
-                return Positioned.fill(
-                  child: Container(
-                    color: gfBackground.withOpacity(0.35),
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        color: kGfPurple,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCoverImage() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(0),
-        color: Colors.black.withOpacity(0.06),
-      ),
-      child: const Center(
-        child: Icon(Icons.image_outlined, size: 42, color: Colors.black54),
-      ),
-    );
-  }
-
-  Widget _buildPinnedHeaderContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!widget.readOnly && _controller.hasCompanions) ...[
-          _buildProgressBanner(),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          'Demographics',
-          style: GoogleFonts.poppins(
-            fontSize: 34,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (!widget.readOnly && widget.showInvitationInput) ...[
-          _buildInvitationLoaderCard(),
-          const SizedBox(height: 16),
-        ],
-        _buildHeaderWithAction(),
-        const SizedBox(height: 14),
-        if (!widget.readOnly &&
-            !_controller.isLoading.value &&
-            _controller.invitation.value != null &&
-            !_controller.isCurrentPersonDone)
-          Center(
-            child: Text(
-              'Click on a question to answer',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
-              ),
             ),
           ),
+        ),
+
+        // ✅ Submitting overlay
+        Obx(() {
+          if (!_controller.isSubmitting.value) return const SizedBox.shrink();
+          return Positioned.fill(
+            child: Container(
+              color: gfBackground.withOpacity(0.35),
+              child: const Center(
+                child:
+                    CircularProgressIndicator(strokeWidth: 3, color: kGfPurple),
+              ),
+            ),
+          );
+        }),
       ],
     );
   }

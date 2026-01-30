@@ -671,50 +671,16 @@ class FirestoreServices {
     }
   }
 
-  Future<GuestModel> updateGuest(GuestModel updatedGuest) async {
-    try {
-      // Validate that guestId is provided
-      if (updatedGuest.guestId == null || updatedGuest.guestId!.isEmpty) {
-        throw Exception('Guest ID is required for update');
-      }
-
-      // Search for the document with the matching guestId field
-      final querySnapshot = await guestsRef
-          .where('guestId', isEqualTo: updatedGuest.guestId)
-          .limit(1)
-          .get();
-
-      // Check if guest exists
-      if (querySnapshot.docs.isEmpty) {
-        throw Exception('Guest with ID ${updatedGuest.guestId} not found');
-      }
-
-      // Get the document reference and existing data
-      final docRef = querySnapshot.docs.first.reference;
-      final existingData = querySnapshot.docs.first.data();
-
-      // Get the original createdAt timestamp from existing data
-      final originalCreatedAt = existingData['createdAt'];
-
-      // Prepare update data using toFirestoreUpdate()
-      final updateData = updatedGuest.toFirestoreUpdate();
-
-      // Ensure createdAt is not overwritten - preserve original value
-      if (originalCreatedAt != null) {
-        updateData['createdAt'] = originalCreatedAt;
-      }
-
-      // Update the document in Firestore
-      await docRef.update(updateData);
-
-      print('Guest with ID ${updatedGuest.guestId} updated successfully');
-
-      // Return the updated guest model
-      return updatedGuest;
-    } catch (e) {
-      print('Failed to update guest with ID ${updatedGuest.guestId}: $e');
-      rethrow;
-    }
+  // inside the same class that contains updateGuest() and guestsRef
+  Future<void> updateGuestMaxInvite({
+    required String guestId,
+    required int maxGuestInvite,
+  }) async {
+    // IMPORTANT: use doc(guestId) (document id), not where('guestId'...)
+    await guestsRef.doc(guestId).update({
+      'maxGuestInvite': maxGuestInvite,
+      'modifiedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<String> saveGuestOld(String eventId, Guest_old guest) async {

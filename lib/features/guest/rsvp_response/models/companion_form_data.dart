@@ -13,6 +13,7 @@ class CompanionFormData {
   final RxnString selectedCountry = RxnString();
   final RxnString selectedState = RxnString();
   final Rxn<Gender> selectedGender = Rxn<Gender>();
+  final RxBool willAttend = true.obs;
   String? createdGuestId; // Store the created guest ID
 
   void dispose() {
@@ -37,15 +38,14 @@ class CompanionFormData {
     // Try form validation first (works if form is in widget tree)
     final formValid = formKey.currentState?.validate() ?? false;
     if (formValid) return true;
-    
+
     // If form is not in widget tree, manually validate required fields
     // Required fields: name and email
     final nameValid = name.text.trim().isNotEmpty;
     final emailText = email.text.trim();
-    final emailValid = emailText.isNotEmpty && 
+    final emailValid = emailText.isNotEmpty &&
         ValidationHelper.validateEmail(emailText) == null; // null means valid
-    
+
     return nameValid && emailValid;
   }
 }
-

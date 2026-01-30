@@ -232,14 +232,23 @@ class MenuSetDetailsController extends GetxController {
 
   Future<void> createItem({
     required String name,
-    required String category, // Changed from MenuCategory to String
-    required FoodType foodType, // NEW
+    required String category, // String-based category
+    required FoodType foodType,
     String? description,
     double? price,
     String? imageUrl,
+    List<String>? allergens, // ✅ NEW (optional)
   }) async {
     try {
       final ref = FirebaseFirestore.instance.collection('menu_items').doc();
+
+      // ✅ clean allergens (keep only allowed + unique + sorted)
+      final cleanedAllergens = (allergens ?? [])
+          .map((e) => e.trim().toLowerCase())
+          .where((e) => e.isNotEmpty && MenuItem.allowedAllergens.contains(e))
+          .toSet()
+          .toList()
+        ..sort();
 
       final item = MenuItem(
         menuItemId: ref.id,
@@ -252,10 +261,12 @@ class MenuSetDetailsController extends GetxController {
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        foodType: foodType, // NEW
+        foodType: foodType,
+        allergens: cleanedAllergens.isEmpty ? null : cleanedAllergens, // ✅ NEW
       );
 
       await ref.set(item.toFirestoreCreate());
+
       items.add(item);
       _applyFilters();
     } catch (e) {

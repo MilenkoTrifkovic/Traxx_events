@@ -1,31 +1,17 @@
-// functions/checkOrganisationInfo.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { db } from "./admin.js";
 
-// const db = getFirestore();
-
-/**
- * Callable function to check if the current user already has an organisation.
- * Returns:
- *  {
- *    hasOrganisation: boolean,
- *    organisationId: string | null,
- *    role: string | null
- *  }
- */
 export const checkOrganisationInfo = onCall(async (request) => {
   try {
-    // Must be authenticated
-    if (!request.auth || !request.auth.uid) {
+    if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "You must be signed in.");
     }
 
     const userId = request.auth.uid;
     logger.info(`Checking organisation info for user: ${userId}`);
 
-    // Look up active admin role
-    const existingAdminRole = await db
+    let roleSnap = await db
       .collection("roles")
       .where("userId", "==", userId)
       .where("role", "==", "admin")
@@ -33,21 +19,21 @@ export const checkOrganisationInfo = onCall(async (request) => {
       .limit(1)
       .get();
 
-    const hasOrganisation = !existingAdminRole.empty;
+    // ─────────────────────────────────────────────
+    // 2) Fallback to HOST role
+    // ─────────────────────────────────────────────
+    if (roleSnap.empty) {
+      roleSnap = await db
+        .collection("roles")
+        .where("userId", "==", userId)
+        .where("role", "==", "host")
+        .where("isDisabled", "==", false)
+        .limit(1)
+        .get();
+    }
 
-    if (hasOrganisation) {
-      const existingRole = existingAdminRole.docs[0].data();
-      logger.info(
-        `User ${userId} has existing admin role for organisation ${existingRole.organisationId}`
-      );
-
-      return {
-        hasOrganisation: true,
-        organisationId: existingRole.organisationId ?? null,
-        role: existingRole.role ?? "admin",
-      };
-    } else {
-      logger.info(`User ${userId} does NOT have an existing organisation`);
+    if (roleSnap.empty) {
+      logger.info(`User ${userId} has no active organisation role`);
 
       return {
         hasOrganisation: false,
@@ -55,10 +41,39 @@ export const checkOrganisationInfo = onCall(async (request) => {
         role: null,
       };
     }
+
+    const roleData = roleSnap.docs[0].data();
+
+    const organisationId =
+      (roleData.organisationId ?? "").toString().trim() || null;
+    const role = (roleData.role ?? "admin").toString();
+
+    logger.info(
+      `User ${userId} has active role=${role} for org=${organisationId}`
+    );
+    
+    if (organisationId) {
+      await db
+        .collection("users")
+        .doc(userId)
+        .set(
+          {
+            organisationId,
+            role,
+            modifiedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+    }
+
+    return {
+      hasOrganisation: true,
+      organisationId,
+      role,
+    };
   } catch (error) {
     logger.error("Error checking organisation info:", error);
 
-    // Only rethrow if it's really an HttpsError
     if (error instanceof HttpsError) {
       throw error;
     }
@@ -69,3 +84,4 @@ export const checkOrganisationInfo = onCall(async (request) => {
     );
   }
 });
+

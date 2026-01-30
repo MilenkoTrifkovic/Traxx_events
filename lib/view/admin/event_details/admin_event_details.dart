@@ -28,7 +28,6 @@ import 'package:traxx_wepapp/widgets/app_primary_button.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_photo_manager.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/venue_info_section/venue_section_card.dart';
-import 'package:traxx_wepapp/view/admin/event_details/widgets/event_summary_section.dart';
 import 'package:traxx_wepapp/view/admin/event_details/widgets/invitation_letter/invitation_letter_section.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 import 'package:traxx_wepapp/widgets/dialog_step_header.dart';
@@ -172,7 +171,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
                 ],
 
                 SizedBox(height: gap),
-                EventAnalyzerCard(eventId: widget.eventId),
+                // EventAnalyzerCard(eventId: widget.eventId),
 
                 SizedBox(height: gap),
 
@@ -1488,23 +1487,42 @@ class _EditEventDetailsDialogState extends State<EditEventDetailsDialog> {
   }
 }
 
-class MenuSelectionCard extends StatelessWidget {
+class MenuSelectionCard extends StatefulWidget {
   final AdminEventDetailsController controller;
 
   const MenuSelectionCard({super.key, required this.controller});
 
+  @override
+  State<MenuSelectionCard> createState() => _MenuSelectionCardState();
+}
+
+class _MenuSelectionCardState extends State<MenuSelectionCard> {
+  late final ScrollController _selectedDishesCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDishesCtrl = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _selectedDishesCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _openMenuDialog(BuildContext context) async {
-    final initialMenuId = controller.lastBrowsedMenuId.value ??
-        (controller.availableMenus.isNotEmpty
-            ? controller.availableMenus.first.id
+    final initialMenuId = widget.controller.lastBrowsedMenuId.value ??
+        (widget.controller.availableMenus.isNotEmpty
+            ? widget.controller.availableMenus.first.id
             : null);
 
     await showDialog(
       context: context,
       builder: (_) => MenuAndItemsDialog(
-        controller: controller,
+        controller: widget.controller,
         initialMenuId: initialMenuId,
-        initialItemIds: controller.selectedMenuItemIds.toList(),
+        initialItemIds: widget.controller.selectedMenuItemIds.toList(),
       ),
     );
   }
@@ -1532,9 +1550,9 @@ class MenuSelectionCard extends StatelessWidget {
     final maxListHeight = (h * (isPhone ? 0.28 : 0.34)).clamp(200.0, 360.0);
 
     return Obx(() {
-      final selectedIds = controller.selectedMenuItemIds.toList();
-      final selectedItems = controller.selectedMenuItems.toList();
-      final groups = controller.menuItemGroups.toList();
+      final selectedIds = widget.controller.selectedMenuItemIds.toList();
+      final selectedItems = widget.controller.selectedMenuItems.toList();
+      final groups = widget.controller.menuItemGroups.toList();
 
       final bool hasSelection = selectedIds.isNotEmpty;
       final bool isLoadingSelectedDocs = hasSelection && selectedItems.isEmpty;
@@ -1616,7 +1634,7 @@ class MenuSelectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Header row (responsive action)
+            // Header row (responsive action)
             Row(
               children: [
                 Expanded(
@@ -1689,11 +1707,16 @@ class MenuSelectionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // ✅ FIXED Scrollbar: controller attached + ListView uses same controller
               ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxListHeight),
                 child: Scrollbar(
+                  controller: _selectedDishesCtrl,
                   thumbVisibility: true,
                   child: ListView.separated(
+                    controller: _selectedDishesCtrl,
+                    primary: false,
                     itemCount: selectedItems.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, idx) {
@@ -1710,7 +1733,9 @@ class MenuSelectionCard extends StatelessWidget {
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
+
               Obx(() {
                 if (!org.showMenuItemPrices.value) {
                   return const SizedBox.shrink();
@@ -3974,413 +3999,6 @@ class DemographicSelectionCard extends StatelessWidget {
   }
 }
 
-class EventAnalyzerCard extends StatefulWidget {
-  final String eventId;
-  const EventAnalyzerCard({super.key, required this.eventId});
-
-  @override
-  State<EventAnalyzerCard> createState() => _EventAnalyzerCardState();
-}
-
-class _EventAnalyzerCardState extends State<EventAnalyzerCard> {
-  late final CloudFunctionsService _svc;
-  bool _loading = true;
-  String? _error;
-  Map<String, dynamic>? _data;
-  DateTime? _loadedAt;
-
-  bool _showAllMenu = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _svc = Get.find<CloudFunctionsService>();
-    _load();
-  }
-
-  int _toInt(dynamic v) {
-    if (v == null) return 0;
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    return int.tryParse(v.toString()) ?? 0;
-  }
-
-  Map<String, dynamic> _asMap(dynamic v) {
-    if (v is Map<String, dynamic>) return v;
-    if (v is Map) return Map<String, dynamic>.from(v);
-    return <String, dynamic>{};
-  }
-
-  List<Map<String, dynamic>> _asMapList(dynamic v) {
-    if (v is List) {
-      return v
-          .where((e) => e is Map)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-    }
-    return <Map<String, dynamic>>[];
-  }
-
-  Map<String, int> _asStringIntMap(dynamic v) {
-    if (v is Map) {
-      final out = <String, int>{};
-      v.forEach((k, val) {
-        final key = (k ?? '').toString();
-        out[key] = _toInt(val);
-      });
-      return out;
-    }
-    return <String, int>{};
-  }
-
-  Future<void> _load() async {
-    if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final res = await _svc.getEventAnalytics(eventId: widget.eventId);
-      if (!mounted) return;
-      setState(() {
-        _data = res;
-        _loadedAt = DateTime.now();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString());
-    } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final inv = _asMap(_data?['invitations']);
-    final demo = _asMap(_data?['demographics']);
-    final menu = _asMap(_data?['menu']);
-
-    final totalInv = _toInt(inv['total']);
-    final sent = _toInt(inv['sent']);
-    final demoDone = _toInt(inv['demographicsSubmitted']);
-    final menuDone = _toInt(inv['menuSubmitted']);
-
-    final demoResponses = _toInt(demo['responses']);
-    final menuResponses = _toInt(menu['responses']);
-
-    final lastUpdated = _loadedAt == null
-        ? null
-        : DateFormat('dd MMM, HH:mm').format(_loadedAt!);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Event analyzer',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF111827),
-                      ),
-                    ),
-                    if (lastUpdated != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Updated • $lastUpdated',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: const Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh analytics',
-                onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          if (_loading) ...[
-            Text(
-              'Loading analytics...',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const LinearProgressIndicator(minHeight: 3),
-            const SizedBox(height: 8),
-          ] else if (_error != null) ...[
-            Text(
-              'Failed to load analytics',
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _error!,
-              style:
-                  GoogleFonts.poppins(fontSize: 12, color: Colors.red.shade700),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh),
-                label: Text('Try again', style: GoogleFonts.poppins()),
-              ),
-            ),
-          ] else ...[
-            // 1) Completion funnel (UNCHANGED)
-            Text(
-              'Completion funnel',
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _statTile('Invited', totalInv, totalInv),
-                _statTile('Emails sent', sent, totalInv),
-                _statTile('Demographics done', demoDone, totalInv),
-                _statTile('Menu done', menuDone, totalInv),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-            const Divider(height: 1),
-            const SizedBox(height: 18),
-
-            // 2) Navigation to dedicated analyzer pages
-            Text(
-              'Analyze responses',
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 920;
-
-                final demoCard = _analyzerNavCard(
-                  title: 'Demographic analyzer',
-                  subtitle: demoResponses == 0
-                      ? 'No responses yet'
-                      : '$demoResponses responses',
-                  icon: Icons.assignment_outlined,
-                  onTap: () {
-                    context.push(
-                      '/event-details/${widget.eventId}/demographic-analyzer',
-                    );
-                  },
-                );
-
-                final menuCard = _analyzerNavCard(
-                  title: 'Menu items analyzer',
-                  subtitle: menuResponses == 0
-                      ? 'No selections yet'
-                      : '$menuResponses responses',
-                  icon: Icons.restaurant_menu,
-                  onTap: () {
-                    context.push(
-                      '/event-details/${widget.eventId}/menu-analyzer',
-                    );
-                  },
-                );
-
-                if (isNarrow) {
-                  return Column(
-                    children: [
-                      demoCard,
-                      const SizedBox(height: 12),
-                      menuCard,
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: demoCard),
-                    const SizedBox(width: 14),
-                    Expanded(child: menuCard),
-                  ],
-                );
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _analyzerNavCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Icon(icon, size: 20, color: const Color(0xFF111827)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: const Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                'View',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statTile(String label, int value, int total) {
-    final pct = (total <= 0) ? 0 : (value / total);
-    final pctText = total <= 0 ? '—' : '${(pct * 100).round()}%';
-
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 12, color: const Color(0xFF6B7280))),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Text(
-                '$value',
-                style: GoogleFonts.poppins(
-                    fontSize: 18, fontWeight: FontWeight.w800),
-              ),
-              const Spacer(),
-              Text(
-                pctText,
-                style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _miniBar(value: value, total: total <= 0 ? 1 : total),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniBar({required int value, required int total}) {
-    final p = total <= 0 ? 0.0 : (value / total).clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        height: 8,
-        color: const Color(0xFFE5E7EB),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: p,
-            child: Container(color: Colors.black),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _GroupDialogResult {
   final String name;
   final List<String> itemIds;
@@ -4407,7 +4025,6 @@ class EventSummarySection extends StatelessWidget {
       final organisation = controller.organisation;
       final venue = controller.venue;
 
-      // Format date/time safely (your current code uses evt.date for both date+time)
       final dateStr =
           "${evt.date.day.toString().padLeft(2, '0')}.${evt.date.month.toString().padLeft(2, '0')}.${evt.date.year}";
       final timeStr =
@@ -4430,6 +4047,67 @@ class EventSummarySection extends StatelessWidget {
           ? 'Service type'
           : evt.serviceType.name[0].toUpperCase() +
               evt.serviceType.name.substring(1);
+
+      // ---------------------------
+      // Pills + Analyzer button (right side on wide screens)
+      // ---------------------------
+      final pills = <Widget>[
+        _glassPillButton(
+          icon: Icons.event_outlined,
+          label: '$dateStr • $timeStr',
+          isPhone: isPhone,
+        ),
+        _glassPillButton(
+          icon: Icons.place_outlined,
+          label: city.isEmpty ? 'Location not set' : city,
+          isPhone: isPhone,
+        ),
+        _glassPillButton(
+          icon: Icons.location_city_outlined,
+          label: venueName.isEmpty ? 'Venue not set' : venueName,
+          isPhone: isPhone,
+        ),
+        _glassPillButton(
+          icon: Icons.restaurant_outlined,
+          label: serviceName,
+          isPhone: isPhone,
+        ),
+      ];
+
+      final analyzerBtn = _glassPillButton(
+        icon: Icons.analytics_outlined,
+        label: isPhone ? 'Analyzer' : 'Event analyzer',
+        isPhone: isPhone,
+        onTap: () {
+          final eventId = controller.eventDocId.trim();
+          if (eventId.isEmpty) return;
+          context.push('/event-details/$eventId/analyzer');
+        },
+      );
+
+      // Put analyzer on the far right only on wide screens (prevents overflow)
+      final bool showAnalyzerOnRight = !isPhone && w >= 900;
+
+      final Widget pillsRow = showAnalyzerOnRight
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: pills,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                analyzerBtn,
+              ],
+            )
+          : Wrap(
+              spacing: isPhone ? 8 : 12,
+              runSpacing: isPhone ? 8 : 10,
+              children: [...pills, analyzerBtn],
+            );
 
       return Container(
         height: cardH,
@@ -4505,7 +4183,7 @@ class EventSummarySection extends StatelessWidget {
                         ),
                       ),
 
-                    // Dark gradient overlay for readability
+                    // Dark overlay
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -4518,6 +4196,7 @@ class EventSummarySection extends StatelessWidget {
                         ),
                       ),
                     ),
+
                     // Side depth overlay
                     Container(
                       decoration: BoxDecoration(
@@ -4547,10 +4226,9 @@ class EventSummarySection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top controls row (responsive)
+                    // Top controls row
                     Row(
                       children: [
-                        // Change cover
                         _glassAction(
                           onTap: () => controller.pickAndUploadCoverImage(),
                           child: Row(
@@ -4576,10 +4254,7 @@ class EventSummarySection extends StatelessWidget {
                             ],
                           ),
                         ),
-
                         const Spacer(),
-
-                        // Settings / edit event
                         _glassIconAction(
                           tooltip: 'Edit event details',
                           onTap: () {
@@ -4598,7 +4273,7 @@ class EventSummarySection extends StatelessWidget {
 
                     const Spacer(),
 
-                    // Title (responsive + safe wrapping)
+                    // Title
                     Text(
                       evt.name,
                       maxLines: isPhone ? 2 : 1,
@@ -4620,34 +4295,8 @@ class EventSummarySection extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    // Pills (wrap already helps, but reduce spacing on phone)
-                    Wrap(
-                      spacing: isPhone ? 8 : 12,
-                      runSpacing: isPhone ? 8 : 10,
-                      children: [
-                        _glassPill(
-                          icon: Icons.event_outlined,
-                          label: '$dateStr • $timeStr',
-                          isPhone: isPhone,
-                        ),
-                        _glassPill(
-                          icon: Icons.place_outlined,
-                          label: city.isEmpty ? 'Location not set' : city,
-                          isPhone: isPhone,
-                        ),
-                        _glassPill(
-                          icon: Icons.location_city_outlined,
-                          label:
-                              venueName.isEmpty ? 'Venue not set' : venueName,
-                          isPhone: isPhone,
-                        ),
-                        _glassPill(
-                          icon: Icons.restaurant_outlined,
-                          label: serviceName,
-                          isPhone: isPhone,
-                        ),
-                      ],
-                    ),
+                    // ✅ pills + analyzer (right side on desktop)
+                    pillsRow,
                   ],
                 ),
               ),
@@ -4716,62 +4365,76 @@ class EventSummarySection extends StatelessWidget {
   }
 
   // ---------------------------
-  // Glass pill (responsive)
+  // Glass pill button (tap animation always; action optional)
   // ---------------------------
-  Widget _glassPill({
+  Widget _glassPillButton({
     required IconData icon,
     required String label,
     required bool isPhone,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isPhone ? 10 : 14,
-        vertical: isPhone ? 7 : 8,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.30),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: isPhone ? 14 : 16, color: Colors.white),
-          const SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: isPhone ? 210 : 360, // ✅ prevents long text overflow
+    final hasAction = onTap != null;
+
+    return Semantics(
+      button: hasAction,
+      enabled: hasAction,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          splashColor: Colors.white.withValues(alpha: 0.18),
+          highlightColor: Colors.white.withValues(alpha: 0.10),
+          mouseCursor:
+              hasAction ? SystemMouseCursors.click : SystemMouseCursors.basic,
+
+          // ✅ Always provide a handler so the ripple/press animation works,
+          // but only execute real action when provided.
+          onTap: () => onTap?.call(),
+
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isPhone ? 10 : 14,
+              vertical: isPhone ? 7 : 8,
             ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: isPhone ? 12 : 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                height: 1.15,
-                shadows: [
-                  Shadow(
-                    color: Colors.black.withValues(alpha: 0.30),
-                    offset: const Offset(0, 1),
-                    blurRadius: 2,
-                  ),
-                ],
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.30),
+                width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: isPhone ? 14 : 16, color: Colors.white),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isPhone ? 210 : 360, // ✅ prevents overflow
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: isPhone ? 12 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,14 +1,11 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-
 import 'menus_widgets/menu_widgets.dart';
-
-// assumes MenuSelectionController, MenuGroupDto, MenuItemDto are imported
-// import 'menu_selection_controller.dart';
 
 class GuestMenuSelectionPage extends StatefulWidget {
   final String? invitationId;
@@ -58,6 +55,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   bool get _isReadOnly => widget.readOnly;
   bool get _showDietCard =>
       (!_isReadOnly) || widget.showDietPreferenceInPreview;
+  final ScrollController _pageCtrl = ScrollController();
 
   @override
   void initState() {
@@ -144,6 +142,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pageCtrl.dispose();
     super.dispose();
   }
 
@@ -173,20 +172,20 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       return;
     }
 
-    // ✅ SAFETY: if flow is complete after menu submit → always go Thank You
+    // ✅ If flow is complete → Thank You
     if (_controller.isFlowComplete) {
       context.go(
-        '${AppRoute.thankYou.path}?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+        '${AppRoute.thankYou.path}'
+        '?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
         '&token=${Uri.encodeComponent(_token)}',
       );
       return;
     }
 
-    // Otherwise follow normal next-step routing
+    // Next step
     final next = result.nextStep;
     if (next != null) {
-      final nextUrl = next.buildUrl(widget.invitationId!, _token);
-      context.go(nextUrl);
+      context.go(next.buildUrl(widget.invitationId!, _token));
     }
   }
 
@@ -217,21 +216,20 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       final groups = _controller.groups;
 
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ Show diet card in preview as well (disabled)
-          if (_showDietCard) ...[
+          if (_isReadOnly || widget.showDietPreferenceInPreview) ...[
             _DietPreferenceCard(
               controller: _controller,
               invitationId: widget.invitationId ?? 'preview',
               companionIdx: widget.companionIndex,
               compact: true,
-              disabled: _isReadOnly, // ✅ disabled in preview
-              previewHint: _isReadOnly, // ✅ shows hint text in preview
+              disabled: _isReadOnly,
+              previewHint: _isReadOnly,
             ),
             const SizedBox(height: 12),
           ],
 
-          // Keep search filters only in real flow
           if (!_isReadOnly && _controller.dietPref.value != null) ...[
             MenuSearchFilters(
               searchController: _searchController,
@@ -240,25 +238,26 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
             const SizedBox(height: 12),
           ],
 
-          Expanded(
-            child: ListView(
-              children: [
-                if (!_isReadOnly && groups.isNotEmpty) ...[
-                  for (final g in groups) ...[
-                    MenuGroupCard(group: g, controller: _controller),
-                    const SizedBox(height: 12),
-                  ],
-                  const SizedBox(height: 6),
+          // ✅ IMPORTANT: this ListView must NOT scroll
+          ListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              if (!_isReadOnly && groups.isNotEmpty) ...[
+                for (final g in groups) ...[
+                  MenuGroupCard(group: g, controller: _controller),
+                  const SizedBox(height: 12),
                 ],
-                for (final it in ungrouped) ...[
-                  MenuItemCardWidget(
-                    item: it,
-                    controller: _controller,
-                    readOnly: _isReadOnly,
-                  ),
-                ],
+                const SizedBox(height: 6),
               ],
-            ),
+              for (final it in ungrouped) ...[
+                MenuItemCardWidget(
+                  item: it,
+                  controller: _controller,
+                  readOnly: _isReadOnly,
+                ),
+              ],
+            ],
           ),
 
           if (!_isReadOnly) ...[
@@ -289,7 +288,7 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         return MenuErrorCard(message: _controller.errorMessage.value);
       }
 
-      // ✅ HARD GATE: in real flow, nothing else renders until diet chosen
+      // ✅ Step 1: Diet gate
       if (!_isReadOnly && _controller.dietPref.value == null) {
         return Column(
           children: [
@@ -307,111 +306,247 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
         );
       }
 
-      // ✅ after diet chosen → show menu list + groups
-      if (!_isReadOnly && _controller.isCurrentPersonDone) {
-        return MenuAlreadySubmittedCard(onContinue: _handleContinue);
+      // ✅ Step 2: Allergens card (edit anytime after diet is chosen)
+      if (!_isReadOnly) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _AllergensCard(controller: _controller),
+            const SizedBox(height: 12),
+            if (_controller.isCurrentPersonDone)
+              MenuAlreadySubmittedCard(onContinue: _handleContinue)
+            else if (_controller.items.isEmpty && _controller.groups.isEmpty)
+              const MenuEmptyCard()
+            else
+              _buildMenuList(),
+          ],
+        );
       }
 
+      // ✅ Read-only / preview mode: just show menu list (diet card already handled by _showDietCard)
       if (_controller.items.isEmpty && _controller.groups.isEmpty) {
         return const MenuEmptyCard();
       }
-
       return _buildMenuList();
     });
   }
 
+  bool get _needsAttendanceGate {
+    final idx = _controller.companionIndex.value;
+    if (idx == null) return false;
+
+    final inv = _controller.invitation.value;
+    if (inv == null) return false;
+
+    final comps = (inv['companions'] as List?) ?? const [];
+    if (idx < 0 || idx >= comps.length) return false;
+
+    final c = Map<String, dynamic>.from(comps[idx] as Map);
+    return c['attendingSubmitted'] != true;
+  }
+
+  bool? get _companionAttendingValue {
+    final idx = _controller.companionIndex.value;
+    final inv = _controller.invitation.value;
+    if (idx == null || inv == null) return null;
+
+    final comps = (inv['companions'] as List?) ?? const [];
+    if (idx < 0 || idx >= comps.length) return null;
+
+    final c = Map<String, dynamic>.from(comps[idx] as Map);
+    final v = c['isAttending'];
+    return v is bool ? v : null;
+  }
+
+  Future<void> _setAttendance(bool attending) async {
+    final idx = _controller.companionIndex.value;
+    if (idx == null) return;
+
+    try {
+      final fn =
+          FirebaseFunctions.instance.httpsCallable('submitCompanionAttendance');
+      await fn.call({
+        'invitationId': widget.invitationId!,
+        'token': _token,
+        'companionIndex': idx,
+        'isAttending': attending,
+      });
+
+      // refresh controller state
+      await _controller.initialize(
+        invitationId: widget.invitationId!,
+        token: _token,
+        companionIdx: idx,
+      );
+
+      if (!mounted) return;
+
+      // if not attending -> show details and stop
+      if (!attending) {
+        context.go(
+          '${AppRoute.guestResponse.path}'
+          '?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+          '&token=${Uri.encodeComponent(_token)}'
+          '&view=details',
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Failed to submit attendance')),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit attendance')),
+      );
+    }
+  }
+
+  Widget _attendanceGateCard() {
+    final name = widget.companionName?.trim().isNotEmpty == true
+        ? widget.companionName!.trim()
+        : 'Guest';
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Attendance required',
+              style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Will $name attend the event?',
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _setAttendance(false),
+                    child: const Text('No'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _setAttendance(true),
+                    child: const Text('Yes'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final viewportH = MediaQuery.of(ctx).size.height;
-        final boundedH = constraints.hasBoundedHeight;
-        final maxH = boundedH ? constraints.maxHeight : viewportH;
-        final scrollH = (maxH - 280).clamp(260.0, 800.0);
+    final isPhone = MediaQuery.of(context).size.width < 700;
+    final outerVPad = isPhone ? 10.0 : 14.0;
+    final outerHPad = isPhone ? 12.0 : 16.0;
 
-        return SizedBox(
-          width: double.infinity,
-          height: boundedH ? maxH : null,
-          child: Stack(
-            children: [
-              const Positioned.fill(child: ColoredBox(color: gfBackground)),
-              Align(
-                alignment: Alignment.topCenter,
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1040),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (!_isReadOnly) ...[
-                              MenuProgressBanner(controller: _controller),
-                              Obx(() => _controller.hasCompanions
-                                  ? const SizedBox(height: 12)
-                                  : const SizedBox.shrink()),
-                            ],
-                            Text(
-                              'Menu Selection',
-                              style: GoogleFonts.poppins(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            // BELOW: const SizedBox(height: 18),
+    return Stack(
+      children: [
+        const Positioned.fill(child: ColoredBox(color: gfBackground)),
+        Scrollbar(
+          controller: _pageCtrl,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _pageCtrl,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+                horizontal: outerHPad, vertical: outerVPad),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isPhone ? 16 : 40,
+                    vertical: isPhone ? 16 : 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_isReadOnly) ...[
+                        MenuProgressBanner(controller: _controller),
+                        Obx(() {
+                          // Explicitly access invitation to make it reactive
+                          final inv = _controller.invitation.value;
+                          final hasCompanions =
+                              inv != null && _controller.hasCompanions;
+                          return hasCompanions
+                              ? const SizedBox(height: 12)
+                              : const SizedBox.shrink();
+                        }),
+                      ],
 
-                            Obx(() {
-                              final prefChosen = _isReadOnly ||
-                                  _controller.dietPref.value != null;
-
-                              if (_isReadOnly || !prefChosen) {
-                                return const SizedBox.shrink();
-                              }
-
-                              return Column(
-                                children: [
-                                  MenuHeaderCard(
-                                    controller: _controller,
-                                    onSubmit: _handleSubmit,
-                                    onContinue: _handleContinue,
-                                  ),
-                                  const SizedBox(height: 14),
-                                ],
-                              );
-                            }),
-
-                            SizedBox(height: scrollH, child: _buildBody()),
-                            const SizedBox(height: 24),
-                          ],
+                      Text(
+                        'Menu Selection',
+                        style: GoogleFonts.poppins(
+                          fontSize: isPhone ? 28 : 34,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 18),
+
+                      Obx(() {
+                        // Always access the observable variable first
+                        final dietPrefValue = _controller.dietPref.value;
+                        final prefChosen = _isReadOnly || dietPrefValue != null;
+
+                        if (_isReadOnly || !prefChosen) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Column(
+                          children: [
+                            MenuHeaderCard(
+                              controller: _controller,
+                              onSubmit: _handleSubmit,
+                              onContinue: _handleContinue,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                        );
+                      }),
+
+                      // ✅ No fixed height anymore
+                      _buildBody(),
+
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ),
-              if (!_isReadOnly)
-                Obx(() => _controller.isSubmitting.value
-                    ? Positioned.fill(
-                        child: Container(
-                          color: gfBackground.withOpacity(0.35),
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: kGfPurple,
-                            ),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink()),
-            ],
+            ),
           ),
-        );
-      },
+        ),
+        if (!_isReadOnly)
+          Obx(() => _controller.isSubmitting.value
+              ? Positioned.fill(
+                  child: Container(
+                    color: gfBackground.withOpacity(0.35),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: kGfPurple,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink()),
+      ],
     );
   }
 }
@@ -634,5 +769,89 @@ class _PickDietInfoCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _AllergensCard extends StatelessWidget {
+  final MenuSelectionController controller;
+  final bool compact;
+
+  const _AllergensCard({
+    required this.controller,
+    this.compact = false,
+  });
+
+  String _label(String k) {
+    switch (k) {
+      case 'tree_nuts':
+        return 'Tree nuts';
+      default:
+        return k[0].toUpperCase() + k.substring(1);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selected = controller.selectedAllergens;
+
+      return Container(
+        padding:
+            EdgeInsets.fromLTRB(16, compact ? 12 : 16, 16, compact ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Allergens',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: kTextDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Select allergens to hide dishes containing them.',
+              style: GoogleFonts.poppins(fontSize: 12, color: kTextBody),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: MenuSelectionController.allergenOptions.map((a) {
+                final isOn = selected.contains(a);
+                return FilterChip(
+                  selected: isOn,
+                  label: Text(_label(a)),
+                  onSelected: (v) {
+                    if (v) {
+                      controller.selectedAllergens.add(a);
+                    } else {
+                      controller.selectedAllergens.remove(a);
+                    }
+                    controller.selectedAllergens.refresh();
+
+                    // optional: if you added this method, keep selections valid
+                    // controller.dropInvalidSelectionsForCurrentFilters();
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

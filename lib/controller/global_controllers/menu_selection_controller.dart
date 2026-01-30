@@ -47,6 +47,16 @@ class MenuSelectionController extends GetxController {
   // Filters (apply only to ungrouped list)
   final RxString searchQuery = ''.obs;
   final RxnBool vegFilter = RxnBool(null); // null=all, true=veg, false=non-veg
+  bool matchesAllergens(MenuItemDto it) {
+    final guest = selectedAllergens.toSet();
+    if (guest.isEmpty) return true;
+
+    final itemAllergens =
+        it.allergens.map((e) => e.toLowerCase().trim()).toSet();
+    if (itemAllergens.isEmpty) return true; // unknown -> keep
+
+    return itemAllergens.intersection(guest).isEmpty;
+  }
 
   final Rxn<DietPreference> dietPref = Rxn<DietPreference>();
 
@@ -62,19 +72,57 @@ class MenuSelectionController extends GetxController {
     dietPref.value = DietPreferenceX.fromDb(raw);
   }
 
+  void loadAllergensFromInvitation(
+      Map<String, dynamic> inv, int? companionIdx) {
+    final m = (inv['allergensByPerson'] as Map?)?.cast<String, dynamic>();
+    final raw = m?[_personKey(companionIdx)];
+
+    final list = (raw is List)
+        ? raw
+            .map((e) => e.toString().trim().toLowerCase())
+            .where((s) => s.isNotEmpty)
+            .toList()
+        : <String>[];
+
+    selectedAllergens
+      ..clear()
+      ..addAll(list);
+    selectedAllergens.refresh();
+  }
+
   /// Visible items (ungrouped)
   List<MenuItemDto> get dietFilteredUngrouped {
     final pref = dietPref.value;
     if (pref == null) return const [];
-    return filteredItems.where((it) => matchesDiet(it, pref)).toList();
+    return filteredItems
+        .where((it) => matchesDiet(it, pref))
+        .where(matchesAllergens)
+        .toList();
   }
 
-  /// Helper for group card
   List<MenuItemDto> dietFilteredGroupItems(MenuGroupDto g) {
     final pref = dietPref.value;
     if (pref == null) return const [];
-    return g.items.where((it) => matchesDiet(it, pref)).toList();
+    return g.items
+        .where((it) => matchesDiet(it, pref))
+        .where(matchesAllergens)
+        .toList();
   }
+
+  final RxSet<String> selectedAllergens = <String>{}.obs;
+
+// optional list shown to user (you can hardcode)
+  static const List<String> allergenOptions = [
+    'dairy',
+    'eggs',
+    'fish',
+    'shellfish',
+    'soy',
+    'sesame',
+    'wheat',
+    'peanuts',
+    'tree_nuts'
+  ];
 
   void _dropInvalidSelections() {
     final pref = dietPref.value;
@@ -84,7 +132,7 @@ class MenuSelectionController extends GetxController {
     selectedIds.removeWhere((id) {
       final it = items.firstWhereOrNull((x) => x.id == id);
       if (it == null) return false; // keep if we can't resolve
-      return !matchesDiet(it, pref);
+      return !(matchesDiet(it, pref) && matchesAllergens(it));
     });
     selectedIds.refresh(); // safe for UI updates
 
@@ -322,6 +370,7 @@ class MenuSelectionController extends GetxController {
 
       invitation.value = inv;
       loadDietPrefFromInvitation(inv, companionIdx);
+      loadAllergensFromInvitation(inv, companionIdx);
 
       // Build flow state
       flowState.value = ResponseFlowState.fromInvitation(
@@ -474,15 +523,6 @@ class MenuSelectionController extends GetxController {
           success: false, error: 'Please select Veg / Non-Veg / Both first');
     }
 
-    // ✅ Require a pick from each group (radio)
-    final missing = missingGroupNames;
-    if (missing.isNotEmpty) {
-      return SubmitResult(
-        success: false,
-        error: 'Please choose 1 item from: ${missing.join(", ")}',
-      );
-    }
-
     isSubmitting.value = true;
     errorMessage.value = '';
 
@@ -493,6 +533,7 @@ class MenuSelectionController extends GetxController {
         selectedMenuItemIds: finalSelectedIds, // ✅ combined
         companionIndex: companionIndex.value,
         dietPreference: dietPref.value!.dbValue,
+        allergens: selectedAllergens.toList(),
       );
 
       _updateLocalStateAfterSubmit();

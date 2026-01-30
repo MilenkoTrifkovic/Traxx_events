@@ -30,10 +30,13 @@ class EventListHeader extends StatelessWidget {
 
     return Obx(() {
       // Reactive values - triggers rebuild when these change
-      final purchased = _paymentHistoryController?.totalPurchasedEvents.value ?? 0;
+      final purchased =
+          _paymentHistoryController?.totalPurchasedEvents.value ?? 0;
+      final gifted = _paymentHistoryController?.totalGiftedEvents.value ?? 0;
       // Use eventListController.events which is updated when events are created
       final used = eventListController.events.length;
-      final remaining = purchased - used;
+      // Include both purchased AND gifted events in remaining calculation
+      final remaining = (purchased + gifted) - used;
       final canCreate = remaining > 0;
 
       return Row(
@@ -52,7 +55,8 @@ class EventListHeader extends StatelessWidget {
               const SizedBox(width: 12),
               // Remaining events badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: remaining > 0
                       ? const Color(0xFF10B981).withOpacity(0.1)
@@ -68,7 +72,9 @@ class EventListHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      remaining > 0 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                      remaining > 0
+                          ? Icons.check_circle_outline
+                          : Icons.warning_amber_rounded,
                       size: 16,
                       color: remaining > 0
                           ? const Color(0xFF10B981)

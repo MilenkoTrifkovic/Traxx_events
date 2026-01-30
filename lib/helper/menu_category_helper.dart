@@ -6,117 +6,96 @@ import 'package:traxx_wepapp/utils/enums/menu_category.dart';
 /// Helper class to manage menu categories combining enum values with
 /// custom categories from the organisation.
 class MenuCategoryHelper {
-  /// Gets all available menu categories by combining:
-  /// 1. Predefined enum values
-  /// 2. Custom categories from the organisation (if any)
-  ///
-  /// Returns a sorted list with no duplicates.
-  static List<String> getAllCategories() {
-    final Set<String> categories = {};
+  static List<String> getAllCategories({String? include}) {
+    // key = normalized lower-case, value = display text
+    final Map<String, String> map = {};
 
-    // Add all enum categories (formatted)
-    for (final category in MenuCategory.values) {
-      categories.add(formatCategoryName(category.name));
+    void add(String raw) {
+      final display = formatCategoryName(raw);
+      final key = _normKey(display);
+      if (key.isEmpty) return;
+      map.putIfAbsent(key, () => display);
     }
 
-    // Add custom categories from organisation if available
+    // 1) enum
+    for (final c in MenuCategory.values) {
+      add(c.name);
+    }
+
+    // 2) org custom
     try {
       final orgController = Get.find<OrganisationController>();
-      final customCategories =
-          orgController.organisation.value?.customMenuCategories;
-
-      if (customCategories != null && customCategories.isNotEmpty) {
-        for (final custom in customCategories) {
-          final trimmed = custom.trim();
-          if (trimmed.isNotEmpty) {
-            // Format custom categories the same way as enum categories
-            categories.add(formatCategoryName(trimmed));
-          }
-        }
+      final custom =
+          orgController.organisation.value?.customMenuCategories ?? [];
+      for (final x in custom) {
+        add(x);
       }
-    } catch (e) {
-      // OrganisationController not found or not initialized
-      // Continue with just enum values
+    } catch (_) {}
+
+    // 3) ensure current value is available (fixes edit crash)
+    if (include != null && include.trim().isNotEmpty) {
+      add(include);
     }
 
-    // Convert to list and sort alphabetically (case-insensitive)
-    final sortedList = categories.toList()
+    final out = map.values.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    return sortedList;
+    return out;
   }
 
-  /// Gets dropdown menu items for all categories
-  static List<DropdownMenuItem<String>> getCategoryDropdownItems() {
-    return getAllCategories()
-        .map((category) => DropdownMenuItem<String>(
-              value: category,
-              child: Text(category),
+  static List<DropdownMenuItem<String>> getCategoryDropdownItems(
+      {String? include}) {
+    final cats = getAllCategories(include: include);
+    return cats
+        .map((c) => DropdownMenuItem<String>(
+              value: c,
+              child: Text(c),
             ))
         .toList();
   }
 
-  /// Gets dropdown menu items for category filter (includes "All categories" option)
-  static List<DropdownMenuItem<String?>> getCategoryFilterItems() {
+  static List<DropdownMenuItem<String?>> getCategoryFilterItems(
+      {String? include}) {
+    final cats = getAllCategories(include: include);
     return [
       const DropdownMenuItem<String?>(
-        value: null,
-        child: Text('All categories'),
-      ),
-      ...getAllCategories()
-          .map((category) => DropdownMenuItem<String?>(
-                value: category,
-                child: Text(category),
-              ))
-          .toList(),
+          value: null, child: Text('All categories')),
+      ...cats.map((c) => DropdownMenuItem<String?>(value: c, child: Text(c))),
     ];
   }
 
-  /// Gets a MenuCategory enum value from a string name (case-insensitive).
-  /// Returns null if the name doesn't match any enum value.
   static MenuCategory? getEnumFromString(String name) {
-    final normalized = name.toLowerCase().trim();
-    
-    for (final category in MenuCategory.values) {
-      final formattedName = formatCategoryName(category.name);
-      if (formattedName.toLowerCase() == normalized) {
-        return category;
-      }
+    final normalized = _normKey(formatCategoryName(name));
+    for (final c in MenuCategory.values) {
+      final formatted = formatCategoryName(c.name);
+      if (_normKey(formatted) == normalized) return c;
     }
-    
     return null;
   }
 
-  /// Checks if a category name corresponds to a predefined enum value.
-  static bool isEnumCategory(String name) {
-    return getEnumFromString(name) != null;
-  }
+  static bool isEnumCategory(String name) => getEnumFromString(name) != null;
 
-  /// Formats a category name for display (capitalizes first letter).
-  /// Handles camelCase by adding spaces before capitals.
   static String formatCategoryName(String name) {
-    if (name.isEmpty) return 'Other';
-    
-    // Add spaces before capital letters (for camelCase like "kidsMenu" -> "Kids Menu")
-    final withSpaces = name.replaceAllMapped(
-      RegExp(r'([A-Z])'),
-      (match) => ' ${match.group(0)}',
-    ).trim();
-    
-    // Capitalize first letter of each word
-    return withSpaces
+    if (name.trim().isEmpty) return 'Other';
+
+    final raw = name.trim();
+
+    // Add spaces before capitals (kidsMenu -> kids Menu)
+    final spaced =
+        raw.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}').trim();
+
+    // Collapse multiple spaces (important)
+    final clean = spaced.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // Title case words
+    return clean
         .split(' ')
-        .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
         .join(' ');
   }
 
-  /// Gets the icon and isVeg property for a category.
-  /// Returns null if the category is custom (not in enum).
-  static CategoryMetadata? getCategoryMetadata(String name) {
-    final enumValue = getEnumFromString(name);
-    if (enumValue == null) return null;
-    
-    return CategoryMetadata(icon: enumValue.icon, isVeg: enumValue.isVeg);
-  }
+  static String _normKey(String s) =>
+      s.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 }
 
 /// Metadata for a menu category

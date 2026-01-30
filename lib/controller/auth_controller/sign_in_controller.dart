@@ -130,7 +130,7 @@ class SignInController extends GetxController {
           await _ensureUserProfileExists(u);
         }
 
-        await _authController.loadUserProfile();
+        // await _authController.loadUserProfile();
         authResult.value = userCredential;
 
         shouldNavigateToEmailVerification.value = true;
@@ -244,7 +244,7 @@ class SignInController extends GetxController {
       await _ensureUserProfileExists(user);
 
       // load profile & route
-      await _authController.loadUserProfile();
+      // await _authController.loadUserProfile();
       await _postAuthRoute(userCredential);
     } on FirebaseAuthException catch (e) {
       if (!_isStale(op)) {
@@ -297,7 +297,7 @@ class SignInController extends GetxController {
   // ─────────────────────────────────────────────
 
   Future<void> _postAuthRoute(UserCredential userCredential) async {
-    await _authController.loadUserProfile();
+    // await _authController.loadUserProfile();
 
     final user = userCredential.user;
     if (user == null) return;

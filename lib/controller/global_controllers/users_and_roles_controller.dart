@@ -6,6 +6,7 @@ import 'package:traxx_wepapp/controller/global_controllers/organisation_controll
 
 class UsersAndRolesController extends GetxController {
   RxList<UserModel> usersWithRoles = <UserModel>[].obs;
+  final RxBool isLoading = false.obs; // ✅ Add loading state
   final UserAndRoleFirestoreServices _svc = UserAndRoleFirestoreServices();
   // Resolve snackbar controller once — it should be registered at app startup.
   final SnackbarMessageController snackbarController =
@@ -16,20 +17,26 @@ class UsersAndRolesController extends GetxController {
   /// and updates the observable `usersWithRoles` list.
   Future<void> loadUsersWithRoles() async {
     try {
+      isLoading.value = true; // ✅ Set loading state
+      print('🔵 Loading users with roles...');
+      
       final orgCtrl = Get.find<OrganisationController>();
       final organisationId = orgCtrl.organisationId;
       if (organisationId.isEmpty) {
         throw Exception('organisationId is empty in OrganisationController');
       }
 
+      print('🔵 Fetching users for organisation: $organisationId');
       final list =
           await _svc.getAllUsersWithRole(organisationId: organisationId);
       usersWithRoles.assignAll(list);
+      print('✅ Users with roles loaded: ${usersWithRoles.length}');
     } on Exception catch (e) {
       // Keep simple logging here; callers can catch/rethrow if needed.
-      print('Error loading users with roles: $e');
+      print('❌ Error loading users with roles: $e');
       rethrow;
     } finally {
+      isLoading.value = false; // ✅ Clear loading state
       print('Users with roles updated: ${usersWithRoles.length}');
     }
   }
@@ -49,14 +56,21 @@ class UsersAndRolesController extends GetxController {
     }
   }
 
+  /// Soft deletes a user by setting isDisabled to true.
+  /// Removes the user from the local observable list.
   Future<void> deleteUser(String userId) async {
     try {
+      print('🔵 Deleting user: $userId');
       await _svc.deleteUser(userId: userId);
+      
+      // Remove from local list
       usersWithRoles.removeWhere((u) => u.userId == userId);
-      snackbarController.showSuccessMessage('User deleted successfully');
+      print('✅ User removed from local list');
+      
+      snackbarController.showSuccessMessage('User disabled successfully');
     } on Exception catch (e) {
-      print('Error deleting user: $e');
-      snackbarController.showErrorMessage('Error deleting user');
+      print('❌ Error deleting user: $e');
+      snackbarController.showErrorMessage('Error disabling user');
       rethrow;
     }
   }

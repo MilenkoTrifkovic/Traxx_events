@@ -3,11 +3,12 @@ import 'package:excel/excel.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'package:traxx_wepapp/features/admin/admin_guests_management/controllers/admin_guest_list_controller.dart';
+import 'package:traxx_wepapp/models/guest_rsvp_status.dart';
 
 /// Generates and downloads guest upload template files (XLSX)
 class GuestTemplateGenerator {
   /// Column headers for the guest template
-  static const List<String> headers = [
+  static const List<String> uploadHeaders = [
     'Name',
     'Email',
     'Max Invite',
@@ -17,6 +18,33 @@ class GuestTemplateGenerator {
     'Country',
     'Gender',
   ];
+
+  // Export headers (download guest list)
+  static const List<String> exportHeaders = [
+    'Name',
+    'Email',
+    'Max Invite',
+    'Event Presence',
+    'Gender',
+    'Invited',
+  ];
+
+  static String _invitedLabel(dynamic guest) {
+    try {
+      final v = (guest as dynamic).isInvited;
+      if (v == true) return 'Yes';
+      if (v == false) return 'No';
+    } catch (_) {}
+    return 'No';
+  }
+
+  static String _eventPresenceLabel(GuestRsvpStatus? rsvp) {
+    if (rsvp == null) return '—';
+    if (!rsvp.hasResponded) return 'Pending';
+    if (rsvp.isAttending == true) return 'Yes';
+    if (rsvp.isAttending == false) return 'No';
+    return 'Responded';
+  }
 
   /// Example rows to help users understand the format
   static const List<List<String>> exampleRows = [
@@ -76,10 +104,10 @@ class GuestTemplateGenerator {
     );
 
     // Add headers (shifted by 1 column to make room for row numbers)
-    for (int i = 0; i < headers.length; i++) {
+    for (int i = 0; i < uploadHeaders.length; i++) {
       final cell = sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: i + 1, rowIndex: 0));
-      cell.value = TextCellValue(headers[i]);
+      cell.value = TextCellValue(uploadHeaders[i]);
 
       // Style the header row
       cell.cellStyle = CellStyle(
@@ -130,7 +158,7 @@ class GuestTemplateGenerator {
           }
         } else {
           // Add empty rows for remaining capacity
-          for (int colIdx = 0; colIdx < headers.length; colIdx++) {
+          for (int colIdx = 0; colIdx < uploadHeaders.length; colIdx++) {
             final cell = sheet.cell(CellIndex.indexByColumnRow(
                 columnIndex: colIdx + 1, rowIndex: rowIdx + 1));
             cell.value = TextCellValue('');
@@ -144,7 +172,7 @@ class GuestTemplateGenerator {
     sheet.setColumnWidth(0, 8);
 
     // Set data columns width
-    for (int i = 0; i < headers.length; i++) {
+    for (int i = 0; i < uploadHeaders.length; i++) {
       sheet.setColumnWidth(i + 1, 20);
     }
 
@@ -331,6 +359,8 @@ class GuestTemplateGenerator {
     downloadGuestListFromData(
       eventName: eventName,
       guests: controller.guests,
+      rsvpByGuestId:
+          Map<String, GuestRsvpStatus>.from(controller.rsvpByGuestId),
     );
   }
 
@@ -342,16 +372,13 @@ class GuestTemplateGenerator {
   static void downloadGuestListFromData({
     required String eventName,
     required List<dynamic> guests,
+    Map<String, GuestRsvpStatus>? rsvpByGuestId, // ✅ NEW
   }) {
     final excel = Excel.createExcel();
-
-    // Create Guests sheet
     final Sheet sheet = excel['Guests'];
-
-    // Delete the default Sheet1
     excel.delete('Sheet1');
 
-    // Add row number header in column 0
+    // Row number header
     final numberHeaderCell =
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
     numberHeaderCell.value = TextCellValue('#');
@@ -361,13 +388,11 @@ class GuestTemplateGenerator {
       fontColorHex: ExcelColor.fromHexString('#000000'),
     );
 
-    // Add headers (shifted by 1 column to make room for row numbers)
-    for (int i = 0; i < headers.length; i++) {
+    // ✅ Export headers (includes Event Presence)
+    for (int i = 0; i < exportHeaders.length; i++) {
       final cell = sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: i + 1, rowIndex: 0));
-      cell.value = TextCellValue(headers[i]);
-
-      // Style the header row
+      cell.value = TextCellValue(exportHeaders[i]);
       cell.cellStyle = CellStyle(
         bold: true,
         backgroundColorHex: ExcelColor.fromHexString('#D3D3D3'),
@@ -375,61 +400,52 @@ class GuestTemplateGenerator {
       );
     }
 
-    // Add guest data
-    for (int rowIdx = 0; rowIdx < guests.length; rowIdx++) {
-      final guest = guests[rowIdx];
-
-      // Add row number in column 0
-      final numberCell = sheet.cell(
-          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx + 1));
-      numberCell.value = IntCellValue(rowIdx + 1);
-
-      // Add guest data (shifted by 1 column)
-      // Column mapping: Name, Email, Max Invite, Address, City, State, Country, Gender
-
-      // Helper function to safely get gender name
-      String getGenderName(dynamic gender) {
-        if (gender == null) return '';
-        // If it's already a string, return it
-        if (gender is String) return gender;
-        // If it's an enum, get its name
-        try {
-          return (gender as dynamic).name as String? ?? '';
-        } catch (e) {
-          return gender.toString();
-        }
-      }
-
-      final guestData = [
-        guest.name ?? '',
-        guest.email ?? '',
-        (guest.maxGuestInvite ?? 0).toString(),
-        guest.address ?? '',
-        guest.city ?? '',
-        guest.state ?? '',
-        guest.country ?? '',
-        getGenderName(guest.gender),
-      ];
-
-      for (int colIdx = 0; colIdx < guestData.length; colIdx++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(
-            columnIndex: colIdx + 1, rowIndex: rowIdx + 1));
-        cell.value = TextCellValue(guestData[colIdx]);
+    String getGenderName(dynamic gender) {
+      if (gender == null) return '';
+      if (gender is String) return gender;
+      try {
+        return (gender as dynamic).name as String? ?? '';
+      } catch (_) {
+        return gender.toString();
       }
     }
 
-    // Auto-size columns
-    // Set row number column width (narrower)
-    sheet.setColumnWidth(0, 8);
+    for (int rowIdx = 0; rowIdx < guests.length; rowIdx++) {
+      final guest = guests[rowIdx];
 
-    // Set data columns width
-    for (int i = 0; i < headers.length; i++) {
+      // Row number
+      sheet
+          .cell(
+              CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx + 1))
+          .value = IntCellValue(rowIdx + 1);
+
+      final gid = (guest.guestId ?? '').toString();
+      final presence = _eventPresenceLabel(rsvpByGuestId?[gid]);
+
+      final guestData = [
+        (guest.name ?? '').toString(),
+        (guest.email ?? '').toString(),
+        (guest.maxGuestInvite ?? 0).toString(),
+        presence,
+        getGenderName(guest.gender),
+        _invitedLabel(guest), // ✅ Yes/No
+      ];
+
+      for (int colIdx = 0; colIdx < guestData.length; colIdx++) {
+        sheet
+            .cell(CellIndex.indexByColumnRow(
+                columnIndex: colIdx + 1, rowIndex: rowIdx + 1))
+            .value = TextCellValue(guestData[colIdx]);
+      }
+    }
+
+    sheet.setColumnWidth(0, 8);
+    for (int i = 0; i < exportHeaders.length; i++) {
       sheet.setColumnWidth(i + 1, 20);
     }
 
     final bytes = excel.encode();
     if (bytes != null) {
-      // Sanitize event name for filename (remove invalid characters)
       final sanitizedEventName = eventName
           .replaceAll(RegExp(r'[^\w\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '_')

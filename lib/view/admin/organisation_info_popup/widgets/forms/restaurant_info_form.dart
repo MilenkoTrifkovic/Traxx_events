@@ -324,7 +324,7 @@ class _NewRestaurantForm extends StatelessWidget {
                 controller: controller.websiteController,
                 keyboardType: TextInputType.url,
                 validator: ValidationHelper.validateOptionalWebsite,
-                decoration: deco('Enter your website URL'),
+                decoration: deco('e.g., example.com or www.example.com'),
               ),
             ],
           ),

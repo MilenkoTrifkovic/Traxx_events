@@ -23,19 +23,18 @@ class CompanionsInfoHeader extends StatelessWidget {
       children: [
         AppText.styledHeadingLarge(
           context,
-          'Companion Information',
+          'Guest Information',
           weight: AppFontWeight.bold,
         ),
         AppSpacing.verticalSm(context),
         AppText.styledBodyLarge(
           context,
           savedCount > 0
-              ? 'You have already added $savedCount companion${savedCount > 1 ? 's' : ''}. '
-                'Please provide information for your remaining $remainingCount companion${remainingCount > 1 ? 's' : ''}.'
-              : 'Please provide information for your $totalCompanionsCount companion${totalCompanionsCount > 1 ? 's' : ''}.',
+              ? 'You have already added $savedCount guest${savedCount > 1 ? 's' : ''}. '
+                  'Please provide information for your remaining $remainingCount guest${remainingCount > 1 ? 's' : ''}.'
+              : 'Please provide information for your $totalCompanionsCount guest${totalCompanionsCount > 1 ? 's' : ''}.',
         ),
       ],
     );
   }
 }
-

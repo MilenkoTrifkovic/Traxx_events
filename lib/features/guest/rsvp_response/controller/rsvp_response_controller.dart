@@ -70,6 +70,8 @@ class RsvpResponseController extends GetxController {
   bool get isFullyCompleted =>
       invitationStatus.value?.isFullyCompleted ?? false;
   String? get nextIncompleteStep => invitationStatus.value?.nextIncompleteStep;
+  bool get isInvitingByEmail =>
+      invitationStatus.value?.isInvitingCompanionsByEmail == true;
 
   @override
   void onInit() {
@@ -320,6 +322,7 @@ class RsvpResponseController extends GetxController {
     String? state,
     String? country,
     Gender? gender,
+    bool? isAttending,
   }) async {
     if (invitationId == null || invitationId!.isEmpty) {
       error.value = 'Invitation ID is not available';
@@ -349,13 +352,14 @@ class RsvpResponseController extends GetxController {
           'state': state?.trim(),
           'country': country?.trim(),
           'gender': gender?.name, // store as string
+          'isAttending': isAttending,
         }
       });
 
       final data = Map<String, dynamic>.from(res.data as Map);
       final guestId = (data['guestId'] ?? '').toString().trim();
       if (guestId.isEmpty) {
-        error.value = 'Failed to add companion. Please try again.';
+        error.value = 'Failed to add guest. Please try again.';
         return null;
       }
 
@@ -364,10 +368,10 @@ class RsvpResponseController extends GetxController {
 
       return guestId;
     } on FirebaseFunctionsException catch (e) {
-      error.value = e.message ?? 'Failed to add companion. Please try again.';
+      error.value = e.message ?? 'Failed to add guest. Please try again.';
       return null;
     } catch (e) {
-      error.value = 'Failed to add companion. Please try again.';
+      error.value = 'Failed to add guest. Please try again.';
       return null;
     }
   }
@@ -389,18 +393,15 @@ class RsvpResponseController extends GetxController {
   }) {
     final trimmedEmail = email.trim().toLowerCase();
 
-    // Check against primary guest email
-    final primaryGuestEmail = invitationStatus.value?.guestEmail;
-    if (primaryGuestEmail != null &&
-        trimmedEmail == primaryGuestEmail.trim().toLowerCase()) {
-      return 'Companion email cannot be the same as your email address';
-    }
+    // ✅ Proxy mode: allow duplicates (and even empty)
+    if (!isInvitingByEmail) return null;
 
-    // Check against saved companions
+    // Email-invite mode: enforce uniqueness
     final existingCompanions = invitationStatus.value?.companions ?? [];
     final duplicateInSaved = existingCompanions.any((companion) {
       final companionEmail =
-          (companion['guestEmail'] as String?)?.trim().toLowerCase();
+          (companion['guestEmailLower'] as String?)?.trim().toLowerCase() ??
+              (companion['guestEmail'] as String?)?.trim().toLowerCase();
       return companionEmail == trimmedEmail;
     });
 
@@ -408,47 +409,43 @@ class RsvpResponseController extends GetxController {
       return 'A companion with this email already exists';
     }
 
-    // Check against other pending emails (if provided)
     if (otherPendingEmails != null) {
-      final duplicateInPending = otherPendingEmails.any((otherEmail) {
-        return otherEmail.trim().toLowerCase() == trimmedEmail;
-      });
-
+      final duplicateInPending = otherPendingEmails.any(
+        (e) => e.trim().toLowerCase() == trimmedEmail,
+      );
       if (duplicateInPending) {
         return 'This email is already used for another companion. Please use a different email address.';
       }
     }
 
-    return null; // Valid
+    return null;
   }
 
   /// Validates that all companion emails in a list are unique
   /// Returns validation result with error message and index of first duplicate
   /// Returns null if all emails are valid
-  EmailValidationResult? validateAllCompanionEmails(
-    List<String> emails,
-  ) {
+  EmailValidationResult? validateAllCompanionEmails(List<String> emails) {
+    // ✅ Proxy mode: allow duplicates
+    if (!isInvitingByEmail) return null;
+
     final emailSet = <String>{};
 
     for (int i = 0; i < emails.length; i++) {
       final email = emails[i].trim().toLowerCase();
-      if (email.isEmpty)
-        continue; // Skip empty emails (will be caught by form validation)
+      if (email.isEmpty) continue;
 
-      // Validate individual email
       final individualError = validateCompanionEmail(email);
       if (individualError != null) {
         return EmailValidationResult(
-          errorMessage: 'Companion ${i + 1}: $individualError',
+          errorMessage: 'Guest ${i + 1}: $individualError',
           duplicateIndex: i,
         );
       }
 
-      // Check for duplicates within the list
       if (emailSet.contains(email)) {
         return EmailValidationResult(
           errorMessage:
-              'Duplicate email addresses found. Each companion must have a unique email address.',
+              'Duplicate email addresses found. Each guest must have a unique email address.',
           duplicateIndex: i,
         );
       }
@@ -456,7 +453,7 @@ class RsvpResponseController extends GetxController {
       emailSet.add(email);
     }
 
-    return null; // All valid
+    return null;
   }
 
   /// Validates and creates a companion guest with proper error handling and snackbar messages
@@ -465,6 +462,7 @@ class RsvpResponseController extends GetxController {
   Future<String?> validateAndCreateCompanion({
     required String name,
     required String email,
+    bool? isAttending,
     String? address,
     String? city,
     String? state,
@@ -485,6 +483,7 @@ class RsvpResponseController extends GetxController {
     final guestId = await createAndInviteGuest(
       name: name,
       email: email,
+      isAttending: isAttending,
       address: address,
       city: city,
       state: state,
@@ -561,6 +560,7 @@ class RsvpResponseController extends GetxController {
             'gender': (c['gender'] is Gender)
                 ? (c['gender'] as Gender).name
                 : c['gender'],
+            'isAttending': c['isAttending'],
           },
         });
 
@@ -652,16 +652,16 @@ class RsvpResponseController extends GetxController {
       }
 
       _snackbarController.showErrorMessage(
-        'Failed to send companion invitations. Please try again.',
+        'Failed to send guest invitations. Please try again.',
       );
       return false;
     } on FirebaseFunctionsException catch (e) {
-      error.value = e.message ?? 'Failed to send companion invitations';
+      error.value = e.message ?? 'Failed to send guest invitations';
       _snackbarController.showErrorMessage(error.value!);
       return false;
     } catch (e, st) {
       debugPrint('❌ sendCompanionInvitations error: $e\n$st');
-      error.value = 'Failed to send companion invitations. Please try again.';
+      error.value = 'Failed to send guest invitations. Please try again.';
       _snackbarController.showErrorMessage(error.value!);
       return false;
     } finally {

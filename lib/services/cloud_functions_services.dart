@@ -5,6 +5,7 @@ import 'package:traxx_wepapp/models/event.dart';
 import 'package:traxx_wepapp/models/guest_model.dart';
 import '../models/organisation.dart';
 import '../models/organisation_check_response.dart';
+import '../helper/validation_helper.dart';
 
 class CloudFunctionsService extends GetxService {
   late final FirebaseFunctions _functions;
@@ -35,9 +36,7 @@ class CloudFunctionsService extends GetxService {
     final payload = <String, dynamic>{
       'name': organisation.name.trim(),
       'phone': organisation.phone.toString().trim(),
-      'website': (organisation.website ?? '').trim().isEmpty
-          ? null
-          : organisation.website!.trim(),
+      'website': ValidationHelper.formatWebsiteForBackend(organisation.website),
       'timezone': organisation.timezone.trim(),
       'currency': 'USD', // ✅ keep fixed if model doesn’t have currency
       'logo':
@@ -234,6 +233,7 @@ class CloudFunctionsService extends GetxService {
     required List<String> selectedMenuItemIds,
     int? companionIndex,
     required String dietPreference,
+    required List<String> allergens,
   }) async {
     final callable = _functions.httpsCallable(
       'submitMenuSelection',
@@ -241,11 +241,12 @@ class CloudFunctionsService extends GetxService {
     );
 
     final result = await callable.call(<String, dynamic>{
-      'invitationId': invitationId,
+      'invitationId': invitationId.trim(),
       'token': token.trim(),
       'selectedMenuItemIds': selectedMenuItemIds,
       if (companionIndex != null) 'companionIndex': companionIndex,
       'dietPreference': dietPreference,
+      'allergens': allergens,
     });
 
     final data = result.data;
@@ -350,5 +351,28 @@ class CloudFunctionsService extends GetxService {
       throw Exception(
           'resendHostVerificationEmail failed: ${e.code} ${e.message}');
     }
+  }
+
+  Future<Map<String, dynamic>> submitCompanionAttendance({
+    required String invitationId,
+    required String token,
+    required int companionIndex,
+    required bool isAttending,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'submitCompanionAttendance',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+
+    final result = await callable.call(<String, dynamic>{
+      'invitationId': invitationId.trim(),
+      'token': token.trim(),
+      'companionIndex': companionIndex,
+      'isAttending': isAttending,
+    });
+
+    final data = result.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'data': data};
   }
 }

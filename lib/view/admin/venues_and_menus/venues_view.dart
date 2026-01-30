@@ -178,7 +178,13 @@ class _VenuesViewState extends State<VenuesView> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Attach this page’s scroll view to the PrimaryScrollController
+    // so any parent Scrollbar(primary) gets a ScrollPosition.
+    final primary = PrimaryScrollController.maybeOf(context);
+
     return SingleChildScrollView(
+      controller: primary, // use primary if it exists
+      primary: primary == null, // if no primary above, let Flutter create one
       child: _buildVenuesCardsSection(context),
     );
   }
@@ -495,12 +501,13 @@ class _VenueVerticalCardState extends State<_VenueVerticalCard> {
                           _DetailLine(
                               icon: Icons.mail_outline, text: widget.email),
                         const SizedBox(height: 10),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: const [
                             _MiniPill(
                                 icon: Icons.meeting_room_outlined,
                                 text: 'Venue'),
-                            SizedBox(width: 8),
                             _MiniPill(
                                 icon: Icons.info_outline, text: 'Details'),
                           ],

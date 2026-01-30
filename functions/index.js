@@ -25,5 +25,4 @@ export { checkoutSession } from "./checkoutSession.js";
 export { stripeWebhook } from "./stripeEndpoint.js";
 export { getPaymentHistory } from "./getPaymentHistory.js";
 export { createEvent } from "./createEvent.js";
-
-
+export { submitCompanionAttendance } from "./submitCompanionAttendance.js";

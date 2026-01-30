@@ -57,6 +57,7 @@ class AuthController extends GetxController {
       if (user == null) {
         // signed out
         clearSessionLocal(keepAuth: false, keepLoading: false);
+        _bumpRouter();
         return;
       }
 
@@ -110,6 +111,17 @@ class AuthController extends GetxController {
   void setOrganisationInfoExists(bool value) =>
       _companyInfoExists.value = value;
   void setAuthenticated(bool value) => _isAuthenticated.value = value;
+
+  /// Set organisation ID after it's created (e.g., after submitting org info form).
+  /// Also triggers router refresh so shell routes can react.
+  void setOrganisationId(String? orgId) {
+    organisationId = orgId;
+    if (orgId != null && orgId.isNotEmpty) {
+      _companyInfoExists.value = true;
+    }
+    isLoading.value = false;
+    _bumpRouter();
+  }
 
   // ─────────────────────────────────────────────
   // Auth helpers
@@ -184,25 +196,23 @@ class AuthController extends GetxController {
     final uid = expectedUid ?? currentUser.uid;
     final opAtStart = op ?? _op;
 
-    // keep loader visible
     isLoading.value = true;
 
     // Clear old data (but keep auth/loading)
     clearSessionLocal(keepAuth: true, keepLoading: true);
 
-    // if user changed already, stop
+    // stale guards
     if (firebaseAuth.currentUser?.uid != uid) return;
     if (opAtStart != _op) return;
 
-    final userDoc =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    final userDoc = await userRef.get();
 
-    // stale protection after await
+    // stale guards after await
     if (firebaseAuth.currentUser?.uid != uid) return;
     if (opAtStart != _op) return;
 
     if (!userDoc.exists) {
-      // Auth user exists but Firestore user profile not yet created
       userRole.value = UserRole.guest;
       organisationId = null;
       _companyInfoExists.value = false;
@@ -210,26 +220,67 @@ class AuthController extends GetxController {
       return;
     }
 
-    final data = userDoc.data()!;
-    final roleString = data['role'] as String? ?? 'guest';
-    final orgId = data['organisationId'] as String?;
+    final data = userDoc.data() ?? {};
+    final roleString = (data['role'] as String? ?? 'guest').trim();
 
     userRole.value = UserRole.values.firstWhere(
       (e) => e.name == roleString,
       orElse: () => UserRole.guest,
     );
 
+    // -----------------------------
+    // ✅ Legacy-safe organisationId
+    // -----------------------------
+    String? orgId = (data['organisationId'] as String?)?.trim();
+    if (orgId != null && orgId.isEmpty) orgId = null;
+
+    // ✅ If missing in users/{uid}, fallback to roles via Cloud Function
+    if (orgId == null) {
+      try {
+        final resp = await _cloudFunctionsService.checkOrganisationInfo();
+
+        // stale guards after await
+        if (firebaseAuth.currentUser?.uid != uid) return;
+        if (opAtStart != _op) return;
+
+        final fallbackOrgId = (resp.organisationId ?? '').trim();
+        final fallbackRole = (resp.role ?? '').trim();
+
+        if (resp.hasOrganisation && fallbackOrgId.isNotEmpty) {
+          orgId = fallbackOrgId;
+
+          // Optionally update local role from backend (admin/host)
+          if (fallbackRole.isNotEmpty) {
+            userRole.value = UserRole.values.firstWhere(
+              (e) => e.name == fallbackRole,
+              orElse: () => userRole.value ?? UserRole.guest,
+            );
+          }
+
+          // ✅ Patch users/{uid} so next login/refresh is correct instantly
+          await userRef.set({
+            'organisationId': orgId,
+            if (fallbackRole.isNotEmpty) 'role': fallbackRole,
+            'modifiedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        // ignore, keep orgId null
+        // print('checkOrganisationInfo fallback failed: $e');
+      }
+    }
+
     organisationId = orgId;
 
     // ✅ what your router reads
-    _companyInfoExists.value =
-        organisationId != null && organisationId!.isNotEmpty;
+    _companyInfoExists.value = orgId != null && orgId.isNotEmpty;
 
-    if (organisationId != null && organisationId!.isNotEmpty) {
+    // Load organisation details if exists
+    if (orgId != null && orgId.isNotEmpty) {
       try {
-        final org = await _firestoreServices.getOrganisation(organisationId!);
+        final org = await _firestoreServices.getOrganisation(orgId);
 
-        // stale protection after await
+        // stale guards after await
         if (firebaseAuth.currentUser?.uid != uid) return;
         if (opAtStart != _op) return;
 

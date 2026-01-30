@@ -15,7 +15,20 @@ class BottomHScrollbar extends StatefulWidget {
 }
 
 class _BottomHScrollbarState extends State<BottomHScrollbar> {
-  final ScrollController _h = ScrollController();
+  late final ScrollController _h;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _h = ScrollController();
+
+    // ✅ wait one frame so the controller definitely gets a ScrollPosition
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _ready = true);
+    });
+  }
 
   @override
   void dispose() {
@@ -25,20 +38,27 @@ class _BottomHScrollbarState extends State<BottomHScrollbar> {
 
   @override
   Widget build(BuildContext context) {
+    final scrollView = SingleChildScrollView(
+      controller: _h,
+      primary: false,
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: widget.minWidth),
+        child: widget.child,
+      ),
+    );
+
+    // ✅ Avoid first-frame “no ScrollPosition attached” on web
+    if (!_ready) return scrollView;
+
     return Scrollbar(
       controller: _h,
       thumbVisibility: true,
       trackVisibility: true,
       interactive: true,
+      notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
       scrollbarOrientation: ScrollbarOrientation.bottom,
-      child: SingleChildScrollView(
-        controller: _h,
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: widget.minWidth),
-          child: widget.child,
-        ),
-      ),
+      child: scrollView,
     );
   }
 }

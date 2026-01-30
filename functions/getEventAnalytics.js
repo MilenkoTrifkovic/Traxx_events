@@ -45,14 +45,17 @@ async function getEventDataByEventId(eventId) {
   if (byDoc.exists) return { id: byDoc.id, data: byDoc.data() };
 
   // 2) fallback query by field
-  const q = await db.collection("events").where("eventId", "==", eventId).limit(1).get();
+  const q = await db
+    .collection("events")
+    .where("eventId", "==", eventId)
+    .limit(1)
+    .get();
   if (q.empty) return null;
 
   return { id: q.docs[0].id, data: q.docs[0].data() };
 }
 
 export const getEventAnalytics = onCall(async (request) => {
-  // this is the eventId you pass from Flutter (public eventId in your app)
   const eventPublicId = safeStr(request.data?.eventId);
   if (!eventPublicId) {
     throw new HttpsError("invalid-argument", "eventId is required");
@@ -62,27 +65,80 @@ export const getEventAnalytics = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Sign in required");
   }
 
-  // Resolve the event regardless of whether caller passed docId or public id
+  console.log("🔍 getEventAnalytics called:");
+  console.log("  - Event ID:", eventPublicId);
+  console.log("  - User UID:", request.auth.uid);
+  console.log("  - User Email:", request.auth.token.email);
+
   const eventObj = await getEventDataByEventId(eventPublicId);
   if (!eventObj) throw new HttpsError("not-found", "Event not found");
 
   const event = eventObj.data || {};
-  const eventOrgId = safeStr(event.organisationId);
+  const eventDocId = safeStr(eventObj.id);
+  const eventFieldId = safeStr(event.eventId);
 
-  // Verify host belongs to organisation
-  const userSnap = await db.collection("users").doc(request.auth.uid).get();
-  const user = userSnap.exists ? (userSnap.data() || {}) : {};
-  const userOrgId = safeStr(user.organisationId);
+  const candidateEventIds = Array.from(
+    new Set([eventPublicId, eventDocId, eventFieldId].filter(Boolean))
+  );
 
-  if (!eventOrgId || !userOrgId || eventOrgId !== userOrgId) {
-    throw new HttpsError("permission-denied", "Not allowed");
+  async function queryByEventId(collectionName) {
+    if (candidateEventIds.length === 1) {
+      return db
+        .collection(collectionName)
+        .where("eventId", "==", candidateEventIds[0])
+        .get();
+    }
+    return db
+      .collection(collectionName)
+      .where("eventId", "in", candidateEventIds)
+      .get();
   }
 
-  // IMPORTANT: invitations/responses store public eventId in your system
+  console.log("🧩 candidateEventIds:", candidateEventIds);
+
+  const eventOrgId = safeStr(event.organisationId);
+
+  // Load caller profile
+  const userSnap = await db.collection("users").doc(request.auth.uid).get();
+  const user = userSnap.exists ? userSnap.data() || {} : {};
+  const userOrgId = safeStr(user.organisationId);
+  const userRole = safeStr(user.role);
+
+  // ─────────────────────────────────────────────
+  // ✅ Authorization
+  // ─────────────────────────────────────────────
+  const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
+  const isOrgAdmin = userRole === "admin";
+  const isHost = userRole === "host";
+
+  const isSalesPerson =
+    userRole === "sales_person" &&
+    user.isActive === true &&
+    user.isDisabled !== true;
+
+  const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
+  const isEventHost =
+    isHost && hostUserIds.map(safeStr).includes(request.auth.uid);
+
+  const isAdminForEvent =
+    isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
+
+  const isSalesPersonForEvent =
+    isSalesPerson && !!eventOrgId && !!userOrgId && eventOrgId === userOrgId;
+
+  if (!isAdminForEvent && !isEventHost && !isSalesPersonForEvent) {
+    throw new HttpsError(
+      "permission-denied",
+      "You don't have permission to view this event's analytics"
+    );
+  }
+
+  console.log("✅ Permission granted for analytics");
+
   const matchEventId = safeStr(event.eventId) || eventPublicId;
 
   // 3) Invitations funnel stats
-  const invSnap = await db.collection("invitations").where("eventId", "==", matchEventId).get();
+  const invSnap = await queryByEventId("invitations");
 
   const inv = {
     total: invSnap.size,
@@ -101,10 +157,7 @@ export const getEventAnalytics = onCall(async (request) => {
   });
 
   // 4) Demographics aggregation
-  const demoSnap = await db
-    .collection("demographicQuestionsResponses")
-    .where("eventId", "==", matchEventId)
-    .get();
+  const demoSnap = await queryByEventId("demographicQuestionsResponses");
 
   const demoQuestions = {};
   const DEMO_TEXT_SAMPLES_LIMIT = 10;
@@ -166,46 +219,200 @@ export const getEventAnalytics = onCall(async (request) => {
   });
 
   // 5) Menu aggregation
-  const menuSnap = await db
-    .collection("menuSelectedItemsResponses")
-    .where("eventId", "==", matchEventId)
-    .get();
+  const menuSnap = await queryByEventId("menuSelectedItemsResponses");
+  console.log("🍽️ menuSnap.size:", menuSnap.size);
 
   const menu = { responses: menuSnap.size, itemCounts: {} };
 
+  // ✅ Guest selections (for guest filter)
+  const guestMap = new Map(); // key -> { invitationId, name, email, selectedMenuItemIds, ... }
+
   menuSnap.forEach((doc) => {
     const r = doc.data() || {};
-    const ids = Array.isArray(r.selectedMenuItemIds) ? r.selectedMenuItemIds : [];
-    for (const id of ids) inc(menu.itemCounts, safeStr(id), 1);
+
+    // ✅ Read selected ids from known fields
+    const rawIds = Array.isArray(r.selectedMenuItemIds)
+      ? r.selectedMenuItemIds
+      : r.groupSelections && typeof r.groupSelections === "object"
+        ? Object.values(r.groupSelections)
+        : Array.isArray(r.selectedMenuItemIds) // keep as fallback alias if you add later
+          ? r.selectedMenuItemIds
+          : [];
+
+    const ids = rawIds.map(safeStr).filter(Boolean);
+    const uniqIds = Array.from(new Set(ids));
+
+    // ✅ IMPORTANT: build itemCounts so menu.items is NOT empty
+    for (const id of uniqIds) inc(menu.itemCounts, id, 1);
+
+    // guest identity
+    const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
+    const guestName = safeStr(
+      r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest"
+    );
+    const guestEmail = safeStr(r.guestEmail || r.email);
+
+    // ✅ companion index: from field OR parse doc.id like "..._companion_0"
+    let companionIndex = r.companionIndex ?? null;
+    if (companionIndex == null) {
+      const m = safeStr(doc.id).match(/_companion_(\d+)$/);
+      if (m) companionIndex = Number(m[1]);
+    }
+
+    const keyBase = invitationId || guestEmail || guestName;
+    if (!keyBase || uniqIds.length === 0) return;
+
+    const key = `${keyBase}:${companionIndex == null ? "main" : String(companionIndex)}`;
+
+    const existing = guestMap.get(key);
+    if (existing) {
+      const merged = new Set([...(existing.selectedMenuItemIds || []), ...uniqIds]);
+      existing.selectedMenuItemIds = Array.from(merged);
+      if (!existing.name && guestName) existing.name = guestName;
+      if (!existing.guestName && guestName) existing.guestName = guestName;
+      if (!existing.email && guestEmail) existing.email = guestEmail;
+      if (!existing.guestEmail && guestEmail) existing.guestEmail = guestEmail;
+      if (!existing.invitationId && invitationId) existing.invitationId = invitationId;
+      if (existing.companionIndex == null && companionIndex != null) existing.companionIndex = companionIndex;
+    } else {
+      guestMap.set(key, {
+        invitationId: invitationId || null,
+        name: guestName,
+        guestName: guestName,
+        email: guestEmail || null,
+        guestEmail: guestEmail || null,
+        companionIndex: companionIndex == null ? null : Number(companionIndex),
+        selectedMenuItemIds: uniqIds,
+      });
+    }
   });
 
-  // 6) Attach menu item metadata
+  const guestSelections = Array.from(guestMap.values()).sort((a, b) =>
+    safeStr(a.name).localeCompare(safeStr(b.name))
+  );
+
+  // 6) Attach menu item metadata (FULL FIELDS FOR UI)
   const itemIds = Object.keys(menu.itemCounts);
   const itemsById = {};
 
-  for (const batch of chunk(itemIds, 10)) {
-    const snap = await db.collection("menu_items").where(FieldPath.documentId(), "in", batch).get();
-    snap.forEach((d) => {
-      const x = d.data() || {};
-      itemsById[d.id] = {
-        id: d.id,
-        name: x.name || x.title || "Menu item",
-        category: x.category ?? "other",
-        isVeg: typeof x.isVeg === "boolean" ? x.isVeg : null,
-      };
-    });
+  function safeNum(x) {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function deriveIsVegFromFoodType(ft) {
+    const s = safeStr(ft).toLowerCase();
+    if (!s) return null;
+
+    // normalize: remove separators
+    const norm = s.replaceAll("_", "").replaceAll("-", "").replaceAll(" ", "");
+    if (norm === "veg" || norm === "vegetarian") return true;
+
+    // catch: nonveg / nonvegetarian / non_veg
+    if (norm.startsWith("non") || norm.includes("nonveg") || norm.includes("nonvegetarian")) return false;
+
+    return null;
+  }
+
+  if (itemIds.length) {
+    for (const batch of chunk(itemIds, 10)) {
+      const snap = await db
+        .collection("menu_items")
+        .where(FieldPath.documentId(), "in", batch)
+        .get();
+
+      snap.forEach((d) => {
+        const x = d.data() || {};
+
+        const foodType = safeStr(x.foodType);
+        const isVeg =
+          typeof x.isVeg === "boolean" ? x.isVeg : deriveIsVegFromFoodType(foodType);
+
+        itemsById[d.id] = {
+          id: d.id,
+          name: safeStr(x.name || x.title || "Menu item"),
+          category: safeStr(x.category) || "Other",
+          categoryLabel: safeStr(x.category) || "Other",
+          foodType: foodType || null,
+          isVeg,
+          price: safeNum(x.price),
+          imageUrl: safeStr(x.imageUrl) || null,
+          description: safeStr(x.description) || "",
+          allergens: Array.isArray(x.allergens)
+            ? x.allergens.map(safeStr).filter(Boolean)
+            : [],
+        };
+      });
+    }
   }
 
   const menuItems = itemIds
-    .map((id) => ({ ...itemsById[id], id, count: menu.itemCounts[id] }))
+    .map((id) => ({
+      ...(itemsById[id] || {
+        id,
+        name: "Menu item",
+        category: "Other",
+        categoryLabel: "Other",
+        foodType: null,
+        isVeg: null,
+        price: null,
+        imageUrl: null,
+        description: "",
+        allergens: [],
+      }),
+      id,
+      count: menu.itemCounts[id] ?? 0,
+    }))
     .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+
+  // ✅ 7) Compute guest dietType for guest-filter chips: veg / nonVeg / both / unknown
+  function itemIsVegById(id) {
+    const it = itemsById[id];
+    if (!it) return null;
+    if (typeof it.isVeg === "boolean") return it.isVeg;
+    return deriveIsVegFromFoodType(it.foodType);
+  }
+
+  function computeGuestDietType(selectedIds) {
+    let hasVeg = false;
+    let hasNonVeg = false;
+
+    for (const id of Array.isArray(selectedIds) ? selectedIds : []) {
+      const isVeg = itemIsVegById(id);
+      if (isVeg === true) hasVeg = true;
+      if (isVeg === false) hasNonVeg = true;
+      if (hasVeg && hasNonVeg) break;
+    }
+
+    if (hasVeg && hasNonVeg) return "both";
+    if (hasVeg) return "veg";
+    if (hasNonVeg) return "nonVeg";
+    return "unknown";
+  }
+
+  guestSelections.forEach((g) => {
+    const ids = Array.isArray(g.selectedMenuItemIds) ? g.selectedMenuItemIds : [];
+    g.dietType = computeGuestDietType(ids);
+  });
+
+  console.log(
+    "👤 guestSelections:",
+    guestSelections.length,
+    guestSelections[0] ? { name: guestSelections[0].name, dietType: guestSelections[0].dietType } : null
+  );
 
   return {
     ok: true,
     eventId: matchEventId,
     eventName: safeStr(event.name) || "Event",
     invitations: inv,
-    demographics: { responses: demoSnap.size, questions: Object.values(demoQuestions) },
-    menu: { responses: menu.responses, items: menuItems },
+    demographics: {
+      responses: demoSnap.size,
+      questions: Object.values(demoQuestions),
+    },
+    // ✅ guestSelections now includes dietType: veg | nonVeg | both | unknown
+    menu: { responses: menu.responses, items: menuItems, guestSelections },
   };
 });
+
+

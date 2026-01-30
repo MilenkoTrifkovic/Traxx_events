@@ -10,50 +10,44 @@ import 'package:traxx_wepapp/helper/app_padding.dart';
 import 'package:traxx_wepapp/helper/menu_category_helper.dart';
 import 'package:traxx_wepapp/helper/screen_size.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
-import 'package:traxx_wepapp/models/menu_model.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/utils/enums/sizes.dart';
 import 'package:traxx_wepapp/utils/enums/sort_type.dart';
 import 'package:traxx_wepapp/widgets/app_primary_button.dart';
-import 'package:traxx_wepapp/widgets/app_secondary_button.dart';
 
-class MenuSetDetailsView extends StatelessWidget {
+class MenuSetDetailsView extends StatefulWidget {
   final String menuId;
-
   const MenuSetDetailsView({super.key, required this.menuId});
 
-  Widget _buildDetailsAppBar(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => context.pop(),
-          ),
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          )
-        ],
-      ),
-    );
+  @override
+  State<MenuSetDetailsView> createState() => _MenuSetDetailsViewState();
+}
+
+class _MenuSetDetailsViewState extends State<MenuSetDetailsView> {
+  late final MenuSetDetailsController controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final tag = widget.menuId;
+    if (Get.isRegistered<MenuSetDetailsController>(tag: tag)) {
+      Get.delete<MenuSetDetailsController>(tag: tag);
+    }
+    controller = Get.put(MenuSetDetailsController(menuId: tag), tag: tag);
+  }
+
+  @override
+  void dispose() {
+    final tag = widget.menuId;
+    if (Get.isRegistered<MenuSetDetailsController>(tag: tag)) {
+      Get.delete<MenuSetDetailsController>(tag: tag);
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- SAFELY replace existing controller if present (fixes the Rxn type mismatch)
-    if (Get.isRegistered<MenuSetDetailsController>(tag: menuId)) {
-      Get.delete<MenuSetDetailsController>(tag: menuId);
-    }
-    final controller = Get.put(
-      MenuSetDetailsController(menuId: menuId),
-      tag: menuId,
-    );
-
     return Obx(() {
       if (controller.isLoading.value) {
         return const Center(child: CircularProgressIndicator());
@@ -85,135 +79,23 @@ class MenuSetDetailsView extends StatelessWidget {
     });
   }
 
-  // ---------- HEADER (MenuModel) ----------
-  Widget _buildMenuSetHeader(
-    BuildContext context,
-    MenuSetDetailsController controller,
-    MenuModel menuSet,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-            color: Colors.black.withOpacity(0.04),
-          ),
-        ],
-      ),
-      child: Column(
+  Widget _buildDetailsAppBar(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Row(
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(16),
-            ),
-            child: SizedBox(
-              height: 220,
-              width: double.infinity,
-              child: _buildCoverImage(menuSet),
-            ),
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // name + description + created date
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        menuSet.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (menuSet.description != null &&
-                          menuSet.description!.isNotEmpty)
-                        Text(
-                          menuSet.description!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      const SizedBox(height: 10),
-                      Text(
-                        controller.formatDate(menuSet.createdAt),
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    AppSecondaryButton(
-                      text: 'Edit Menu Set',
-                      icon: Icons.edit_outlined,
-                      onPressed: () {
-                        // TODO: Edit menu set popup if needed
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    AppSecondaryButton(
-                      text: menuSet.isDisabled ? 'Enable' : 'Disable',
-                      icon: menuSet.isDisabled
-                          ? Icons.toggle_on_outlined
-                          : Icons.toggle_off_outlined,
-                      onPressed: () {
-                        // TODO: toggle enable/disable
-                      },
-                    ),
-                  ],
-                ),
-              ],
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
             ),
-          ),
+          )
         ],
-      ),
-    );
-  }
-
-  Widget _buildCoverImage(MenuModel menuSet) {
-    final url = menuSet.imageUrl;
-    if (url != null && url.isNotEmpty) {
-      return Image.network(
-        url,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _coverPlaceholder(),
-      );
-    }
-    return _coverPlaceholder();
-  }
-
-  Widget _coverPlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primaryAccent.withOpacity(0.18),
-            AppColors.primaryAccent.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.restaurant_menu_rounded,
-          size: 64,
-          color: AppColors.primaryAccent.withOpacity(0.7),
-        ),
       ),
     );
   }
@@ -1105,6 +987,19 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   bool _isSaving = false;
   bool _isUploadingImage = false;
   FoodType _foodType = FoodType.veg;
+  static const Map<String, String> _allergenOptions = {
+    'dairy': 'Dairy',
+    'eggs': 'Eggs',
+    'fish': 'Fish',
+    'shellfish': 'Shellfish',
+    'soy': 'Soy',
+    'sesame': 'Sesame',
+    'wheat': 'Wheat',
+    'peanuts': 'Peanuts',
+    'tree_nuts': 'Tree Nuts',
+  };
+
+  late Set<String> _selectedAllergens;
 
   @override
   void initState() {
@@ -1119,6 +1014,9 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
       _category = widget.existing!.category;
       _foodType = widget.existing!.foodType ?? FoodType.veg; // NEW
     }
+    _selectedAllergens = {
+      ...?widget.existing?.allergens, // prefill on edit
+    };
   }
 
   @override
@@ -1128,6 +1026,113 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
     _priceC.dispose();
     _imageUrlC.dispose(); // ← NEW
     super.dispose();
+  }
+
+  void _openImageViewer(String url) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            // Photo
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: Container(
+                  color: Colors.black,
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox(),
+                  ),
+                ),
+              ),
+            ),
+
+            // Close button
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Material(
+                color: Colors.black.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(999),
+                child: IconButton(
+                  tooltip: 'Close',
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imagePreview({
+    required String url,
+    required double height,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _openImageViewer(url),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: height,
+          width: double.infinity,
+          color: Colors.white,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain, // ✅ shows full image
+                  alignment: Alignment.center,
+                  errorBuilder: (_, __, ___) => const SizedBox(),
+                ),
+              ),
+
+              // subtle "click to enlarge" hint
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.zoom_out_map_rounded,
+                          size: 14, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text(
+                        'View',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _pickAndUploadImage() async {
@@ -1203,17 +1208,18 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
         _imageUrlC.text.trim().isEmpty ? null : _imageUrlC.text.trim(); // ← NEW
 
     setState(() => _isSaving = true);
+    final allergens = _selectedAllergens.toList()..sort();
 
     try {
       if (widget.existing == null) {
-        // create
         await widget.controller.createItem(
           name: name,
           category: _category,
           description: desc,
           price: price,
-          imageUrl: imageUrl, // ← NEW
+          imageUrl: imageUrl,
           foodType: _foodType,
+          allergens: allergens.isEmpty ? null : allergens, // optional
         );
       } else {
         final updated = widget.existing!.copyWith(
@@ -1221,9 +1227,10 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
           category: _category,
           description: desc,
           price: price,
-          imageUrl: imageUrl, // ← NEW
+          imageUrl: imageUrl,
           updatedAt: DateTime.now(),
           foodType: _foodType,
+          allergens: allergens.isEmpty ? null : allergens, // optional
         );
         await widget.controller.updateItem(updated);
       }
@@ -1235,6 +1242,111 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Widget _allergensSection() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Allergens (optional)',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF111827),
+                ),
+              ),
+              const Spacer(),
+              if (_selectedAllergens.isNotEmpty)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => setState(() => _selectedAllergens.clear()),
+                  child: Text(
+                    'Clear',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to mark possible allergens.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // ✅ Compact chips
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _allergenOptions.entries.map((e) {
+              final key = e.key;
+              final label = e.value;
+              final selected = _selectedAllergens.contains(key);
+
+              return FilterChip(
+                label: Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                selected: selected,
+                showCheckmark: false, // cleaner
+                avatar: selected
+                    ? Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: AppColors.primaryAccent,
+                      )
+                    : null,
+                selectedColor: AppColors.primaryAccent.withOpacity(0.12),
+                backgroundColor: Colors.white,
+                side: BorderSide(
+                  color: selected
+                      ? AppColors.primaryAccent.withOpacity(0.55)
+                      : const Color(0xFFE5E7EB),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                onSelected: (v) {
+                  setState(() {
+                    if (v) {
+                      _selectedAllergens.add(key);
+                    } else {
+                      _selectedAllergens.remove(key);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1352,21 +1464,37 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                           // Category + Food type (responsive row)
                           LayoutBuilder(
                             builder: (context, c) {
+                              final categories =
+                                  MenuCategoryHelper.getAllCategories(
+                                      include: _category);
+
+// normalize local value to match helper formatting
+                              final current =
+                                  MenuCategoryHelper.formatCategoryName(
+                                      _category);
+
+// ensure dropdown value always exists
+                              final safeValue = categories.contains(current)
+                                  ? current
+                                  : (categories.isNotEmpty
+                                      ? categories.first
+                                      : 'Other');
                               final stack = c.maxWidth < 420;
                               final cat = DropdownButtonFormField<String>(
-                                initialValue: _category,
-                                items: MenuCategoryHelper
-                                    .getCategoryDropdownItems(),
+                                value: safeValue,
+                                items:
+                                    MenuCategoryHelper.getCategoryDropdownItems(
+                                        include: safeValue),
                                 onChanged: (v) {
-                                  if (v != null) setState(() => _category = v);
+                                  if (v == null) return;
+                                  setState(() => _category = v);
                                 },
                                 decoration: InputDecoration(
                                   labelText: 'Category',
                                   labelStyle: GoogleFonts.poppins(
                                       fontWeight: FontWeight.w600),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
+                                      borderRadius: BorderRadius.circular(14)),
                                 ),
                               );
 
@@ -1440,8 +1568,10 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                           ),
 
                           const SizedBox(height: 14),
+                          _allergensSection(),
+                          const SizedBox(height: 14),
 
-                          // Image URL + upload
+                          // ✅ Image (Create: URL + upload, Edit: preview only)
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -1462,25 +1592,41 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                                LayoutBuilder(
-                                  builder: (context, c) {
-                                    final stack = c.maxWidth < 420;
 
-                                    final urlField = TextFormField(
-                                      controller: _imageUrlC,
-                                      decoration: InputDecoration(
-                                        labelText: 'Image URL (optional)',
-                                        labelStyle: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600),
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                        ),
-                                      ),
-                                    );
+                                // ✅ EDIT MODE: show only image preview (no URL field)
+                                if (isEdit) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      height: 140,
+                                      width: double.infinity,
+                                      color: Colors.white,
+                                      child: _imageUrlC.text.trim().isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                'No image',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      const Color(0xFF6B7280),
+                                                ),
+                                              ),
+                                            )
+                                          : _imagePreview(
+                                              url: _imageUrlC.text.trim(),
+                                              height:
+                                                  110, // ✅ smaller + full image
+                                            ),
+                                    ),
+                                  ),
 
-                                    final uploadBtn = SizedBox(
-                                      height: 46,
+                                  // Optional: allow replacing image without showing URL
+                                  const SizedBox(height: 10),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: SizedBox(
+                                      height: 40,
                                       child: ElevatedButton.icon(
                                         onPressed: _isUploadingImage
                                             ? null
@@ -1495,57 +1641,100 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                                                   color: Colors.white,
                                                 ),
                                               )
-                                            : const Icon(Icons.upload_file,
+                                            : const Icon(Icons.image_outlined,
                                                 size: 18),
                                         label: Text(
                                           _isUploadingImage
                                               ? 'Uploading…'
-                                              : 'Upload',
+                                              : 'Change image',
                                           style: GoogleFonts.poppins(
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ),
-                                    );
-
-                                    if (stack) {
-                                      return Column(
-                                        children: [
-                                          urlField,
-                                          const SizedBox(height: 10),
-                                          SizedBox(
-                                              width: double.infinity,
-                                              child: uploadBtn),
-                                        ],
-                                      );
-                                    }
-
-                                    return Row(
-                                      children: [
-                                        Expanded(child: urlField),
-                                        const SizedBox(width: 10),
-                                        uploadBtn,
-                                      ],
-                                    );
-                                  },
-                                ),
-                                if (_imageUrlC.text.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      height: 120,
-                                      width: double.infinity,
-                                      color: Colors.white,
-                                      child: Image.network(
-                                        _imageUrlC.text,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const SizedBox(),
-                                      ),
                                     ),
                                   ),
+                                ] else ...[
+                                  // ✅ CREATE MODE: NO URL field — only upload + preview
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _imageUrlC.text.trim().isEmpty
+                                              ? 'No image selected'
+                                              : 'Image selected',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF6B7280),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height: 46,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _isUploadingImage
+                                              ? null
+                                              : _pickAndUploadImage,
+                                          icon: _isUploadingImage
+                                              ? const SizedBox(
+                                                  width: 14,
+                                                  height: 14,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : const Icon(Icons.upload_file,
+                                                  size: 18),
+                                          label: Text(
+                                            _isUploadingImage
+                                                ? 'Uploading…'
+                                                : 'Upload',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  if (_imageUrlC.text.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        height: 120,
+                                        width: double.infinity,
+                                        color: Colors.white,
+                                        child: Image.network(
+                                          _imageUrlC.text.trim(),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const SizedBox(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton.icon(
+                                        onPressed: () => setState(
+                                            () => _imageUrlC.text = ''),
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 18),
+                                        label: Text(
+                                          'Remove image',
+                                          style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ],
                             ),

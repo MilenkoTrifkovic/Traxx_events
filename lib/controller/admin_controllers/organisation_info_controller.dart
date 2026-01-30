@@ -308,9 +308,6 @@ class OrganisationInfoController extends GetxController {
   /// Returns the saved organisation with assigned organisationId and other server fields
   Future<Organisation> saveOrganisation() async {
     try {
-      print('Saving organisation through cloud function...');
-      print(' shouldRedirectToDashboard is ${shouldRedirectToDashboard.value}');
-
       // Clear any previous error messages
       errorMessage.value = null;
 
@@ -326,24 +323,17 @@ class OrganisationInfoController extends GetxController {
       final organisation = _createOrganisation();
 
       // Save through cloud function
-      print('Saving organisation through Started.........');
       final savedOrganisation =
           await _cloudFunctionsService.saveCompanyInfo(organisation);
-      print('Saving organisation through End.........');
 
-      print(
-          'Organisation saved successfully: ${savedOrganisation.organisationId}');
-
-      // Let the rest of the app know that org info now exists
-      _authController.setOrganisationInfoExists(true);
+      // Set the organisationId in AuthController so shell routes can proceed
+      _authController.setOrganisationId(savedOrganisation.organisationId);
 
       // Trigger redirection to dashboard
       shouldRedirectToDashboard.value = true;
-      print(' shouldRedirectToDashboard is ${shouldRedirectToDashboard.value}');
 
       return savedOrganisation;
     } catch (e) {
-      print('Error saving organisation 2: $e');
       if (errorMessage.value == null) {
         errorMessage.value = 'Failed to save organisation. Please try again.';
       }

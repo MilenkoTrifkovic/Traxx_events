@@ -47,11 +47,15 @@ class BuyCreditsController extends GetxController {
   int get totalPurchasedEvents =>
       _paymentHistoryController?.purchasedEvents ?? 0;
 
+  /// Total gifted events
+  int get totalGiftedEvents =>
+      _paymentHistoryController?.giftedEvents ?? 0;
+
   /// Total used events (from event list)
   int get totalUsedEvents => _eventListController?.events.length ?? 0;
 
-  /// Events left (purchased - used)
-  int get eventsLeft => totalPurchasedEvents - totalUsedEvents;
+  /// Events left (purchased + gifted - used)
+  int get eventsLeft => (totalPurchasedEvents + totalGiftedEvents) - totalUsedEvents;
 
   /// Total money spent (in cents) - sum of all completed payments
   int get totalMoneySpentCents {
