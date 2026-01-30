@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/global_controllers/events_controller.dart';
@@ -58,20 +59,52 @@ class AdminGuestListController extends GetxController {
 
   final _uuid = const Uuid();
 
-  void setEventId(String id) {
-    eventId = id;
-    _listenToGuestChanges();
-    _listenToInvitationRsvpChanges();
-  }
-
-  final rsvpByGuestId = <String, GuestRsvpStatus>{}.obs;
-
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _invitationSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _guestSub;
+
+  // Helps when keys don’t match perfectly (docId vs guestId)
+  final Map<String, String> _guestKeyByEmailLower = {};
+
+  // RSVP status map keyed by guestId/docId (whatever matches your table)
+  final rsvpByGuestId = <String, GuestRsvpStatus>{}.obs;
+
+  String _s(dynamic v) => (v ?? '').toString().trim();
 
   String _newToken() {
     // creates a long token similar to your screenshot (64-ish chars)
     return (_uuid.v4() + _uuid.v4()).replaceAll('-', '');
+  }
+
+  DateTime? _toDate(dynamic v) {
+    if (v == null) return null;
+
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+
+    // ISO string like "2026-01-30T19:22:09.758Z"
+    if (v is String) {
+      final s = v.trim();
+      if (s.isEmpty) return null;
+      return DateTime.tryParse(s);
+    }
+
+    // epoch millis (rare)
+    if (v is int) {
+      return DateTime.fromMillisecondsSinceEpoch(v);
+    }
+    if (v is double) {
+      return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+    }
+
+    return null;
+  }
+
+  void setEventId(String id) {
+    eventId = id;
+    _listenToGuestChanges();
+
+    // ✅ ONLY ONE RSVP LISTENER (includes companions)
+    _listenInvitationsForRsvp();
   }
 
   @override
@@ -86,7 +119,23 @@ class AdminGuestListController extends GetxController {
   }
 
   // ---------------------------
-  // Realtime listener
+  // Rebuild email->key index
+  // ---------------------------
+
+  void _rebuildGuestEmailIndex() {
+    _guestKeyByEmailLower
+      ..clear()
+      ..addEntries(guests.map((g) {
+        final emailLower = (g.email ?? '').toString().trim().toLowerCase();
+        final key = ((g.guestId ?? '').toString().trim().isNotEmpty)
+            ? g.guestId!.trim()
+            : (g.docId ?? '').trim();
+        return MapEntry(emailLower, key);
+      }).where((e) => e.key.isNotEmpty && e.value.isNotEmpty));
+  }
+
+  // ---------------------------
+  // Guests realtime listener
   // ---------------------------
 
   void _listenToGuestChanges() {
@@ -126,6 +175,9 @@ class AdminGuestListController extends GetxController {
 
       guests.assignAll(list);
       filteredGuests.assignAll(list);
+
+      _rebuildGuestEmailIndex();
+
       currentPage.value = 0;
       _updatePagination();
       isInitialized.value = true;
@@ -175,48 +227,132 @@ class AdminGuestListController extends GetxController {
     );
   }
 
-  void _listenToInvitationRsvpChanges() {
+  // ---------------------------
+  // ✅ Invitations RSVP realtime listener (MAIN + COMPANIONS)
+  // ---------------------------
+
+  void _listenInvitationsForRsvp() {
     _invitationSub?.cancel();
+    if (eventId.trim().isEmpty) return;
 
     _invitationSub = FirebaseFirestore.instance
         .collection('invitations')
-        .where('eventId', isEqualTo: eventId)
+        .where('eventId', isEqualTo: eventId.trim())
         .snapshots()
-        .listen((snapshot) {
-      final Map<String, GuestRsvpStatus> map = {};
+        .listen((snap) {
+      final map = <String, GuestRsvpStatus>{};
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
+      void upsert({
+        required String idKey,
+        required bool responded,
+        required bool? isAttending,
+        required DateTime? updatedAt,
+      }) {
+        final key = idKey.trim();
+        if (key.isEmpty) return;
 
-        final guestId = (data['guestId'] ?? '').toString().trim();
-        if (guestId.isEmpty) continue;
-
-        final hasResponded = data['hasResponded'] == true;
-
-        bool? isAttending;
-        final v = data['isAttending'];
-        if (v is bool) isAttending = v;
-
-        // choose the most recent if duplicates ever exist
-        DateTime? updatedAt;
-        final ts =
-            data['rsvpSubmittedAt'] ?? data['modifiedAt'] ?? data['createdAt'];
-        if (ts is Timestamp) updatedAt = ts.toDate();
-
-        final existing = map[guestId];
-        if (existing == null) {
-          map[guestId] = GuestRsvpStatus(
-            hasResponded: hasResponded,
+        final prev = map[key];
+        if (prev == null) {
+          map[key] = GuestRsvpStatus(
+            hasResponded: responded,
             isAttending: isAttending,
             updatedAt: updatedAt,
           );
+          return;
+        }
+
+        final prevAt = prev.updatedAt;
+        final nextAt = updatedAt;
+
+        final bool takeNext = (prevAt == null && nextAt != null) ||
+            (prevAt != null && nextAt != null && nextAt.isAfter(prevAt));
+
+        if (takeNext) {
+          map[key] = GuestRsvpStatus(
+            hasResponded: prev.hasResponded || responded,
+            isAttending: isAttending ?? prev.isAttending,
+            updatedAt: nextAt ?? prevAt,
+          );
         } else {
-          final prev = existing.updatedAt;
-          if (prev == null || (updatedAt != null && updatedAt.isAfter(prev))) {
-            map[guestId] = GuestRsvpStatus(
-              hasResponded: hasResponded,
-              isAttending: isAttending,
-              updatedAt: updatedAt,
+          // keep prev timestamp, but merge flags
+          map[key] = GuestRsvpStatus(
+            hasResponded: prev.hasResponded || responded,
+            isAttending: prev.isAttending ?? isAttending,
+            updatedAt: prevAt ?? nextAt,
+          );
+        }
+      }
+
+      void addPerson({
+        required dynamic guestIdRaw,
+        required dynamic emailLowerRaw,
+        required dynamic respondedRaw,
+        required dynamic isAttendingRaw,
+        required dynamic updatedAtRaw,
+      }) {
+        final guestId = _s(guestIdRaw);
+        final emailLower = _s(emailLowerRaw).toLowerCase();
+
+        final bool? isAttending =
+            (isAttendingRaw is bool) ? isAttendingRaw : null;
+
+        final responded = respondedRaw == true || isAttending != null;
+
+        final updatedAt = _toDate(updatedAtRaw);
+
+        // Primary key (guestId from invitation)
+        if (guestId.isNotEmpty) {
+          upsert(
+            idKey: guestId,
+            responded: responded,
+            isAttending: isAttending,
+            updatedAt: updatedAt,
+          );
+        }
+
+        // Fallback key: match by email to whatever your Guest row uses as key
+        final fallbackKey = _guestKeyByEmailLower[emailLower];
+        if (fallbackKey != null && fallbackKey.isNotEmpty) {
+          upsert(
+            idKey: fallbackKey,
+            responded: responded,
+            isAttending: isAttending,
+            updatedAt: updatedAt,
+          );
+        }
+      }
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        // ✅ MAIN guest
+        addPerson(
+          guestIdRaw: data['guestId'],
+          emailLowerRaw: data['guestEmailLower'] ?? data['guestEmail'],
+          respondedRaw: data['hasResponded'] ?? data['attendingSubmitted'],
+          isAttendingRaw: data['isAttending'],
+          updatedAtRaw: data['attendingSubmittedAt'] ??
+              data['rsvpSubmittedAt'] ??
+              data['modifiedAt'] ??
+              data['createdAt'],
+        );
+
+        // ✅ COMPANIONS
+        final comps = data['companions'];
+        if (comps is List) {
+          for (final c in comps) {
+            if (c is! Map) continue;
+            final cm = Map<String, dynamic>.from(c);
+
+            addPerson(
+              guestIdRaw: cm['guestId'],
+              emailLowerRaw: cm['guestEmailLower'] ?? cm['guestEmail'],
+              respondedRaw: cm['hasResponded'] ?? cm['attendingSubmitted'],
+              isAttendingRaw: cm['isAttending'],
+              updatedAtRaw: cm['attendingSubmittedAt'] ??
+                  cm['rsvpSubmittedAt'] ??
+                  cm['modifiedAt'] ??
+                  cm['createdAt'],
             );
           }
         }
@@ -226,6 +362,10 @@ class AdminGuestListController extends GetxController {
       rsvpByGuestId.refresh();
     });
   }
+
+  // ---------------------------
+  // Event meta
+  // ---------------------------
 
   Future<Map<String, dynamic>> _getEventMeta() async {
     final byDoc = await FirebaseFirestore.instance
@@ -245,6 +385,10 @@ class AdminGuestListController extends GetxController {
     }
     return q.docs.first.data();
   }
+
+  // ---------------------------
+  // Save / update guest
+  // ---------------------------
 
   Future<bool> submitForm({bool skipValidate = false}) async {
     if (!skipValidate && !validateForm()) return false;
@@ -277,22 +421,10 @@ class AdminGuestListController extends GetxController {
     if (_currentGuestId == null || _currentGuestId!.isEmpty) return false;
 
     try {
-      final guest = GuestModel(
-        guestId: _currentGuestId,
-        name: name.text.trim(),
-        email: email.text.trim(),
-        eventId: eventId,
-        address: address.text.trim().isNotEmpty ? address.text.trim() : null,
-        city: city.text.trim().isNotEmpty ? city.text.trim() : null,
-        country: selectedCountry.value,
-        state: selectedState.value,
-        gender: selectedGender.value,
-        isDisabled: isDisabled.value,
+      await _firestoreServices.updateGuestMaxInvite(
+        guestId: _currentGuestId!,
         maxGuestInvite: maxGuestInvite.value,
-        isInvited: false,
       );
-
-      await _firestoreServices.updateGuest(guest);
       return true;
     } catch (e, st) {
       debugPrint('updateGuest error: $e\n$st');
@@ -300,56 +432,37 @@ class AdminGuestListController extends GetxController {
     }
   }
 
-  /// Updates a guest directly using a GuestModel object (for inline edits)
-  Future<bool> updateGuestDirectly(GuestModel guest) async {
-    if (guest.guestId == null || guest.guestId!.isEmpty) {
-      debugPrint('updateGuestDirectly: guestId is null/empty — cannot update');
-      return false;
-    }
-
+  Future<bool> updateGuestMaxInviteDirectly(
+      String guestDocId, int value) async {
     try {
-      // Use FirestoreServices to update (preserves batchId and other fields)
-      await _firestoreServices.updateGuest(guest);
-      debugPrint('updateGuestDirectly: updated guest id=${guest.guestId}');
+      await _firestoreServices.updateGuestMaxInvite(
+        guestId: guestDocId,
+        maxGuestInvite: value,
+      );
       return true;
     } catch (e, st) {
-      debugPrint('updateGuestDirectly error: $e\n$st');
+      debugPrint('updateGuestMaxInviteDirectly error: $e\n$st');
       return false;
     }
   }
 
   String? _currentGuestId;
 
-  // ---------------------------
-  // Prepare form for Edit
-  // ---------------------------
-
   void updateAllFields(GuestModel guest) {
-    _currentGuestId = guest.guestId;
+    _currentGuestId = guest.docId.isNotEmpty ? guest.docId : guest.guestId;
 
-    // Basic string fields
     name.text = guest.name;
     email.text = guest.email;
     address.text = guest.address ?? '';
     city.text = guest.city ?? '';
 
-    // Country / State (nullable)
     selectedCountry.value = guest.country;
     selectedState.value = guest.state;
-
     selectedGender.value = guest.gender;
 
-    // isDisabled flag
-    // GuestModel.isDisabled is non-nullable in current model, assign directly
     isDisabled.value = guest.isDisabled;
-
-    // maxGuestInvite
     maxGuestInvite.value = guest.maxGuestInvite;
   }
-
-  // ---------------------------
-  // Delete Guest
-  // ---------------------------
 
   Future<void> deleteGuest(String guestId) async {
     await FirebaseFirestore.instance.collection("guests").doc(guestId).delete();
@@ -359,25 +472,10 @@ class AdminGuestListController extends GetxController {
   // File Upload (CSV/XLSX)
   // ---------------------------
 
-  /// Uploads guests from a CSV or XLSX file.
-  ///
-  /// This method parses the file, validates the data, filters out duplicate emails,
-  /// and saves unique guests to Firestore in a batch operation. Returns the number
-  /// of guests added on success, or throws an exception on error.
-  ///
-  /// Expected file format:
-  /// - Required columns: Name, Email
-  /// - Optional columns: Address, City, State, Country, Gender
-  ///
-  /// @param file The PlatformFile to parse (CSV or XLSX)
-  /// @returns A map with 'added' count and 'skipped' count
-  /// @throws FormatException if file format is invalid
-  /// @throws Exception if Firestore operation fails
   Future<Map<String, int>> uploadGuestsFromFile(PlatformFile file) async {
     try {
       final List<GuestModel> parsedGuests;
 
-      // Parse file based on extension
       if (file.extension?.toLowerCase() == 'csv') {
         final parser = GuestModelCsvParser(eventId: eventId);
         parsedGuests = parser.parseFile(file);
@@ -393,10 +491,8 @@ class AdminGuestListController extends GetxController {
         return {'added': 0, 'skipped': 0};
       }
 
-      // Get existing guest emails for this event to check for duplicates
       final existingEmails = guests.map((g) => g.email.toLowerCase()).toSet();
 
-      // Filter out guests with duplicate emails and track skipped rows
       final List<GuestModel> uniqueGuests = [];
       int skippedCount = 0;
 
@@ -406,8 +502,7 @@ class AdminGuestListController extends GetxController {
           skippedCount++;
         } else {
           uniqueGuests.add(guest);
-          existingEmails
-              .add(emailLower); // Add to set to catch duplicates within file
+          existingEmails.add(emailLower);
         }
       }
 
@@ -415,18 +510,14 @@ class AdminGuestListController extends GetxController {
         return {'added': 0, 'skipped': skippedCount};
       }
 
-      // Save all unique guests to Firestore using the service layer
-      // Note: We can't use batch writes here because batch ID generation requires async queries
       int count = 0;
 
       for (final guest in uniqueGuests) {
         try {
-          // Use FirestoreServices.saveGuest which will generate batch ID
           await _firestoreServices.saveGuest(guest);
           count++;
         } catch (e) {
           debugPrint('Failed to save guest ${guest.email}: $e');
-          // Continue with next guest even if one fails
         }
       }
 
@@ -517,9 +608,6 @@ class AdminGuestListController extends GetxController {
         debugPrint('Invite failed response: $data');
       }
 
-      // ✅ IMPORTANT: do NOT update guests doc here anymore
-      // Cloud Function now updates guests/{guestId}.isInvited reliably.
-
       return success;
     } on FirebaseFunctionsException catch (e, st) {
       debugPrint(
@@ -541,14 +629,13 @@ class AdminGuestListController extends GetxController {
 
       if (snapshot.docs.isEmpty) return 0;
 
-      // Build invitations using doc.id as guestId (CRITICAL)
       final invitations = snapshot.docs
           .map((doc) {
             final g = GuestModel.fromFirestore(doc.data(), doc.id);
             if (g.email.trim().isEmpty) return null;
             return {
               'guestEmail': g.email.trim(),
-              'guestId': doc.id, // ✅ MUST be doc.id
+              'guestId': doc.id,
               'guestName': g.name,
               'maxGuestInvite': g.maxGuestInvite,
               if (g.batchId != null && g.batchId!.trim().isNotEmpty)
@@ -584,7 +671,6 @@ class AdminGuestListController extends GetxController {
       final data = Map<String, dynamic>.from(res.data as Map);
       final results = (data['results'] as List?) ?? [];
 
-      // ✅ Collect guestIds that were successfully sent
       final sentGuestIds = results
           .where((r) => r is Map && r['status'] == 'sent')
           .map((r) => (r['guestId'] ?? '').toString().trim())
@@ -641,12 +727,9 @@ class AdminGuestListController extends GetxController {
   // Guest filtering (search)
   // ---------------------------
 
-  /// Filters the guests list by [query], matching against name and email
-  /// (case-insensitive). If [query] is empty the full guests list is restored.
   void filterGuests(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) {
-      // restore full list
       filteredGuests.assignAll(guests);
       currentPage.value = 0;
       _updatePagination();
@@ -655,18 +738,15 @@ class AdminGuestListController extends GetxController {
 
     final results = guests.where((g) {
       final nameValue = g.name.toLowerCase();
-      // GuestModel.email is non-nullable in current model, use toLowerCase directly
       final emailValue = g.email.toLowerCase();
       return nameValue.contains(q) || emailValue.contains(q);
     }).toList();
 
     filteredGuests.assignAll(results);
-    // Reset to first page after filtering.
     currentPage.value = 0;
     _updatePagination();
   }
 
-  /// Clears any active filter and resets the search controller.
   void clearFilter() {
     searchController.clear();
     filteredGuests.assignAll(guests);
@@ -678,7 +758,6 @@ class AdminGuestListController extends GetxController {
   // Pagination helpers
   // ---------------------------
 
-  /// Update [pagedGuests] based on [currentPage] and [pageSize].
   void _updatePagination() {
     final total = filteredGuests.length;
     if (total == 0) {
@@ -696,14 +775,12 @@ class AdminGuestListController extends GetxController {
     pagedGuests.assignAll(items);
   }
 
-  /// Total number of pages (at least 1 if there are items, otherwise 0).
   int get totalPages {
     final total = filteredGuests.length;
     if (total == 0) return 0;
     return (total + pageSize - 1) ~/ pageSize;
   }
 
-  /// Move to the next page if possible.
   void nextPage() {
     final pages = totalPages;
     if (pages == 0) return;
@@ -713,7 +790,6 @@ class AdminGuestListController extends GetxController {
     }
   }
 
-  /// Move to the previous page if possible.
   void prevPage() {
     if (filteredGuests.isEmpty) return;
     if (currentPage.value > 0) {
@@ -722,7 +798,6 @@ class AdminGuestListController extends GetxController {
     }
   }
 
-  /// Jump to a specific page (0-based). Clamps to valid range.
   void goToPage(int page) {
     final pages = totalPages;
     if (pages == 0) return;

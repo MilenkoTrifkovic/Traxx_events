@@ -51,7 +51,6 @@ class GuestListSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Header + toolbar (ONLY)
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -72,10 +71,7 @@ class GuestListSection extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // ✅ Setup hint once
           if (!canInvite)
             Container(
               width: double.infinity,
@@ -103,10 +99,7 @@ class GuestListSection extends StatelessWidget {
                 ],
               ),
             ),
-
           if (!canInvite) const SizedBox(height: 12),
-
-          // ✅ Body
           Obx(() {
             if (!controller.isInitialized.value) {
               return const Center(
@@ -122,13 +115,15 @@ class GuestListSection extends StatelessWidget {
             final total =
                 (allFiltered.length / pageSize).ceil().clamp(1, 999999);
 
-            // ✅ Summary counts (filtered)
             int current = controller.currentPage.value;
             final rsvpMap = controller.rsvpByGuestId;
+
             int yesCount = 0, noCount = 0, pendingCount = 0;
+
             final start = current * pageSize;
             final end = math.min(start + pageSize, allFiltered.length);
             final list = allFiltered.sublist(start, end);
+
             if (allFiltered.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24.0),
@@ -141,8 +136,11 @@ class GuestListSection extends StatelessWidget {
             }
 
             for (final g in allFiltered) {
-              final id = g.guestId ?? '';
-              final rsvp = rsvpMap[id];
+              final key = (g.guestId ?? '').trim().isNotEmpty
+                  ? g.guestId!.trim()
+                  : g.docId;
+
+              final rsvp = rsvpMap[key];
 
               final responded = rsvp != null && rsvp.hasResponded;
               if (!responded) {
@@ -150,16 +148,16 @@ class GuestListSection extends StatelessWidget {
                 continue;
               }
 
-              if (rsvp.isAttending == true)
+              if (rsvp.isAttending == true) {
                 yesCount++;
-              else if (rsvp.isAttending == false)
+              } else if (rsvp.isAttending == false) {
                 noCount++;
-              else
+              } else {
                 pendingCount++;
+              }
             }
 
             if (current >= total) {
-              // clamp if filters changed
               current = total - 1;
               controller.currentPage.value = current;
             }
@@ -171,7 +169,6 @@ class GuestListSection extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Summary row
                 Container(
                   width: double.infinity,
                   padding:
@@ -209,20 +206,11 @@ class GuestListSection extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                // ✅ Table with perfect width + scrollbar when needed
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final available = constraints.maxWidth;
-
-                    // minimum readable width for all columns
                     const minTableWidth = 1100.0;
-
-                    // ✅ perfect behavior:
-                    // if available is larger -> table expands to available width
-                    // if available is smaller -> keep min width and scrollbar appears
                     final tableWidth =
                         available > minTableWidth ? available : minTableWidth;
 
@@ -241,7 +229,6 @@ class GuestListSection extends StatelessWidget {
                             headingRowHeight: 48,
                             dataRowMinHeight: 56,
                             dataRowMaxHeight: 64,
-
                             headingRowColor: MaterialStateProperty.all(
                                 const Color(0xFFF3F4F6)),
                             headingTextStyle: GoogleFonts.poppins(
@@ -254,8 +241,6 @@ class GuestListSection extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                               color: const Color(0xFF111827),
                             ),
-
-                            // ✅ full border + row separators
                             border: const TableBorder(
                               top: BorderSide(color: Color(0xFFE5E7EB)),
                               bottom: BorderSide(color: Color(0xFFE5E7EB)),
@@ -265,7 +250,6 @@ class GuestListSection extends StatelessWidget {
                                   BorderSide(color: Color(0xFFE5E7EB)),
                               verticalInside: BorderSide.none,
                             ),
-
                             columns: const [
                               DataColumn(label: Text('Name')),
                               DataColumn(label: Text('Email')),
@@ -275,11 +259,16 @@ class GuestListSection extends StatelessWidget {
                               DataColumn(label: Text('Invited')),
                               DataColumn(label: Text('Actions')),
                             ],
-
                             rows: list.map((guest) {
                               final isDisabledGuest = guest.isDisabled == true;
                               final canInviteThisGuest =
                                   canInvite && !isDisabledGuest;
+
+                              // ✅ FIX: define key per row
+                              final key =
+                                  (guest.guestId ?? '').trim().isNotEmpty
+                                      ? guest.guestId!.trim()
+                                      : guest.docId;
 
                               return DataRow(
                                 cells: [
@@ -305,26 +294,28 @@ class GuestListSection extends StatelessWidget {
                                         ),
                                       ),
                                       onChanged: (newValue) async {
-                                        if (newValue != null &&
-                                            guest.guestId != null) {
-                                          final updatedGuest = guest.copyWith(
-                                              maxGuestInvite: newValue);
-                                          final success = await controller
-                                              .updateGuestDirectly(
-                                                  updatedGuest);
+                                        if (newValue == null) return;
 
-                                          final snackbarController = Get.find<
-                                              SnackbarMessageController>();
-                                          if (success) {
-                                            snackbarController
-                                                .showSuccessMessage(
-                                              'Max invite updated to ${newValue == 0 ? 'None' : newValue}',
-                                            );
-                                          } else {
-                                            snackbarController.showErrorMessage(
-                                              'Failed to update max invite',
-                                            );
-                                          }
+                                        final docId = guest.docId.isNotEmpty
+                                            ? guest.docId
+                                            : (guest.guestId ?? '');
+                                        if (docId.isEmpty) return;
+
+                                        final success = await controller
+                                            .updateGuestMaxInviteDirectly(
+                                                docId, newValue);
+
+                                        if (!context.mounted) return;
+
+                                        final snackbarController = Get.find<
+                                            SnackbarMessageController>();
+                                        if (success) {
+                                          snackbarController.showSuccessMessage(
+                                            'Max invite updated to ${newValue == 0 ? 'None' : newValue}',
+                                          );
+                                        } else {
+                                          snackbarController.showErrorMessage(
+                                              'Failed to update max invite');
                                         }
                                       },
                                     ),
@@ -332,10 +323,9 @@ class GuestListSection extends StatelessWidget {
                                   DataCell(Text(isDisabledGuest
                                       ? 'Disabled'
                                       : 'Enabled')),
-                                  DataCell(_rsvpBadge(
-                                    controller
-                                        .rsvpByGuestId[guest.guestId ?? ''],
-                                  )),
+                                  DataCell(
+                                    _rsvpBadge(controller.rsvpByGuestId[key]),
+                                  ),
                                   DataCell(
                                     IconButton(
                                       icon: Icon(
@@ -470,9 +460,7 @@ class GuestListSection extends StatelessWidget {
                     );
                   },
                 ),
-
                 const SizedBox(height: 12),
-
                 if (total > 1)
                   Wrap(
                     alignment: WrapAlignment.end,

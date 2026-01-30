@@ -41,7 +41,7 @@ class EmailVerificationInfoPanel extends StatelessWidget {
               AppText.styledHeadingMedium(
                 weight: FontWeight.w500,
                 context,
-                'Verify your email address to access your Traxx Event dashboard and start creating amazing events.',
+                'Verify your email address to access your Trax Event dashboard and start creating amazing events.',
                 color: AppColors.white,
               ),
             ],

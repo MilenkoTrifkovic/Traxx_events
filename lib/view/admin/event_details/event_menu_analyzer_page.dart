@@ -50,12 +50,18 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   bool _matchesGuestDiet(Map<String, dynamic> g) {
     if (_guestDietType == GuestDietType.all) return true;
 
-    final dt = (g['dietType'] ?? '').toString().trim().toLowerCase();
+    var dt = (g['dietType'] ?? '').toString().trim().toLowerCase();
+    dt = dt.replaceAll('_', '').replaceAll('-', '').replaceAll(' ', '');
 
-    if (_guestDietType == GuestDietType.veg) return dt == 'veg';
-    if (_guestDietType == GuestDietType.nonVeg) return dt == 'nonveg';
-    if (_guestDietType == GuestDietType.both) return dt == 'both';
-
+    if (_guestDietType == GuestDietType.veg) {
+      return dt == 'veg' || dt == 'vegetarian';
+    }
+    if (_guestDietType == GuestDietType.nonVeg) {
+      return dt == 'nonveg' || dt.startsWith('non');
+    }
+    if (_guestDietType == GuestDietType.both) {
+      return dt == 'both';
+    }
     return true;
   }
 
@@ -231,44 +237,32 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   }) {
     final isPhone = MediaQuery.sizeOf(context).width < 700;
 
-    final q = _guestSearchCtrl.text.trim().toLowerCase();
-
-    final suggestions = (_selectedGuest != null || q.isEmpty)
-        ? <Map<String, dynamic>>[]
-        : guestSelections.where((g) {
-            if (!_matchesGuestDiet(g)) return false;
-
-            final name = (g['name'] ?? g['guestName'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-            final email = (g['email'] ?? g['guestEmail'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-
-            return name.contains(q) || email.contains(q);
-          }).toList();
-
-    Widget dietBox() {
-      Widget chip(String text, bool selected, VoidCallback onTap) {
-        return ChoiceChip(
-          checkmarkColor: Colors.white,
-          label: Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 12.5,
-            ),
+    Widget chip({
+      required String text,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return ChoiceChip(
+        checkmarkColor: Colors.white,
+        label: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
           ),
-          selected: selected,
-          onSelected: (_) => onTap(),
-          selectedColor: Colors.black,
-          backgroundColor: const Color(0xFFF3F4F6),
-          labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
-        );
-      }
+        ),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: Colors.black,
+        backgroundColor: const Color(0xFFF3F4F6),
+        labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
+      );
+    }
 
+    // ─────────────────────────────
+    // ITEM DIET BOX (filters cards)
+    // ─────────────────────────────
+    Widget dietBox() {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -292,39 +286,48 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                ChoiceChip(
-                  label: const Text('All'),
-                  selected: _guestDietType == GuestDietType.all,
-                  onSelected: (_) =>
-                      setState(() => _guestDietType = GuestDietType.all),
+                chip(
+                  text: 'All',
+                  selected: _dietFilter == DietFilter.all,
+                  onTap: () => setState(() => _dietFilter = DietFilter.all),
                 ),
-                ChoiceChip(
-                  label: const Text('Veg'),
-                  selected: _guestDietType == GuestDietType.veg,
-                  onSelected: (_) =>
-                      setState(() => _guestDietType = GuestDietType.veg),
+                chip(
+                  text: 'Veg',
+                  selected: _dietFilter == DietFilter.veg,
+                  onTap: () => setState(() => _dietFilter = DietFilter.veg),
                 ),
-                ChoiceChip(
-                  label: const Text('Non-Veg'),
-                  selected: _guestDietType == GuestDietType.nonVeg,
-                  onSelected: (_) =>
-                      setState(() => _guestDietType = GuestDietType.nonVeg),
-                ),
-                ChoiceChip(
-                  label: const Text('Both'),
-                  selected: _guestDietType == GuestDietType.both,
-                  onSelected: (_) =>
-                      setState(() => _guestDietType = GuestDietType.both),
+                chip(
+                  text: 'Non-Veg',
+                  selected: _dietFilter == DietFilter.nonVeg,
+                  onTap: () => setState(() => _dietFilter = DietFilter.nonVeg),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
           ],
         ),
       );
     }
 
+    // ─────────────────────────────
+    // GUEST BOX (search only)
+    // ─────────────────────────────
     Widget guestBox() {
+      final q = _guestSearchCtrl.text.trim().toLowerCase();
+
+      final suggestions = (_selectedGuest != null || q.isEmpty)
+          ? <Map<String, dynamic>>[]
+          : guestSelections.where((g) {
+              final name = (g['name'] ?? g['guestName'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              final email = (g['email'] ?? g['guestEmail'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              return name.contains(q) || email.contains(q);
+            }).toList();
+
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -387,13 +390,13 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                         _guestSearchCtrl.clear();
                       });
                     },
-                    child: Text('Clear',
-                        style:
-                            GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                    child: Text(
+                      'Clear',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
             ] else ...[
               TextField(
                 controller: _guestSearchCtrl,
@@ -416,8 +419,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
-
-              // Suggestions list (inline, no overlay)
               if (suggestions.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 ConstrainedBox(
@@ -444,9 +445,11 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                         return ListTile(
                           dense: true,
                           leading: const Icon(Icons.person_outline),
-                          title: Text(name,
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w700)),
+                          title: Text(
+                            name,
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700),
+                          ),
                           onTap: () {
                             setState(() {
                               _selectedGuest = g;
@@ -459,19 +462,19 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                   ),
                 ),
               ],
-
               if (_guestSearchCtrl.text.trim().isNotEmpty &&
-                  suggestions.isEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'No guests match your search.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
+                  suggestions.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    'No guests match your search.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6B7280),
+                    ),
                   ),
                 ),
-              ],
             ],
           ],
         ),
@@ -518,19 +521,19 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     // ✅ Apply filters
     final selectedIds = _selectedGuest == null
         ? null
-        : _asStringSet(
-            _selectedGuest?['selectedMenuItemIds'] ??
-                _selectedGuest?['selectedMenuItemIds'],
-          );
+        : _asStringSet(_selectedGuest?['selectedMenuItemIds']);
 
     final filteredItems = items.where((m) {
-      if (!_matchesDiet(m)) return false;
-
+      // 1) Guest filter
       if (selectedIds != null) {
         final id = (m['id'] ?? m['menuItemId'] ?? '').toString().trim();
         if (id.isEmpty) return false;
         if (!selectedIds.contains(id)) return false;
       }
+
+      // 2) Diet filter on the remaining items
+      if (!_matchesDiet(m)) return false;
+
       return true;
     }).toList();
 
@@ -666,7 +669,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
-                                'Guest: ${(_selectedGuest?['name'] ?? '').toString()}',
+                                'Guest: ${(_selectedGuest?['name'] ?? _selectedGuest?['guestName'] ?? '').toString()}',
                                 style: GoogleFonts.poppins(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
