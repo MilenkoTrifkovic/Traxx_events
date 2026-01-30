@@ -22,6 +22,10 @@ class DemographicQuestionCard extends StatelessWidget {
   /// Read-only mode - disables all interactions
   final bool readOnly;
 
+  /// Show validation errors
+  final bool showValidation;
+  final String? validationError;
+
   const DemographicQuestionCard({
     super.key,
     required this.question,
@@ -33,6 +37,8 @@ class DemographicQuestionCard extends StatelessWidget {
     required this.onAnswerChanged,
     required this.getFreeTextController,
     this.readOnly = false,
+    this.showValidation = false,
+    this.validationError,
   });
 
   String? _selectedOptionId() {
@@ -67,7 +73,7 @@ class DemographicQuestionCard extends StatelessWidget {
     final out = <Map<String, dynamic>>[];
     for (final item in (answer as List)) {
       if (item is Map) {
-        out.add(Map<String, dynamic>.from(item as Map));
+        out.add(Map<String, dynamic>.from(item));
       } else if (item is String) {
         out.add({'optionId': item});
       }
@@ -89,6 +95,7 @@ class DemographicQuestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final titleText =
         question.isRequired ? '${question.text} *' : question.text;
+    final hasError = showValidation && validationError != null;
 
     return InkWell(
       onTap: readOnly ? null : onTap,
@@ -99,13 +106,17 @@ class DemographicQuestionCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: readOnly ? kBorder : (isActive ? kAccent : kBorder),
-            width: readOnly ? 1 : (isActive ? 2 : 1),
+            color: hasError
+                ? Colors.red
+                : (readOnly ? kBorder : (isActive ? kAccent : kBorder)),
+            width: hasError ? 2 : (readOnly ? 1 : (isActive ? 2 : 1)),
           ),
           boxShadow: [
             BoxShadow(
-              color:
-                  Colors.black.withOpacity(isActive && !readOnly ? 0.08 : 0.04),
+              color: hasError
+                  ? Colors.red.withOpacity(0.15)
+                  : Colors.black
+                      .withOpacity(isActive && !readOnly ? 0.08 : 0.04),
               offset: const Offset(0, 4),
               blurRadius: 10,
             ),
@@ -128,9 +139,32 @@ class DemographicQuestionCard extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: kTextDark,
+                color: hasError ? Colors.red.shade700 : kTextDark,
               ),
             ),
+            if (hasError) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: Colors.red.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      validationError!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             _buildInput(context),
           ],

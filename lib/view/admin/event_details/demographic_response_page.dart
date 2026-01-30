@@ -55,6 +55,9 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   late final TextEditingController _invitationIdCtrl;
   final ScrollController _pageCtrl = ScrollController();
 
+  // Map to track GlobalKeys for each question card for scrolling
+  final Map<String, GlobalKey> _questionKeys = {};
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +80,14 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
       ),
       tag: tag,
     );
+
+    // Listen for validation trigger to auto-scroll (increments each validation)
+    ever(_controller.validationTrigger, (_) {
+      final firstErrorId = _controller.firstErrorQuestionId;
+      if (firstErrorId != null) {
+        _scrollToQuestion(firstErrorId);
+      }
+    });
   }
 
   @override
@@ -98,6 +109,7 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
   void dispose() {
     _invitationIdCtrl.dispose();
     _pageCtrl.dispose();
+    _questionKeys.clear();
 
     // Delete controller with tag
     final tag = widget.readOnly
@@ -106,6 +118,28 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
     Get.delete<DemographicResponseController>(tag: tag);
 
     super.dispose();
+  }
+
+  /// Scroll to a specific question by ID
+  void _scrollToQuestion(String questionId) {
+    final key = _questionKeys[questionId];
+    if (key == null || key.currentContext == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final context = key.currentContext;
+        if (context != null && mounted) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            alignment: 0.15, // Position question near top of viewport
+          );
+        }
+      } catch (e) {
+        debugPrint('Error scrolling to question: $e');
+      }
+    });
   }
 
   @override
@@ -296,12 +330,23 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                                         (q.parentQuestionId ?? '').trim();
                                     final isSub = parent.isNotEmpty;
 
+                                    // Create or get GlobalKey for this question
+                                    _questionKeys.putIfAbsent(
+                                      q.id,
+                                      () => GlobalKey(),
+                                    );
+
                                     return Obx(() {
                                       final isActive = q.id ==
                                           _controller.activeQuestionId.value;
                                       final answer = _controller.answers[q.id];
+                                      final showValidation =
+                                          _controller.showValidation.value;
+                                      final validationError =
+                                          _controller.validationErrors[q.id];
 
                                       return Padding(
+                                        key: _questionKeys[q.id],
                                         padding:
                                             const EdgeInsets.only(bottom: 12),
                                         child: Padding(
@@ -325,6 +370,8 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
                                             getFreeTextController: _controller
                                                 .getFreeTextController,
                                             readOnly: widget.readOnly,
+                                            showValidation: showValidation,
+                                            validationError: validationError,
                                           ),
                                         ),
                                       );
@@ -357,59 +404,6 @@ class _DemographicResponsePageState extends State<DemographicResponsePage> {
             ),
           );
         }),
-      ],
-    );
-  }
-
-  Widget _buildCoverImage() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(0),
-        color: Colors.black.withOpacity(0.06),
-      ),
-      child: const Center(
-        child: Icon(Icons.image_outlined, size: 42, color: Colors.black54),
-      ),
-    );
-  }
-
-  Widget _buildPinnedHeaderContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!widget.readOnly && _controller.hasCompanions) ...[
-          _buildProgressBanner(),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          'Demographics',
-          style: GoogleFonts.poppins(
-            fontSize: 34,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (!widget.readOnly && widget.showInvitationInput) ...[
-          _buildInvitationLoaderCard(),
-          const SizedBox(height: 16),
-        ],
-        _buildHeaderWithAction(),
-        const SizedBox(height: 14),
-        if (!widget.readOnly &&
-            !_controller.isLoading.value &&
-            _controller.invitation.value != null &&
-            !_controller.isCurrentPersonDone)
-          Center(
-            child: Text(
-              'Click on a question to answer',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
-              ),
-            ),
-          ),
       ],
     );
   }
