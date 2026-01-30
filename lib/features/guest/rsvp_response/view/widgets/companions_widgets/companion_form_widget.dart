@@ -9,6 +9,13 @@ import 'package:traxx_wepapp/utils/enums/genders.dart';
 import 'package:traxx_wepapp/widgets/app_dropdown_menu.dart';
 import 'package:traxx_wepapp/widgets/app_text_input_field.dart';
 
+const Color kAccent = Color(0xFF6C4BFF);
+const Color kBorder = Color(0xFFE5E7EB);
+const Color kTextDark = Color(0xFF111827);
+const Color kTextBody = Color(0xFF374151);
+const Color kGfPurple = Color(0xFF673AB7);
+const Color gfBackground = Color(0xFFF4F0FB);
+
 /// A reusable form widget for adding companion information
 /// Used in the RSVP response flow for guests to add their companions
 class CompanionFormWidget extends StatelessWidget {
@@ -92,13 +99,6 @@ class CompanionFormWidget extends StatelessWidget {
           ),
 
           // ✅ NEW: Attendance chips
-          const SizedBox(height: 12),
-          AttendChips(
-            willAttend: willAttend,
-            disabled: chipsDisabled,
-            showHint: showAttendanceHint,
-          ),
-
           const SizedBox(height: 12),
 
           // Address (optional)
@@ -187,6 +187,14 @@ class CompanionFormWidget extends StatelessWidget {
                   readOnly ? null : (value) => selectedGender.value = value,
             );
           }),
+
+          const SizedBox(height: 12),
+
+          AttendChips(
+            willAttend: willAttend,
+            disabled: chipsDisabled,
+            showHint: showAttendanceHint,
+          ),
         ],
       ),
     );
@@ -220,11 +228,62 @@ class AttendChips extends StatelessWidget {
     return Obx(() {
       final attending = willAttend.value;
 
-      ChoiceChip chip(String label, bool value) {
-        return ChoiceChip(
-          selected: attending == value,
-          label: Text(label),
-          onSelected: disabled ? null : (_) => willAttend.value = value,
+      Widget segButton({
+        required bool value,
+        required String label,
+        required IconData icon,
+      }) {
+        final selected = attending == value;
+
+        return Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: disabled ? null : () => willAttend.value = value,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              decoration: BoxDecoration(
+                color: selected ? kGfPurple.withOpacity(0.12) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: selected ? kGfPurple : kBorder,
+                  width: selected ? 1.6 : 1.0,
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: kGfPurple.withOpacity(0.12),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : const [],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: disabled
+                        ? Colors.grey.shade400
+                        : (selected ? kGfPurple : Colors.grey.shade600),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: disabled
+                          ? Colors.grey.shade400
+                          : (selected ? kGfPurple : kTextDark),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       }
 
@@ -232,32 +291,120 @@ class AttendChips extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppText.styledBodyLarge(
-              context,
-              'Will this companion attend?',
-              weight: AppFontWeight.semiBold,
+            // Title row
+            Row(
+              children: [
+                Container(
+                  height: 28,
+                  width: 28,
+                  decoration: BoxDecoration(
+                    color: kGfPurple.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.event_available_rounded,
+                    color: kGfPurple,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Will this companion attend?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: kTextDark,
+                    ),
+                  ),
+                ),
+                if (disabled)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Text(
+                      'Locked',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+              ],
             ),
+
             if (showHint) ...[
-              const SizedBox(height: 6),
-              AppText.styledBodySmall(
-                context,
-                'Companion will confirm attendance via email.',
-                color: Colors.grey.shade700,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This will be confirmed by the companion via email.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
+
+            const SizedBox(height: 12),
+
+            // Segmented buttons
+            Row(
               children: [
-                chip('Yes', true),
-                chip('No', false),
+                segButton(
+                  value: true,
+                  label: 'Yes',
+                  icon: Icons.check_circle_outline_rounded,
+                ),
+                const SizedBox(width: 10),
+                segButton(
+                  value: false,
+                  label: 'No',
+                  icon: Icons.cancel_outlined,
+                ),
               ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // subtle helper line (optional)
+            Text(
+              attending ? 'Marked as attending.' : 'Marked as not attending.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: disabled
+                    ? Colors.grey.shade400
+                    : (attending ? Colors.green.shade700 : Colors.red.shade700),
+              ),
             ),
           ],
         ),

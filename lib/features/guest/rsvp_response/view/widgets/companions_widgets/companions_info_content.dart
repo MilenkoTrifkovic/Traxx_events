@@ -97,8 +97,8 @@ class CompanionsInfoContent extends StatelessWidget {
           '${savedCount + index + 1}', // Adjust number to account for already saved
       readOnly: readOnly,
       willAttend: formData.willAttend,
-      attendanceDisabled: readOnly || inviteByEmail,
-      showAttendanceHint: inviteByEmail,
+      attendanceDisabled: readOnly, // ✅ ONLY readOnly disables it
+      showAttendanceHint: false,
     );
   }
 }

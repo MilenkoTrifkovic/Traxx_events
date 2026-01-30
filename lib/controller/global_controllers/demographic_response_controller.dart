@@ -284,6 +284,13 @@ class DemographicResponseController extends GetxController {
     return v.toString().trim().isNotEmpty;
   }
 
+  bool _isNotAttendingCompanion(Map<String, dynamic> inv, int idx) {
+    final comps = (inv['companions'] as List?) ?? const [];
+    if (idx < 0 || idx >= comps.length) return false;
+    final c = Map<String, dynamic>.from(comps[idx] as Map);
+    return c['attendingSubmitted'] == true && c['isAttending'] == false;
+  }
+
   /// Get validation error message for a specific question
   String? getValidationError(DemographicQuestion q) {
     if (!q.isRequired) return null;
@@ -361,8 +368,6 @@ class DemographicResponseController extends GetxController {
 
     final tokenFromUrl = _resolveToken();
     final tokenInInvite = (invitation.value?['token'] ?? '').toString().trim();
-
-    // Validation
     if (tokenInInvite.isEmpty) {
       _showSnackbar(context, 'Invalid invitation (missing token)');
       return;
@@ -378,7 +383,15 @@ class DemographicResponseController extends GetxController {
         ? tokenFromUrl
         : (tokenFromUrl.isNotEmpty ? tokenFromUrl : tokenInInvite);
 
-    // Already submitted - just navigate
+    // ✅ If companion is NOT attending, skip demographics immediately
+    final invNow = invitation.value;
+    if (_currentCompanionIndex != null && invNow != null) {
+      if (_isNotAttendingCompanion(invNow, _currentCompanionIndex!)) {
+        _navigateToNextStep(context, tokenToUse);
+        return;
+      }
+    }
+
     if (isCurrentPersonDone) {
       _navigateToNextStep(context, tokenToUse);
       return;
@@ -412,13 +425,12 @@ class DemographicResponseController extends GetxController {
         companionIndex: _currentCompanionIndex,
       );
 
-// ✅ If skipped (not attending), do NOT mark demographicSubmitted
+      // ✅ server can skip too
       if (resp['skipped'] == true) {
         _navigateToNextStep(context, tokenToUse);
         return;
       }
 
-// ✅ Normal success or alreadySubmitted
       if (resp['alreadySubmitted'] != true) {
         _updateLocalStateAfterSubmit();
       }
@@ -431,20 +443,6 @@ class DemographicResponseController extends GetxController {
 
       _navigateToNextStep(context, tokenToUse);
     } on FirebaseFunctionsException catch (e) {
-      final msg = (e.message ?? '').toLowerCase();
-
-      if (_currentCompanionIndex != null &&
-          e.code == 'failed-precondition' &&
-          msg.contains('attendance')) {
-        context.go(
-          '${AppRoute.companionRsvp.path}'
-          '?invitationId=${Uri.encodeComponent(_activeInvitationId)}'
-          '&token=${Uri.encodeComponent(tokenToUse)}'
-          '&companionIndex=$_currentCompanionIndex',
-        );
-        return;
-      }
-
       _showSnackbar(context, 'Submit failed: ${e.message ?? e.code}',
           isError: true);
     } catch (e) {

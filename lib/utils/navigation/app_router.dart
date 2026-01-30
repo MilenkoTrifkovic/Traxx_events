@@ -76,8 +76,8 @@ final GlobalKey<ScaffoldState> hostShellScaffoldKey =
 GoRouter buildRouter() {
   final eventController = Get.find<EventController>();
   final authController = Get.find<AuthController>();
+
   Widget spinner() {
-    // Keep it visually stable (no layout jumps)
     return const Scaffold(
       body: Center(
         child: SizedBox(
@@ -140,8 +140,6 @@ GoRouter buildRouter() {
           return Stack(
             children: [
               shell,
-
-              // ✅ Overlay loader instead of replacing the whole UI
               Obx(() {
                 if (!eventListController.isLoading.value) {
                   return const SizedBox.shrink();
@@ -175,89 +173,53 @@ GoRouter buildRouter() {
       GoRoute(
         path: AppRoute.welcome.path,
         redirect: (context, state) {
-          // wait until auth/profile is known
           if (authController.isLoading.value) return null;
-
           if (!authController.isAuthenticated) return null;
 
-          // signed in but needs email verify
           if (!authController.isAuthenticatedAndVerified) {
             return AppRoute.emailVerification.path;
           }
 
-          // signed in but needs org
           if (!authController.companyInfoExists) {
             return AppRoute.hostOrganisationInfoForm.path;
           }
 
-          // all good
           return AppRoute.hostEvents.path;
         },
         builder: (context, state) => const WelcomeView(),
       ),
 
       GoRoute(
+        path: AppRoute.emailVerification.path,
         redirect: (context, state) {
           if (authController.isAuthenticatedAndVerified) {
             return AppRoute.hostEvents.path;
           }
           return null;
         },
-        path: AppRoute.emailVerification.path,
         builder: (context, state) => EmailVerificationView(),
       ),
+
       GoRoute(
+        path: AppRoute.hostOrganisationInfoForm.path,
         redirect: (context, state) {
           if (authController.isLoading.value) return null;
-          if (!authController.isAuthenticated) {
-            return AppRoute.welcome.path;
-          }
+          if (!authController.isAuthenticated) return AppRoute.welcome.path;
           if (!authController.isAuthenticatedAndVerified) {
-            // Must verify email first
             return AppRoute.emailVerification.path;
           }
           if (authController.companyInfoExists) {
-            // Org already exists → go straight to host events
             return AppRoute.hostEvents.path;
           }
-          // Otherwise show the organisation form
           return null;
         },
-        path: AppRoute.hostOrganisationInfoForm.path,
         builder: (context, state) => const OrganisationInfoPopupView(),
       ),
 
-      GoRoute(
-        path: AppRoute.thankYou.path,
-        builder: (context, state) {
-          final invId =
-              (state.uri.queryParameters['invitationId'] ?? '').trim();
-          final token = (state.uri.queryParameters['token'] ?? '').trim();
-          return GuestThankYouPage(invitationId: invId, token: token);
-        },
-      ),
-
-      GoRoute(
-        path: AppRoute.companionRsvp.path,
-        builder: (context, state) {
-          final invitationId =
-              (state.uri.queryParameters['invitationId'] ?? '').trim();
-          final token = (state.uri.queryParameters['token'] ?? '').trim();
-          final idx = int.tryParse(
-                  (state.uri.queryParameters['companionIndex'] ?? '0')
-                      .trim()) ??
-              0;
-
-          return CompanionRsvpPage(
-            invitationId: invitationId,
-            token: token,
-            companionIndex: idx,
-          );
-        },
-      ),
-
-      // GUEST RESPONSE SHELL ROUTE
-      // Public routes for guests responding to invitations (RSVP → Demographics → Menu → Thank You)
+      // ─────────────────────────────────────────────
+      // ✅ GUEST RESPONSE SHELL ROUTE (public flow)
+      // RSVP → Companions → Demographics → Menu → Thank You
+      // ─────────────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) {
           final invitationId = state.uri.queryParameters['invitationId'] ?? '';
@@ -267,17 +229,13 @@ GoRouter buildRouter() {
           rsvpCtrl.invitationId = invitationId;
           rsvpCtrl.token = token;
 
-          // Always ensure load at least once
           if (rsvpCtrl.invitationStatus.value == null &&
               !rsvpCtrl.isLoading.value) {
             rsvpCtrl.checkExistingResponse();
           }
 
-          // ✅ CREATE GuestLayoutController HERE (not later)
           final guestLayout =
               Get.put(GuestLayoutController(), tag: invitationId);
-
-          // start loading event immediately
           guestLayout.loadEventCoverImageFromInvitation(invitationId);
 
           return GuestPageWrapper(
@@ -303,24 +261,11 @@ GoRouter buildRouter() {
                 invitationId: invitationId,
                 token: token,
                 eventName: eventName,
-                forceDetails: forceDetails, // ✅ NEW
+                forceDetails: forceDetails,
               );
             },
           ),
-          GoRoute(
-            path: AppRoute.guestCompanionsInfo.path,
-            builder: (context, state) {
-              final invitationId =
-                  state.uri.queryParameters['invitationId'] ?? '';
-              final token = state.uri.queryParameters['token'] ?? '';
-              final eventName = state.uri.queryParameters['eventName'];
-              return CompaignonsInfoPage(
-                invitationId: invitationId,
-                token: token,
-                eventName: eventName,
-              );
-            },
-          ),
+
           GoRoute(
             path: AppRoute.guestCompanions.path,
             builder: (context, state) {
@@ -328,6 +273,7 @@ GoRouter buildRouter() {
                   state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
               final eventName = state.uri.queryParameters['eventName'];
+
               return GuestCountPage(
                 invitationId: invitationId,
                 token: token,
@@ -335,6 +281,23 @@ GoRouter buildRouter() {
               );
             },
           ),
+
+          GoRoute(
+            path: AppRoute.guestCompanionsInfo.path,
+            builder: (context, state) {
+              final invitationId =
+                  state.uri.queryParameters['invitationId'] ?? '';
+              final token = state.uri.queryParameters['token'] ?? '';
+              final eventName = state.uri.queryParameters['eventName'];
+
+              return CompaignonsInfoPage(
+                invitationId: invitationId,
+                token: token,
+                eventName: eventName,
+              );
+            },
+          ),
+
           GoRoute(
             path: AppRoute.demographics.path,
             builder: (context, state) {
@@ -342,14 +305,12 @@ GoRouter buildRouter() {
                   state.uri.queryParameters['invitationId'] ?? '';
               final token = state.uri.queryParameters['token'] ?? '';
 
-              // Parse companion index if provided
               final companionIndexStr =
                   state.uri.queryParameters['companionIndex'];
               final int? companionIndex = companionIndexStr != null
                   ? int.tryParse(companionIndexStr)
                   : null;
 
-              // Get companion name if provided
               final companionName = state.uri.queryParameters['companionName'];
 
               return DemographicResponsePage(
@@ -362,20 +323,19 @@ GoRouter buildRouter() {
               );
             },
           ),
+
           GoRoute(
             path: AppRoute.menuSelection.path,
             builder: (context, state) {
               final invitationId =
                   state.uri.queryParameters['invitationId'] ?? '';
 
-              // Parse companion index if provided
               final companionIndexStr =
                   state.uri.queryParameters['companionIndex'];
               final int? companionIndex = companionIndexStr != null
                   ? int.tryParse(companionIndexStr)
                   : null;
 
-              // Get companion name if provided
               final companionName = state.uri.queryParameters['companionName'];
 
               return GuestMenuSelectionPage(
@@ -385,34 +345,28 @@ GoRouter buildRouter() {
               );
             },
           ),
+
+          // ✅ THANK YOU PAGE (MUST be builder, NOT redirect)
           GoRoute(
             path: AppRoute.thankYou.path,
-            redirect: (context, state) {
-              final invitationId =
+            builder: (context, state) {
+              final invId =
                   (state.uri.queryParameters['invitationId'] ?? '').trim();
               final token = (state.uri.queryParameters['token'] ?? '').trim();
-              final eventName = state.uri.queryParameters['eventName'];
 
-              // If invitationId is missing, just go to guest-response base route
-              if (invitationId.isEmpty) {
-                return AppRoute.guestResponse.path;
+              if (invId.isEmpty) {
+                return CustomErrorPage();
               }
 
-              return Uri(
-                path: AppRoute.guestResponse.path,
-                queryParameters: {
-                  'invitationId': invitationId,
-                  if (token.isNotEmpty) 'token': token,
-                  if (eventName != null && eventName.trim().isNotEmpty)
-                    'eventName': eventName.trim(),
-                },
-              ).toString();
+              return GuestThankYouPage(invitationId: invId, token: token);
             },
           ),
         ],
       ),
 
-      //HOST SHELL ROUTE
+      // ─────────────────────────────────────────────
+      // ✅ HOST SHELL ROUTE
+      // ─────────────────────────────────────────────
       ShellRoute(
         redirect: (context, state) {
           if (authController.isLoading.value) return null;
@@ -437,7 +391,6 @@ GoRouter buildRouter() {
             final orgId = (authCtrl.organisationId ?? '').trim();
             if (orgId.isEmpty) return spinner();
 
-            // Ensure controllers exist (safe)
             if (!Get.isRegistered<VenuesController>()) {
               Get.put(VenuesController());
             }
@@ -471,17 +424,14 @@ GoRouter buildRouter() {
         },
         routes: [
           GoRoute(
-            path: AppRoute.hostEvents.path,
-            builder: (context, state) => EventListScreen(),
-          ),
+              path: AppRoute.hostEvents.path,
+              builder: (context, state) => EventListScreen()),
           GoRoute(
-            path: AppRoute.calendarView.path,
-            builder: (context, state) => const CalendarPage(),
-          ),
+              path: AppRoute.calendarView.path,
+              builder: (context, state) => const CalendarPage()),
           GoRoute(
-            path: AppRoute.hostMenus.path,
-            builder: (context, state) => MenusView(),
-          ),
+              path: AppRoute.hostMenus.path,
+              builder: (context, state) => MenusView()),
           GoRoute(
             path: AppRoute.hostMenuDetails.path,
             builder: (context, state) {
@@ -491,110 +441,84 @@ GoRouter buildRouter() {
             },
           ),
           GoRoute(
-            path: AppRoute.hostVenues.path,
-            builder: (context, state) => const VenuesView(),
-          ),
+              path: AppRoute.hostVenues.path,
+              builder: (context, state) => const VenuesView()),
           GoRoute(
-            path: AppRoute.hostVenueDetails.path,
-            builder: (context, state) {
-              return VenuesView();
-            },
-          ),
+              path: AppRoute.hostVenueDetails.path,
+              builder: (context, state) => VenuesView()),
           GoRoute(
-            path: AppRoute.hostRoleSelection.path,
-            builder: (context, state) {
-              return AdminUserListPage();
-            },
-          ),
+              path: AppRoute.hostRoleSelection.path,
+              builder: (context, state) => AdminUserListPage()),
           GoRoute(
-            path: AppRoute.hostQuestionSets.path,
-            builder: (context, state) => const QuestionSetsScreen(),
-          ),
+              path: AppRoute.hostQuestionSets.path,
+              builder: (context, state) => const QuestionSetsScreen()),
           GoRoute(
             path: AppRoute.hostQuestions.path,
             builder: (context, state) {
               final setId = state.uri.queryParameters['setId'] ?? '';
-              if (setId.isEmpty) {
-                return const QuestionSetsScreen();
-              }
-              return HostQuestionsScreen(
-                questionSetId: setId,
-              );
+              if (setId.isEmpty) return const QuestionSetsScreen();
+              return HostQuestionsScreen(questionSetId: setId);
             },
           ),
           GoRoute(
-            path: AppRoute.hostQuestionRules.path,
-            builder: (context, state) => const QuestionRulesScreen(),
-          ),
+              path: AppRoute.hostQuestionRules.path,
+              builder: (context, state) => const QuestionRulesScreen()),
           GoRoute(
             path: AppRoute.hostQuestionSetQuestions.path,
             builder: (context, state) {
               final setId = state.pathParameters[
                   AppRoute.hostQuestionSetQuestions.placeholder]!;
-              return HostQuestionsScreen(
-                questionSetId: setId,
-              );
+              return HostQuestionsScreen(questionSetId: setId);
             },
           ),
           GoRoute(
-            path: AppRoute.hostCreateEvent.path,
-            builder: (context, state) => CreateEditEventView(),
-          ),
+              path: AppRoute.hostCreateEvent.path,
+              builder: (context, state) => CreateEditEventView()),
           GoRoute(
             path: AppRoute.eventDetails.path,
-            builder: (context, state) => AdminEventDetails(
-              eventId: state.pathParameters['eventId']!,
-            ),
+            builder: (context, state) =>
+                AdminEventDetails(eventId: state.pathParameters['eventId']!),
             routes: [
               GoRoute(
                 path: 'analyzer',
                 builder: (context, state) => AdminEventAnalyzerPage(
-                  eventId: state.pathParameters['eventId']!,
-                ),
+                    eventId: state.pathParameters['eventId']!),
               ),
             ],
           ),
           GoRoute(
-            path: AppRoute.hostSettings.path,
-            builder: (context, state) => SettingsPage(),
-          ),
+              path: AppRoute.hostSettings.path,
+              builder: (context, state) => SettingsPage()),
           GoRoute(
-            path: AppRoute.hostBuyCredits.path,
-            builder: (context, state) => BuyCreditsPage(),
-          ),
+              path: AppRoute.hostBuyCredits.path,
+              builder: (context, state) => BuyCreditsPage()),
           GoRoute(
-            path: 'payment-success',
-            builder: (context, state) => const PaymentSuccessPage(),
-          ),
+              path: 'payment-success',
+              builder: (context, state) => const PaymentSuccessPage()),
           GoRoute(
-            path: 'payment-cancelled',
-            builder: (context, state) => const PaymentCancelledPage(),
-          ),
+              path: 'payment-cancelled',
+              builder: (context, state) => const PaymentCancelledPage()),
           GoRoute(
-            path: AppRoute.eventQuestions.path,
-            builder: (context, state) => SetQuestionsView(),
-          ),
+              path: AppRoute.eventQuestions.path,
+              builder: (context, state) => SetQuestionsView()),
           GoRoute(
             path: AppRoute.eventMenus.path,
             builder: (context, state) {
-              final Event? selectedEvent = eventController.selectedEvent.value;
+              final selectedEvent = eventController.selectedEvent.value;
               final eventId =
                   state.pathParameters[AppRoute.eventDetails.placeholder]!;
-              if (selectedEvent != null) {
-                return SetMenusView();
-              }
+              if (selectedEvent != null) return SetMenusView();
 
               return FutureBuilder<Event>(
                 future: EventFetcher.fetchEvent(eventId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
                   eventController.setSelectedEvent(snapshot.data!);
-
                   return SetMenusView();
                 },
               );
@@ -625,13 +549,12 @@ GoRouter buildRouter() {
             },
           ),
           GoRoute(
-            path: AppRoute.eventGuests.path,
-            builder: (context, state) => SetGuestsView(),
-          ),
+              path: AppRoute.eventGuests.path,
+              builder: (context, state) => SetGuestsView()),
           GoRoute(
             path: AppRoute.eventResponses.path,
             builder: (context, state) {
-              String eventId =
+              final eventId =
                   state.pathParameters[AppRoute.eventResponses.placeholder]!;
               return EventLoader(
                 eventController: eventController,
@@ -650,7 +573,10 @@ GoRouter buildRouter() {
           ),
         ],
       ),
-      // Guest Shell Route
+
+      // ─────────────────────────────────────────────
+      // ✅ Signed-in Guest Shell Route (your existing signed-in views)
+      // ─────────────────────────────────────────────
       ShellRoute(
         navigatorKey: guestNavigationKey,
         builder: (context, state, child) {
@@ -698,16 +624,13 @@ GoRouter buildRouter() {
         },
         routes: [
           GoRoute(
-            path: AppRoute.guestEvents.path,
-            builder: (context, state) => EventListScreen(),
-          ),
+              path: AppRoute.guestEvents.path,
+              builder: (context, state) => EventListScreen()),
           GoRoute(
             path: AppRoute.guestEventDetails.path,
             builder: (context, state) {
-              final Event? event = eventController.selectedEvent.value;
-              if (event != null) {
-                return GuestEventDetails();
-              }
+              final event = eventController.selectedEvent.value;
+              if (event != null) return GuestEventDetails();
 
               final eventId =
                   state.pathParameters[AppRoute.guestEventDetails.placeholder]!;
@@ -715,13 +638,12 @@ GoRouter buildRouter() {
                 future: EventFetcher.fetchEvent(eventId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
                   eventController.setSelectedEvent(snapshot.data!);
-
                   return GuestEventDetails();
                 },
               );
@@ -732,15 +654,16 @@ GoRouter buildRouter() {
             builder: (context, state) {
               final eventId =
                   state.pathParameters[AppRoute.eventDetails.placeholder]!;
-              final Event? selectedEvent = eventController.selectedEvent.value;
+              final selectedEvent = eventController.selectedEvent.value;
               if (selectedEvent != null) {
                 return RespondScreen(event: selectedEvent);
               }
+
               return FutureBuilder<Event>(
                 future: EventFetcher.fetchEvent(eventId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,7 +18,10 @@ class GuestThankYouPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPhone = MediaQuery.of(context).size.width < 700;
-    final attendingParam = (Uri.base.queryParameters['attending'] ?? '').trim();
+
+    final qp = GoRouterState.of(context).uri.queryParameters;
+    final attendingParam = (qp['attending'] ?? '').trim();
+
     final bool? attending = attendingParam == '1'
         ? true
         : attendingParam == '0'

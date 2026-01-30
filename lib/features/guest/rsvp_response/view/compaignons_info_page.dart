@@ -12,15 +12,12 @@ import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
 import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
-/// Companions Information Page - Allows guests to enter companion details
-///
-/// When [readOnly] is true, displays the page in preview mode without controllers or business logic
 class CompaignonsInfoPage extends StatefulWidget {
   final String? invitationId;
   final String? token;
   final String? eventName;
-  final bool readOnly; // If true, displays in preview mode without controllers
-  final Event? event; // Required when readOnly is true
+  final bool readOnly;
+  final Event? event;
 
   const CompaignonsInfoPage({
     super.key,
@@ -45,11 +42,17 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
   final RxBool isInitializing = true.obs;
   final RxInt currentStep = 0.obs;
 
+  String get _invId =>
+      (widget.invitationId ?? Uri.base.queryParameters['invitationId'] ?? '')
+          .trim();
+  int _companionsTarget = 0; // how many companions user selected
+  int _savedBase = 0;
+
   @override
   void initState() {
     super.initState();
 
-    // ✅ Read-only preview mode: no controllers
+    // ✅ Read-only preview mode
     if (widget.readOnly == true) {
       controller = null;
       guestController = null;
@@ -61,128 +64,335 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
           final f = CompanionFormData();
           f.name.text = 'Companion ${i + 1}';
           f.email.text = 'companion${i + 1}@example.com';
-
-          // ✅ preview attendance (example)
-          // (requires CompanionFormData.willAttend)
           f.willAttend.value = true;
-
           companionForms.add(f);
         }
       }
 
       isInitializing.value = false;
-      debugPrint(
-          '✅ CompaignonsInfoPage: Read-only mode, skipping controller initialization');
       return;
     }
 
-    // ✅ Normal mode
-    try {
-      final invitationId =
-          widget.invitationId ?? Uri.base.queryParameters['invitationId'] ?? '';
+    final invitationId =
+        widget.invitationId ?? Uri.base.queryParameters['invitationId'] ?? '';
 
-      if (Get.isRegistered<RsvpResponseController>(tag: invitationId)) {
-        controller = Get.find<RsvpResponseController>(tag: invitationId);
-      }
+    controller = Get.isRegistered<RsvpResponseController>(tag: invitationId)
+        ? Get.find<RsvpResponseController>(tag: invitationId)
+        : null;
 
-      if (Get.isRegistered<GuestLayoutController>()) {
-        guestController = Get.find<GuestLayoutController>();
-      }
+    snackbarController = Get.isRegistered<SnackbarMessageController>()
+        ? Get.find<SnackbarMessageController>()
+        : null;
 
-      if (Get.isRegistered<SnackbarMessageController>()) {
-        snackbarController = Get.find<SnackbarMessageController>();
-      }
-
-      if (controller != null) {
-        _initializeForms();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          if (!controller!.hasResponded || controller!.isAttending != true) {
-            pushAndRemoveAllRoute(
-              AppRoute.guestResponse,
-              context,
-              queryParams: {
-                'invitationId': invitationId,
-                if (widget.token != null) 'token': widget.token!,
-              },
-            );
-            return;
-          }
-
-          if (controller!.companionsCount == null ||
-              controller!.companionsCount == 0) {
-            pushAndRemoveAllRoute(
-              AppRoute.guestCompanions,
-              context,
-              queryParams: {
-                'invitationId': invitationId,
-                if (widget.token != null) 'token': widget.token!,
-              },
-            );
-            return;
-          }
-
-          // If inviting by email: they still fill names/emails here, then Submit All sends emails
-        });
-      }
-    } catch (e) {
-      debugPrint('⚠️ Controllers not found in CompaignonsInfoPage: $e');
-      controller = null;
-      guestController = null;
-      snackbarController = null;
-      isInitializing.value = false;
-    }
-  }
-
-  Future<void> _initializeForms() async {
     if (controller == null) {
       isInitializing.value = false;
       return;
     }
 
-    final companionsCount = controller!.companionsCount ?? 0;
-    final isInvitingByEmail =
-        controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
+    _initializeForms(invitationId);
+  }
 
-    int remainingCount = companionsCount;
+  Future<void> _initializeForms(String invitationId) async {
+    try {
+      // ✅ Use latest invitation so counts are accurate
+      final inv = await controller!.getLatestInvitationData();
+      final comps = (inv?['companions'] as List?) ?? const [];
+      _savedBase = comps.length;
 
-    if (isInvitingByEmail && companionsCount > 0) {
-      try {
-        final existingCompanionsCount =
-            await controller!.getExistingCompanionCount();
-        if (existingCompanionsCount != null) {
-          remainingCount = (companionsCount - existingCompanionsCount)
-              .clamp(0, companionsCount);
-          debugPrint(
-              '✅ Found $existingCompanionsCount existing companions, need $remainingCount more');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error checking existing companions: $e');
-        remainingCount = controller!.remainingCompanionsToCreate;
+      _companionsTarget = controller!.companionsCount ?? 0;
+
+      final remaining =
+          (_companionsTarget - _savedBase).clamp(0, _companionsTarget);
+
+      companionForms.clear();
+      for (int i = 0; i < remaining; i++) {
+        final f = CompanionFormData();
+        f.willAttend.value = true; // default
+        companionForms.add(f);
       }
-    } else {
-      remainingCount = controller!.remainingCompanionsToCreate;
+    } finally {
+      isInitializing.value = false;
     }
 
-    for (int i = 0; i < remainingCount; i++) {
-      final f = CompanionFormData();
-
-      // ✅ default attendance in direct-flow is Yes
-      // email-invite flow will ignore this and send null so companion chooses.
-      f.willAttend.value = true;
-
-      companionForms.add(f);
-    }
-
-    debugPrint('✅ Initialized $remainingCount companion forms');
-    isInitializing.value = false;
-
-    if (remainingCount == 0 && companionsCount > 0 && controller != null) {
+    // ✅ If nothing to fill, go next
+    if (companionForms.isEmpty && _companionsTarget > 0) {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _navigateToNextStep());
     }
+  }
+
+  void _handleBack() {
+    if (currentStep.value > 0) currentStep.value--;
+  }
+
+  Future<void> _handleNext() async {
+    if (widget.readOnly || controller == null || snackbarController == null) {
+      return;
+    }
+
+    final currentIndex = currentStep.value;
+    final formData = companionForms[currentIndex];
+
+    if (!formData.validate()) {
+      snackbarController!
+          .showErrorMessage('Please fill in all required fields correctly');
+      return;
+    }
+
+    final isInvitingByEmail = controller!.isInvitingByEmail;
+
+    // ✅ In invite-by-email mode: just validate duplicates early and move next
+    if (isInvitingByEmail) {
+      final email = formData.email.text.trim();
+      if (email.isNotEmpty) {
+        final otherEmails = <String>[];
+        for (int i = 0; i < companionForms.length; i++) {
+          if (i == currentIndex) continue;
+          final e = companionForms[i].email.text.trim();
+          if (e.isNotEmpty) otherEmails.add(e);
+        }
+
+        final err = controller!.validateCompanionEmail(
+          email,
+          otherPendingEmails: otherEmails,
+        );
+        if (err != null) {
+          snackbarController!.showErrorMessage(err);
+          return;
+        }
+      }
+
+      if (currentIndex < companionForms.length - 1) currentStep.value++;
+      return;
+    }
+
+    // ✅ Proxy flow: create companion on Next (as before)
+    final otherPendingEmails = <String>[];
+    for (int i = 0; i < companionForms.length; i++) {
+      if (i != currentIndex && companionForms[i].createdGuestId == null) {
+        final email = companionForms[i].email.text.trim();
+        if (email.isNotEmpty) otherPendingEmails.add(email);
+      }
+    }
+
+    if (formData.createdGuestId == null) {
+      isSubmitting.value = true;
+
+      final guestId = await controller!.validateAndCreateCompanion(
+        name: formData.name.text.trim(),
+        email: formData.email.text.trim(),
+        isAttending:
+            formData.willAttend.value, // ✅ attendance comes from this page
+        address: formData.address.text.trim().isEmpty
+            ? null
+            : formData.address.text.trim(),
+        city: formData.city.text.trim().isEmpty
+            ? null
+            : formData.city.text.trim(),
+        state: formData.selectedState.value,
+        country: formData.selectedCountry.value,
+        gender: formData.selectedGender.value,
+        otherPendingEmails: otherPendingEmails,
+      );
+
+      isSubmitting.value = false;
+
+      if (guestId == null) return;
+
+      formData.createdGuestId = guestId;
+      snackbarController!.showSuccessMessage(
+        'Companion ${currentIndex + 1} saved successfully!',
+      );
+    }
+
+    if (currentIndex < companionForms.length - 1) currentStep.value++;
+  }
+
+  Future<void> _handleSubmitAll() async {
+    if (widget.readOnly || controller == null || snackbarController == null) {
+      return;
+    }
+
+    final isInvitingByEmail = controller!.isInvitingByEmail;
+
+    // ------------------------------------------------------------
+    // 1) Validate forms
+    // ------------------------------------------------------------
+    if (isInvitingByEmail) {
+      for (int i = 0; i < companionForms.length; i++) {
+        if (!companionForms[i].validate()) {
+          snackbarController!.showErrorMessage(
+            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
+          );
+          currentStep.value = i;
+          return;
+        }
+      }
+    } else {
+      for (int i = 0; i < companionForms.length; i++) {
+        if (companionForms[i].createdGuestId != null) continue;
+        if (!companionForms[i].validate()) {
+          snackbarController!.showErrorMessage(
+            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
+          );
+          currentStep.value = i;
+          return;
+        }
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 2) Validate unique emails ONLY for invite-by-email
+    // ------------------------------------------------------------
+    if (isInvitingByEmail) {
+      final emails = companionForms
+          .map((f) => f.email.text.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final v = controller!.validateAllCompanionEmails(emails);
+      if (v != null) {
+        snackbarController!.showErrorMessage(v.errorMessage);
+        currentStep.value = v.duplicateIndex;
+        return;
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 3) Submit
+    // ------------------------------------------------------------
+    isSubmitting.value = true;
+
+    try {
+      if (isInvitingByEmail) {
+        // ✅ Invite-by-email: still SAVE attendance here (NOT null)
+        final companionData = companionForms
+            .map((f) => {
+                  'name': f.name.text.trim(),
+                  'email': f.email.text.trim(),
+                  'address': f.address.text.trim().isEmpty
+                      ? null
+                      : f.address.text.trim(),
+                  'city':
+                      f.city.text.trim().isEmpty ? null : f.city.text.trim(),
+                  'state': f.selectedState.value,
+                  'country': f.selectedCountry.value,
+                  'gender': f.selectedGender.value,
+                  'maxGuestInvite': 0,
+
+                  // ✅ IMPORTANT: attendance comes from THIS page now
+                  'isAttending': f.willAttend.value,
+                })
+            .toList();
+
+        final success = await controller!
+            .sendCompanionInvitations(companionData: companionData);
+
+        if (success) {
+          snackbarController!.showSuccessMessage(
+            'All companion invitations sent successfully!',
+          );
+          await _navigateToNextStep();
+        }
+        return;
+      }
+
+      // ✅ Proxy flow: create companions directly
+      int successCount = 0;
+      final failed = <String>[];
+
+      for (final f in companionForms) {
+        if (f.createdGuestId != null) {
+          successCount++;
+          continue;
+        }
+
+        final guestId = await controller!.validateAndCreateCompanion(
+          name: f.name.text.trim(),
+          email: f.email.text.trim(),
+          isAttending: f.willAttend.value,
+          address: f.address.text.trim().isEmpty ? null : f.address.text.trim(),
+          city: f.city.text.trim().isEmpty ? null : f.city.text.trim(),
+          state: f.selectedState.value,
+          country: f.selectedCountry.value,
+          gender: f.selectedGender.value,
+          otherPendingEmails: null, // duplicates allowed in proxy mode
+        );
+
+        if (guestId != null) {
+          f.createdGuestId = guestId;
+          successCount++;
+        } else {
+          failed.add(f.name.text.trim());
+        }
+      }
+
+      if (successCount == companionForms.length) {
+        snackbarController!
+            .showSuccessMessage('All companions added successfully!');
+        await _navigateToNextStep();
+      } else if (successCount > 0) {
+        snackbarController!.showInfoMessage(
+          '$successCount of ${companionForms.length} companions added. Failed: ${failed.join(', ')}',
+        );
+      } else {
+        snackbarController!
+            .showErrorMessage('Failed to add companions. Please try again.');
+      }
+    } catch (e) {
+      debugPrint('❌ Error submitting companions: $e');
+      snackbarController
+          ?.showErrorMessage('An error occurred. Please try again.');
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  Future<void> _navigateToNextStep() async {
+    if (widget.readOnly || controller == null) return;
+
+    final invitationData = await controller!.getLatestInvitationData();
+    if (invitationData == null) {
+      _navigateToFallback();
+      return;
+    }
+
+    final token = controller!.token ?? '';
+
+    final flowState = ResponseFlowState.fromInvitation(
+      invitationData,
+      token,
+      invitationIdOverride: controller!.invitationId!,
+    );
+
+    final nextStep = flowState.getNextStep();
+    final nextUrl = nextStep.buildUrl(controller!.invitationId!, token);
+
+    context.go(nextUrl);
+  }
+
+  void _navigateToFallback() {
+    if (widget.readOnly || controller == null) return;
+
+    if (controller!.requiresDemographics && !controller!.hasDemographics) {
+      context.go(
+        '/demographics?invitationId=${Uri.encodeComponent(controller!.invitationId!)}'
+        '&token=${Uri.encodeComponent(controller!.token ?? '')}',
+      );
+      return;
+    }
+
+    if (!controller!.hasMenuSelection) {
+      context.go(
+        '/menu-selection?invitationId=${Uri.encodeComponent(controller!.invitationId!)}'
+        '&token=${Uri.encodeComponent(controller!.token ?? '')}',
+      );
+      return;
+    }
+
+    context.go(
+        '/thank-you?invitationId=${Uri.encodeComponent(controller!.invitationId!)}'
+        '&token=${Uri.encodeComponent(controller!.token ?? '')}');
   }
 
   @override
@@ -195,46 +405,34 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.readOnly) {
-      return _buildReadOnlyPreview(context);
-    }
+    if (widget.readOnly) return _buildReadOnlyPreview(context);
 
     if (controller == null || snackbarController == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
     return Obx(() {
-      if (isInitializing.value) {
+      if (isInitializing.value)
         return const Center(child: CircularProgressIndicator());
-      }
 
-      final totalCompanionsCount = controller!.companionsCount ?? 0;
-      final savedCount = controller!.savedCompanionsCount;
-      final remainingCount = companionForms.length;
-
-      if (remainingCount == 0 && totalCompanionsCount > 0) {
+      if (companionForms.isEmpty && _companionsTarget > 0) {
         return CompanionsInfoEmptyView(
-          readOnly: widget.readOnly,
-          savedCount: savedCount,
-          totalCount: totalCompanionsCount,
+          readOnly: false,
+          savedCount: _savedBase,
+          totalCount: _companionsTarget,
           onContinue: _navigateToNextStep,
         );
       }
 
-      final currentIndex = currentStep.value;
-      final inviteByEmail =
-          controller!.invitationStatus.value?.isInvitingCompanionsByEmail ==
-              true;
-
       return CompanionsInfoContent(
-        companionForms: companionForms, // ✅ now includes willAttend
-        currentIndex: currentIndex,
-        totalCompanionsCount: totalCompanionsCount,
-        savedCount: savedCount,
-        remainingCount: remainingCount,
-        readOnly: widget.readOnly,
+        companionForms: companionForms,
+        currentIndex: currentStep.value,
+        totalCompanionsCount: _companionsTarget,
+        savedCount: _savedBase, // ✅ frozen
+        remainingCount: companionForms.length,
+        readOnly: false,
         isSubmitting: isSubmitting.value,
-        inviteByEmail: inviteByEmail,
+        inviteByEmail: false,
         onBack: _handleBack,
         onNext: _handleNext,
         onSubmitAll: _handleSubmitAll,
@@ -258,296 +456,5 @@ class _CompaignonsInfoPageState extends State<CompaignonsInfoPage> {
       onNext: null,
       onSubmitAll: null,
     );
-  }
-
-  void _handleBack() {
-    if (currentStep.value > 0) currentStep.value--;
-  }
-
-  Future<void> _handleNext() async {
-    if (widget.readOnly || controller == null || snackbarController == null)
-      return;
-
-    final currentIndex = currentStep.value;
-    final formData = companionForms[currentIndex];
-
-    if (!formData.validate()) {
-      snackbarController!
-          .showErrorMessage('Please fill in all required fields correctly');
-      return;
-    }
-
-    final isInvitingByEmail =
-        controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
-
-    if (isInvitingByEmail) {
-      // ✅ In email-invite flow, companion will answer attendance themselves via /companion-rsvp
-      if (currentIndex < companionForms.length - 1) currentStep.value++;
-      return;
-    }
-
-    // ✅ Direct creation flow
-    final otherPendingEmails = <String>[];
-    for (int i = 0; i < companionForms.length; i++) {
-      if (i != currentIndex && companionForms[i].createdGuestId == null) {
-        final email = companionForms[i].email.text.trim();
-        if (email.isNotEmpty) otherPendingEmails.add(email);
-      }
-    }
-
-    if (formData.createdGuestId == null) {
-      isSubmitting.value = true;
-
-      final guestId = await controller!.validateAndCreateCompanion(
-        name: formData.name.text.trim(),
-        email: formData.email.text.trim(),
-        // ✅ NEW: attendance captured here
-        isAttending: formData.willAttend.value,
-        address: formData.address.text.trim().isEmpty
-            ? null
-            : formData.address.text.trim(),
-        city: formData.city.text.trim().isEmpty
-            ? null
-            : formData.city.text.trim(),
-        state: formData.selectedState.value,
-        country: formData.selectedCountry.value,
-        gender: formData.selectedGender.value,
-        otherPendingEmails: otherPendingEmails,
-      );
-
-      isSubmitting.value = false;
-
-      if (guestId == null) return;
-
-      formData.createdGuestId = guestId;
-      snackbarController!.showSuccessMessage(
-          'Companion ${currentIndex + 1} saved successfully!');
-    }
-
-    if (currentIndex < companionForms.length - 1) currentStep.value++;
-  }
-
-  Future<void> _handleSubmitAll() async {
-    if (widget.readOnly || controller == null || snackbarController == null) {
-      return;
-    }
-
-    final currentIndex = currentStep.value;
-    final formData = companionForms[currentIndex];
-
-    final isInvitingByEmail =
-        controller!.invitationStatus.value?.isInvitingCompanionsByEmail == true;
-
-    // ------------------------------------------------------------
-    // 1) Validate forms
-    // ------------------------------------------------------------
-
-    if (isInvitingByEmail) {
-      // Email-invite flow: every form must be valid (name+email required)
-      for (int i = 0; i < companionForms.length; i++) {
-        if (!companionForms[i].validate()) {
-          snackbarController!.showErrorMessage(
-            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
-          );
-          currentStep.value = i;
-          return;
-        }
-      }
-    } else {
-      // Proxy flow: validate only unsaved forms
-      if (formData.createdGuestId == null && !formData.validate()) {
-        snackbarController!
-            .showErrorMessage('Please fill in all required fields correctly');
-        return;
-      }
-
-      for (int i = 0; i < companionForms.length; i++) {
-        if (companionForms[i].createdGuestId != null) continue;
-        if (!companionForms[i].validate()) {
-          snackbarController!.showErrorMessage(
-            'Please complete all companion forms (Companion ${i + 1} is incomplete)',
-          );
-          currentStep.value = i;
-          return;
-        }
-      }
-    }
-
-    // ------------------------------------------------------------
-    // 2) Validate unique emails ONLY when inviting by email
-    // ------------------------------------------------------------
-
-    if (isInvitingByEmail) {
-      final emailsToValidate = <String>[];
-      for (int i = 0; i < companionForms.length; i++) {
-        final email = companionForms[i].email.text.trim();
-        if (email.isNotEmpty) emailsToValidate.add(email);
-      }
-
-      final emailValidation =
-          controller!.validateAllCompanionEmails(emailsToValidate);
-
-      if (emailValidation != null) {
-        snackbarController!.showErrorMessage(emailValidation.errorMessage);
-        currentStep.value = emailValidation.duplicateIndex;
-        return;
-      }
-    }
-
-    // ------------------------------------------------------------
-    // 3) Submit
-    // ------------------------------------------------------------
-
-    isSubmitting.value = true;
-
-    try {
-      if (isInvitingByEmail) {
-        // ✅ Email-invite flow: companion decides attendance later via /companion-rsvp
-        final companionData = companionForms
-            .map((form) => {
-                  'name': form.name.text.trim(),
-                  'email': form.email.text.trim(),
-                  'address': form.address.text.trim().isEmpty
-                      ? null
-                      : form.address.text.trim(),
-                  'city': form.city.text.trim().isEmpty
-                      ? null
-                      : form.city.text.trim(),
-                  'state': form.selectedState.value,
-                  'country': form.selectedCountry.value,
-                  'gender': form.selectedGender.value,
-                  'maxGuestInvite': 0,
-                  'isAttending': null, // ✅ IMPORTANT
-                })
-            .toList();
-
-        final success = await controller!.sendCompanionInvitations(
-          companionData: companionData,
-        );
-
-        if (success) {
-          snackbarController!.showSuccessMessage(
-            'All companion invitations sent successfully!',
-          );
-          _navigateToNextStep();
-        }
-
-        return;
-      }
-
-      // ✅ Proxy flow: create companions directly (attendance set by main guest)
-      int successCount = 0;
-      final failedCompanions = <String>[];
-
-      for (int i = 0; i < companionForms.length; i++) {
-        final form = companionForms[i];
-
-        // skip already created
-        if (form.createdGuestId != null) {
-          successCount++;
-          continue;
-        }
-
-        // NOTE: we intentionally DO NOT enforce unique emails here (proxy flow)
-        final guestId = await controller!.validateAndCreateCompanion(
-          name: form.name.text.trim(),
-          email: form.email.text.trim(), // can repeat in proxy flow
-          isAttending: form.willAttend.value,
-          address: form.address.text.trim().isEmpty
-              ? null
-              : form.address.text.trim(),
-          city: form.city.text.trim().isEmpty ? null : form.city.text.trim(),
-          state: form.selectedState.value,
-          country: form.selectedCountry.value,
-          gender: form.selectedGender.value,
-          // otherPendingEmails not needed since duplicates allowed
-          otherPendingEmails: null,
-        );
-
-        if (guestId != null) {
-          form.createdGuestId = guestId;
-          successCount++;
-        } else {
-          failedCompanions.add(form.name.text.trim());
-        }
-      }
-
-      if (successCount == companionForms.length) {
-        snackbarController!
-            .showSuccessMessage('All companions added successfully!');
-        _navigateToNextStep();
-      } else if (successCount > 0) {
-        snackbarController!.showInfoMessage(
-          '$successCount of ${companionForms.length} companions added. '
-          'Failed: ${failedCompanions.join(', ')}',
-        );
-      } else {
-        snackbarController!.showErrorMessage(
-          'Failed to add companions. Please try again.',
-        );
-      }
-    } catch (e) {
-      debugPrint('❌ Error submitting companions: $e');
-      snackbarController
-          ?.showErrorMessage('An error occurred. Please try again.');
-    } finally {
-      isSubmitting.value = false;
-    }
-  }
-
-  Future<void> _navigateToNextStep() async {
-    if (widget.readOnly || controller == null) return;
-
-    try {
-      final invitationData = await controller!.getLatestInvitationData();
-      if (invitationData == null) {
-        debugPrint('⚠️ Invitation not found, using fallback navigation');
-        _navigateToFallback();
-        return;
-      }
-
-      final token = controller!.token ?? '';
-
-      final flowState = ResponseFlowState.fromInvitation(
-        invitationData,
-        token,
-        invitationIdOverride: controller!.invitationId!,
-      );
-
-      final nextStep = flowState.getNextStep();
-      final nextUrl = nextStep.buildUrl(controller!.invitationId!, token);
-
-      debugPrint(
-        '✅ Navigating to next step: ${nextStep.step}, companionIndex: ${nextStep.companionIndex}, url: $nextUrl',
-      );
-
-      context.go(nextUrl);
-    } catch (e) {
-      debugPrint('❌ Error determining next step: $e');
-      _navigateToFallback();
-    }
-  }
-
-  void _navigateToFallback() {
-    if (widget.readOnly || controller == null) return;
-
-    if (controller!.requiresDemographics && !controller!.hasDemographics) {
-      context.go(
-        '/demographics?invitationId=${Uri.encodeComponent(controller!.invitationId!)}'
-        '&token=${Uri.encodeComponent(controller!.token ?? '')}',
-      );
-      return;
-    }
-
-    if (!controller!.hasMenuSelection) {
-      context.go(
-        '/menu-selection?invitationId=${Uri.encodeComponent(controller!.invitationId!)}'
-        '&token=${Uri.encodeComponent(controller!.token ?? '')}',
-      );
-      return;
-    }
-
-    context.go(
-        '/thank-you?invitationId=${Uri.encodeComponent(controller!.invitationId!)}');
   }
 }

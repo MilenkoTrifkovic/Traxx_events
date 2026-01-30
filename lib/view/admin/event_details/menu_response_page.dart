@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -175,20 +176,20 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       return;
     }
 
-    // ✅ SAFETY: if flow is complete after menu submit → always go Thank You
+    // ✅ If flow is complete → Thank You
     if (_controller.isFlowComplete) {
       context.go(
-        '${AppRoute.thankYou.path}?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+        '${AppRoute.thankYou.path}'
+        '?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
         '&token=${Uri.encodeComponent(_token)}',
       );
       return;
     }
 
-    // Otherwise follow normal next-step routing
+    // Next step
     final next = result.nextStep;
     if (next != null) {
-      final nextUrl = next.buildUrl(widget.invitationId!, _token);
-      context.go(nextUrl);
+      context.go(next.buildUrl(widget.invitationId!, _token));
     }
   }
 
@@ -332,6 +333,123 @@ class _GuestMenuSelectionPageState extends State<GuestMenuSelectionPage> {
       }
       return _buildMenuList();
     });
+  }
+
+  bool get _needsAttendanceGate {
+    final idx = _controller.companionIndex.value;
+    if (idx == null) return false;
+
+    final inv = _controller.invitation.value;
+    if (inv == null) return false;
+
+    final comps = (inv['companions'] as List?) ?? const [];
+    if (idx < 0 || idx >= comps.length) return false;
+
+    final c = Map<String, dynamic>.from(comps[idx] as Map);
+    return c['attendingSubmitted'] != true;
+  }
+
+  bool? get _companionAttendingValue {
+    final idx = _controller.companionIndex.value;
+    final inv = _controller.invitation.value;
+    if (idx == null || inv == null) return null;
+
+    final comps = (inv['companions'] as List?) ?? const [];
+    if (idx < 0 || idx >= comps.length) return null;
+
+    final c = Map<String, dynamic>.from(comps[idx] as Map);
+    final v = c['isAttending'];
+    return v is bool ? v : null;
+  }
+
+  Future<void> _setAttendance(bool attending) async {
+    final idx = _controller.companionIndex.value;
+    if (idx == null) return;
+
+    try {
+      final fn =
+          FirebaseFunctions.instance.httpsCallable('submitCompanionAttendance');
+      await fn.call({
+        'invitationId': widget.invitationId!,
+        'token': _token,
+        'companionIndex': idx,
+        'isAttending': attending,
+      });
+
+      // refresh controller state
+      await _controller.initialize(
+        invitationId: widget.invitationId!,
+        token: _token,
+        companionIdx: idx,
+      );
+
+      if (!mounted) return;
+
+      // if not attending -> show details and stop
+      if (!attending) {
+        context.go(
+          '${AppRoute.guestResponse.path}'
+          '?invitationId=${Uri.encodeComponent(widget.invitationId!)}'
+          '&token=${Uri.encodeComponent(_token)}'
+          '&view=details',
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Failed to submit attendance')),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit attendance')),
+      );
+    }
+  }
+
+  Widget _attendanceGateCard() {
+    final name = widget.companionName?.trim().isNotEmpty == true
+        ? widget.companionName!.trim()
+        : 'Companion';
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Attendance required',
+              style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Will $name attend the event?',
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _setAttendance(false),
+                    child: const Text('No'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _setAttendance(true),
+                    child: const Text('Yes'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
