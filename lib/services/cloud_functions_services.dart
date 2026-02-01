@@ -291,7 +291,7 @@ class CloudFunctionsService extends GetxService {
   // -----------------------------
 
   /// Creates/updates a Host user (Auth + Firestore) and optionally sends email.
-  /// For "Add Host" popup you will call with sendEmail=false.
+  /// Set sendEmail=true to send password setup email on host creation.
   Future<Map<String, dynamic>> createHostUser({
     required String organisationId,
     required String name,
@@ -299,7 +299,7 @@ class CloudFunctionsService extends GetxService {
     String? address,
     String? country,
     bool isDisabled = false,
-    bool sendEmail = false, // ✅ keep false for Add Host popup
+    bool sendEmail = true, // ✅ Send password setup email on host creation
   }) async {
     final callable = _functions.httpsCallable(
       'createHostUser',
