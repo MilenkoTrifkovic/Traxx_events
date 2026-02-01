@@ -130,7 +130,7 @@ class _EventDemographicAnalyzerPageState
                     children: [
                       Text('Demographic analyzer',
                           style: GoogleFonts.poppins(
-                              fontSize: 16, fontWeight: FontWeight.w700)),
+                              fontSize: 20, fontWeight: FontWeight.w700)),
                       if (lastUpdated != null) ...[
                         const SizedBox(height: 2),
                         Text('Updated • $lastUpdated',

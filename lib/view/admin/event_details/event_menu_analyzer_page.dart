@@ -42,9 +42,11 @@ class _GuestDataSource extends DataTableSource {
 
   final String Function(Map<String, dynamic>) nameOf;
   final String Function(Map<String, dynamic>) emailOf;
-  final String Function(Map<String, dynamic>) dietOf;
 
-  // returns null when guest has no selected items → disables button
+  // ✅ Diet widget (colored chip)
+  final Widget Function(Map<String, dynamic>) dietWidgetOf;
+
+  // ✅ Download action per row (nullable)
   final VoidCallback? Function(Map<String, dynamic>) downloadActionOf;
 
   final TextStyle cellStyle;
@@ -59,7 +61,7 @@ class _GuestDataSource extends DataTableSource {
     required this.guests,
     required this.nameOf,
     required this.emailOf,
-    required this.dietOf,
+    required this.dietWidgetOf,
     required this.downloadActionOf,
     required this.cellStyle,
     required this.headStyle,
@@ -69,7 +71,7 @@ class _GuestDataSource extends DataTableSource {
     required this.actionW,
   });
 
-  Widget _cell(String text, double w, {bool rightBorder = true}) {
+  Widget _cellText(String text, double w, {bool rightBorder = true}) {
     return Container(
       width: w,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -89,18 +91,7 @@ class _GuestDataSource extends DataTableSource {
     );
   }
 
-  Widget _dietChip(String label, double w, {bool rightBorder = true}) {
-    Color dot;
-    Color bg = const Color(0xFFF3F4F6);
-    if (label == 'Veg')
-      dot = Colors.green.shade700;
-    else if (label == 'Non-Veg')
-      dot = Colors.red.shade700;
-    else if (label == 'Veg & Non-veg')
-      dot = Colors.deepPurple.shade600;
-    else
-      dot = Colors.grey.shade600;
-
+  Widget _cellWidget(Widget child, double w, {bool rightBorder = true}) {
     return Container(
       width: w,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -111,57 +102,8 @@ class _GuestDataSource extends DataTableSource {
               : BorderSide.none,
         ),
       ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: cellStyle.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _actionCell(VoidCallback? onTap, double w) {
-    final enabled = onTap != null;
-    return Container(
-      width: w,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        border: Border(
-          right: BorderSide.none,
-        ),
-      ),
-      child: Tooltip(
-        message:
-            enabled ? 'Download selected menu items' : 'No selected menu items',
-        child: IconButton(
-          onPressed: onTap,
-          icon: Icon(
-            Icons.download_outlined,
-            size: 20,
-            color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-          ),
-        ),
-      ),
+      alignment: Alignment.centerLeft,
+      child: child,
     );
   }
 
@@ -170,16 +112,33 @@ class _GuestDataSource extends DataTableSource {
     if (index < 0 || index >= guests.length) return null;
     final g = guests[index];
 
-    final diet = dietOf(g);
-    final onDownload = downloadActionOf(g);
+    final action = downloadActionOf(g);
 
     return DataRow.byIndex(
       index: index,
       cells: [
-        DataCell(_cell(nameOf(g), nameW)),
-        DataCell(_cell(emailOf(g), emailW)),
-        DataCell(_dietChip(diet, dietW)),
-        DataCell(_actionCell(onDownload, actionW)),
+        DataCell(_cellText(nameOf(g), nameW)),
+        DataCell(_cellText(emailOf(g), emailW)),
+        DataCell(_cellWidget(dietWidgetOf(g), dietW)),
+        DataCell(
+          Container(
+            width: actionW,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            alignment: Alignment.center,
+            child: IconButton(
+              tooltip: action == null
+                  ? 'No menu selected'
+                  : 'Download selected menu',
+              onPressed: action,
+              icon: Icon(
+                Icons.download_outlined,
+                color: action == null
+                    ? const Color(0xFF9CA3AF)
+                    : const Color(0xFF111827),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -240,26 +199,15 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     elevation: 0,
   );
   int _guestFirstRowIndex = 0;
-  Key _guestTableKey = UniqueKey();
+  final GlobalKey<PaginatedDataTableState> _guestTableKey =
+      GlobalKey<PaginatedDataTableState>();
 
   String _guestDietLabel(Map<String, dynamic> g) {
-    var dt = (g['dietType'] ?? g['dietPreference'] ?? '')
-        .toString()
-        .trim()
-        .toLowerCase();
-
-    // normalize: keep only letters
-    dt = dt.replaceAll(RegExp(r'[^a-z]'), '');
-
-    if (dt == 'veg' || dt == 'vegetarian') return 'Veg';
-    if (dt == 'nonveg' || dt == 'nonvegetarian' || dt.startsWith('non')) {
-      return 'Non-Veg';
-    }
-
-    // ✅ handles: both, bothdp, both(preference), both(dP), etc
-    if (dt.contains('both')) return 'Veg & Non-veg';
-
-    return '—';
+    final t = _dietTypeFromGuest(g);
+    if (t == GuestDietType.veg) return 'Veg';
+    if (t == GuestDietType.nonVeg) return 'Non-Veg';
+    if (t == GuestDietType.both) return 'Veg & Non-veg';
+    return 'Unknown';
   }
 
   // ─────────────────────────────────────────────
@@ -370,11 +318,79 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
   }
 
   String _safeFileName(String s) {
-    final cleaned = s
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '') // windows-illegal
-        .replaceAll(RegExp(r'\s+'), '_')
-        .trim();
-    return cleaned.isEmpty ? 'menu_item' : cleaned;
+    final cleaned = s.replaceAll(RegExp(r'[^a-zA-Z0-9_\- ]'), '').trim();
+    return cleaned.isEmpty ? 'file' : cleaned.replaceAll(' ', '_');
+  }
+
+  Future<void> _exportSelectedMenuForGuest({
+    required Map<String, dynamic> guest,
+    required List<Map<String, dynamic>> allMenuItems,
+  }) async {
+    final ids = _asStringSet(guest['selectedMenuItemIds']);
+    if (ids.isEmpty) return;
+
+    final byId = <String, Map<String, dynamic>>{};
+    for (final m in allMenuItems) {
+      final id = _menuItemId(m);
+      if (id.isNotEmpty) byId[id] = m;
+    }
+
+    final selectedItems = ids
+        .map((id) => byId[id])
+        .where((m) => m != null)
+        .cast<Map<String, dynamic>>()
+        .toList();
+
+    // Build Excel
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Selected Menu'];
+
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    sheet.appendRow(<ex.CellValue?>[
+      t('Item'),
+      t('Category'),
+      t('Food Type'),
+      t('Price'),
+    ]);
+
+    for (final m in selectedItems) {
+      final name = (m['name'] ?? '').toString().trim();
+      final category = _prettyCategory(
+          (m['categoryLabel'] ?? m['category'] ?? '').toString());
+      final foodType = (m['foodType'] ?? '').toString().trim();
+      final price = _toDouble(m['price']);
+
+      sheet.appendRow(<ex.CellValue?>[
+        t(name.isEmpty ? '—' : name),
+        t(category.isEmpty ? 'Other' : category),
+        t(foodType.isEmpty ? '—' : foodType),
+        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
+      ]);
+    }
+
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final guestName = _safeFileName(_safeName(guest));
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'selected_menu_$guestName.xlsx')
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
   }
 
   List<Map<String, dynamic>> _guestsForMenuItem(
@@ -465,6 +481,107 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
         .where((w) => w.isNotEmpty)
         .map((w) => w[0].toUpperCase() + w.substring(1))
         .join(' ');
+  }
+
+  GuestDietType _dietTypeFromGuest(Map<String, dynamic> g) {
+    var dt = (g['dietType'] ?? g['dietPreference'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    dt = dt.replaceAll('_', '').replaceAll('-', '').replaceAll(' ', '');
+
+    if (dt == 'both') return GuestDietType.both;
+    if (dt == 'nonveg' || dt == 'nonvegetarian' || dt.startsWith('non'))
+      return GuestDietType.nonVeg;
+    if (dt == 'veg' || dt == 'vegetarian') return GuestDietType.veg;
+    return GuestDietType.all; // unknown/other
+  }
+
+  DietCounts countDiet(List<Map<String, dynamic>> guests) {
+    int veg = 0, nonVeg = 0, both = 0, unknown = 0;
+    for (final g in guests) {
+      final t = _dietTypeFromGuest(g);
+      if (t == GuestDietType.veg)
+        veg++;
+      else if (t == GuestDietType.nonVeg)
+        nonVeg++;
+      else if (t == GuestDietType.both)
+        both++;
+      else
+        unknown++;
+    }
+    return DietCounts(veg: veg, nonVeg: nonVeg, both: both, unknown: unknown);
+  }
+
+  String _displayGuestKey(Map<String, dynamic> g) {
+    final inv = (g['invitationId'] ?? '').toString().trim();
+    final guestId = (g['guestId'] ?? '').toString().trim();
+
+    final email =
+        (g['email'] ?? g['guestEmail'] ?? '').toString().trim().toLowerCase();
+    final name =
+        (g['name'] ?? g['guestName'] ?? '').toString().trim().toLowerCase();
+
+    final ci = g['companionIndex'];
+    final ciStr = (ci == null || ci.toString().trim().isEmpty)
+        ? 'main'
+        : ci.toString().trim();
+
+    // ✅ strongest keys first
+    if (inv.isNotEmpty) return 'inv:$inv:$ciStr';
+    if (guestId.isNotEmpty) return 'gid:$guestId:$ciStr';
+
+    // ✅ same email can exist for different names -> include both
+    if (email.isNotEmpty && name.isNotEmpty) return 'emnm:$email:$name:$ciStr';
+    if (email.isNotEmpty) return 'email:$email:$ciStr';
+
+    return 'name:$name:$ciStr';
+  }
+
+  List<Map<String, dynamic>> _dedupeGuests(List<Map<String, dynamic>> input) {
+    final byKey = <String, Map<String, dynamic>>{};
+
+    for (final g in input) {
+      final key = _displayGuestKey(g);
+      final existing = byKey[key];
+
+      if (existing == null) {
+        byKey[key] = Map<String, dynamic>.from(g);
+        continue;
+      }
+
+      // merge selectedMenuItemIds (union)
+      final a = _asStringSet(existing['selectedMenuItemIds']);
+      final b = _asStringSet(g['selectedMenuItemIds']);
+      existing['selectedMenuItemIds'] = <String>{...a, ...b}.toList();
+
+      // fill blanks
+      for (final f in [
+        'invitationId',
+        'guestId',
+        'name',
+        'guestName',
+        'email',
+        'guestEmail',
+        'gender',
+        'dietType',
+        'dietPreference',
+        'address',
+        'city',
+        'state',
+        'country',
+        'companionIndex',
+      ]) {
+        final cur = (existing[f] ?? '').toString().trim();
+        final nxt = (g[f] ?? '').toString().trim();
+        if (cur.isEmpty && nxt.isNotEmpty) existing[f] = g[f];
+      }
+
+      byKey[key] = existing;
+    }
+
+    return byKey.values.toList();
   }
 
   FoodMeta _foodMeta(bool? isVeg, String? foodType) {
@@ -686,85 +803,32 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     html.Url.revokeObjectUrl(url);
   }
 
-  Future<void> _exportSelectedMenuForGuest({
-    required Map<String, dynamic> guest,
-    required List<Map<String, dynamic>> allMenuItems,
-  }) async {
-    final selectedIds = _asStringSet(guest['selectedMenuItemIds']);
-    if (selectedIds.isEmpty) return;
-
-    final selectedItems =
-        allMenuItems.where((m) => selectedIds.contains(_menuItemId(m))).toList()
-          ..sort((a, b) {
-            final ca = _prettyCategory(
-                (a['categoryLabel'] ?? a['category'] ?? '').toString());
-            final cb = _prettyCategory(
-                (b['categoryLabel'] ?? b['category'] ?? '').toString());
-            final c = ca.compareTo(cb);
-            if (c != 0) return c;
-            return (a['name'] ?? '')
-                .toString()
-                .compareTo((b['name'] ?? '').toString());
-          });
-
-    final excel = ex.Excel.createExcel();
-    final sheet = excel['Selected Menu'];
-    ex.CellValue t(String v) => ex.TextCellValue(v);
-
-    sheet.appendRow(<ex.CellValue?>[
-      t('Menu Item'),
-      t('Category'),
-      t('Food Type'),
-      t('Price'),
-    ]);
-
-    for (final m in selectedItems) {
-      final name = (m['name'] ?? '').toString().trim();
-      final category = _prettyCategory(
-          (m['categoryLabel'] ?? m['category'] ?? '').toString());
-      final isVeg = m['isVeg'] is bool ? (m['isVeg'] as bool) : null;
-      final ft = (m['foodType'] ?? '').toString().trim();
-      final food = _foodMeta(isVeg, ft.isEmpty ? null : ft);
-      final price = _toDouble(m['price']);
-
-      sheet.appendRow(<ex.CellValue?>[
-        t(name.isEmpty ? '—' : name),
-        t(category.isEmpty ? 'Other' : category),
-        t(food.label),
-        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
-      ]);
-    }
-
-    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
-      excel.delete('Sheet1');
-    }
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-
-    final guestName = _safeName(guest);
-    final fileName = 'menu_${_safeFileName(guestName)}.xlsx';
-
-    final blob = html.Blob(
-      [bytes],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    final url = html.Url.createObjectUrlFromBlob(blob);
-
-    final anchor = html.AnchorElement(href: url)
-      ..setAttribute('download', fileName)
-      ..style.display = 'none';
-
-    html.document.body?.children.add(anchor);
-    anchor.click();
-    anchor.remove();
-    html.Url.revokeObjectUrl(url);
+  void _resetGuestTable() {
+    setState(() {
+      _guestFirstRowIndex = 0;
+    });
   }
 
-  void _resetGuestTable() {
-    _guestFirstRowIndex = 0;
-    _guestTableKey =
-        UniqueKey(); // forces PaginatedDataTable to rebuild cleanly
+  void _clearDietFilter() {
+    setState(() {
+      _dietFilter = DietFilter.all;
+      _resetGuestTable();
+    });
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _dietFilter = DietFilter.all;
+      _menuSearchCtrl.clear();
+
+      _selectedGuest = null;
+      _guestSearchCtrl.clear();
+
+      _guestDietType = GuestDietType.all;
+      _selectedMenuItemIds.clear();
+
+      _resetGuestTable();
+    });
   }
 
   Widget _buildGuestDietBelowTabs() {
@@ -910,27 +974,86 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
       );
     }
 
+    Widget clearAllBox() {
+      final anyActive = _dietFilter != DietFilter.all ||
+          _menuSearchCtrl.text.trim().isNotEmpty ||
+          _selectedGuest != null ||
+          _guestSearchCtrl.text.trim().isNotEmpty ||
+          _guestDietType != GuestDietType.all ||
+          _selectedMenuItemIds.isNotEmpty;
+
+      return sectionBox(
+        'Actions',
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ElevatedButton.icon(
+            onPressed: anyActive ? _clearAllFilters : null,
+            icon: const Icon(Icons.restart_alt, size: 18),
+            label: Text(
+              'Clear all filters',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w900),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget dietBox() {
+      final isActive = _dietFilter != DietFilter.all;
+
       return sectionBox(
         'Filter by diet',
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            chip(
-              text: 'All',
-              selected: _dietFilter == DietFilter.all,
-              onTap: () => setState(() => _dietFilter = DietFilter.all),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                chip(
+                  text: 'All',
+                  selected: _dietFilter == DietFilter.all,
+                  onTap: () => setState(() {
+                    _dietFilter = DietFilter.all;
+                    _resetGuestTable();
+                  }),
+                ),
+                chip(
+                  text: 'Veg',
+                  selected: _dietFilter == DietFilter.veg,
+                  onTap: () => setState(() {
+                    _dietFilter = DietFilter.veg;
+                    _resetGuestTable();
+                  }),
+                ),
+                chip(
+                  text: 'Non-Veg',
+                  selected: _dietFilter == DietFilter.nonVeg,
+                  onTap: () => setState(() {
+                    _dietFilter = DietFilter.nonVeg;
+                    _resetGuestTable();
+                  }),
+                ),
+              ],
             ),
-            chip(
-              text: 'Veg',
-              selected: _dietFilter == DietFilter.veg,
-              onTap: () => setState(() => _dietFilter = DietFilter.veg),
-            ),
-            chip(
-              text: 'Non-Veg',
-              selected: _dietFilter == DietFilter.nonVeg,
-              onTap: () => setState(() => _dietFilter = DietFilter.nonVeg),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: isActive ? _clearDietFilter : null,
+                icon: const Icon(Icons.clear, size: 18),
+                label: Text(
+                  'Clear diet filter',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
           ],
         ),
@@ -1116,7 +1239,12 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
       );
     }
 
-    final commonBoxes = <Widget>[dietBox(), menuSearchBox(), guestBox()];
+    final commonBoxes = <Widget>[
+      dietBox(),
+      menuSearchBox(),
+      guestBox(),
+      clearAllBox()
+    ];
 
     if (isPhone) {
       final children = <Widget>[];
@@ -1326,6 +1454,88 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     );
   }
 
+  Widget _dietPill(String label) {
+    final norm = label.toLowerCase().replaceAll(' ', '').replaceAll('-', '');
+
+    Color bg;
+    Color fg;
+
+    if (norm == 'veg' || norm == 'vegetarian') {
+      bg = const Color(0xFF16A34A); // green
+      fg = Colors.white;
+    } else if (norm == 'nonveg' || norm == 'nonvegetarian') {
+      bg = const Color(0xFFDC2626); // red
+      fg = Colors.white;
+    } else if (norm.contains('both')) {
+      bg = const Color(0xFF7C3AED); // purple
+      fg = Colors.white;
+    } else {
+      bg = const Color(0xFF6B7280); // gray
+      fg = Colors.white;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  Widget _countPill({
+    required String label, // e.g. "Veg"
+    required int count, // e.g. 3
+    required Color bg, // e.g. green/red/purple
+  }) {
+    final w = MediaQuery.sizeOf(context).width;
+
+    // responsive sizing
+    final numFs = w < 900 ? 16.0 : 18.0; // ✅ bigger number
+    final labelFs = w < 900 ? 11.0 : 12.0; // ✅ smaller label
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style: GoogleFonts.poppins(
+              fontSize: numFs,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: labelFs,
+              fontWeight: FontWeight.w800,
+              color: Colors.white.withOpacity(0.95),
+              height: 1.0,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ─────────────────────────────────────────────
   // Guest table section + table
   // ─────────────────────────────────────────────
@@ -1343,6 +1553,15 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
 
     final allSelected = filteredItemIds.isNotEmpty &&
         _selectedMenuItemIds.length == filteredItemIds.length;
+
+    // ✅ IMPORTANT: dedupe but DON'T merge different names with same email
+    final dedupedGuests = _dedupeGuests(guests)
+      ..sort((a, b) =>
+          _safeName(a).toLowerCase().compareTo(_safeName(b).toLowerCase()));
+
+    final counts = countDiet(dedupedGuests);
+    final w = MediaQuery.sizeOf(context).width;
+    final headingFs = w < 900 ? 18.0 : 20.0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1362,9 +1581,11 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
               Text(
                 'Guest list',
                 style: GoogleFonts.poppins(
-                    fontSize: 16, fontWeight: FontWeight.w800),
+                  fontSize: headingFs,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              _pill('${guests.length} guests'),
+              _pill('${dedupedGuests.length} guests'),
               if (_selectedMenuItemIds.isNotEmpty)
                 Container(
                   padding:
@@ -1384,6 +1605,17 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                 )
               else
                 _pill('From $menuItemCountForTable filtered items'),
+              _countPill(
+                  label: 'Veg', count: counts.veg, bg: const Color(0xFF16A34A)),
+              _countPill(
+                  label: 'Non-Veg',
+                  count: counts.nonVeg,
+                  bg: const Color(0xFFDC2626)),
+              if (counts.both > 0)
+                _countPill(
+                    label: 'Both',
+                    count: counts.both,
+                    bg: const Color(0xFF7C3AED)),
             ],
           ),
           const SizedBox(height: 10),
@@ -1428,17 +1660,21 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                             totalResponses: totalResponses,
                           ),
                   icon: const Icon(Icons.table_view_outlined, size: 18),
-                  label: Text('Export Menu',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                  label: Text(
+                    'Export Menu',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                  ),
                 ),
                 ElevatedButton.icon(
                   style: primaryStyle,
-                  onPressed: guests.isEmpty
+                  onPressed: dedupedGuests.isEmpty
                       ? null
-                      : () => _exportGuestsToExcel(guests),
+                      : () => _exportGuestsToExcel(dedupedGuests),
                   icon: const Icon(Icons.download_outlined, size: 18),
-                  label: Text('Export Guests',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                  label: Text(
+                    'Export Guests',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ],
             ),
@@ -1455,10 +1691,10 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
             ),
           ),
           const SizedBox(height: 12),
-          if (guests.isEmpty)
+          if (dedupedGuests.isEmpty)
             _emptyHint('No guests match your current filters.')
           else
-            _guestDataTable(guests, allMenuItems)
+            _guestDataTable(dedupedGuests, allMenuItems),
         ],
       ),
     );
@@ -1490,7 +1726,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
           color: const Color(0xFF111827),
         );
 
-        final actionW = 120.0; // ✅ wider so "Download" fits
+        final actionW = 120.0;
         final nameW = (tableW * 0.26).clamp(170.0, 320.0);
         final emailW = (tableW * 0.46).clamp(240.0, 560.0);
         final dietW = (tableW - nameW - emailW - actionW).clamp(200.0, 280.0);
@@ -1500,7 +1736,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
             width: w,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
-              // ✅ no background here (row paints background)
               border: Border(
                 right: rightBorder
                     ? const BorderSide(color: Color(0xFFE5E7EB))
@@ -1515,7 +1750,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
           guests: guests,
           nameOf: _safeName,
           emailOf: _safeEmail,
-          dietOf: _guestDietLabel,
+          dietWidgetOf: (g) => _dietPill(_guestDietLabel(g)),
           downloadActionOf: (g) {
             final ids = _asStringSet(g['selectedMenuItemIds']);
             if (ids.isEmpty) return null;
@@ -1534,6 +1769,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
 
         final isNarrow = tableW < 900;
         final rowsPerPage = isNarrow ? 5 : 10;
+
         final safeIndex = guests.isEmpty
             ? 0
             : _guestFirstRowIndex.clamp(0, guests.length - 1);
@@ -1557,10 +1793,12 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                 dividerColor: const Color(0xFFE5E7EB),
               ),
               child: PaginatedDataTable(
-                key: _guestTableKey, // ✅ important
-                initialFirstRowIndex: safeIndex, // ✅ important
-                headingRowColor:
-                    WidgetStateProperty.all(const Color(0xFFF3F4F6)),
+                key: _guestTableKey,
+                initialFirstRowIndex: safeIndex,
+                onPageChanged: (i) => setState(() => _guestFirstRowIndex = i),
+                headingRowColor: MaterialStateProperty.all(
+                  const Color(0xFFF3F4F6),
+                ),
                 header: null,
                 showCheckboxColumn: false,
                 rowsPerPage: rowsPerPage,
@@ -2069,7 +2307,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                             Text(
                               'Menu analyzer',
                               style: GoogleFonts.poppins(
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -2416,4 +2654,16 @@ class _HoverTooltipState extends State<_HoverTooltip> {
       ),
     );
   }
+}
+
+class DietCounts {
+  final int veg;
+  final int nonVeg;
+  final int both;
+  final int unknown;
+  const DietCounts(
+      {required this.veg,
+      required this.nonVeg,
+      required this.both,
+      required this.unknown});
 }
