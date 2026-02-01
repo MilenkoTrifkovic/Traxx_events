@@ -12,13 +12,24 @@ class ValidationHelper {
   }
 
   static String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return 'Email is required';
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(value)) {
+
+    final email = value.trim();
+
+    // ✅ Allows "+" and other common valid characters in the local-part
+    // Example valid: srinivas+4141@zydat.com
+    final emailRegex = RegExp(
+      r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+      r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+      r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+    );
+
+    if (!emailRegex.hasMatch(email)) {
       return 'Enter a valid email address';
     }
+
     return null;
   }
 

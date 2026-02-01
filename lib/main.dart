@@ -39,15 +39,15 @@ Future<void> main() async {
   setPathUrlStrategy();
   GoRouter.optionURLReflectsImperativeAPIs = true;
 
-  await dotenv.load(fileName: "dotenv");
+  try {
+    await dotenv.load(fileName: "assets/dotenv");
+  } catch (e) {
+    debugPrint("⚠️ dotenv not loaded: $e");
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // Initialize Stripe for Web
-  // WebStripe.instance.initialise(
-  //   publishableKey: Constants.stripePublishableKey,
-  // );
 
   await NominatimGeocoding.init(reqCacheNum: 50);
 

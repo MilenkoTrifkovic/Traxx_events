@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:excel/excel.dart' as ex;
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:universal_html/html.dart' as html;
 
-// ✅ record-free
 class FoodMeta {
   final String label;
   final IconData icon;
@@ -22,17 +24,178 @@ enum DietFilter { all, veg, nonVeg }
 
 enum GuestDietType { all, veg, nonVeg, both }
 
-GuestDietType _guestDietType = GuestDietType.all;
-
 class EventMenuAnalyzerPage extends StatefulWidget {
   final String eventId;
-  const EventMenuAnalyzerPage({super.key, required this.eventId});
+  final bool embedded;
+  const EventMenuAnalyzerPage({
+    super.key,
+    required this.eventId,
+    this.embedded = false,
+  });
 
   @override
   State<EventMenuAnalyzerPage> createState() => _EventMenuAnalyzerPageState();
 }
 
-class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
+class _GuestDataSource extends DataTableSource {
+  final List<Map<String, dynamic>> guests;
+
+  final String Function(Map<String, dynamic>) nameOf;
+  final String Function(Map<String, dynamic>) emailOf;
+  final String Function(Map<String, dynamic>) dietOf;
+
+  // returns null when guest has no selected items → disables button
+  final VoidCallback? Function(Map<String, dynamic>) downloadActionOf;
+
+  final TextStyle cellStyle;
+  final TextStyle headStyle;
+
+  final double nameW;
+  final double emailW;
+  final double dietW;
+  final double actionW;
+
+  _GuestDataSource({
+    required this.guests,
+    required this.nameOf,
+    required this.emailOf,
+    required this.dietOf,
+    required this.downloadActionOf,
+    required this.cellStyle,
+    required this.headStyle,
+    required this.nameW,
+    required this.emailW,
+    required this.dietW,
+    required this.actionW,
+  });
+
+  Widget _cell(String text, double w, {bool rightBorder = true}) {
+    return Container(
+      width: w,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          right: rightBorder
+              ? const BorderSide(color: Color(0xFFE5E7EB))
+              : BorderSide.none,
+        ),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle,
+      ),
+    );
+  }
+
+  Widget _dietChip(String label, double w, {bool rightBorder = true}) {
+    Color dot;
+    Color bg = const Color(0xFFF3F4F6);
+    if (label == 'Veg')
+      dot = Colors.green.shade700;
+    else if (label == 'Non-Veg')
+      dot = Colors.red.shade700;
+    else if (label == 'Veg & Non-veg')
+      dot = Colors.deepPurple.shade600;
+    else
+      dot = Colors.grey.shade600;
+
+    return Container(
+      width: w,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          right: rightBorder
+              ? const BorderSide(color: Color(0xFFE5E7EB))
+              : BorderSide.none,
+        ),
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: cellStyle.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionCell(VoidCallback? onTap, double w) {
+    final enabled = onTap != null;
+    return Container(
+      width: w,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        border: Border(
+          right: BorderSide.none,
+        ),
+      ),
+      child: Tooltip(
+        message:
+            enabled ? 'Download selected menu items' : 'No selected menu items',
+        child: IconButton(
+          onPressed: onTap,
+          icon: Icon(
+            Icons.download_outlined,
+            size: 20,
+            color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  DataRow? getRow(int index) {
+    if (index < 0 || index >= guests.length) return null;
+    final g = guests[index];
+
+    final diet = dietOf(g);
+    final onDownload = downloadActionOf(g);
+
+    return DataRow.byIndex(
+      index: index,
+      cells: [
+        DataCell(_cell(nameOf(g), nameW)),
+        DataCell(_cell(emailOf(g), emailW)),
+        DataCell(_dietChip(diet, dietW)),
+        DataCell(_actionCell(onDownload, actionW)),
+      ],
+    );
+  }
+
+  @override
+  bool get isRowCountApproximate => false;
+
+  @override
+  int get rowCount => guests.length;
+
+  @override
+  int get selectedRowCount => 0;
+}
+
+class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
+    with SingleTickerProviderStateMixin {
   late final CloudFunctionsService _svc;
 
   bool _loading = true;
@@ -42,22 +205,82 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
 
   bool _showAll = false;
 
+  // ✅ Use nullable controller to prevent LateInitializationError entirely.
+  TabController? _tabCtrl;
+  int get _tabIndex => _tabCtrl?.index ?? 0; // default Menu tab
+  bool get _isGuestTab => _tabIndex == 1;
+
   // ✅ Filters
   DietFilter _dietFilter = DietFilter.all;
+  GuestDietType _guestDietType = GuestDietType.all;
 
+  // ✅ Menu item search
+  final TextEditingController _menuSearchCtrl = TextEditingController();
+
+  // ✅ Multi select menu items
+  final Set<String> _selectedMenuItemIds = <String>{};
+
+  // ✅ Guest search
   final TextEditingController _guestSearchCtrl = TextEditingController();
-  Map<String, dynamic>? _selectedGuest; // {name, selectedMenuItemIds}
+  Map<String, dynamic>? _selectedGuest;
+  final outlineStyle = OutlinedButton.styleFrom(
+    minimumSize: const Size(0, 38),
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    visualDensity: VisualDensity.compact,
+  );
+
+  final primaryStyle = ElevatedButton.styleFrom(
+    minimumSize: const Size(0, 38),
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    backgroundColor: Colors.black,
+    foregroundColor: Colors.white,
+    visualDensity: VisualDensity.compact,
+    elevation: 0,
+  );
+  int _guestFirstRowIndex = 0;
+  Key _guestTableKey = UniqueKey();
+
+  String _guestDietLabel(Map<String, dynamic> g) {
+    var dt = (g['dietType'] ?? g['dietPreference'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    // normalize: keep only letters
+    dt = dt.replaceAll(RegExp(r'[^a-z]'), '');
+
+    if (dt == 'veg' || dt == 'vegetarian') return 'Veg';
+    if (dt == 'nonveg' || dt == 'nonvegetarian' || dt.startsWith('non')) {
+      return 'Non-Veg';
+    }
+
+    // ✅ handles: both, bothdp, both(preference), both(dP), etc
+    if (dt.contains('both')) return 'Veg & Non-veg';
+
+    return '—';
+  }
+
+  // ─────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────
+
   bool _matchesGuestDiet(Map<String, dynamic> g) {
     if (_guestDietType == GuestDietType.all) return true;
 
-    var dt = (g['dietType'] ?? '').toString().trim().toLowerCase();
+    var dt = (g['dietType'] ?? g['dietPreference'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
     dt = dt.replaceAll('_', '').replaceAll('-', '').replaceAll(' ', '');
 
     if (_guestDietType == GuestDietType.veg) {
       return dt == 'veg' || dt == 'vegetarian';
     }
     if (_guestDietType == GuestDietType.nonVeg) {
-      return dt == 'nonveg' || dt.startsWith('non');
+      return dt == 'nonveg' || dt == 'nonvegetarian' || dt.startsWith('non');
     }
     if (_guestDietType == GuestDietType.both) {
       return dt == 'both';
@@ -65,17 +288,78 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     return true;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _svc = Get.find<CloudFunctionsService>();
-    _load();
+  String _menuItemId(Map<String, dynamic> m) {
+    return (m['id'] ?? m['menuItemId'] ?? m['menuItemID'] ?? '')
+        .toString()
+        .trim();
   }
 
-  @override
-  void dispose() {
-    _guestSearchCtrl.dispose();
-    super.dispose();
+  String _guestKey(Map<String, dynamic> g) {
+    final inv = (g['invitationId'] ?? '').toString().trim();
+    final ci = g['companionIndex'];
+    final ciStr = (ci == null || ci.toString().trim().isEmpty)
+        ? 'main'
+        : ci.toString().trim();
+    if (inv.isNotEmpty) return '$inv:$ciStr';
+
+    final email =
+        (g['email'] ?? g['guestEmail'] ?? '').toString().trim().toLowerCase();
+    if (email.isNotEmpty) return 'email:$email:$ciStr';
+
+    final name =
+        (g['name'] ?? g['guestName'] ?? '').toString().trim().toLowerCase();
+    return 'name:$name:$ciStr';
+  }
+
+  String _safeName(Map<String, dynamic> g) {
+    final s = (g['name'] ?? g['guestName'] ?? '').toString().trim();
+    if (s.isNotEmpty) return s;
+    final em = (g['email'] ?? g['guestEmail'] ?? '').toString().trim();
+    return em.isNotEmpty ? em : 'Guest';
+  }
+
+  String _safeEmail(Map<String, dynamic> g) {
+    final s = (g['email'] ?? g['guestEmail'] ?? '').toString().trim();
+    return s.isEmpty ? '—' : s;
+  }
+
+  // More resilient address builder (string or map)
+  String _buildAddress(Map<String, dynamic> g) {
+    final rawAddr = g['address'] ?? g['Address'] ?? g['guestAddress'];
+
+    String street = '';
+    String city = (g['city'] ?? g['City'] ?? '').toString().trim();
+    String state = (g['state'] ?? g['State'] ?? '').toString().trim();
+    String country = (g['country'] ?? g['Country'] ?? '').toString().trim();
+
+    if (rawAddr is Map) {
+      street =
+          (rawAddr['street'] ?? rawAddr['line1'] ?? rawAddr['address1'] ?? '')
+              .toString()
+              .trim();
+      city = city.isNotEmpty ? city : (rawAddr['city'] ?? '').toString().trim();
+      state =
+          state.isNotEmpty ? state : (rawAddr['state'] ?? '').toString().trim();
+      country = country.isNotEmpty
+          ? country
+          : (rawAddr['country'] ?? '').toString().trim();
+    } else {
+      street = (rawAddr ?? g['street'] ?? g['Street'] ?? '').toString().trim();
+    }
+
+    final parts = <String>[];
+    if (street.isNotEmpty) parts.add(street);
+    if (city.isNotEmpty) parts.add(city);
+    if (state.isNotEmpty) parts.add(state);
+    if (country.isNotEmpty) parts.add(country);
+    return parts.isEmpty ? '—' : parts.join(', ');
+  }
+
+  String _buildGender(Map<String, dynamic> g) {
+    final raw = (g['gender'] ?? g['Gender'] ?? g['sex'] ?? g['Sex'] ?? '')
+        .toString()
+        .trim();
+    return raw.isEmpty ? '—' : raw;
   }
 
   int _toInt(dynamic v) {
@@ -83,6 +367,40 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     if (v is int) return v;
     if (v is num) return v.toInt();
     return int.tryParse(v.toString()) ?? 0;
+  }
+
+  String _safeFileName(String s) {
+    final cleaned = s
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '') // windows-illegal
+        .replaceAll(RegExp(r'\s+'), '_')
+        .trim();
+    return cleaned.isEmpty ? 'menu_item' : cleaned;
+  }
+
+  List<Map<String, dynamic>> _guestsForMenuItem(
+    String itemId,
+    List<Map<String, dynamic>> guestSelections,
+  ) {
+    if (itemId.trim().isEmpty) return const [];
+
+    // ✅ filter guests who selected this item
+    final raw = guestSelections.where((g) {
+      final ids = _asStringSet(g['selectedMenuItemIds']);
+      return ids.contains(itemId);
+    }).toList();
+
+    // ✅ dedupe by invitationId/companionIndex/email fallback
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+
+    for (final g in raw) {
+      final key = _guestKey(g);
+      if (seen.add(key)) out.add(g);
+    }
+
+    out.sort((a, b) =>
+        _safeName(a).toLowerCase().compareTo(_safeName(b).toLowerCase()));
+    return out;
   }
 
   double? _toDouble(dynamic v) {
@@ -109,7 +427,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   }
 
   List<Map<String, dynamic>> _asGuestSelections(dynamic v) {
-    // Accept either {name} or {guestName} (and email fallbacks)
     if (v is List) {
       return v
           .where((e) => e is Map)
@@ -131,29 +448,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
           .toSet();
     }
     return <String>{};
-  }
-
-  Future<void> _load() async {
-    if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final res = await _svc.getEventAnalytics(eventId: widget.eventId);
-      if (!mounted) return;
-      setState(() {
-        _data = res;
-        _loadedAt = DateTime.now();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString());
-    } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
   }
 
   String _prettyCategory(String raw) {
@@ -232,10 +526,340 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     return true;
   }
 
+  @override
+  void initState() {
+    super.initState();
+
+    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl!.addListener(() {
+      if (mounted) setState(() {});
+    });
+
+    _svc = Get.find<CloudFunctionsService>();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _menuSearchCtrl.dispose();
+    _guestSearchCtrl.dispose();
+    _tabCtrl?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final res = await _svc.getEventAnalytics(eventId: widget.eventId);
+      if (!mounted) return;
+      setState(() {
+        _data = res;
+        _loadedAt = DateTime.now();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Exports
+  // ─────────────────────────────────────────────
+  Future<void> _exportGuestsToExcel(
+    List<Map<String, dynamic>> guests, {
+    String fileName = 'guest_list.xlsx',
+  }) async {
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Guests'];
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    sheet.appendRow(<ex.CellValue?>[
+      t('Name'),
+      t('Email'),
+      t('Address'),
+      t('Gender'),
+    ]);
+
+    for (final g in guests) {
+      sheet.appendRow(<ex.CellValue?>[
+        t(_safeName(g)),
+        t(_safeEmail(g)),
+        t(_buildAddress(g)),
+        t(_buildGender(g)),
+      ]);
+    }
+
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportMenuItemsToExcel(
+    List<Map<String, dynamic>> items, {
+    required int totalResponses,
+  }) async {
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Menu Items'];
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    sheet.appendRow(<ex.CellValue?>[
+      t('Name'),
+      t('Category'),
+      t('Food Type'),
+      t('Price'),
+      t('Selected By'),
+      t('Percent'),
+    ]);
+
+    final sorted = [...items]
+      ..sort((a, b) => _toInt(b['count']) - _toInt(a['count']));
+
+    for (final m in sorted) {
+      final name = (m['name'] ?? '').toString().trim();
+      final category = _prettyCategory(
+          (m['categoryLabel'] ?? m['category'] ?? '').toString());
+      final isVeg = m['isVeg'] is bool ? (m['isVeg'] as bool) : null;
+      final foodTypeRaw = (m['foodType'] ?? '').toString().trim();
+      final food = _foodMeta(isVeg, foodTypeRaw.isEmpty ? null : foodTypeRaw);
+
+      final price = _toDouble(m['price']);
+      final count = _toInt(m['count']);
+      final pct =
+          totalResponses <= 0 ? 0 : ((count / totalResponses) * 100).round();
+
+      sheet.appendRow(<ex.CellValue?>[
+        t(name.isEmpty ? '—' : name),
+        t(category.isEmpty ? 'Other' : category),
+        t(food.label),
+        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
+        t('$count'),
+        t('$pct%'),
+      ]);
+    }
+
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'menu_items.xlsx')
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportSelectedMenuForGuest({
+    required Map<String, dynamic> guest,
+    required List<Map<String, dynamic>> allMenuItems,
+  }) async {
+    final selectedIds = _asStringSet(guest['selectedMenuItemIds']);
+    if (selectedIds.isEmpty) return;
+
+    final selectedItems =
+        allMenuItems.where((m) => selectedIds.contains(_menuItemId(m))).toList()
+          ..sort((a, b) {
+            final ca = _prettyCategory(
+                (a['categoryLabel'] ?? a['category'] ?? '').toString());
+            final cb = _prettyCategory(
+                (b['categoryLabel'] ?? b['category'] ?? '').toString());
+            final c = ca.compareTo(cb);
+            if (c != 0) return c;
+            return (a['name'] ?? '')
+                .toString()
+                .compareTo((b['name'] ?? '').toString());
+          });
+
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Selected Menu'];
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    sheet.appendRow(<ex.CellValue?>[
+      t('Menu Item'),
+      t('Category'),
+      t('Food Type'),
+      t('Price'),
+    ]);
+
+    for (final m in selectedItems) {
+      final name = (m['name'] ?? '').toString().trim();
+      final category = _prettyCategory(
+          (m['categoryLabel'] ?? m['category'] ?? '').toString());
+      final isVeg = m['isVeg'] is bool ? (m['isVeg'] as bool) : null;
+      final ft = (m['foodType'] ?? '').toString().trim();
+      final food = _foodMeta(isVeg, ft.isEmpty ? null : ft);
+      final price = _toDouble(m['price']);
+
+      sheet.appendRow(<ex.CellValue?>[
+        t(name.isEmpty ? '—' : name),
+        t(category.isEmpty ? 'Other' : category),
+        t(food.label),
+        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
+      ]);
+    }
+
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final guestName = _safeName(guest);
+    final fileName = 'menu_${_safeFileName(guestName)}.xlsx';
+
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  void _resetGuestTable() {
+    _guestFirstRowIndex = 0;
+    _guestTableKey =
+        UniqueKey(); // forces PaginatedDataTable to rebuild cleanly
+  }
+
+  Widget _buildGuestDietBelowTabs() {
+    Widget chip({
+      required String text,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return ChoiceChip(
+        checkmarkColor: Colors.white,
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: Colors.black,
+        backgroundColor: const Color(0xFFF3F4F6),
+        label: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+            color: selected ? Colors.white : Colors.black,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Filter by Guest diet preference',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              chip(
+                text: 'All',
+                selected: _guestDietType == GuestDietType.all,
+                onTap: () => setState(() {
+                  _guestDietType = GuestDietType.all;
+                  _resetGuestTable();
+                }),
+              ),
+              chip(
+                text: 'Veg',
+                selected: _guestDietType == GuestDietType.veg,
+                onTap: () => setState(() {
+                  _guestDietType = GuestDietType.veg;
+                  _resetGuestTable();
+                }),
+              ),
+              chip(
+                text: 'Non-Veg',
+                selected: _guestDietType == GuestDietType.nonVeg,
+                onTap: () => setState(() {
+                  _guestDietType = GuestDietType.nonVeg;
+                  _resetGuestTable();
+                }),
+              ),
+              chip(
+                text: 'Both',
+                selected: _guestDietType == GuestDietType.both,
+                onTap: () => setState(() {
+                  _guestDietType = GuestDietType.both;
+                  _resetGuestTable();
+                }),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // Filters (common + guest-only on Guest tab)
+  // ─────────────────────────────────────────────
   Widget _buildFilters({
     required List<Map<String, dynamic>> guestSelections,
   }) {
     final isPhone = MediaQuery.sizeOf(context).width < 700;
+    final isGuestTab = _isGuestTab;
 
     Widget chip({
       required String text,
@@ -244,25 +868,23 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
     }) {
       return ChoiceChip(
         checkmarkColor: Colors.white,
-        label: Text(
-          text,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 12.5,
-          ),
-        ),
         selected: selected,
         onSelected: (_) => onTap(),
         selectedColor: Colors.black,
         backgroundColor: const Color(0xFFF3F4F6),
+        label: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+            color: selected ? Colors.white : Colors.black,
+          ),
+        ),
         labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
       );
     }
 
-    // ─────────────────────────────
-    // ITEM DIET BOX (filters cards)
-    // ─────────────────────────────
-    Widget dietBox() {
+    Widget sectionBox(String title, Widget child) {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -274,7 +896,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Filter by diet',
+              title,
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -282,35 +904,73 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
               ),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                chip(
-                  text: 'All',
-                  selected: _dietFilter == DietFilter.all,
-                  onTap: () => setState(() => _dietFilter = DietFilter.all),
-                ),
-                chip(
-                  text: 'Veg',
-                  selected: _dietFilter == DietFilter.veg,
-                  onTap: () => setState(() => _dietFilter = DietFilter.veg),
-                ),
-                chip(
-                  text: 'Non-Veg',
-                  selected: _dietFilter == DietFilter.nonVeg,
-                  onTap: () => setState(() => _dietFilter = DietFilter.nonVeg),
-                ),
-              ],
+            child,
+          ],
+        ),
+      );
+    }
+
+    Widget dietBox() {
+      return sectionBox(
+        'Filter by diet',
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            chip(
+              text: 'All',
+              selected: _dietFilter == DietFilter.all,
+              onTap: () => setState(() => _dietFilter = DietFilter.all),
+            ),
+            chip(
+              text: 'Veg',
+              selected: _dietFilter == DietFilter.veg,
+              onTap: () => setState(() => _dietFilter = DietFilter.veg),
+            ),
+            chip(
+              text: 'Non-Veg',
+              selected: _dietFilter == DietFilter.nonVeg,
+              onTap: () => setState(() => _dietFilter = DietFilter.nonVeg),
             ),
           ],
         ),
       );
     }
 
-    // ─────────────────────────────
-    // GUEST BOX (search only)
-    // ─────────────────────────────
+    Widget menuSearchBox() {
+      return sectionBox(
+        'Search menu items',
+        TextField(
+          controller: _menuSearchCtrl,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            hintText: 'Search menu item name...',
+            hintStyle: GoogleFonts.poppins(),
+            filled: true,
+            fillColor: Colors.white,
+            suffixIcon: _menuSearchCtrl.text.trim().isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear',
+                    onPressed: () => setState(() => _menuSearchCtrl.clear()),
+                    icon: const Icon(Icons.close),
+                  ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      );
+    }
+
     Widget guestBox() {
       final q = _guestSearchCtrl.text.trim().toLowerCase();
 
@@ -328,634 +988,306 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
               return name.contains(q) || email.contains(q);
             }).toList();
 
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Filter by guest',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF111827),
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // Selected guest chip
-            if (_selectedGuest != null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_outline, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              (_selectedGuest?['name'] ??
-                                      _selectedGuest?['guestName'] ??
-                                      '')
-                                  .toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedGuest = null;
-                        _guestSearchCtrl.clear();
-                      });
-                    },
-                    child: Text(
-                      'Clear',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              TextField(
-                controller: _guestSearchCtrl,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: 'Search guest name...',
-                  hintStyle: GoogleFonts.poppins(),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-              ),
-              if (suggestions.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (_, i) {
-                        final g = suggestions[i];
-                        final name = (g['name'] ??
-                                g['guestName'] ??
-                                g['email'] ??
-                                g['guestEmail'] ??
-                                '')
-                            .toString();
-
-                        return ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(
-                            name,
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _selectedGuest = g;
-                              _guestSearchCtrl.text = name;
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-              if (_guestSearchCtrl.text.trim().isNotEmpty &&
-                  suggestions.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    'No guests match your search.',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF6B7280),
-                    ),
-                  ),
-                ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    if (isPhone) {
-      return Column(
-        children: [
-          dietBox(),
-          const SizedBox(height: 12),
-          guestBox(),
-        ],
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: dietBox()),
-        const SizedBox(width: 14),
-        Expanded(child: guestBox()),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final menu = _asMap(_data?['menu']);
-    final menuResponses = _toInt(menu['responses']);
-
-    final items = _asMapList(menu['items'])
-      ..sort((a, b) => _toInt(b['count']) - _toInt(a['count']));
-
-    // ✅ guestSelections must come from Cloud Function: menu.guestSelections
-    final guestSelections = _asGuestSelections(menu['guestSelections']);
-
-    final lastUpdated = _loadedAt == null
-        ? null
-        : DateFormat('dd MMM, HH:mm').format(_loadedAt!);
-
-    const int limit = 12;
-
-    // ✅ Apply filters
-    final selectedIds = _selectedGuest == null
-        ? null
-        : _asStringSet(_selectedGuest?['selectedMenuItemIds']);
-
-    final filteredItems = items.where((m) {
-      // 1) Guest filter
-      if (selectedIds != null) {
-        final id = (m['id'] ?? m['menuItemId'] ?? '').toString().trim();
-        if (id.isEmpty) return false;
-        if (!selectedIds.contains(id)) return false;
-      }
-
-      // 2) Diet filter on the remaining items
-      if (!_matchesDiet(m)) return false;
-
-      return true;
-    }).toList();
-
-    final shownCount = _showAll
-        ? filteredItems.length
-        : (filteredItems.length > limit ? limit : filteredItems.length);
-
-    return TooltipVisibility(
-      visible: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      if (_selectedGuest != null) {
+        return sectionBox(
+          'Filter by guest',
+          Row(
             children: [
-              // header
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => context.pop(),
-                    icon: const Icon(Icons.arrow_back),
+              Expanded(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Menu items analyzer',
-                          style: GoogleFonts.poppins(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (lastUpdated != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Updated • $lastUpdated',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _loading ? null : _load,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              if (_loading) ...[
-                Text(
-                  'Loading analytics...',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const LinearProgressIndicator(minHeight: 3),
-              ] else if (_error != null) ...[
-                Text(
-                  'Failed to load',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _error!,
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, color: Colors.red.shade700),
-                ),
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                  label: Text('Try again', style: GoogleFonts.poppins()),
-                ),
-              ] else if (menuResponses == 0 || items.isEmpty) ...[
-                _emptyHint('No menu selections yet.'),
-              ] else ...[
-                // ✅ FILTER SECTION (split into 2)
-                _buildFilters(guestSelections: guestSelections),
-
-                const SizedBox(height: 18),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            'Menu item responses',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            '$menuResponses responses',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: const Color(0xFF6B7280),
-                            ),
-                          ),
-                          if (_selectedGuest != null) ...[
-                            const SizedBox(width: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                'Guest: ${(_selectedGuest?['name'] ?? _selectedGuest?['guestName'] ?? '').toString()}',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ]
-                        ],
-                      ),
-                    ),
-                    if (filteredItems.length > limit)
-                      TextButton(
-                        onPressed: () => setState(() => _showAll = !_showAll),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_outline, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: Text(
-                          _showAll ? 'Show top $limit' : 'Show all',
+                          (_selectedGuest?['name'] ??
+                                  _selectedGuest?['guestName'] ??
+                                  '')
+                              .toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style:
                               GoogleFonts.poppins(fontWeight: FontWeight.w700),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedGuest = null;
+                    _guestSearchCtrl.clear();
+                    _resetGuestTable();
+                  });
+                },
+                child: Text(
+                  'Clear',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
 
-                const SizedBox(height: 12),
+      return sectionBox(
+        'Filter by guest',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _guestSearchCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search guest name...',
+                hintStyle: GoogleFonts.poppins(),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            if (suggestions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: suggestions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final g = suggestions[i];
+                      final name = (g['name'] ??
+                              g['guestName'] ??
+                              g['email'] ??
+                              g['guestEmail'] ??
+                              '')
+                          .toString();
 
-                if (filteredItems.isEmpty)
-                  _emptyHint('No items match your filters.')
-                else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: shownCount,
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 360,
-                          mainAxisExtent:
-                              400, // ✅ more space (prevents overflow)
-                          crossAxisSpacing: 14,
-                          mainAxisSpacing: 14,
+                      return ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.person_outline),
+                        title: Text(
+                          name,
+                          style:
+                              GoogleFonts.poppins(fontWeight: FontWeight.w700),
                         ),
-                        itemBuilder: (_, idx) {
-                          final m = filteredItems[idx];
-
-                          final name = (m['name'] ?? 'Menu item').toString();
-                          final category = _prettyCategory(
-                            (m['categoryLabel'] ?? m['category'] ?? '')
-                                .toString(),
-                          );
-                          final description =
-                              (m['description'] ?? '').toString().trim();
-
-                          final isVeg =
-                              m['isVeg'] is bool ? (m['isVeg'] as bool) : null;
-                          final foodType =
-                              (m['foodType'] ?? '').toString().trim();
-
-                          final price = _toDouble(m['price']);
-                          final imageUrl =
-                              (m['imageUrl'] ?? '').toString().trim();
-
-                          final count = _toInt(m['count']);
-                          final pct = menuResponses <= 0
-                              ? 0
-                              : ((count / menuResponses) * 100).round();
-
-                          return _menuCard(
-                            name: name,
-                            category: category,
-                            description: description,
-                            isVeg: isVeg,
-                            foodType: foodType.isEmpty ? null : foodType,
-                            price: price,
-                            imageUrl: imageUrl.isEmpty ? null : imageUrl,
-                            count: count,
-                            percent: pct,
-                            totalResponses: menuResponses,
-                          );
+                        onTap: () {
+                          setState(() {
+                            _selectedGuest = g;
+                            _guestSearchCtrl.text = name;
+                            _resetGuestTable();
+                          });
                         },
                       );
                     },
                   ),
-              ],
+                ),
+              ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _menuCard({
-    required String name,
-    required String category,
-    required String description,
-    required bool? isVeg,
-    required String? foodType,
-    required double? price,
-    required String? imageUrl,
-    required int count,
-    required int percent,
-    required int totalResponses,
-  }) {
-    final food = _foodMeta(isVeg, foodType);
-    final progress =
-        totalResponses <= 0 ? 0.0 : (count / totalResponses).clamp(0.0, 1.0);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ✅ IMAGE (slightly smaller)
-            SizedBox(
-              height: 140,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (imageUrl != null)
-                    Image.network(
-                      imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return _imagePlaceholder(loading: true);
-                      },
-                    )
-                  else
-                    _imagePlaceholder(),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.05),
-                          Colors.black.withOpacity(0.45),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ✅ DETAILS (no Expanded; prevents overflow)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ✅ Category below name using _detailRow
-                  _detailRow(
-                    icon: Icons.category_outlined,
-                    iconColor: const Color(0xFF111827),
-                    label: 'Category',
-                    value: category.isEmpty ? 'Other' : category,
-                  ),
-                  const SizedBox(height: 8),
-
-                  _detailRow(
-                    icon: food.icon,
-                    iconColor: food.color,
-                    label: 'Food type',
-                    value: food.label,
-                  ),
-                  const SizedBox(height: 8),
-
-                  _detailRow(
-                    icon: Icons.attach_money_outlined,
-                    iconColor: const Color(0xFF111827),
-                    label: 'Price',
-                    value:
-                        price == null ? '—' : '\$${price!.toStringAsFixed(0)}',
-                  ),
-                  const SizedBox(height: 8),
-
-                  _detailRow(
-                    icon: Icons.bar_chart_outlined,
-                    iconColor: const Color(0xFF111827),
-                    label: 'Selected by',
-                    value: '$count guests ($percent%)',
-                  ),
-                  const SizedBox(height: 10),
-
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      height: 8,
-                      color: const Color(0xFFE5E7EB),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: progress,
-                          child: Container(color: Colors.black),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: const Color(0xFF6B7280),
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ],
         ),
-      ),
+      );
+    }
+
+    final commonBoxes = <Widget>[dietBox(), menuSearchBox(), guestBox()];
+
+    if (isPhone) {
+      final children = <Widget>[];
+      for (final b in commonBoxes) {
+        children.add(b);
+        children.add(const SizedBox(height: 12));
+      }
+      if (children.isNotEmpty) children.removeLast();
+      return Column(children: children);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 14.0;
+        final maxW = constraints.maxWidth;
+
+        // ✅ fixed-feel cards like a pro dashboard
+        final rawW = maxW >= 1200
+            ? 360.0
+            : maxW >= 900
+                ? (maxW - gap) / 2
+                : maxW;
+
+        final boxW = rawW.clamp(280.0, 420.0);
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            ...commonBoxes.map((b) => SizedBox(width: boxW, child: b)),
+          ],
+        );
+      },
     );
   }
 
-  Widget _detailRow({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: iconColor),
-        const SizedBox(width: 8),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: GoogleFonts.poppins(
-                  fontSize: 15, color: const Color(0xFF111827)),
+  Widget _buildSegmentedTabs(TabController ctrl) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+
+        final isNarrow = c.maxWidth < 520;
+        final maxW = isNarrow ? c.maxWidth : 520.0;
+
+        // Shell styling (theme-aware)
+        final shellBg = isDark ? cs.surface.withOpacity(0.65) : cs.surface;
+        final shellBorder = cs.outline.withOpacity(isDark ? 0.45 : 0.22);
+
+        // Selected styling (gradient based on theme)
+        final selGrad = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            cs.primary,
+            cs.secondary,
+          ],
+        );
+        final selFg = cs.onPrimary;
+
+        // Unselected styling
+        final unselFg = cs.onSurface;
+        final unselBg = Colors.transparent;
+
+        Widget seg({
+          required int index,
+          required String label,
+          required IconData icon,
+        }) {
+          final selected = (_tabCtrl?.index ?? 0) == index;
+
+          final child = AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? null : unselBg,
+              gradient: selected ? selGrad : null,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: cs.primary.withOpacity(isDark ? 0.25 : 0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                TextSpan(
-                  text: '$label:  ',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF111827),
-                  ),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? selFg : unselFg,
                 ),
-                TextSpan(
-                  text: value,
+                const SizedBox(width: 8),
+                Text(
+                  label,
                   style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF374151),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? selFg : unselFg,
                   ),
                 ),
               ],
             ),
+          );
+
+          final tappable = InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => ctrl.animateTo(index),
+            child: child,
+          );
+
+          return isNarrow ? Expanded(child: Center(child: tappable)) : tappable;
+        }
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxW),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: shellBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: shellBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  seg(
+                      index: 0,
+                      label: "Menu Items",
+                      icon: Icons.restaurant_menu),
+                  const SizedBox(width: 6),
+                  seg(
+                      index: 1,
+                      label: "Guest List",
+                      icon: Icons.people_alt_outlined),
+                ],
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // UI helpers
+  // ─────────────────────────────────────────────
+  Widget _pill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF111827),
         ),
-      ],
+      ),
     );
   }
 
@@ -990,6 +1322,1097 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
           fontSize: 12,
           color: const Color(0xFF6B7280),
         ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // Guest table section + table
+  // ─────────────────────────────────────────────
+  Widget _guestTableSection({
+    required List<Map<String, dynamic>> guests,
+    required List<Map<String, dynamic>> allMenuItems,
+    required String? selectedItemsLabel,
+    required int selectedItemsCount,
+    required int menuItemCountForTable,
+    required List<Map<String, dynamic>> menuItemsForExport,
+    required int totalResponses,
+  }) {
+    final filteredItemIds =
+        menuItemsForExport.map(_menuItemId).where((s) => s.isNotEmpty).toSet();
+
+    final allSelected = filteredItemIds.isNotEmpty &&
+        _selectedMenuItemIds.length == filteredItemIds.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Guest list',
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              _pill('${guests.length} guests'),
+              if (_selectedMenuItemIds.isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    selectedItemsLabel ?? '$selectedItemsCount items selected',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else
+                _pill('From $menuItemCountForTable filtered items'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (filteredItemIds.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        if (!allSelected) {
+                          _selectedMenuItemIds
+                            ..clear()
+                            ..addAll(filteredItemIds);
+                        }
+                      });
+                    },
+                    child: Text(
+                      allSelected ? 'All selected' : 'Select all',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                if (_selectedMenuItemIds.isNotEmpty)
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _selectedMenuItemIds.clear()),
+                    child: Text(
+                      'Clear items',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  style: outlineStyle,
+                  onPressed: menuItemsForExport.isEmpty
+                      ? null
+                      : () => _exportMenuItemsToExcel(
+                            menuItemsForExport,
+                            totalResponses: totalResponses,
+                          ),
+                  icon: const Icon(Icons.table_view_outlined, size: 18),
+                  label: Text('Export Menu',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                ),
+                ElevatedButton.icon(
+                  style: primaryStyle,
+                  onPressed: guests.isEmpty
+                      ? null
+                      : () => _exportGuestsToExcel(guests),
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: Text('Export Guests',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _selectedMenuItemIds.isNotEmpty
+                ? 'Showing guests who selected the selected menu items.'
+                : 'Tip: select menu item cards in the Menu tab to focus this table.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: const Color(0xFF6B7280),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (guests.isEmpty)
+            _emptyHint('No guests match your current filters.')
+          else
+            _guestDataTable(guests, allMenuItems)
+        ],
+      ),
+    );
+  }
+
+  Widget _guestDataTable(
+    List<Map<String, dynamic>> guests,
+    List<Map<String, dynamic>> allMenuItems,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tableW = constraints.maxWidth;
+
+        final baseFs = tableW < 700
+            ? 13.0
+            : tableW < 1100
+                ? 14.0
+                : 15.0;
+
+        final headStyle = GoogleFonts.poppins(
+          fontSize: baseFs + 1,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF111827),
+        );
+
+        final cellStyle = GoogleFonts.poppins(
+          fontSize: baseFs,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF111827),
+        );
+
+        final actionW = 120.0; // ✅ wider so "Download" fits
+        final nameW = (tableW * 0.26).clamp(170.0, 320.0);
+        final emailW = (tableW * 0.46).clamp(240.0, 560.0);
+        final dietW = (tableW - nameW - emailW - actionW).clamp(200.0, 280.0);
+
+        Widget headCell(String text, double w, {bool rightBorder = true}) {
+          return Container(
+            width: w,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              // ✅ no background here (row paints background)
+              border: Border(
+                right: rightBorder
+                    ? const BorderSide(color: Color(0xFFE5E7EB))
+                    : BorderSide.none,
+              ),
+            ),
+            child: Text(text, style: headStyle),
+          );
+        }
+
+        final src = _GuestDataSource(
+          guests: guests,
+          nameOf: _safeName,
+          emailOf: _safeEmail,
+          dietOf: _guestDietLabel,
+          downloadActionOf: (g) {
+            final ids = _asStringSet(g['selectedMenuItemIds']);
+            if (ids.isEmpty) return null;
+            return () => _exportSelectedMenuForGuest(
+                  guest: g,
+                  allMenuItems: allMenuItems,
+                );
+          },
+          cellStyle: cellStyle,
+          headStyle: headStyle,
+          nameW: nameW,
+          emailW: emailW,
+          dietW: dietW,
+          actionW: actionW,
+        );
+
+        final isNarrow = tableW < 900;
+        final rowsPerPage = isNarrow ? 5 : 10;
+        final safeIndex = guests.isEmpty
+            ? 0
+            : _guestFirstRowIndex.clamp(0, guests.length - 1);
+
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                cardTheme: const CardThemeData(
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  color: Colors.transparent,
+                ),
+                dividerColor: const Color(0xFFE5E7EB),
+              ),
+              child: PaginatedDataTable(
+                key: _guestTableKey, // ✅ important
+                initialFirstRowIndex: safeIndex, // ✅ important
+                headingRowColor:
+                    WidgetStateProperty.all(const Color(0xFFF3F4F6)),
+                header: null,
+                showCheckboxColumn: false,
+                rowsPerPage: rowsPerPage,
+                availableRowsPerPage: const <int>[5, 10, 20],
+                horizontalMargin: 0,
+                columnSpacing: 0,
+                headingRowHeight: 46,
+                dataRowMinHeight: 52,
+                dataRowMaxHeight: 58,
+                columns: [
+                  DataColumn(label: headCell('Name', nameW)),
+                  DataColumn(label: headCell('Email', emailW)),
+                  DataColumn(label: headCell('Diet', dietW)),
+                  DataColumn(
+                      label: headCell('Download', actionW, rightBorder: false)),
+                ],
+                source: src,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _menuCard({
+    required double cardW,
+    required double imageH,
+    required bool selected,
+    required VoidCallback? onTap,
+    required String name,
+    required String category,
+    required bool? isVeg,
+    required String? foodType,
+    required double? price,
+    required String? imageUrl,
+    required int count,
+    required int percent, // (unused now, kept to avoid refactor)
+    required VoidCallback? onDownloadGuests,
+  }) {
+    final food = _foodMeta(isVeg, foodType);
+
+    // Slight scaling for narrow cards (5-col)
+    final titleFs = cardW < 240
+        ? 14.5
+        : cardW < 280
+            ? 16.0
+            : 17.5;
+    final catFs = cardW < 240 ? 12.0 : 13.0;
+    final guestsFs = cardW < 240 ? 13.0 : 14.5;
+
+    final priceText = price != null ? '\$${price!.toStringAsFixed(0)}' : '—';
+    final downloadEnabled = onDownloadGuests != null;
+
+    final screenW = MediaQuery.sizeOf(context).width;
+    final enableHoverTooltip = screenW >= 1100; // desktop only
+    final titleMaxLines = enableHoverTooltip ? 1 : 2;
+
+    final titleWidget = Text(
+      name,
+      maxLines: titleMaxLines,
+      overflow: TextOverflow.ellipsis,
+      style: GoogleFonts.poppins(
+        fontSize: titleFs,
+        fontWeight: FontWeight.w900,
+        height: 1.15,
+        color: const Color(0xFF111827),
+      ),
+    );
+
+    final title = enableHoverTooltip
+        ? _HoverTooltip(message: name, enabled: true, child: titleWidget)
+        : titleWidget;
+
+    // Premium hover effect (web/desktop) – keeps your current “selected lift”
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: selected ? 1 : 0),
+      duration: const Duration(milliseconds: 160),
+      builder: (context, t, child) {
+        return MouseRegion(
+          cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            transform: Matrix4.translationValues(0, t * -1.5, 0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected ? Colors.black : const Color(0xFFE5E7EB),
+                width: selected ? 2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(selected ? 0.08 : 0.05),
+                  blurRadius: selected ? 18 : 14,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: onTap,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ✅ Image header
+                      SizedBox(
+                        height: imageH,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (imageUrl != null && imageUrl!.isNotEmpty)
+                              Image.network(
+                                imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _imagePlaceholder(),
+                                loadingBuilder: (_, child, progress) =>
+                                    progress == null
+                                        ? child
+                                        : _imagePlaceholder(loading: true),
+                              )
+                            else
+                              _imagePlaceholder(),
+
+                            // subtle gradient for readability
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.black.withOpacity(0.04),
+                                      Colors.black.withOpacity(0.18),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // ✅ add/check button (top-right)
+                            Positioned(
+                              right: 12,
+                              top: 12,
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.95),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.14),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  selected ? Icons.check : Icons.add,
+                                  size: 22,
+                                  color: const Color(0xFF111827),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ✅ Content
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ✅ Diet mark + title in one straight line
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _dietMark(food),
+                                const SizedBox(width: 10),
+                                Expanded(child: title),
+                              ],
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // ✅ Category + Price chip row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    category.isEmpty ? 'Other' : category,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: catFs,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Color(0xFFEEF2FF),
+                                        Color(0xFFE0E7FF)
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                        color: const Color(0xFFC7D2FE)),
+                                  ),
+                                  child: Text(
+                                    priceText,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: const Color(0xFF1E40AF),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // ✅ Guests + download button (no % now)
+                            Row(
+                              children: [
+                                const Icon(Icons.people_alt_outlined,
+                                    size: 18, color: Color(0xFF111827)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: RichText(
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '$count',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: guestsFs +
+                                                2.5, // ✅ bigger number
+                                            fontWeight: FontWeight
+                                                .w900, // ✅ bold number
+                                            color: const Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: ' guests',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: guestsFs, // ✅ normal size
+                                            fontWeight:
+                                                FontWeight.w500, // ✅ not bold
+                                            color: const Color(0xFF111827),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(width: 10),
+
+                                // ✅ Use HoverTooltip (desktop only) instead of Tooltip
+                                _HoverTooltip(
+                                  message: downloadEnabled
+                                      ? 'Download guests for this item'
+                                      : 'No guests to download',
+                                  enabled: enableHoverTooltip,
+                                  child: InkWell(
+                                    onTap: downloadEnabled
+                                        ? onDownloadGuests
+                                        : null,
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 160),
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        gradient: downloadEnabled
+                                            ? const LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  Color(0xFF2563EB),
+                                                  Color(0xFF1D4ED8),
+                                                ],
+                                              )
+                                            : const LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  Color(0xFFE5E7EB),
+                                                  Color(0xFFD1D5DB),
+                                                ],
+                                              ),
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: downloadEnabled
+                                            ? [
+                                                BoxShadow(
+                                                  color: const Color(0xFF2563EB)
+                                                      .withOpacity(0.25),
+                                                  blurRadius: 12,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ]
+                                            : [],
+                                      ),
+                                      child: Icon(
+                                        Icons.file_download_outlined,
+                                        size: 22,
+                                        color: downloadEnabled
+                                            ? Colors.white
+                                            : const Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _dietMark(FoodMeta food) {
+    // veg => green, non-veg => red, other => grey
+    final dot = food.label == 'Veg'
+        ? Colors.green.shade700
+        : food.label == 'Non-Veg'
+            ? Colors.red.shade700
+            : Colors.grey.shade600;
+
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Center(
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // Build (tabs + content)
+  // ─────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final menu = _asMap(_data?['menu']);
+    final menuResponses = _toInt(menu['responses']);
+
+    final items = _asMapList(menu['items'])
+      ..sort((a, b) => _toInt(b['count']) - _toInt(a['count']));
+
+    final guestSelections = _asGuestSelections(menu['guestSelections']);
+
+    final lastUpdated = _loadedAt == null
+        ? null
+        : DateFormat('dd MMM, HH:mm').format(_loadedAt!);
+
+    const int limit = 12;
+
+    final selectedIds = _selectedGuest == null
+        ? null
+        : _asStringSet(_selectedGuest?['selectedMenuItemIds']);
+
+    final mq = _menuSearchCtrl.text.trim().toLowerCase();
+
+    final filteredItems = items.where((m) {
+      if (mq.isNotEmpty) {
+        final n = (m['name'] ?? '').toString().trim().toLowerCase();
+        final cat = (m['categoryLabel'] ?? m['category'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (!n.contains(mq) && !cat.contains(mq)) return false;
+      }
+
+      if (selectedIds != null) {
+        final id = _menuItemId(m);
+        if (id.isEmpty) return false;
+        if (!selectedIds.contains(id)) return false;
+      }
+
+      if (!_matchesDiet(m)) return false;
+      return true;
+    }).toList();
+
+    final filteredItemIds = filteredItems
+        .map((m) => (m['id'] ?? m['menuItemId'] ?? '').toString().trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
+    final activeMenuItemIds = _selectedMenuItemIds.isEmpty
+        ? filteredItemIds
+        : _selectedMenuItemIds.intersection(filteredItemIds);
+
+    final selectedGuestKey =
+        _selectedGuest == null ? null : _guestKey(_selectedGuest!);
+
+    final filteredGuests = guestSelections.where((g) {
+      if (!_matchesGuestDiet(g)) return false;
+
+      if (selectedGuestKey != null && _guestKey(g) != selectedGuestKey)
+        return false;
+
+      if (activeMenuItemIds.isEmpty) return false;
+      final ids = _asStringSet(g['selectedMenuItemIds']);
+      return ids.any(activeMenuItemIds.contains);
+    }).toList()
+      ..sort((a, b) =>
+          _safeName(a).toLowerCase().compareTo(_safeName(b).toLowerCase()));
+
+    String? selectedItemsLabel;
+    if (_selectedMenuItemIds.isNotEmpty) {
+      final names = items
+          .where((m) => _selectedMenuItemIds.contains(_menuItemId(m)))
+          .map((m) => (m['name'] ?? '').toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      if (names.isEmpty) {
+        selectedItemsLabel = '${_selectedMenuItemIds.length} items selected';
+      } else if (_selectedMenuItemIds.length <= 2) {
+        selectedItemsLabel = names.take(2).join(', ');
+      } else {
+        selectedItemsLabel = '${_selectedMenuItemIds.length} items selected';
+      }
+    }
+
+    final shownCount = _showAll
+        ? filteredItems.length
+        : (filteredItems.length > limit ? limit : filteredItems.length);
+
+    final tabCtrl = _tabCtrl; // local
+    final isMenuTab = (_tabCtrl?.index ?? 0) == 0;
+    final isGuestTab = (_tabCtrl?.index ?? 0) == 1;
+
+    final screenW = MediaQuery.sizeOf(context).width;
+
+    final hPad = screenW >= 1200 ? 28.0 : 16.0;
+
+    return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 40),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: double.infinity,
+            child: Container(
+              // ✅ keep your existing container style here
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // header
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Menu analyzer',
+                              style: GoogleFonts.poppins(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (lastUpdated != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Updated • $lastUpdated',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  if (_loading) ...[
+                    Text(
+                      'Loading analytics...',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const LinearProgressIndicator(minHeight: 3),
+                  ] else if (_error != null) ...[
+                    Text(
+                      'Failed to load',
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _error!,
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.red.shade700),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: Text('Try again', style: GoogleFonts.poppins()),
+                    ),
+                  ] else if (menuResponses == 0 || items.isEmpty) ...[
+                    _emptyHint('No menu selections yet.'),
+                  ] else ...[
+                    _buildFilters(guestSelections: guestSelections),
+
+                    const SizedBox(height: 16),
+
+                    // Tabs
+                    if (tabCtrl != null) _buildSegmentedTabs(tabCtrl),
+
+                    const SizedBox(height: 16),
+
+                    if (isGuestTab) ...[
+                      _buildGuestDietBelowTabs(),
+                      const SizedBox(height: 16),
+                    ],
+
+                    if (isMenuTab) ...[
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Menu item responses',
+                            style: GoogleFonts.poppins(
+                                fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            '$menuResponses responses',
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, color: const Color(0xFF6B7280)),
+                          ),
+                          if (_selectedGuest != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(999)),
+                              child: Text(
+                                'Guest: ${(_selectedGuest?['name'] ?? _selectedGuest?['guestName'] ?? '').toString()}',
+                                style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12),
+                              ),
+                            ),
+                          if (filteredItems.length > limit)
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _showAll = !_showAll),
+                              child: Text(
+                                _showAll ? 'Show top $limit' : 'Show all',
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (filteredItems.isEmpty)
+                        _emptyHint('No items match your filters.')
+                      else
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final w = constraints.maxWidth;
+
+                            int cols;
+                            if (w < 520)
+                              cols = 2;
+                            else if (w < 760)
+                              cols = 3;
+                            else if (w < 1100)
+                              cols = 4;
+                            else
+                              cols = 5;
+
+                            const cross = 16.0;
+                            const main = 16.0;
+
+                            final cardW = (w - (cols - 1) * cross) / cols;
+
+                            final imageH = (cardW * 0.48).clamp(120.0, 160.0);
+
+                            final contentH = cardW < 250
+                                ? 170.0
+                                : cardW < 290
+                                    ? 160.0
+                                    : 150.0;
+
+                            final cardH = imageH + contentH + 10;
+
+                            return GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount:
+                                  _showAll ? filteredItems.length : shownCount,
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: cols,
+                                crossAxisSpacing: cross,
+                                mainAxisSpacing: main,
+                                mainAxisExtent:
+                                    cardH, // ✅ now it scales correctly
+                              ),
+                              itemBuilder: (_, idx) {
+                                final m = filteredItems[idx];
+
+                                final name =
+                                    (m['name'] ?? 'Menu item').toString();
+                                final category = _prettyCategory(
+                                  (m['categoryLabel'] ?? m['category'] ?? '')
+                                      .toString(),
+                                );
+
+                                final isVeg = m['isVeg'] is bool
+                                    ? (m['isVeg'] as bool)
+                                    : null;
+                                final foodType =
+                                    (m['foodType'] ?? '').toString().trim();
+                                final price = _toDouble(m['price']);
+                                final imageUrl =
+                                    (m['imageUrl'] ?? '').toString().trim();
+
+                                final count = _toInt(m['count']);
+                                final pct = menuResponses <= 0
+                                    ? 0
+                                    : ((count / menuResponses) * 100).round();
+
+                                final itemId =
+                                    (m['id'] ?? m['menuItemId'] ?? '')
+                                        .toString()
+                                        .trim();
+                                final guestsForThisItem =
+                                    _guestsForMenuItem(itemId, guestSelections);
+                                final file =
+                                    'guests_${_safeFileName(name)}.xlsx';
+
+                                return _menuCard(
+                                  cardW: cardW,
+                                  imageH: imageH,
+                                  selected: itemId.isNotEmpty &&
+                                      _selectedMenuItemIds.contains(itemId),
+                                  onTap: itemId.isEmpty
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            if (_selectedMenuItemIds
+                                                .contains(itemId)) {
+                                              _selectedMenuItemIds
+                                                  .remove(itemId);
+                                            } else {
+                                              _selectedMenuItemIds.add(itemId);
+                                            }
+                                            _resetGuestTable(); // ✅ if you added the table reset earlier
+                                          });
+                                        },
+                                  name: name,
+                                  category: category,
+                                  isVeg: isVeg,
+                                  foodType: foodType.isEmpty ? null : foodType,
+                                  price: price,
+                                  imageUrl: imageUrl.isEmpty ? null : imageUrl,
+                                  count: count,
+                                  percent: pct,
+                                  onDownloadGuests: guestsForThisItem.isEmpty
+                                      ? null
+                                      : () => _exportGuestsToExcel(
+                                          guestsForThisItem,
+                                          fileName: file),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                    ],
+
+                    if (isGuestTab) ...[
+                      _guestTableSection(
+                        guests: filteredGuests,
+                        allMenuItems: items,
+                        selectedItemsLabel: selectedItemsLabel,
+                        selectedItemsCount: _selectedMenuItemIds.length,
+                        menuItemCountForTable: activeMenuItemIds.length,
+                        menuItemsForExport: filteredItems,
+                        totalResponses: menuResponses,
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ));
+  }
+}
+
+class _HoverTooltip extends StatefulWidget {
+  final String message;
+  final Widget child;
+  final bool enabled;
+
+  const _HoverTooltip({
+    super.key,
+    required this.message,
+    required this.child,
+    required this.enabled,
+  });
+
+  @override
+  State<_HoverTooltip> createState() => _HoverTooltipState();
+}
+
+class _HoverTooltipState extends State<_HoverTooltip> {
+  final LayerLink _link = LayerLink();
+  OverlayEntry? _entry;
+
+  void _show() {
+    if (!widget.enabled || _entry != null) return;
+
+    _entry = OverlayEntry(
+      builder: (context) {
+        // ✅ Fill overlay but keep tooltip bubble unconstrained
+        return Positioned.fill(
+          child: IgnorePointer(
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              child: CompositedTransformFollower(
+                link: _link,
+                showWhenUnlinked: false,
+                offset: const Offset(0, -8),
+                targetAnchor: Alignment.topLeft,
+                followerAnchor: Alignment.bottomLeft,
+                child: Material(
+                  color: Colors.transparent,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 12,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        widget.message,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context, rootOverlay: true).insert(_entry!);
+  }
+
+  void _hide() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _link,
+      child: MouseRegion(
+        onEnter: (_) => _show(),
+        onExit: (_) => _hide(),
+        child: widget.child,
       ),
     );
   }

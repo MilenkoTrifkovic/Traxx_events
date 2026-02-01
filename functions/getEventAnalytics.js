@@ -395,6 +395,94 @@ export const getEventAnalytics = onCall(async (request) => {
     g.dietType = computeGuestDietType(ids);
   });
 
+  // ✅ 8) Hydrate guest details for the table (name / email / address / gender)
+  // We try (in order): guests/{guestId} doc -> invitation main/companion fields -> existing selection fields.
+  async function hydrateGuestDetails(list) {
+    const invIds = Array.from(
+      new Set(list.map((g) => safeStr(g.invitationId)).filter(Boolean))
+    );
+
+    const invById = new Map();
+    if (invIds.length) {
+      const invRefs = invIds.map((id) => db.collection("invitations").doc(id));
+      const invSnaps = await db.getAll(...invRefs);
+      invSnaps.forEach((s) => {
+        if (s.exists) invById.set(s.id, s.data() || {});
+      });
+    }
+
+    // Collect guestIds to fetch guest docs
+    const guestIds = new Set();
+    for (const g of list) {
+      const inv = invById.get(safeStr(g.invitationId)) || {};
+      const ci = g.companionIndex;
+
+      if (ci != null) {
+        const comps = Array.isArray(inv.companions) ? inv.companions : [];
+        const c = comps[Number(ci)] || comps.find((x) => Number(x?.companionIndex) === Number(ci)) || null;
+        const gid = safeStr(c?.guestId || c?.id);
+        if (gid) guestIds.add(gid);
+      } else {
+        const gid = safeStr(inv.guestId || g.guestId);
+        if (gid) guestIds.add(gid);
+      }
+    }
+
+    const guestById = new Map();
+    const guestIdArr = Array.from(guestIds);
+    for (const batch of chunk(guestIdArr, 10)) {
+      if (!batch.length) continue;
+      const snap = await db
+        .collection("guests")
+        .where(FieldPath.documentId(), "in", batch)
+        .get();
+      snap.forEach((d) => guestById.set(d.id, d.data() || {}));
+    }
+
+    for (const g of list) {
+      const inv = invById.get(safeStr(g.invitationId)) || {};
+      const ci = g.companionIndex;
+
+      let base = null;
+      let gid = null;
+
+      if (ci != null) {
+        const comps = Array.isArray(inv.companions) ? inv.companions : [];
+        const c = comps[Number(ci)] || comps.find((x) => Number(x?.companionIndex) === Number(ci)) || null;
+        base = c || null;
+        gid = safeStr(base?.guestId || base?.id);
+      } else {
+        base = inv;
+        gid = safeStr(inv.guestId || g.guestId);
+      }
+
+      if (gid) g.guestId = gid;
+      const gd = gid ? guestById.get(gid) || null : null;
+
+      // Prefer guest doc values; fallback to invitation; then keep existing selection fields.
+      g.name = safeStr(gd?.name || gd?.guestName || base?.guestName || base?.name || g.name || g.guestName || "Guest") || "Guest";
+      g.guestName = g.name;
+
+      const email = safeStr(gd?.email || gd?.guestEmail || base?.guestEmail || base?.email || g.email || g.guestEmail);
+      g.email = email || null;
+      g.guestEmail = email || null;
+
+      const address = safeStr(gd?.address || gd?.street || base?.address || base?.street || "");
+      const city = safeStr(gd?.city || base?.city || "");
+      const state = safeStr(gd?.state || base?.state || "");
+      const country = safeStr(gd?.country || base?.country || "");
+      const gender = safeStr(gd?.gender || base?.gender || "");
+
+      g.address = address || null;
+      g.city = city || null;
+      g.state = state || null;
+      g.country = country || null;
+      g.gender = gender || null;
+    }
+  }
+
+  await hydrateGuestDetails(guestSelections);
+
   console.log(
     "👤 guestSelections:",
     guestSelections.length,

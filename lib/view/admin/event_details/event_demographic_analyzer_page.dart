@@ -7,7 +7,12 @@ import 'package:traxx_wepapp/services/cloud_functions_services.dart';
 
 class EventDemographicAnalyzerPage extends StatefulWidget {
   final String eventId;
-  const EventDemographicAnalyzerPage({super.key, required this.eventId});
+  final bool embedded;
+  const EventDemographicAnalyzerPage({
+    super.key,
+    required this.eventId,
+    this.embedded = false,
+  });
 
   @override
   State<EventDemographicAnalyzerPage> createState() =>
@@ -119,11 +124,6 @@ class _EventDemographicAnalyzerPageState
             // header row
             Row(
               children: [
-                IconButton(
-                  onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                const SizedBox(width: 6),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,10 +139,6 @@ class _EventDemographicAnalyzerPageState
                       ],
                     ],
                   ),
-                ),
-                IconButton(
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh),
                 ),
               ],
             ),

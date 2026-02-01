@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
+import 'package:traxx_wepapp/view/admin/event_details/event_demographic_analyzer_page.dart';
+import 'package:traxx_wepapp/view/admin/event_details/event_menu_analyzer_page.dart';
 
 class AdminEventAnalyzerPage extends StatefulWidget {
   final String eventId;
@@ -13,7 +15,8 @@ class AdminEventAnalyzerPage extends StatefulWidget {
   State<AdminEventAnalyzerPage> createState() => _AdminEventAnalyzerPageState();
 }
 
-class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
+class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
+    with SingleTickerProviderStateMixin {
   late final CloudFunctionsService _svc;
 
   bool _loading = true;
@@ -21,11 +24,23 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
   Map<String, dynamic>? _data;
   DateTime? _loadedAt;
 
+  TabController? _tabCtrl;
+
   @override
   void initState() {
     super.initState();
     _svc = Get.find<CloudFunctionsService>();
+    _tabCtrl = TabController(length: 2, vsync: this)
+      ..addListener(() {
+        if (mounted) setState(() {});
+      });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl?.dispose();
+    super.dispose();
   }
 
   int _toInt(dynamic v) {
@@ -64,6 +79,109 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
     }
   }
 
+  Widget _segmentedTabs(TabController ctrl) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+
+        final isNarrow = c.maxWidth < 520;
+        final maxW = isNarrow ? c.maxWidth : 520.0;
+
+        final shellBg = isDark ? cs.surface.withOpacity(0.65) : cs.surface;
+        final shellBorder = cs.outline.withOpacity(isDark ? 0.45 : 0.22);
+
+        final selGrad = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cs.primary, cs.secondary],
+        );
+
+        Widget seg({
+          required int index,
+          required String label,
+          required IconData icon,
+        }) {
+          final selected = (ctrl.index == index);
+
+          final child = AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: selected ? selGrad : null,
+              color: selected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: cs.primary.withOpacity(isDark ? 0.25 : 0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? cs.onPrimary : cs.onSurface,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? cs.onPrimary : cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          final tappable = InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => ctrl.animateTo(index),
+            child: child,
+          );
+
+          return isNarrow ? Expanded(child: Center(child: tappable)) : tappable;
+        }
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxW),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: shellBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: shellBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  seg(
+                      index: 0,
+                      label: "Demographics",
+                      icon: Icons.assignment_outlined),
+                  const SizedBox(width: 6),
+                  seg(index: 1, label: "Menu", icon: Icons.restaurant_menu),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inv = _asMap(_data?['invitations']);
@@ -82,10 +200,12 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
         ? null
         : DateFormat('dd MMM, HH:mm').format(_loadedAt!);
 
+    final tabCtrl = _tabCtrl;
+
     return TooltipVisibility(
-      visible: false, // ✅ prevents web tooltip overlay crash
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      visible: false, // ✅ keeps web tooltip crashes away
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -198,51 +318,59 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
                     _statTile('Menu done', menuDone, totalInv),
                   ],
                 ),
+
                 const SizedBox(height: 18),
                 const Divider(height: 1),
                 const SizedBox(height: 18),
-                Text(
-                  'Analyze responses',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
+
+                // ✅ Tabs instead of nav cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Analyze responses',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    _pill(demoResponses == 0
+                        ? 'No demo yet'
+                        : '$demoResponses demo'),
+                    const SizedBox(width: 8),
+                    _pill(menuResponses == 0
+                        ? 'No menu yet'
+                        : '$menuResponses menu'),
+                  ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
+
+                if (tabCtrl != null) _segmentedTabs(tabCtrl),
+                const SizedBox(height: 14),
+
+                // ✅ Tab content fills remaining height; each tab page can scroll internally
+                // ✅ Give TabBarView a real bounded height (prevents unbounded flex error)
                 LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isNarrow = constraints.maxWidth < 920;
+                  builder: (context, c) {
+                    final screenH = MediaQuery.sizeOf(context).height;
 
-                    final demoCard = _demographicAnalyzerNavCard(
-                      responses: demoResponses,
-                      onTap: () => context.push(
-                        '/event-details/${widget.eventId}/demographic-analyzer',
-                      ),
-                    );
+                    // A good height that works on desktop + mobile
+                    // (You can tweak 0.72 -> 0.80 depending on how tall you want it)
+                    final h = (screenH * 0.72).clamp(520.0, 900.0);
 
-                    final menuCard = _menuItemsAnalyzerNavCard(
-                      responses: menuResponses,
-                      onTap: () => context.push(
-                        '/event-details/${widget.eventId}/menu-analyzer',
-                      ),
-                    );
-
-                    if (isNarrow) {
-                      return Column(
+                    return SizedBox(
+                      height: h,
+                      child: TabBarView(
+                        controller: tabCtrl,
+                        physics: const NeverScrollableScrollPhysics(),
                         children: [
-                          demoCard,
-                          const SizedBox(height: 12),
-                          menuCard,
+                          EventDemographicAnalyzerPage(
+                              eventId: widget.eventId, embedded: true),
+                          EventMenuAnalyzerPage(
+                              eventId: widget.eventId, embedded: true),
                         ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(child: demoCard),
-                        const SizedBox(width: 14),
-                        Expanded(child: menuCard),
-                      ],
+                      ),
                     );
                   },
                 ),
@@ -254,104 +382,20 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage> {
     );
   }
 
-  // ✅ separate card for Demographic analyzer
-  Widget _demographicAnalyzerNavCard({
-    required int responses,
-    required VoidCallback onTap,
-  }) {
-    return _baseAnalyzerNavCard(
-      title: 'Demographic analyzer',
-      subtitle: responses == 0 ? 'No responses yet' : '$responses responses',
-      icon: Icons.assignment_outlined,
-      pillText: 'View',
-      onTap: onTap,
-    );
-  }
-
-  // ✅ separate card for Menu items analyzer
-  Widget _menuItemsAnalyzerNavCard({
-    required int responses,
-    required VoidCallback onTap,
-  }) {
-    return _baseAnalyzerNavCard(
-      title: 'Menu items analyzer',
-      subtitle: responses == 0 ? 'No selections yet' : '$responses responses',
-      icon: Icons.restaurant_menu,
-      pillText: 'View',
-      onTap: onTap,
-    );
-  }
-
-  // shared base UI
-  Widget _baseAnalyzerNavCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String pillText,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Icon(icon, size: 22, color: const Color(0xFF111827)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: const Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                pillText,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
+  Widget _pill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF111827),
         ),
       ),
     );
