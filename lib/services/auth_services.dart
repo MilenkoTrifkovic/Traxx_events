@@ -161,6 +161,28 @@ class AuthServices {
     }
   }
 
+  /// Verifies a password reset code (oobCode) from email link.
+  /// Returns the email address associated with the code.
+  Future<String> verifyPasswordResetCode(String code) async {
+    try {
+      return await _auth.verifyPasswordResetCode(code);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
+  /// Confirms password reset using the code and new password.
+  Future<void> confirmPasswordReset({
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      await _auth.confirmPasswordReset(code: code, newPassword: newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
   Future<void> signUpAdmin() async {
     // Add your sign-up logic here
   }

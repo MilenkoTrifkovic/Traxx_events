@@ -485,7 +485,7 @@ class _EventHostsSectionState extends State<EventHostsSection> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Host created & assigned. Send verification from the table.'),
+              'Host created successfully. A password setup email has been sent.'),
         ),
       );
     }

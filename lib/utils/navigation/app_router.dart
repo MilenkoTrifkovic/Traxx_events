@@ -44,6 +44,7 @@ import 'package:traxx_wepapp/features/admin/admin_user_management/view/admin_use
 import 'package:traxx_wepapp/view/admin/widgets/sidebar.dart';
 import 'package:traxx_wepapp/view/admin/widgets/sidebar_nav_tiles.dart';
 import 'package:traxx_wepapp/view/authentication/login/email_verification_view.dart';
+import 'package:traxx_wepapp/view/authentication/login/reset_password_page.dart';
 import 'package:traxx_wepapp/view/guest/guest_event_details.dart';
 import 'package:traxx_wepapp/view/guest/respond/respond_screen.dart';
 import 'package:traxx_wepapp/view/admin/create_event/create_edit_event_view.dart';
@@ -198,6 +199,17 @@ GoRouter buildRouter() {
           return null;
         },
         builder: (context, state) => EmailVerificationView(),
+      ),
+
+      // ─────────────────────────────────────────────
+      // ✅ RESET PASSWORD ROUTE (public - for Host setup)
+      // ─────────────────────────────────────────────
+      GoRoute(
+        path: AppRoute.resetPassword.path,
+        builder: (context, state) {
+          final oobCode = state.uri.queryParameters['oobCode'] ?? '';
+          return ResetPasswordPage(oobCode: oobCode);
+        },
       ),
 
       GoRoute(
