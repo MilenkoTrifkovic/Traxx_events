@@ -8,8 +8,6 @@ import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/companion
 import 'package:traxx_wepapp/features/guest/rsvp_response/view/widgets/companions_widgets/companions_info_empty_view.dart';
 import 'package:traxx_wepapp/layout/guest_layout/controllers/guest_layout_controller.dart';
 import 'package:traxx_wepapp/models/event.dart';
-import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/utils/response_flow_helper.dart';
 
 class CompaignonsInfoPage extends StatefulWidget {

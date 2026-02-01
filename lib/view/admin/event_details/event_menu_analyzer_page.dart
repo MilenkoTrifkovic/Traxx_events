@@ -20,6 +20,10 @@ class FoodMeta {
 
 enum DietFilter { all, veg, nonVeg }
 
+enum GuestDietType { all, veg, nonVeg, both }
+
+GuestDietType _guestDietType = GuestDietType.all;
+
 class EventMenuAnalyzerPage extends StatefulWidget {
   final String eventId;
   const EventMenuAnalyzerPage({super.key, required this.eventId});
@@ -43,6 +47,23 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
 
   final TextEditingController _guestSearchCtrl = TextEditingController();
   Map<String, dynamic>? _selectedGuest; // {name, selectedMenuItemIds}
+  bool _matchesGuestDiet(Map<String, dynamic> g) {
+    if (_guestDietType == GuestDietType.all) return true;
+
+    var dt = (g['dietType'] ?? '').toString().trim().toLowerCase();
+    dt = dt.replaceAll('_', '').replaceAll('-', '').replaceAll(' ', '');
+
+    if (_guestDietType == GuestDietType.veg) {
+      return dt == 'veg' || dt == 'vegetarian';
+    }
+    if (_guestDietType == GuestDietType.nonVeg) {
+      return dt == 'nonveg' || dt.startsWith('non');
+    }
+    if (_guestDietType == GuestDietType.both) {
+      return dt == 'both';
+    }
+    return true;
+  }
 
   @override
   void initState() {
@@ -88,13 +109,16 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   }
 
   List<Map<String, dynamic>> _asGuestSelections(dynamic v) {
-    // Expect from CF: menu.guestSelections = [{ name, invitationId?, selectedMenuItemIds: [] }]
+    // Accept either {name} or {guestName} (and email fallbacks)
     if (v is List) {
       return v
           .where((e) => e is Map)
           .map((e) => Map<String, dynamic>.from(e as Map))
-          .where((m) => (m['name'] ?? '').toString().trim().isNotEmpty)
-          .toList();
+          .where((m) {
+        final n = (m['name'] ?? m['guestName'] ?? '').toString().trim();
+        final em = (m['email'] ?? m['guestEmail'] ?? '').toString().trim();
+        return n.isNotEmpty || em.isNotEmpty;
+      }).toList();
     }
     return <Map<String, dynamic>>[];
   }
@@ -213,41 +237,32 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
   }) {
     final isPhone = MediaQuery.sizeOf(context).width < 700;
 
-    final q = _guestSearchCtrl.text.trim().toLowerCase();
-
-    final suggestions = (_selectedGuest != null || q.isEmpty)
-        ? <Map<String, dynamic>>[]
-        : guestSelections.where((g) {
-            final name = (g['name'] ?? g['guestName'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-            final email = (g['email'] ?? g['guestEmail'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-            return name.contains(q) || email.contains(q);
-          }).toList();
-
-    Widget dietBox() {
-      Widget chip(String text, bool selected, VoidCallback onTap) {
-        return ChoiceChip(
-          checkmarkColor: Colors.white,
-          label: Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 12.5,
-            ),
+    Widget chip({
+      required String text,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return ChoiceChip(
+        checkmarkColor: Colors.white,
+        label: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
           ),
-          selected: selected,
-          onSelected: (_) => onTap(),
-          selectedColor: Colors.black,
-          backgroundColor: const Color(0xFFF3F4F6),
-          labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
-        );
-      }
+        ),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: Colors.black,
+        backgroundColor: const Color(0xFFF3F4F6),
+        labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
+      );
+    }
 
+    // ─────────────────────────────
+    // ITEM DIET BOX (filters cards)
+    // ─────────────────────────────
+    Widget dietBox() {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -272,19 +287,19 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
               runSpacing: 10,
               children: [
                 chip(
-                  'All',
-                  _dietFilter == DietFilter.all,
-                  () => setState(() => _dietFilter = DietFilter.all),
+                  text: 'All',
+                  selected: _dietFilter == DietFilter.all,
+                  onTap: () => setState(() => _dietFilter = DietFilter.all),
                 ),
                 chip(
-                  'Veg',
-                  _dietFilter == DietFilter.veg,
-                  () => setState(() => _dietFilter = DietFilter.veg),
+                  text: 'Veg',
+                  selected: _dietFilter == DietFilter.veg,
+                  onTap: () => setState(() => _dietFilter = DietFilter.veg),
                 ),
                 chip(
-                  'Non-Veg',
-                  _dietFilter == DietFilter.nonVeg,
-                  () => setState(() => _dietFilter = DietFilter.nonVeg),
+                  text: 'Non-Veg',
+                  selected: _dietFilter == DietFilter.nonVeg,
+                  onTap: () => setState(() => _dietFilter = DietFilter.nonVeg),
                 ),
               ],
             ),
@@ -293,7 +308,26 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
       );
     }
 
+    // ─────────────────────────────
+    // GUEST BOX (search only)
+    // ─────────────────────────────
     Widget guestBox() {
+      final q = _guestSearchCtrl.text.trim().toLowerCase();
+
+      final suggestions = (_selectedGuest != null || q.isEmpty)
+          ? <Map<String, dynamic>>[]
+          : guestSelections.where((g) {
+              final name = (g['name'] ?? g['guestName'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              final email = (g['email'] ?? g['guestEmail'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              return name.contains(q) || email.contains(q);
+            }).toList();
+
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -333,7 +367,10 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              (_selectedGuest?['name'] ?? '').toString(),
+                              (_selectedGuest?['name'] ??
+                                      _selectedGuest?['guestName'] ??
+                                      '')
+                                  .toString(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
@@ -353,13 +390,13 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                         _guestSearchCtrl.clear();
                       });
                     },
-                    child: Text('Clear',
-                        style:
-                            GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+                    child: Text(
+                      'Clear',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
             ] else ...[
               TextField(
                 controller: _guestSearchCtrl,
@@ -382,8 +419,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
-
-              // Suggestions list (inline, no overlay)
               if (suggestions.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 ConstrainedBox(
@@ -400,13 +435,21 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (_, i) {
                         final g = suggestions[i];
-                        final name = (g['name'] ?? '').toString();
+                        final name = (g['name'] ??
+                                g['guestName'] ??
+                                g['email'] ??
+                                g['guestEmail'] ??
+                                '')
+                            .toString();
+
                         return ListTile(
                           dense: true,
                           leading: const Icon(Icons.person_outline),
-                          title: Text(name,
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w700)),
+                          title: Text(
+                            name,
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700),
+                          ),
                           onTap: () {
                             setState(() {
                               _selectedGuest = g;
@@ -419,19 +462,19 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                   ),
                 ),
               ],
-
               if (_guestSearchCtrl.text.trim().isNotEmpty &&
-                  suggestions.isEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'No guests match your search.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
+                  suggestions.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    'No guests match your search.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6B7280),
+                    ),
                   ),
                 ),
-              ],
             ],
           ],
         ),
@@ -481,13 +524,16 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
         : _asStringSet(_selectedGuest?['selectedMenuItemIds']);
 
     final filteredItems = items.where((m) {
-      if (!_matchesDiet(m)) return false;
-
+      // 1) Guest filter
       if (selectedIds != null) {
         final id = (m['id'] ?? m['menuItemId'] ?? '').toString().trim();
         if (id.isEmpty) return false;
         if (!selectedIds.contains(id)) return false;
       }
+
+      // 2) Diet filter on the remaining items
+      if (!_matchesDiet(m)) return false;
+
       return true;
     }).toList();
 
@@ -623,7 +669,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage> {
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
-                                'Guest: ${(_selectedGuest?['name'] ?? '').toString()}',
+                                'Guest: ${(_selectedGuest?['name'] ?? _selectedGuest?['guestName'] ?? '').toString()}',
                                 style: GoogleFonts.poppins(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,

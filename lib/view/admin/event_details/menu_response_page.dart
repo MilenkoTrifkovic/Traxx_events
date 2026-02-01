@@ -5,11 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:traxx_wepapp/models/menu_item.dart';
 import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-
 import 'menus_widgets/menu_widgets.dart';
-
-// assumes MenuSelectionController, MenuGroupDto, MenuItemDto are imported
-// import 'menu_selection_controller.dart';
 
 class GuestMenuSelectionPage extends StatefulWidget {
   final String? invitationId;

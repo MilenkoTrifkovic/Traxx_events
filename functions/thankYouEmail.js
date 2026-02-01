@@ -6,8 +6,8 @@ import { db } from "./admin.js";
 
 export const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "developer@trax-event.com";
-const FROM_NAME = process.env.FROM_NAME || "Trax Events";
+const FROM_EMAIL = "developer@trax-event.com";
+const FROM_NAME = "Trax Events";
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://trax-event.app";
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
 

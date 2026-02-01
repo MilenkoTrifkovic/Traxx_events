@@ -61,7 +61,7 @@ class ContactView extends StatelessWidget {
                           AppSpacing.verticalMd(context),
                           AppSpacing.verticalMd(context),
                           AppText.styledBodyLarge(context,
-                              "For further assistance with Traxx Event,\nplease use the chat feature by clicking on the chat icon in the right bottom of this screen",
+                              "For further assistance with Trax Event,\nplease use the chat feature by clicking on the chat icon in the right bottom of this screen",
                               weight: FontWeight.bold,
                               color: AppColors.onPrimary(context),
                               textAlign: TextAlign.center),
