@@ -1,12 +1,58 @@
-# Node
+# =========================
+# Node / Firebase Functions
+# =========================
 node_modules/
 **/node_modules/
 
-# Dart/Flutter web build artifacts (optional but recommended)
+# =========================
+# Flutter / Dart build + tool artifacts
+# =========================
 build/
 .dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
 
+# =========================
+# Flutter web build artifacts (optional)
+# =========================
+/build/
+
+# =========================
+# Flutter desktop ephemeral (generated)
+# =========================
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# =========================
+# Web-only repo: do not track platform folders
+# (Remove these folders from repo if already tracked)
+# =========================
+android/
+ios/
+macos/
+linux/
+windows/
+
+# =========================
+# Firebase local CLI/state directory
+# =========================
+.firebase/
+
+# =========================
+# Secrets / env files
+# =========================
+.env
+.env.*
+dotenv
+migrate_working_dir/
+
+# =========================
 # Miscellaneous
+# =========================
 *.class
 *.log
 *.pyc
@@ -16,49 +62,40 @@ build/
 .buildlog/
 .history
 .svn/
-.env
-migrate_working_dir/
 
-# IntelliJ related
+# =========================
+# IntelliJ / Android Studio
+# =========================
 *.iml
 *.ipr
 *.iws
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-/build/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
 
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
 
-# Firebase local CLI/state directory
-.firebase/
+# =========================
+# Dart doc output
+# =========================
+**/doc/api/
+**/ios/Flutter/.last_build_id
 
-# Flutter desktop ephemeral (generated)
-linux/flutter/ephemeral/
-macos/Flutter/ephemeral/
-windows/flutter/ephemeral/
+# =========================
+# Symbolication / Obfuscation
+# =========================
+app.*.symbols
+app.*.map.json
 
+# =========================
+# VS Code
+# Keep only workspace settings if you want
+# =========================
 .vscode/*
 !.vscode/settings.json
+
+# =========================
+# (Optional) If you ever add generated JS maps, caches, etc.
+# =========================
+*.map
