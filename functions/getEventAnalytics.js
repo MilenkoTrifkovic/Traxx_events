@@ -16,27 +16,69 @@ function safeStr(x) {
 function inc(map, key, by = 1) {
   if (!key) return;
   map[key] = (map[key] ?? 0) + by;
-}
+} 
 
-function normalizeSingleChoiceAnswer(raw) {
-  if (raw == null) return null;
-  if (typeof raw === "string") return { value: raw, freeText: null };
-  if (typeof raw === "object") {
-    const value = safeStr(raw.value);
-    const freeText = safeStr(raw.freeText || "");
-    return { value: value || null, freeText: freeText || null };
+function normalizeIds(arr) {
+  const out = [];
+  const seen = new Set();
+  for (const x of Array.isArray(arr) ? arr : []) {
+    const id = safeStr(x);
+    if (!id) continue;
+    if (seen.add(id)) out.push(id);
   }
-  return { value: safeStr(raw) || null, freeText: null };
+  return out;
 }
 
-function normalizeCheckboxAnswer(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((x) => ({
-      value: safeStr(x?.value),
-      freeText: safeStr(x?.freeText || ""),
-    }))
-    .filter((x) => x.value);
+function collectGroupSelectionsIds(groupSelections) {
+  // supports:
+  // 1) groupSelections: [{ itemIds: [...] }, ...]
+  // 2) groupSelections: { groupA: { itemIds: [...] }, groupB: { itemIds: [...] } }
+  // 3) groupSelections: { groupA: [...ids], groupB: [...ids] }
+  const out = [];
+  const pushIds = (maybeIds) => {
+    for (const id of normalizeIds(maybeIds)) out.push(id);
+  };
+
+  if (Array.isArray(groupSelections)) {
+    for (const g of groupSelections) {
+      if (!g) continue;
+      if (Array.isArray(g.itemIds)) pushIds(g.itemIds);
+      else if (Array.isArray(g.selectedMenuItemIds)) pushIds(g.selectedMenuItemIds);
+      else if (Array.isArray(g.items)) pushIds(g.items);
+    }
+    return normalizeIds(out);
+  }
+
+  if (groupSelections && typeof groupSelections === "object") {
+    for (const v of Object.values(groupSelections)) {
+      if (!v) continue;
+      if (Array.isArray(v)) pushIds(v);
+      else if (typeof v === "object") {
+        if (Array.isArray(v.itemIds)) pushIds(v.itemIds);
+        else if (Array.isArray(v.selectedMenuItemIds)) pushIds(v.selectedMenuItemIds);
+      }
+    }
+    return normalizeIds(out);
+  }
+
+  return [];
+}
+
+function parseCompanionIndexFromDocId(docId) {
+  const m = safeStr(docId).match(/_companion_(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+function guestKeyForSelection({ invitationId, guestEmail, guestName, companionIndex }) {
+  const ciStr = companionIndex == null ? "main" : String(companionIndex);
+  const inv = safeStr(invitationId);
+  const em = safeStr(guestEmail).toLowerCase();
+  const nm = safeStr(guestName).toLowerCase();
+
+  if (inv) return `inv:${inv}:${ciStr}`;
+  if (em) return `email:${em}:${ciStr}`;
+  if (nm) return `name:${nm}:${ciStr}`;
+  return null;
 }
 
 async function getEventDataByEventId(eventId) {
@@ -55,6 +97,45 @@ async function getEventDataByEventId(eventId) {
   return { id: q.docs[0].id, data: q.docs[0].data() };
 }
 
+function pickChoiceDisplay(x) {
+  // supports:
+  // - string: "option_2"
+  // - object: { label, value, optionId, freeText }
+  if (x == null) return { display: null, freeText: null };
+  if (typeof x === "string") return { display: safeStr(x) || null, freeText: null };
+  if (typeof x === "object") {
+    const label = safeStr(x.label);
+    const value = safeStr(x.value);
+    const freeText = safeStr(x.freeText || "");
+    const display = (label || value) || null;
+    return { display, freeText: freeText || null };
+  }
+  return { display: safeStr(x) || null, freeText: null };
+}
+
+function normalizeCheckboxAnswerDisplay(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => pickChoiceDisplay(x))
+    .filter((x) => x.display);
+}
+
+function normalizeSingleChoiceAnswerDisplay(raw) {
+  return pickChoiceDisplay(raw);
+}
+
+function guestKeyForAnyResponse({ invitationId, guestEmail, guestName, companionIndex }) {
+  const ciStr = companionIndex == null ? "main" : String(companionIndex);
+  const inv = safeStr(invitationId);
+  const em = safeStr(guestEmail).toLowerCase();
+  const nm = safeStr(guestName).toLowerCase();
+  if (inv) return `inv:${inv}:${ciStr}`;
+  if (em) return `email:${em}:${nm || "noname"}:${ciStr}`; // ✅ allow same email different names
+  if (nm) return `name:${nm}:${ciStr}`;
+  return null;
+}
+
+
 export const getEventAnalytics = onCall(async (request) => {
   const eventPublicId = safeStr(request.data?.eventId);
   if (!eventPublicId) {
@@ -65,18 +146,11 @@ export const getEventAnalytics = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Sign in required");
   }
 
-  console.log("🔍 getEventAnalytics called:");
-  console.log("  - Event ID:", eventPublicId);
-  console.log("  - User UID:", request.auth.uid);
-  console.log("  - User Email:", request.auth.token.email);
-
   const eventObj = await getEventDataByEventId(eventPublicId);
   if (!eventObj) throw new HttpsError("not-found", "Event not found");
-
   const event = eventObj.data || {};
   const eventDocId = safeStr(eventObj.id);
   const eventFieldId = safeStr(event.eventId);
-
   const candidateEventIds = Array.from(
     new Set([eventPublicId, eventDocId, eventFieldId].filter(Boolean))
   );
@@ -97,32 +171,26 @@ export const getEventAnalytics = onCall(async (request) => {
   console.log("🧩 candidateEventIds:", candidateEventIds);
 
   const eventOrgId = safeStr(event.organisationId);
-
   // Load caller profile
   const userSnap = await db.collection("users").doc(request.auth.uid).get();
   const user = userSnap.exists ? userSnap.data() || {} : {};
   const userOrgId = safeStr(user.organisationId);
   const userRole = safeStr(user.role);
-
   // ─────────────────────────────────────────────
   // ✅ Authorization
   // ─────────────────────────────────────────────
   const isSuperAdmin = userRole === "superAdmin" || userRole === "super_admin";
   const isOrgAdmin = userRole === "admin";
   const isHost = userRole === "host";
-
   const isSalesPerson =
     userRole === "sales_person" &&
     user.isActive === true &&
     user.isDisabled !== true;
-
   const hostUserIds = Array.isArray(event.hostUserIds) ? event.hostUserIds : [];
   const isEventHost =
     isHost && hostUserIds.map(safeStr).includes(request.auth.uid);
-
   const isAdminForEvent =
     isSuperAdmin || (isOrgAdmin && !!eventOrgId && eventOrgId === userOrgId);
-
   const isSalesPersonForEvent =
     isSalesPerson && !!eventOrgId && !!userOrgId && eventOrgId === userOrgId;
 
@@ -162,9 +230,39 @@ export const getEventAnalytics = onCall(async (request) => {
   const demoQuestions = {};
   const DEMO_TEXT_SAMPLES_LIMIT = 10;
 
+  // ✅ guest responses for export/table
+  const demoGuestMap = new Map(); // key -> { invitationId, name, email, companionIndex, answersByQid }
+
   demoSnap.forEach((doc) => {
     const r = doc.data() || {};
     const answers = Array.isArray(r.answers) ? r.answers : [];
+
+    // guest identity (best effort)
+    const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
+    const guestName = safeStr(r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest");
+    const guestEmail = safeStr(r.guestEmail || r.email);
+
+    let companionIndex = r.companionIndex ?? null;
+    if (companionIndex == null) companionIndex = parseCompanionIndexFromDocId(doc.id);
+
+    const gKey = guestKeyForAnyResponse({
+      invitationId,
+      guestEmail,
+      guestName,
+      companionIndex,
+    });
+
+    if (gKey && !demoGuestMap.has(gKey)) {
+      demoGuestMap.set(gKey, {
+        invitationId: invitationId || null,
+        name: guestName || "Guest",
+        email: guestEmail || null,
+        companionIndex: companionIndex == null ? null : Number(companionIndex),
+        answersByQid: {}, // questionId -> display text
+      });
+    }
+
+    const guestRow = gKey ? demoGuestMap.get(gKey) : null;
 
     for (const a of answers) {
       const qid = safeStr(a?.questionId);
@@ -188,6 +286,7 @@ export const getEventAnalytics = onCall(async (request) => {
       const qAgg = demoQuestions[qid];
       const raw = a?.answer;
 
+      // ✅ Free text
       if (type === "short_answer" || type === "paragraph") {
         const txt = safeStr(raw);
         if (txt) {
@@ -195,103 +294,120 @@ export const getEventAnalytics = onCall(async (request) => {
           if (qAgg.freeTextSamples.length < DEMO_TEXT_SAMPLES_LIMIT) {
             qAgg.freeTextSamples.push(txt);
           }
+          if (guestRow) guestRow.answersByQid[qid] = txt;
+        } else {
+          if (guestRow && guestRow.answersByQid[qid] == null) guestRow.answersByQid[qid] = "";
         }
         continue;
       }
 
+      // ✅ Checkboxes
       if (type === "checkboxes") {
-        const items = normalizeCheckboxAnswer(raw);
+        const items = normalizeCheckboxAnswerDisplay(raw);
         if (items.length) qAgg.answeredCount++;
+
+        const displayValues = [];
         for (const it of items) {
-          inc(qAgg.optionCounts, it.value, 1);
+          inc(qAgg.optionCounts, it.display, 1);
+          displayValues.push(it.display);
           if (it.freeText) qAgg.freeTextCount++;
         }
+
+        if (guestRow) guestRow.answersByQid[qid] = displayValues.join(", ");
         continue;
       }
 
-      const one = normalizeSingleChoiceAnswer(raw);
-      if (one?.value) {
+      // ✅ Single choice / dropdown / multiple_choice
+      const one = normalizeSingleChoiceAnswerDisplay(raw);
+      if (one?.display) {
         qAgg.answeredCount++;
-        inc(qAgg.optionCounts, one.value, 1);
+        inc(qAgg.optionCounts, one.display, 1);
         if (one.freeText) qAgg.freeTextCount++;
+        if (guestRow) guestRow.answersByQid[qid] = one.display;
+      } else {
+        if (guestRow && guestRow.answersByQid[qid] == null) guestRow.answersByQid[qid] = "";
       }
     }
   });
 
+  const demoGuestResponses = Array.from(demoGuestMap.values()).sort((a, b) =>
+    safeStr(a.name).localeCompare(safeStr(b.name))
+  );
+
+  
   // 5) Menu aggregation
   const menuSnap = await queryByEventId("menuSelectedItemsResponses");
   console.log("🍽️ menuSnap.size:", menuSnap.size);
 
   const menu = { responses: menuSnap.size, itemCounts: {} };
 
-  // ✅ Guest selections (for guest filter)
-  const guestMap = new Map(); // key -> { invitationId, name, email, selectedMenuItemIds, ... }
+  // ✅ Guest selections (for guest filter + table)
+  const guestMap = new Map(); // key -> guest row
 
   menuSnap.forEach((doc) => {
     const r = doc.data() || {};
 
-    // ✅ Read selected ids from known fields
-    const rawIds = Array.isArray(r.selectedMenuItemIds)
-      ? r.selectedMenuItemIds
-      : r.groupSelections && typeof r.groupSelections === "object"
-        ? Object.values(r.groupSelections)
-        : Array.isArray(r.selectedMenuItemIds) // keep as fallback alias if you add later
-          ? r.selectedMenuItemIds
-          : [];
+    // ✅ Extract selected item ids correctly
+    let ids = [];
+    if (Array.isArray(r.selectedMenuItemIds)) {
+      ids = normalizeIds(r.selectedMenuItemIds);
+    } else if (r.groupSelections) {
+      ids = collectGroupSelectionsIds(r.groupSelections);
+    } else if (Array.isArray(r.groups)) {
+      // optional fallback if schema ever changes
+      for (const g of r.groups) {
+        if (Array.isArray(g?.itemIds)) ids.push(...normalizeIds(g.itemIds));
+      }
+      ids = normalizeIds(ids);
+    }
 
-    const ids = rawIds.map(safeStr).filter(Boolean);
-    const uniqIds = Array.from(new Set(ids));
+    if (!ids.length) return;
 
-    // ✅ IMPORTANT: build itemCounts so menu.items is NOT empty
-    for (const id of uniqIds) inc(menu.itemCounts, id, 1);
+    // ✅ itemCounts
+    for (const id of ids) inc(menu.itemCounts, id, 1);
 
     // guest identity
     const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
-    const guestName = safeStr(
-      r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest"
-    );
+    const guestName = safeStr(r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest");
     const guestEmail = safeStr(r.guestEmail || r.email);
 
-    // ✅ companion index: from field OR parse doc.id like "..._companion_0"
     let companionIndex = r.companionIndex ?? null;
-    if (companionIndex == null) {
-      const m = safeStr(doc.id).match(/_companion_(\d+)$/);
-      if (m) companionIndex = Number(m[1]);
-    }
+    if (companionIndex == null) companionIndex = parseCompanionIndexFromDocId(doc.id);
 
-    const keyBase = invitationId || guestEmail || guestName;
-    if (!keyBase || uniqIds.length === 0) return;
-
-    const key = `${keyBase}:${companionIndex == null ? "main" : String(companionIndex)}`;
+    const key = guestKeyForSelection({
+      invitationId,
+      guestEmail,
+      guestName,
+      companionIndex,
+    });
+    if (!key) return;
 
     const existing = guestMap.get(key);
     if (existing) {
-      const merged = new Set([...(existing.selectedMenuItemIds || []), ...uniqIds]);
+      const merged = new Set([...(existing.selectedMenuItemIds || []), ...ids]);
       existing.selectedMenuItemIds = Array.from(merged);
+
+      // fill blanks
       if (!existing.name && guestName) existing.name = guestName;
-      if (!existing.guestName && guestName) existing.guestName = guestName;
       if (!existing.email && guestEmail) existing.email = guestEmail;
-      if (!existing.guestEmail && guestEmail) existing.guestEmail = guestEmail;
       if (!existing.invitationId && invitationId) existing.invitationId = invitationId;
-      if (existing.companionIndex == null && companionIndex != null) existing.companionIndex = companionIndex;
+      if (existing.companionIndex == null && companionIndex != null) existing.companionIndex = Number(companionIndex);
     } else {
       guestMap.set(key, {
         invitationId: invitationId || null,
-        name: guestName,
-        guestName: guestName,
+        name: guestName || "Guest",
         email: guestEmail || null,
-        guestEmail: guestEmail || null,
         companionIndex: companionIndex == null ? null : Number(companionIndex),
-        selectedMenuItemIds: uniqIds,
+        selectedMenuItemIds: ids,
       });
     }
   });
 
-  const guestSelections = Array.from(guestMap.values()).sort((a, b) =>
+  let guestSelections = Array.from(guestMap.values()).sort((a, b) =>
     safeStr(a.name).localeCompare(safeStr(b.name))
   );
 
-  // 6) Attach menu item metadata (FULL FIELDS FOR UI)
+  // 6) Attach menu item metadata
   const itemIds = Object.keys(menu.itemCounts);
   const itemsById = {};
 
@@ -303,14 +419,9 @@ export const getEventAnalytics = onCall(async (request) => {
   function deriveIsVegFromFoodType(ft) {
     const s = safeStr(ft).toLowerCase();
     if (!s) return null;
-
-    // normalize: remove separators
     const norm = s.replaceAll("_", "").replaceAll("-", "").replaceAll(" ", "");
     if (norm === "veg" || norm === "vegetarian") return true;
-
-    // catch: nonveg / nonvegetarian / non_veg
     if (norm.startsWith("non") || norm.includes("nonveg") || norm.includes("nonvegetarian")) return false;
-
     return null;
   }
 
@@ -323,10 +434,8 @@ export const getEventAnalytics = onCall(async (request) => {
 
       snap.forEach((d) => {
         const x = d.data() || {};
-
         const foodType = safeStr(x.foodType);
-        const isVeg =
-          typeof x.isVeg === "boolean" ? x.isVeg : deriveIsVegFromFoodType(foodType);
+        const isVeg = typeof x.isVeg === "boolean" ? x.isVeg : deriveIsVegFromFoodType(foodType);
 
         itemsById[d.id] = {
           id: d.id,
@@ -338,9 +447,7 @@ export const getEventAnalytics = onCall(async (request) => {
           price: safeNum(x.price),
           imageUrl: safeStr(x.imageUrl) || null,
           description: safeStr(x.description) || "",
-          allergens: Array.isArray(x.allergens)
-            ? x.allergens.map(safeStr).filter(Boolean)
-            : [],
+          allergens: Array.isArray(x.allergens) ? x.allergens.map(safeStr).filter(Boolean) : [],
         };
       });
     }
@@ -365,7 +472,7 @@ export const getEventAnalytics = onCall(async (request) => {
     }))
     .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
 
-  // ✅ 7) Compute guest dietType for guest-filter chips: veg / nonVeg / both / unknown
+  // 7) Compute guest dietType from selected menu items
   function itemIsVegById(id) {
     const it = itemsById[id];
     if (!it) return null;
@@ -391,15 +498,50 @@ export const getEventAnalytics = onCall(async (request) => {
   }
 
   guestSelections.forEach((g) => {
-    const ids = Array.isArray(g.selectedMenuItemIds) ? g.selectedMenuItemIds : [];
-    g.dietType = computeGuestDietType(ids);
+    g.dietType = computeGuestDietType(g.selectedMenuItemIds || []);
   });
 
-  console.log(
-    "👤 guestSelections:",
-    guestSelections.length,
-    guestSelections[0] ? { name: guestSelections[0].name, dietType: guestSelections[0].dietType } : null
-  );
+  // 8) Hydrate guest details (invitation + optional guests collection)
+  async function hydrateGuestDetails(list) {
+    const invIds = Array.from(new Set(list.map((g) => safeStr(g.invitationId)).filter(Boolean)));
+    const invById = new Map();
+
+    if (invIds.length) {
+      const invRefs = invIds.map((id) => db.collection("invitations").doc(id));
+      const invSnaps = await db.getAll(...invRefs);
+      invSnaps.forEach((s) => {
+        if (s.exists) invById.set(s.id, s.data() || {});
+      });
+    }
+
+    for (const g of list) {
+      const inv = invById.get(safeStr(g.invitationId)) || {};
+      const ci = g.companionIndex;
+
+      // fallback info from invitation or companion object
+      let base = inv;
+      if (ci != null) {
+        const comps = Array.isArray(inv.companions) ? inv.companions : [];
+        const c = comps[Number(ci)] || comps.find((x) => Number(x?.companionIndex) === Number(ci)) || null;
+        if (c) base = c;
+      }
+
+      // Fill guest fields from invitation/companion first
+      const name = safeStr(base.guestName || base.name || g.name || "Guest") || "Guest";
+      const email = safeStr(base.guestEmail || base.email || g.email);
+
+      g.name = name;
+      g.email = email || null;
+
+      g.address = safeStr(base.address || base.street || g.address || "") || null;
+      g.city = safeStr(base.city || g.city || "") || null;
+      g.state = safeStr(base.state || g.state || "") || null;
+      g.country = safeStr(base.country || g.country || "") || null;
+      g.gender = safeStr(base.gender || g.gender || "") || null;
+    }
+  }
+
+  await hydrateGuestDetails(guestSelections);
 
   return {
     ok: true,
@@ -409,8 +551,8 @@ export const getEventAnalytics = onCall(async (request) => {
     demographics: {
       responses: demoSnap.size,
       questions: Object.values(demoQuestions),
+      guestResponses: demoGuestResponses,
     },
-    // ✅ guestSelections now includes dietType: veg | nonVeg | both | unknown
     menu: { responses: menu.responses, items: menuItems, guestSelections },
   };
 });

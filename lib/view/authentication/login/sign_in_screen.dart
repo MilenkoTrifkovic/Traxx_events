@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
 import 'package:traxx_wepapp/controller/auth_controller/sign_in_controller.dart';
 import 'package:traxx_wepapp/theme/app_colors.dart';
 import 'package:traxx_wepapp/theme/app_font_poppins.dart';
-import 'package:traxx_wepapp/utils/navigation/app_routes.dart';
-import 'package:traxx_wepapp/utils/navigation/routes.dart';
 import 'package:traxx_wepapp/controller/global_controllers/snackbar_message_controller.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_header.dart';
 import 'package:traxx_wepapp/view/authentication/login/widgets/sign_in_form.dart';
-
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 class SignInScreenWidget extends StatefulWidget {
   const SignInScreenWidget({super.key});

@@ -4,6 +4,7 @@ enum AppRoute {
   welcome('/welcome'),
   signup('/signup'),
   emailVerification('/email-verification'),
+  resetPassword('/reset-password'),
 
   // Host routes
   host('/host'),

@@ -1,4 +1,5 @@
-// functions/resendHostVerificationEmail.js (or inside functions/index.js)
+// functions/resendHostVerificationEmail.js
+// Resends password setup email to a host user
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -9,9 +10,10 @@ import { db } from "./admin.js";
 
 const POSTMARK_SERVER_TOKEN = defineSecret("POSTMARK_SERVER_TOKEN");
 
-const FROM_EMAIL = "developer@trax-event.com"; // change if needed
+const FROM_EMAIL = "developer@trax-event.com";
 const FROM_NAME = process.env.FROM_NAME || "Trax Events";
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://trax-event.app";
+const HOST_PORTAL_URL = process.env.HOST_PORTAL_URL || "https://host.trax-event.app";
 
 async function requireAdminForOrg(request, organisationId) {
   if (!request.auth?.uid) {
@@ -32,17 +34,14 @@ async function requireAdminForOrg(request, organisationId) {
   const isAdmin = role === "admin";
   const isHost = role === "host";
 
-  // Allow superAdmin, admin, or host to resend emails
   if (!isSuper && !isAdmin && !isHost) {
     throw new HttpsError("permission-denied", "Only admins or hosts can resend emails.");
   }
 
-  // SuperAdmin can resend emails for any organisation
   if (isSuper) {
     return;
   }
 
-  // Admin must match organisationId
   if (isAdmin) {
     const myOrg = (u.organisationId || "").toString();
     if (!myOrg || myOrg !== organisationId) {
@@ -54,7 +53,6 @@ async function requireAdminForOrg(request, organisationId) {
     return;
   }
 
-  // Host must be managed by the organisation
   if (isHost) {
     const managedByOrgIds = u.managedByOrgIds || [];
     if (!Array.isArray(managedByOrgIds) || !managedByOrgIds.includes(organisationId)) {
@@ -67,18 +65,25 @@ async function requireAdminForOrg(request, organisationId) {
   }
 }
 
-function hostActionSettings(orgId) {
-  return {
-    url: `${APP_BASE_URL}/host/login?org=${encodeURIComponent(orgId)}`,
-    handleCodeInApp: false,
-  };
+function buildCustomPasswordResetLink(firebaseLink) {
+  try {
+    const url = new URL(firebaseLink);
+    const oobCode = url.searchParams.get("oobCode");
+    if (!oobCode) {
+      console.warn("No oobCode found in Firebase link:", firebaseLink);
+      return firebaseLink;
+    }
+    return APP_BASE_URL + "/reset-password?oobCode=" + encodeURIComponent(oobCode);
+  } catch (e) {
+    console.error("Error parsing Firebase link:", e);
+    return firebaseLink;
+  }
 }
 
 export const resendHostVerificationEmail = onCall(
   { secrets: [POSTMARK_SERVER_TOKEN] },
   async (request) => {
-    const { organisationId, hostUid, sendPasswordLink = false } =
-      request.data || {};
+    const { organisationId, hostUid } = request.data || {};
 
     const orgId = (organisationId || "").toString().trim();
     const uid = (hostUid || "").toString().trim();
@@ -92,7 +97,6 @@ export const resendHostVerificationEmail = onCall(
 
     await requireAdminForOrg(request, orgId);
 
-    // Ensure this host belongs to the org directory (prevents random UID spam)
     const orgHostRef = db
       .collection("organisations")
       .doc(orgId)
@@ -101,10 +105,7 @@ export const resendHostVerificationEmail = onCall(
 
     const orgHostSnap = await orgHostRef.get();
     if (!orgHostSnap.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Host not found in this organisation."
-      );
+      throw new HttpsError("not-found", "Host not found in this organisation.");
     }
 
     const orgHost = orgHostSnap.data() || {};
@@ -121,106 +122,97 @@ export const resendHostVerificationEmail = onCall(
     const auth = getAuth();
     const authUser = await auth.getUser(uid);
 
-    // Must be a host user
-    // (This is a soft check; if your auth user doesn't exist, getUser throws already.)
-    if (authUser.email?.toLowerCase() !== email) {
-      // keep permissive for dev; just ensure we use the directory email
-    }
-
-    const actionSettings = hostActionSettings(orgId);
-
-    let emailVerifyLink = null;
-    let passwordResetLink = null;
-
-    // If already verified, no need to send verification link
+    // Mark user as email verified if not already
     if (!authUser.emailVerified) {
       try {
-        emailVerifyLink = await auth.generateEmailVerificationLink(
-          email,
-          actionSettings
-        );
+        await auth.updateUser(uid, { emailVerified: true });
       } catch (e) {
-        emailVerifyLink = null;
+        console.warn("Could not mark user as email verified:", e);
       }
     }
 
-    // Optional: include "Set Password" link when resending
-    if (sendPasswordLink) {
-      try {
-        passwordResetLink = await auth.generatePasswordResetLink(
-          email,
-          actionSettings
-        );
-      } catch (e) {
-        passwordResetLink = null;
-      }
+    // Generate password reset link
+    let passwordResetLink = null;
+    try {
+      const firebaseResetLink = await auth.generatePasswordResetLink(email);
+      passwordResetLink = buildCustomPasswordResetLink(firebaseResetLink);
+    } catch (e) {
+      console.error("Failed to generate password reset link:", e);
+      throw new HttpsError("failed-precondition", "Could not generate password reset link.");
     }
 
     const token = (POSTMARK_SERVER_TOKEN.value() || "").trim();
     if (!token) {
-      throw new HttpsError(
-        "failed-precondition",
-        "POSTMARK_SERVER_TOKEN missing/empty."
-      );
+      throw new HttpsError("failed-precondition", "POSTMARK_SERVER_TOKEN missing/empty.");
     }
     const client = new postmark.ServerClient(token);
 
     const safeName = name || "there";
 
     const html = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-        <h2>Trax Events - Host Portal Access</h2>
-        <p>Hi ${safeName},</p>
-
-        ${
-          authUser.emailVerified
-            ? `<p><b>Your email is already verified.</b></p>`
-            : `<p>Please verify your email to access the Host Portal:</p>
-               ${
-                 emailVerifyLink
-                   ? `<p>
-                        <a href="${emailVerifyLink}"
-                           style="display:inline-block;padding:10px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;">
-                          Verify Email
-                        </a>
-                      </p>`
-                   : `<p><b>Verification link could not be generated.</b> Please contact the organizer.</p>`
-               }`
-        }
-
-        ${
-          sendPasswordLink
-            ? `${
-                passwordResetLink
-                  ? `<p style="margin-top:18px;">If you haven’t set your password yet:</p>
-                     <p>
-                       <a href="${passwordResetLink}"
-                          style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;">
-                         Set Password
-                       </a>
-                     </p>`
-                  : `<p><b>Password reset link could not be generated.</b></p>`
-              }`
-            : ``
-        }
-
-        <p style="color:#6b7280;font-size:12px;">
-          If you didn’t expect this email, you can ignore it.
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1a1a1a; margin-bottom: 24px;">Welcome to Trax Host Portal</h2>
+        
+        <p style="color: #374151;">Hello ${safeName},</p>
+        
+        <p style="color: #374151;">Your Trax Host Portal account has been created. Please click the button below to set up your password:</p>
+        
+        <p style="margin: 32px 0;">
+          <a href="${passwordResetLink}" 
+             style="display: inline-block; padding: 14px 28px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600;">
+            Set Up Password
+          </a>
+        </p>
+        
+        <p style="color: #6b7280; font-size: 14px;">
+          If the button doesn't work, copy and paste this link into your browser:<br/>
+          <a href="${passwordResetLink}" style="color: #2563eb; word-break: break-all;">${passwordResetLink}</a>
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+        
+        <p style="color: #374151;">After setting up your password, access the Host Portal here:</p>
+        
+        <p style="margin: 24px 0;">
+          <a href="${HOST_PORTAL_URL}" 
+             style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600;">
+            Open Host Portal
+          </a>
+        </p>
+        
+        <p style="color: #6b7280; font-size: 14px;">
+          If the button doesn't work, copy and paste this link into your browser:<br/>
+          <a href="${HOST_PORTAL_URL}" style="color: #2563eb;">${HOST_PORTAL_URL}</a>
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+        
+        <p style="color: #dc2626; font-size: 14px; font-weight: 500;">
+          Note: This link will expire in 1 hour for security reasons.
+        </p>
+        
+        <p style="color: #374151;">
+          Once you've set your password, you'll be able to log in to the Host Portal and start managing your events.
+        </p>
+        
+        <p style="color: #6b7280; margin-top: 32px; font-size: 14px;">
+          — Trax Host Portal<br/>
+          <a href="mailto:${FROM_EMAIL}" style="color: #2563eb;">${FROM_EMAIL}</a>
         </p>
       </div>
     `;
 
     await client.sendEmail({
-      From: `${FROM_NAME} <${FROM_EMAIL}>`,
+      From: FROM_NAME + " <" + FROM_EMAIL + ">",
       To: email,
-      Subject: "Verify your email for Host Portal",
+      Subject: "Welcome to Trax Host Portal - Set Up Your Password",
       HtmlBody: html,
     });
 
     const now = Timestamp.now();
     await orgHostRef.set(
       {
-        verificationEmailSentAt: now,
+        passwordResetEmailSentAt: now,
         updatedAt: now,
       },
       { merge: true }
@@ -229,11 +221,6 @@ export const resendHostVerificationEmail = onCall(
     return {
       ok: true,
       email,
-      alreadyVerified: authUser.emailVerified === true,
-      sentVerification: !authUser.emailVerified && !!emailVerifyLink,
-      sentPasswordLink: sendPasswordLink && !!passwordResetLink,
-      // For dev/debug only:
-      emailVerifyLink,
       passwordResetLink,
     };
   }

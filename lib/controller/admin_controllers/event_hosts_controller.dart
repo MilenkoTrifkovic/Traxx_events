@@ -138,7 +138,7 @@ class EventHostsController extends GetxController {
   // 2) Host table -> Resend verification email
   // ------------------------------------------------------------------
 
-  /// Create host in Auth + Firestore (sendEmail=false), then assign to event.
+  /// Create host in Auth + Firestore (sendEmail=true), then assign to event.
   Future<String> createHostAndAssign({
     required String name,
     required String email,
@@ -153,7 +153,7 @@ class EventHostsController extends GetxController {
       address: address.trim(),
       country: country.trim(),
       isDisabled: isDisabled,
-      sendEmail: false, // ✅ verification is sent from table only
+      sendEmail: true, // ✅ Send password setup email on host creation
     );
 
     final uid = (res['uid'] ?? '').toString().trim();
