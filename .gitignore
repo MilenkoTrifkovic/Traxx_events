@@ -54,3 +54,11 @@ app.*.map.json
 
 # Firebase local CLI/state directory
 .firebase/
+
+# Flutter desktop ephemeral (generated)
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+.vscode/*
+!.vscode/settings.json
