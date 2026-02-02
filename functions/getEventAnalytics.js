@@ -16,28 +16,7 @@ function safeStr(x) {
 function inc(map, key, by = 1) {
   if (!key) return;
   map[key] = (map[key] ?? 0) + by;
-}
-
-function normalizeSingleChoiceAnswer(raw) {
-  if (raw == null) return null;
-  if (typeof raw === "string") return { value: raw, freeText: null };
-  if (typeof raw === "object") {
-    const value = safeStr(raw.value);
-    const freeText = safeStr(raw.freeText || "");
-    return { value: value || null, freeText: freeText || null };
-  }
-  return { value: safeStr(raw) || null, freeText: null };
-}
-
-function normalizeCheckboxAnswer(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((x) => ({
-      value: safeStr(x?.value),
-      freeText: safeStr(x?.freeText || ""),
-    }))
-    .filter((x) => x.value);
-}
+} 
 
 function normalizeIds(arr) {
   const out = [];
@@ -117,6 +96,45 @@ async function getEventDataByEventId(eventId) {
 
   return { id: q.docs[0].id, data: q.docs[0].data() };
 }
+
+function pickChoiceDisplay(x) {
+  // supports:
+  // - string: "option_2"
+  // - object: { label, value, optionId, freeText }
+  if (x == null) return { display: null, freeText: null };
+  if (typeof x === "string") return { display: safeStr(x) || null, freeText: null };
+  if (typeof x === "object") {
+    const label = safeStr(x.label);
+    const value = safeStr(x.value);
+    const freeText = safeStr(x.freeText || "");
+    const display = (label || value) || null;
+    return { display, freeText: freeText || null };
+  }
+  return { display: safeStr(x) || null, freeText: null };
+}
+
+function normalizeCheckboxAnswerDisplay(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => pickChoiceDisplay(x))
+    .filter((x) => x.display);
+}
+
+function normalizeSingleChoiceAnswerDisplay(raw) {
+  return pickChoiceDisplay(raw);
+}
+
+function guestKeyForAnyResponse({ invitationId, guestEmail, guestName, companionIndex }) {
+  const ciStr = companionIndex == null ? "main" : String(companionIndex);
+  const inv = safeStr(invitationId);
+  const em = safeStr(guestEmail).toLowerCase();
+  const nm = safeStr(guestName).toLowerCase();
+  if (inv) return `inv:${inv}:${ciStr}`;
+  if (em) return `email:${em}:${nm || "noname"}:${ciStr}`; // ✅ allow same email different names
+  if (nm) return `name:${nm}:${ciStr}`;
+  return null;
+}
+
 
 export const getEventAnalytics = onCall(async (request) => {
   const eventPublicId = safeStr(request.data?.eventId);
@@ -212,9 +230,39 @@ export const getEventAnalytics = onCall(async (request) => {
   const demoQuestions = {};
   const DEMO_TEXT_SAMPLES_LIMIT = 10;
 
+  // ✅ guest responses for export/table
+  const demoGuestMap = new Map(); // key -> { invitationId, name, email, companionIndex, answersByQid }
+
   demoSnap.forEach((doc) => {
     const r = doc.data() || {};
     const answers = Array.isArray(r.answers) ? r.answers : [];
+
+    // guest identity (best effort)
+    const invitationId = safeStr(r.invitationId || r.invId || r.invitationID);
+    const guestName = safeStr(r.guestName || r.name || r.guest || r.email || r.guestEmail || "Guest");
+    const guestEmail = safeStr(r.guestEmail || r.email);
+
+    let companionIndex = r.companionIndex ?? null;
+    if (companionIndex == null) companionIndex = parseCompanionIndexFromDocId(doc.id);
+
+    const gKey = guestKeyForAnyResponse({
+      invitationId,
+      guestEmail,
+      guestName,
+      companionIndex,
+    });
+
+    if (gKey && !demoGuestMap.has(gKey)) {
+      demoGuestMap.set(gKey, {
+        invitationId: invitationId || null,
+        name: guestName || "Guest",
+        email: guestEmail || null,
+        companionIndex: companionIndex == null ? null : Number(companionIndex),
+        answersByQid: {}, // questionId -> display text
+      });
+    }
+
+    const guestRow = gKey ? demoGuestMap.get(gKey) : null;
 
     for (const a of answers) {
       const qid = safeStr(a?.questionId);
@@ -238,6 +286,7 @@ export const getEventAnalytics = onCall(async (request) => {
       const qAgg = demoQuestions[qid];
       const raw = a?.answer;
 
+      // ✅ Free text
       if (type === "short_answer" || type === "paragraph") {
         const txt = safeStr(raw);
         if (txt) {
@@ -245,28 +294,45 @@ export const getEventAnalytics = onCall(async (request) => {
           if (qAgg.freeTextSamples.length < DEMO_TEXT_SAMPLES_LIMIT) {
             qAgg.freeTextSamples.push(txt);
           }
+          if (guestRow) guestRow.answersByQid[qid] = txt;
+        } else {
+          if (guestRow && guestRow.answersByQid[qid] == null) guestRow.answersByQid[qid] = "";
         }
         continue;
       }
 
+      // ✅ Checkboxes
       if (type === "checkboxes") {
-        const items = normalizeCheckboxAnswer(raw);
+        const items = normalizeCheckboxAnswerDisplay(raw);
         if (items.length) qAgg.answeredCount++;
+
+        const displayValues = [];
         for (const it of items) {
-          inc(qAgg.optionCounts, it.value, 1);
+          inc(qAgg.optionCounts, it.display, 1);
+          displayValues.push(it.display);
           if (it.freeText) qAgg.freeTextCount++;
         }
+
+        if (guestRow) guestRow.answersByQid[qid] = displayValues.join(", ");
         continue;
       }
 
-      const one = normalizeSingleChoiceAnswer(raw);
-      if (one?.value) {
+      // ✅ Single choice / dropdown / multiple_choice
+      const one = normalizeSingleChoiceAnswerDisplay(raw);
+      if (one?.display) {
         qAgg.answeredCount++;
-        inc(qAgg.optionCounts, one.value, 1);
+        inc(qAgg.optionCounts, one.display, 1);
         if (one.freeText) qAgg.freeTextCount++;
+        if (guestRow) guestRow.answersByQid[qid] = one.display;
+      } else {
+        if (guestRow && guestRow.answersByQid[qid] == null) guestRow.answersByQid[qid] = "";
       }
     }
   });
+
+  const demoGuestResponses = Array.from(demoGuestMap.values()).sort((a, b) =>
+    safeStr(a.name).localeCompare(safeStr(b.name))
+  );
 
   
   // 5) Menu aggregation
@@ -485,6 +551,7 @@ export const getEventAnalytics = onCall(async (request) => {
     demographics: {
       responses: demoSnap.size,
       questions: Object.values(demoQuestions),
+      guestResponses: demoGuestResponses,
     },
     menu: { responses: menu.responses, items: menuItems, guestSelections },
   };

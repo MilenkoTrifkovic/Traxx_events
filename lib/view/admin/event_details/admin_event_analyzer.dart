@@ -86,17 +86,37 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
         final cs = theme.colorScheme;
         final isDark = theme.brightness == Brightness.dark;
 
-        final isNarrow = c.maxWidth < 520;
-        final maxW = isNarrow ? c.maxWidth : 520.0;
+        // ✅ Bigger breakpoint + wider max width (more “main button” feel)
+        final isNarrow = c.maxWidth < 700;
+        final maxW = isNarrow ? c.maxWidth : 680.0;
 
-        final shellBg = isDark ? cs.surface.withOpacity(0.65) : cs.surface;
-        final shellBorder = cs.outline.withOpacity(isDark ? 0.45 : 0.22);
+        // ✅ More button-like shell
+        final shellBg =
+            isDark ? cs.surface.withOpacity(0.80) : const Color(0xFFF9FAFB);
+        final shellBorder = cs.outline.withOpacity(isDark ? 0.55 : 0.30);
 
-        final selGrad = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [cs.primary, cs.secondary],
-        );
+        // ✅ Per-tab gradients: Demographics=Blue, Menu=Green
+        LinearGradient tabGrad(int index) {
+          if (index == 0) {
+            return const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)], // blue
+            );
+          }
+          return const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF16A34A), Color(0xFF15803D)], // green
+          );
+        }
+
+        // ✅ Per-tab shadow color
+        Color tabShadowColor(int index) {
+          return index == 0
+              ? const Color(0xFF2563EB).withOpacity(isDark ? 0.28 : 0.22)
+              : const Color(0xFF16A34A).withOpacity(isDark ? 0.28 : 0.22);
+        }
 
         Widget seg({
           required int index,
@@ -106,19 +126,20 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
           final selected = (ctrl.index == index);
 
           final child = AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            // ✅ Bigger padding
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              gradient: selected ? selGrad : null,
+              gradient: selected ? tabGrad(index) : null,
               color: selected ? null : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               boxShadow: selected
                   ? [
                       BoxShadow(
-                        color: cs.primary.withOpacity(isDark ? 0.25 : 0.18),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
+                        color: tabShadowColor(index),
+                        blurRadius: 12,
+                        offset: const Offset(0, 7),
                       ),
                     ]
                   : null,
@@ -128,16 +149,16 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
               children: [
                 Icon(
                   icon,
-                  size: 16,
-                  color: selected ? cs.onPrimary : cs.onSurface,
+                  size: 18, // ✅ bigger icon
+                  color: selected ? Colors.white : cs.onSurface,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: selected ? cs.onPrimary : cs.onSurface,
+                    fontSize: 14.5, // ✅ bigger text
+                    fontWeight: FontWeight.w900, // ✅ bolder
+                    color: selected ? Colors.white : cs.onSurface,
                   ),
                 ),
               ],
@@ -150,6 +171,7 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
             child: child,
           );
 
+          // ✅ On narrow screens, each segment expands evenly
           return isNarrow ? Expanded(child: Center(child: tappable)) : tappable;
         }
 
@@ -158,21 +180,27 @@ class _AdminEventAnalyzerPageState extends State<AdminEventAnalyzerPage>
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxW),
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding:
+                  const EdgeInsets.all(7), // ✅ slightly bigger shell padding
               decoration: BoxDecoration(
                 color: shellBg,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: shellBorder),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   seg(
-                      index: 0,
-                      label: "Demographics",
-                      icon: Icons.assignment_outlined),
-                  const SizedBox(width: 6),
-                  seg(index: 1, label: "Menu", icon: Icons.restaurant_menu),
+                    index: 0,
+                    label: "Demographics",
+                    icon: Icons.assignment_outlined,
+                  ),
+                  const SizedBox(width: 8),
+                  seg(
+                    index: 1,
+                    label: "Menu",
+                    icon: Icons.restaurant_menu,
+                  ),
                 ],
               ),
             ),
