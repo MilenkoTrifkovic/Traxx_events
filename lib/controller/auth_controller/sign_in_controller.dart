@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:traxx_wepapp/controller/auth_controller/auth_controller.dart';
@@ -63,6 +64,17 @@ class SignInController extends GetxController {
   }
 
   bool _isStale(int op) => op != _opVersion.value;
+
+  Future<void> backfillAllAdmins({bool dryRun = false}) async {
+    final callable =
+        FirebaseFunctions.instance.httpsCallable('backfillAdminUserSchema');
+    final res = await callable.call({
+      'dryRun': dryRun,
+      'limit': 2000,
+    });
+
+    print('Backfill result: ${res.data}');
+  }
 
   /// Cancels the *current* auth attempt from a UI perspective.
   /// If the provider completes later, we ignore it and sign out.
@@ -193,11 +205,20 @@ class SignInController extends GetxController {
     if (snap.exists) return;
 
     await ref.set({
-      'uid': user.uid,
+      'userId': user.uid,
+      'name': user.displayName, // can be null
       'email': user.email,
-      'displayName': user.displayName,
-      'role': 'admin', // ✅ same as your email/password signup flow
+
+      'role': 'admin',
+      'country': null,
+
+      'isDisabled': false,
+      'managedByOrgIds': null,
       'organisationId': null,
+
+      // ✅ exists but null for admins
+      'refCode': null,
+
       'createdAt': FieldValue.serverTimestamp(),
       'modifiedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));

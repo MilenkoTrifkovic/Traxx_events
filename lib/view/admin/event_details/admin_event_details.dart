@@ -79,6 +79,7 @@ class _AdminEventDetailsState extends State<AdminEventDetails> {
 
   @override
   void dispose() {
+    controller.dispose();
     Get.delete<EventHostsController>(tag: widget.eventId, force: true);
     Get.delete<AdminGuestListController>(force: true);
     super.dispose();
@@ -2056,6 +2057,24 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     );
   }
 
+  String? _resolveValidMenuId(List<MenuModel> menus) {
+    if (menus.isEmpty) return null;
+
+    final ids = menus.map((m) => m.id).toSet();
+
+    final candidates = <String?>[
+      _menuId,
+      widget.controller.lastBrowsedMenuId.value,
+      widget.initialMenuId,
+      menus.first.id,
+    ];
+
+    for (final c in candidates) {
+      if (c != null && ids.contains(c)) return c;
+    }
+    return menus.first.id;
+  }
+
   bool _isNarrowLayout(double dialogWidth) => dialogWidth < 1100;
 
   EdgeInsets get _dialogOuterPadding => const EdgeInsets.all(14);
@@ -2664,6 +2683,26 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
     final dropdownWidth =
         isTight ? double.infinity : (dialogWidth * 0.42).clamp(360.0, 560.0);
 
+    // ✅ reactively read loading (this works because caller is inside Obx)
+    final isLoadingMenus = widget.controller.isMenusLoading.value;
+
+    // ✅ keep dropdown value always valid
+    final safeMenuId = _resolveValidMenuId(menus);
+
+    // ✅ debug (keep for now)
+    debugPrint(
+      'MENUS: ${menus.length} loading=$isLoadingMenus _menuId=$_menuId safe=$safeMenuId',
+    );
+
+    // ✅ if menus became available and _menuId is invalid, auto-fix + load items
+    if (!isLoadingMenus && safeMenuId != _menuId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _menuId = safeMenuId);
+        if (safeMenuId != null) _loadItems(safeMenuId);
+      });
+    }
+
     final title = Text(
       'Select menu & dishes',
       style: GoogleFonts.poppins(
@@ -2673,71 +2712,100 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
       ),
     );
 
-    final dropdown = SizedBox(
-      width: dropdownWidth,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: 'Menu (browse)',
-          labelStyle: GoogleFonts.poppins(color: Colors.white70),
-          filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.18),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.white24),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.white54),
-          ),
+    Widget dropdownChild;
+
+    if (isLoadingMenus) {
+      dropdownChild = Container(
+        width: dropdownWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
         ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: _menuId,
-            isExpanded: true,
-            dropdownColor: Colors.white,
-            iconEnabledColor: Colors.white,
-            selectedItemBuilder: (_) => menus
-                .map(
-                  (m) => Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      m.name,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            items: menus
-                .map(
-                  (m) => DropdownMenuItem(
-                    value: m.id,
-                    child: Text(
-                      m.name,
-                      style: GoogleFonts.poppins(color: Colors.black),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _menuId = value;
-                _items = [];
-              });
-              widget.controller.lastBrowsedMenuId.value = value;
-              _loadItems(value);
-            },
-          ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Loading menus...',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-      ),
-    );
+      );
+    } else if (menus.isEmpty) {
+      dropdownChild = Container(
+        width: dropdownWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Text(
+          'No menus found',
+          style: GoogleFonts.poppins(
+              color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      );
+    } else {
+      dropdownChild = SizedBox(
+        width: dropdownWidth,
+        child: DropdownButtonFormField<String>(
+          value: safeMenuId,
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          iconEnabledColor: Colors.white,
+          decoration: InputDecoration(
+            labelText: 'Menu (browse)',
+            labelStyle: GoogleFonts.poppins(color: Colors.white70),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.18),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white54),
+            ),
+          ),
+          items: menus
+              .map(
+                (m) => DropdownMenuItem<String>(
+                  value: m.id,
+                  child: Text(
+                    m.name,
+                    style: GoogleFonts.poppins(
+                        color: Colors.white, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _menuId = value;
+              _items = [];
+            });
+            widget.controller.lastBrowsedMenuId.value = value;
+            _loadItems(value);
+          },
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -2755,14 +2823,14 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
               children: [
                 title,
                 const SizedBox(height: 12),
-                dropdown,
+                dropdownChild,
               ],
             )
           : Row(
               children: [
                 Expanded(child: title),
                 const SizedBox(width: 14),
-                dropdown,
+                dropdownChild,
               ],
             ),
     );
@@ -3121,7 +3189,11 @@ class _MenuAndItemsDialogState extends State<MenuAndItemsDialog> {
                 child: Column(
                   children: [
                     // ✅ Sticky Header
-                    _buildHeader(context, menus, dialogSize.width),
+                    Obx(() => _buildHeader(
+                          context,
+                          widget.controller.availableMenus.toList(),
+                          dialogSize.width,
+                        )),
 
                     // ✅ Body
                     Expanded(

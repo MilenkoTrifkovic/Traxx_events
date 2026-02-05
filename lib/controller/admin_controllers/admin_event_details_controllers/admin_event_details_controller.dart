@@ -235,7 +235,7 @@ class AdminEventDetailsController {
 
       await _loadVenue(event.value!.venueId);
       await _loadOrganisation(event.value!.organisationId);
-      await _loadAvailableMenus();
+      await _loadAvailableMenusForEventOrg(event.value!.organisationId);
 
       lastBrowsedMenuId.value ??=
           availableMenus.isNotEmpty ? availableMenus.first.id : null;
@@ -318,25 +318,39 @@ class AdminEventDetailsController {
   // =============================================================
   // Menus
   // =============================================================
-  Future<void> _loadAvailableMenus() async {
+
+  Future<void> _loadAvailableMenusForEventOrg(String eventOrgId) async {
     isMenusLoading.value = true;
     try {
+      final orgId = eventOrgId.trim();
+
       Query<Map<String, dynamic>> q =
           FirebaseFirestore.instance.collection('menus');
 
-      if (organisation?.organisationId != null &&
-          organisation!.organisationId!.isNotEmpty) {
-        q = q.where('organisationId', isEqualTo: organisation!.organisationId);
+      // ✅ Always filter by event organisation (most important fix)
+      if (orgId.isNotEmpty) {
+        q = q.where('organisationId', isEqualTo: orgId);
       }
 
-      final snap = await q.orderBy('createdAt', descending: true).get();
+      final snap = await q.get();
+
+      // ✅ Filter disabled in code (so docs missing isDisabled also appear)
       final list = snap.docs
           .map((d) => MenuModel.fromFirestore(d.data(), d.id))
+          .where((m) => m.isDisabled != true)
           .toList();
 
+      list.sort((a, b) {
+        final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bd.compareTo(ad);
+      });
+
       availableMenus.assignAll(list);
-    } catch (e) {
-      debugPrint('Error loading menus: $e');
+
+      debugPrint('✅ Menus loaded for org=$orgId count=${list.length}');
+    } catch (e, st) {
+      debugPrint('❌ Error loading menus: $e\n$st');
       availableMenus.clear();
     } finally {
       isMenusLoading.value = false;
@@ -347,15 +361,28 @@ class AdminEventDetailsController {
     final snap = await FirebaseFirestore.instance
         .collection('menu_items')
         .where('menuId', isEqualTo: menuId)
-        .orderBy('category')
-        .orderBy('createdAt', descending: false)
+        .where('isDisabled', isEqualTo: false)
         .get();
 
-    return snap.docs.map((d) {
+    final list = snap.docs.map((d) {
       final data = d.data();
       final item = MenuItem.fromFirestore(data, d.id);
       return _hydrateFoodType(item, data);
     }).toList();
+
+    // ✅ sort locally by category then createdAt
+    list.sort((a, b) {
+      final ca = normalizeCategoryKey(a.category);
+      final cb = normalizeCategoryKey(b.category);
+      final c = ca.compareTo(cb);
+      if (c != 0) return c;
+
+      final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return ad.compareTo(bd);
+    });
+
+    return list;
   }
 
   Future<MenuItem?> fetchMenuItemById(String menuItemId) async {

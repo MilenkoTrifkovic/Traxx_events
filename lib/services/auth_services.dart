@@ -29,19 +29,21 @@ class AuthServices {
   Future<UserCredential> createUserWithEmailAndPassword({
     required String email,
     required String password,
+    String? name,
+    String? country,
   }) async {
     try {
-      print('Services: Creating admin user');
-
       final callable = FirebaseFunctions.instance.httpsCallable('signupAdmin');
       final result = await callable.call({
         'email': email,
         'password': password,
+        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        if (country != null && country.trim().isNotEmpty)
+          'country': country.trim(),
       });
 
       print('Cloud function result: ${result.data}');
 
-      // Wait a bit for the user creation to propagate
       await Future.delayed(const Duration(milliseconds: 500));
 
       return await _auth.signInWithEmailAndPassword(
@@ -49,7 +51,6 @@ class AuthServices {
         password: password,
       );
     } on FirebaseFunctionsException catch (e) {
-      // 👇 Add detailed logging here
       print(
           'signupAdmin failed: code=${e.code}, message=${e.message}, details=${e.details}');
       throw _handleFunctionsException(e);

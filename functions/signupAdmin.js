@@ -1,39 +1,29 @@
-// functions/signupAdmin.js
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin.js";
 
-// if (!getApps().length) {
-//   initializeApp();
-// }
-
 const auth = getAuth();
-// const db = getFirestore();
 
-/**
- * Callable function used by the Flutter client to sign up a new admin user.
- * Expected payload: { email: string, password: string }
- */
 export const signupAdmin = onCall(async (request) => {
   const data = request.data || {};
 
   const email = (data.email || "").toString().trim();
   const password = (data.password || "").toString();
 
-  // ── Basic validation ───────────────────────────────────────────────────────
-  if (!email || !password) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Email and password are required."
-    );
-  }
+  const name = (data.name || "").toString().trim() || null;
+  const country = (data.country || "").toString().trim() || null;
 
-  const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+  const role = "admin";
+
+  const emailRegex = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
+
+  if (!email || !password) {
+    throw new HttpsError("invalid-argument", "Email and password are required.");
+  }
   if (!emailRegex.test(email)) {
     throw new HttpsError("invalid-argument", "Invalid email format.");
   }
-
   if (password.length < 6) {
     throw new HttpsError(
       "invalid-argument",
@@ -42,7 +32,6 @@ export const signupAdmin = onCall(async (request) => {
   }
 
   try {
-    // ── Create the Firebase Auth user ────────────────────────────────────────
     let userRecord;
     try {
       userRecord = await auth.createUser({
@@ -50,56 +39,56 @@ export const signupAdmin = onCall(async (request) => {
         password,
         emailVerified: false,
         disabled: false,
+        // ✅ ok to set for Auth profile, but NOT stored in Firestore
+        displayName: name || undefined,
       });
     } catch (err) {
       if (err?.code === "auth/email-already-exists") {
-        throw new HttpsError(
-          "already-exists",
-          "The account already exists for this email."
-        );
+        throw new HttpsError("already-exists", "The account already exists for this email.");
       }
-
-      throw new HttpsError(
-        "internal",
-        err?.message || "Auth error while creating user."
-      );
+      throw new HttpsError("internal", err?.message || "Auth error while creating user.");
     }
 
-    // ── Create / upsert Firestore user document ──────────────────────────────
-    await db.collection("users").doc(userRecord.uid).set(
+    const uid = userRecord.uid;
+
+    await db.collection("users").doc(uid).set(
       {
-        email,
-        userId: userRecord.uid,
+        userId: uid,
+        name: name,
+        email: email,
+
+        role: role,
+        country: country,
+
         isDisabled: false,
+        managedByOrgIds: null,
+        organisationId: null,
+
+        // ✅ exists but null for admins
+        refCode: null,
+
         createdAt: FieldValue.serverTimestamp(),
         modifiedAt: FieldValue.serverTimestamp(),
-
-        // 🔥 Everyone who signs up is an admin by default
-        role: "admin",
-
-        // organisationId is not known yet. It will be
-        // filled by saveCompanyInfo later.
-        organisationId: null,
       },
       { merge: true }
     );
 
-    // ── Success response back to Flutter ─────────────────────────────────────
     return {
-      uid: userRecord.uid,
+      ok: true,
+      userId: uid,
       email,
-      role: "admin",
+      role,
       organisationId: null,
     };
   } catch (err) {
-    if (err instanceof HttpsError) {
-      throw err;
-    }
-
+    if (err instanceof HttpsError) throw err;
     throw new HttpsError(
       "internal",
       err?.message || "Failed to create account. Please try again."
     );
   }
 });
+
+
+
 

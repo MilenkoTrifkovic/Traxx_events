@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:get/get.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:traxx_wepapp/services/cloud_functions_services.dart';
@@ -166,8 +164,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
 
   // ✅ Use nullable controller to prevent LateInitializationError entirely.
   TabController? _tabCtrl;
-  int get _tabIndex => _tabCtrl?.index ?? 0; // default Menu tab
-  bool get _isGuestTab => _tabIndex == 1;
 
   // ✅ Filters
   DietFilter _dietFilter = DietFilter.all;
@@ -202,11 +198,11 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
   final GlobalKey<PaginatedDataTableState> _guestTableKey =
       GlobalKey<PaginatedDataTableState>();
 
-  String _guestDietLabel(Map<String, dynamic> g) {
+  String _guestDietExcelLabel(Map<String, dynamic> g) {
     final t = _dietTypeFromGuest(g);
     if (t == GuestDietType.veg) return 'Veg';
     if (t == GuestDietType.nonVeg) return 'Non-Veg';
-    if (t == GuestDietType.both) return 'Veg & Non-veg';
+    if (t == GuestDietType.both) return 'Both';
     return 'Unknown';
   }
 
@@ -271,45 +267,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     return s.isEmpty ? '—' : s;
   }
 
-  // More resilient address builder (string or map)
-  String _buildAddress(Map<String, dynamic> g) {
-    final rawAddr = g['address'] ?? g['Address'] ?? g['guestAddress'];
-
-    String street = '';
-    String city = (g['city'] ?? g['City'] ?? '').toString().trim();
-    String state = (g['state'] ?? g['State'] ?? '').toString().trim();
-    String country = (g['country'] ?? g['Country'] ?? '').toString().trim();
-
-    if (rawAddr is Map) {
-      street =
-          (rawAddr['street'] ?? rawAddr['line1'] ?? rawAddr['address1'] ?? '')
-              .toString()
-              .trim();
-      city = city.isNotEmpty ? city : (rawAddr['city'] ?? '').toString().trim();
-      state =
-          state.isNotEmpty ? state : (rawAddr['state'] ?? '').toString().trim();
-      country = country.isNotEmpty
-          ? country
-          : (rawAddr['country'] ?? '').toString().trim();
-    } else {
-      street = (rawAddr ?? g['street'] ?? g['Street'] ?? '').toString().trim();
-    }
-
-    final parts = <String>[];
-    if (street.isNotEmpty) parts.add(street);
-    if (city.isNotEmpty) parts.add(city);
-    if (state.isNotEmpty) parts.add(state);
-    if (country.isNotEmpty) parts.add(country);
-    return parts.isEmpty ? '—' : parts.join(', ');
-  }
-
-  String _buildGender(Map<String, dynamic> g) {
-    final raw = (g['gender'] ?? g['Gender'] ?? g['sex'] ?? g['Sex'] ?? '')
-        .toString()
-        .trim();
-    return raw.isEmpty ? '—' : raw;
-  }
-
   int _toInt(dynamic v) {
     if (v == null) return 0;
     if (v is int) return v;
@@ -320,77 +277,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
   String _safeFileName(String s) {
     final cleaned = s.replaceAll(RegExp(r'[^a-zA-Z0-9_\- ]'), '').trim();
     return cleaned.isEmpty ? 'file' : cleaned.replaceAll(' ', '_');
-  }
-
-  Future<void> _exportSelectedMenuForGuest({
-    required Map<String, dynamic> guest,
-    required List<Map<String, dynamic>> allMenuItems,
-  }) async {
-    final ids = _asStringSet(guest['selectedMenuItemIds']);
-    if (ids.isEmpty) return;
-
-    final byId = <String, Map<String, dynamic>>{};
-    for (final m in allMenuItems) {
-      final id = _menuItemId(m);
-      if (id.isNotEmpty) byId[id] = m;
-    }
-
-    final selectedItems = ids
-        .map((id) => byId[id])
-        .where((m) => m != null)
-        .cast<Map<String, dynamic>>()
-        .toList();
-
-    // Build Excel
-    final excel = ex.Excel.createExcel();
-    final sheet = excel['Selected Menu'];
-
-    ex.CellValue t(String v) => ex.TextCellValue(v);
-
-    sheet.appendRow(<ex.CellValue?>[
-      t('Item'),
-      t('Category'),
-      t('Food Type'),
-      t('Price'),
-    ]);
-
-    for (final m in selectedItems) {
-      final name = (m['name'] ?? '').toString().trim();
-      final category = _prettyCategory(
-          (m['categoryLabel'] ?? m['category'] ?? '').toString());
-      final foodType = (m['foodType'] ?? '').toString().trim();
-      final price = _toDouble(m['price']);
-
-      sheet.appendRow(<ex.CellValue?>[
-        t(name.isEmpty ? '—' : name),
-        t(category.isEmpty ? 'Other' : category),
-        t(foodType.isEmpty ? '—' : foodType),
-        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
-      ]);
-    }
-
-    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
-      excel.delete('Sheet1');
-    }
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-
-    final guestName = _safeFileName(_safeName(guest));
-    final blob = html.Blob(
-      [bytes],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    final url = html.Url.createObjectUrlFromBlob(blob);
-
-    final anchor = html.AnchorElement(href: url)
-      ..setAttribute('download', 'selected_menu_$guestName.xlsx')
-      ..style.display = 'none';
-
-    html.document.body?.children.add(anchor);
-    anchor.click();
-    anchor.remove();
-    html.Url.revokeObjectUrl(url);
   }
 
   List<Map<String, dynamic>> _guestsForMenuItem(
@@ -698,22 +584,151 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     final sheet = excel['Guests'];
     ex.CellValue t(String v) => ex.TextCellValue(v);
 
+    // Header
     sheet.appendRow(<ex.CellValue?>[
-      t('Name'),
-      t('Email'),
-      t('Address'),
-      t('Gender'),
+      t('Guest Name'),
+      t('Guest Email'),
     ]);
+
+    final headerStyle = ex.CellStyle(bold: true, fontSize: 12);
+    sheet
+        .cell(ex.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+        .cellStyle = headerStyle;
+    sheet
+        .cell(ex.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0))
+        .cellStyle = headerStyle;
 
     for (final g in guests) {
       sheet.appendRow(<ex.CellValue?>[
         t(_safeName(g)),
         t(_safeEmail(g)),
-        t(_buildAddress(g)),
-        t(_buildGender(g)),
       ]);
     }
 
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportGuestsMenuMatrixToExcel(
+    List<Map<String, dynamic>> guests,
+    List<Map<String, dynamic>> allMenuItems, {
+    String fileName = 'guest_menu_matrix.xlsx',
+  }) async {
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Guests Menu'];
+
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    final headerStyle = ex.CellStyle(bold: true, fontSize: 12);
+    final guestNameStyle = ex.CellStyle(bold: true, fontSize: 11);
+
+    // ✅ id -> menu item lookup
+    final byId = <String, Map<String, dynamic>>{};
+    for (final m in allMenuItems) {
+      final id = _menuItemId(m);
+      if (id.isNotEmpty) byId[id] = m;
+    }
+
+    // ✅ collect unique categories from event menu items
+    final catSet = <String>{};
+    for (final m in allMenuItems) {
+      final raw = (m['categoryLabel'] ?? m['category'] ?? 'Other').toString();
+      final cat = _prettyCategory(raw);
+      if (cat.trim().isNotEmpty) catSet.add(cat);
+    }
+
+    // stable order (you can change sorting later if you want fixed custom order)
+    final categories = catSet.toList()..sort();
+
+    // ✅ header: Guest Name, Diet, then categories
+    final headerTitles = <String>[
+      'Guest Name',
+      'Veg/non- Veg/Both',
+      ...categories,
+    ];
+
+    sheet.appendRow(headerTitles.map(t).toList());
+
+    // bold header
+    for (int c = 0; c < headerTitles.length; c++) {
+      sheet
+          .cell(ex.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+          .cellStyle = headerStyle;
+    }
+
+    int rowIndex = 1;
+
+    for (final g in guests) {
+      final guestName = _safeName(g);
+      final diet =
+          _guestDietExcelLabel(g); // Veg / Non-Veg / Veg & Non-veg / Unknown
+
+      // category -> items
+      final Map<String, List<String>> catToItems = {};
+
+      final ids = _asStringSet(g['selectedMenuItemIds']);
+      for (final id in ids) {
+        final m = byId[id];
+        if (m == null) continue;
+
+        final rawCat =
+            (m['categoryLabel'] ?? m['category'] ?? 'Other').toString();
+        final cat = _prettyCategory(rawCat);
+
+        final itemName = (m['name'] ?? '').toString().trim();
+        if (itemName.isEmpty) continue;
+
+        catToItems.putIfAbsent(cat, () => []);
+        catToItems[cat]!.add(itemName);
+      }
+
+      // sort items inside each category
+      for (final cat in catToItems.keys) {
+        catToItems[cat]!.sort();
+      }
+
+      // build row aligned with header
+      final row = <ex.CellValue?>[
+        t(guestName),
+        t(diet),
+      ];
+
+      for (final cat in categories) {
+        final itemsText = (catToItems[cat] ?? const <String>[]).join(', ');
+        row.add(t(itemsText));
+      }
+
+      sheet.appendRow(row);
+
+      // bold guest name cell
+      sheet
+          .cell(
+              ex.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          .cellStyle = guestNameStyle;
+
+      rowIndex++;
+    }
+
+    // remove default
     if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
       excel.delete('Sheet1');
     }
@@ -745,17 +760,30 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     final sheet = excel['Menu Items'];
     ex.CellValue t(String v) => ex.TextCellValue(v);
 
+    final headerStyle = ex.CellStyle(bold: true, fontSize: 12);
+    final nameBoldStyle = ex.CellStyle(bold: true, fontSize: 11);
+
+    // ✅ Header row
     sheet.appendRow(<ex.CellValue?>[
       t('Name'),
       t('Category'),
       t('Food Type'),
       t('Price'),
-      t('Selected By'),
+      t('No. of Guests Selected'),
       t('Percent'),
     ]);
 
+    // ✅ Make header bold (row 0, all columns 0..5)
+    for (int c = 0; c < 6; c++) {
+      sheet
+          .cell(ex.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+          .cellStyle = headerStyle;
+    }
+
     final sorted = [...items]
       ..sort((a, b) => _toInt(b['count']) - _toInt(a['count']));
+
+    int rowIndex = 1;
 
     for (final m in sorted) {
       final name = (m['name'] ?? '').toString().trim();
@@ -778,6 +806,14 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
         t('$count'),
         t('$pct%'),
       ]);
+
+      // ✅ Make menu item name bold (column 0 for this row)
+      sheet
+          .cell(
+              ex.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          .cellStyle = nameBoldStyle;
+
+      rowIndex++;
     }
 
     if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
@@ -795,6 +831,103 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
 
     final anchor = html.AnchorElement(href: url)
       ..setAttribute('download', 'menu_items.xlsx')
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    anchor.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportSelectedMenuForGuest({
+    required Map<String, dynamic> guest,
+    required List<Map<String, dynamic>> allMenuItems,
+  }) async {
+    final ids = _asStringSet(guest['selectedMenuItemIds']);
+    if (ids.isEmpty) return;
+
+    final byId = <String, Map<String, dynamic>>{};
+    for (final m in allMenuItems) {
+      final id = _menuItemId(m);
+      if (id.isNotEmpty) byId[id] = m;
+    }
+
+    final selectedItems = ids
+        .map((id) => byId[id])
+        .where((m) => m != null)
+        .cast<Map<String, dynamic>>()
+        .toList();
+
+    final excel = ex.Excel.createExcel();
+    final sheet = excel['Selected Menu'];
+
+    ex.CellValue t(String v) => ex.TextCellValue(v);
+
+    final headerStyle = ex.CellStyle(bold: true, fontSize: 12);
+    final itemBoldStyle = ex.CellStyle(bold: true, fontSize: 11);
+
+    // ✅ Header
+    sheet.appendRow(<ex.CellValue?>[
+      t('Item'),
+      t('Category'),
+      t('Food Type'),
+      t('Price'),
+    ]);
+
+    // ✅ Bold header cells (row 0)
+    for (int c = 0; c < 4; c++) {
+      sheet
+          .cell(ex.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+          .cellStyle = headerStyle;
+    }
+
+    int rowIndex = 1;
+
+    for (final m in selectedItems) {
+      final name = (m['name'] ?? '').toString().trim();
+      final category = _prettyCategory(
+        (m['categoryLabel'] ?? m['category'] ?? '').toString(),
+      );
+
+      // ✅ Use _foodMeta so Food Type is consistent with UI
+      final isVeg = m['isVeg'] is bool ? (m['isVeg'] as bool) : null;
+      final foodTypeRaw = (m['foodType'] ?? '').toString().trim();
+      final food = _foodMeta(isVeg, foodTypeRaw.isEmpty ? null : foodTypeRaw);
+
+      final price = _toDouble(m['price']);
+
+      sheet.appendRow(<ex.CellValue?>[
+        t(name.isEmpty ? '—' : name),
+        t(category.isEmpty ? 'Other' : category),
+        t(food.label.isEmpty ? '—' : food.label),
+        t(price == null ? '—' : '\$${price.toStringAsFixed(0)}'),
+      ]);
+
+      // ✅ Make "Item" column bold for each row
+      sheet
+          .cell(
+              ex.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          .cellStyle = itemBoldStyle;
+
+      rowIndex++;
+    }
+
+    if (excel.sheets.keys.contains('Sheet1') && excel.sheets.keys.length > 1) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes == null) return;
+
+    final guestName = _safeFileName(_safeName(guest));
+    final blob = html.Blob(
+      [bytes],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'selected_menu_$guestName.xlsx')
       ..style.display = 'none';
 
     html.document.body?.children.add(anchor);
@@ -923,8 +1056,6 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     required List<Map<String, dynamic>> guestSelections,
   }) {
     final isPhone = MediaQuery.sizeOf(context).width < 700;
-    final isGuestTab = _isGuestTab;
-
     Widget chip({
       required String text,
       required bool selected,
@@ -1315,7 +1446,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
           required String label,
           required IconData icon,
         }) {
-          final selected = (_tabCtrl?.index ?? 0) == index;
+          final selected = ctrl.index == index;
 
           final child = AnimatedContainer(
             duration: const Duration(milliseconds: 160),
@@ -1669,7 +1800,11 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                   style: primaryStyle,
                   onPressed: dedupedGuests.isEmpty
                       ? null
-                      : () => _exportGuestsToExcel(dedupedGuests),
+                      : () => _exportGuestsMenuMatrixToExcel(
+                            dedupedGuests,
+                            allMenuItems,
+                            fileName: 'guest_menu_matrix.xlsx',
+                          ),
                   icon: const Icon(Icons.download_outlined, size: 18),
                   label: Text(
                     'Export Guests',
@@ -1750,7 +1885,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
           guests: guests,
           nameOf: _safeName,
           emailOf: _safeEmail,
-          dietWidgetOf: (g) => _dietPill(_guestDietLabel(g)),
+          dietWidgetOf: (g) => _dietPill(_guestDietExcelLabel(g)),
           downloadActionOf: (g) {
             final ids = _asStringSet(g['selectedMenuItemIds']);
             if (ids.isEmpty) return null;
@@ -1850,7 +1985,7 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
     final catFs = cardW < 240 ? 12.0 : 13.0;
     final guestsFs = cardW < 240 ? 13.0 : 14.5;
 
-    final priceText = price != null ? '\$${price!.toStringAsFixed(0)}' : '—';
+    final priceText = price != null ? '\$${price.toStringAsFixed(0)}' : '—';
     final downloadEnabled = onDownloadGuests != null;
 
     final screenW = MediaQuery.sizeOf(context).width;
@@ -1915,9 +2050,9 @@ class _EventMenuAnalyzerPageState extends State<EventMenuAnalyzerPage>
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            if (imageUrl != null && imageUrl!.isNotEmpty)
+                            if (imageUrl != null && imageUrl.isNotEmpty)
                               Image.network(
-                                imageUrl!,
+                                imageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) =>
                                     _imagePlaceholder(),
@@ -2561,7 +2696,6 @@ class _HoverTooltip extends StatefulWidget {
   final bool enabled;
 
   const _HoverTooltip({
-    super.key,
     required this.message,
     required this.child,
     required this.enabled,
